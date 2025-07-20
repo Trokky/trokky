@@ -10,7 +10,9 @@ import {
   MediaMetadata,
   Migration,
   SecurityValidator,
-  InvalidInputError
+  InvalidInputError,
+  User,
+  UserListOptions
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
@@ -25,6 +27,7 @@ export class FilesystemAdapter implements StorageAdapter {
     this.config = {
       contentDir: config.contentDir || './content',
       mediaDir: config.mediaDir || './media',
+      usersDir: config.usersDir || './users',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -44,6 +47,7 @@ export class FilesystemAdapter implements StorageAdapter {
     try {
       await fsExtra.ensureDir(this.config.contentDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.mediaDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
       
       // Create metadata directory for media files
       const mediaMetadataDir = path.join(this.config.mediaDir, '.metadata')
@@ -370,12 +374,178 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
+  // User operations (system entities, stored separately from content)
+  public async getUser(id: string): Promise<User | null> {
+    try {
+      const filePath = this.getUserPath(id)
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      const user: User = this.safeParseJSON<User>(content, this.dateReviver)
+      return user
+    } catch (error) {
+      throw new Error(`Failed to read user ${id}: ${error}`)
+    }
+  }
+
+  public async saveUser(id: string, userData: Partial<User>): Promise<User> {
+    try {
+      const filePath = this.getUserPath(id)
+      const userDir = path.dirname(filePath)
+
+      // Ensure users directory exists
+      await fsExtra.ensureDir(userDir, { mode: this.config.dirMode })
+
+      // Check if user already exists
+      let existingUser: User | null = null
+      try {
+        existingUser = await this.getUser(id)
+      } catch {
+        // User doesn't exist, this is a new user
+      }
+
+      const now = new Date().toISOString()
+      const isUpdate = existingUser !== null
+
+      const user: User = {
+        id,
+        username: userData.username || existingUser?.username || '',
+        email: userData.email || existingUser?.email || '',
+        passwordHash: userData.passwordHash || existingUser?.passwordHash || '',
+        firstName: userData.firstName || existingUser?.firstName || '',
+        lastName: userData.lastName || existingUser?.lastName || '',
+        role: userData.role || existingUser?.role || 'viewer',
+        permissions: userData.permissions || existingUser?.permissions || ['read'],
+        isActive: userData.isActive ?? existingUser?.isActive ?? true,
+        profileImage: userData.profileImage || existingUser?.profileImage,
+        preferences: userData.preferences || existingUser?.preferences || {},
+        lastLoginAt: userData.lastLoginAt || existingUser?.lastLoginAt,
+        createdAt: existingUser?.createdAt || now,
+        updatedAt: now
+      }
+
+      // Write to file atomically
+      const jsonContent = this.config.prettyJson
+        ? JSON.stringify(user, this.dateReplacer, this.config.jsonSpaces)
+        : JSON.stringify(user, this.dateReplacer)
+
+      await this.atomicWriteFile(filePath, jsonContent)
+
+      if (this.config.syncWrites) {
+        // Force sync to disk
+        const fileHandle = await fs.open(filePath, 'r+')
+        await fileHandle.sync()
+        await fileHandle.close()
+      }
+
+      return user
+    } catch (error) {
+      throw new Error(`Failed to save user ${id}: ${error}`)
+    }
+  }
+
+  public async listUsers(options: UserListOptions = {}): Promise<User[]> {
+    try {
+      // Apply resource limits
+      const limit = Math.min(options.limit || 1000, 1000)
+      const offset = Math.max(options.offset || 0, 0)
+      
+      // Check if users directory exists
+      try {
+        await fs.access(this.config.usersDir, constants.F_OK)
+      } catch {
+        return []
+      }
+
+      const files = await fs.readdir(this.config.usersDir)
+      const jsonFiles = files.filter(file => file.endsWith('.json'))
+
+      let users: User[] = []
+
+      // Read all users
+      for (const file of jsonFiles) {
+        const id = path.basename(file, '.json')
+        try {
+          const user = await this.getUser(id)
+          if (user) {
+            users.push(user)
+          }
+        } catch (error) {
+          // Skip corrupted files but log the error
+          if (!this.config.silent) {
+            console.warn(`Skipping corrupted user ${id}: ${error}`)
+          }
+        }
+      }
+
+      // Apply filtering
+      if (options.role) {
+        users = users.filter(user => user.role === options.role)
+      }
+      if (options.isActive !== undefined) {
+        users = users.filter(user => user.isActive === options.isActive)
+      }
+
+      // Sort by creation date (newest first)
+      users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      // Apply pagination
+      return users.slice(offset, offset + limit)
+    } catch (error) {
+      throw new Error(`Failed to list users: ${error}`)
+    }
+  }
+
+  public async deleteUser(id: string): Promise<void> {
+    try {
+      const filePath = this.getUserPath(id)
+      
+      // Atomic delete
+      await fs.unlink(filePath)
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`User ${id} not found`)
+      }
+      throw new Error(`Failed to delete user ${id}: ${error}`)
+    }
+  }
+
+  public async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      const users = await this.listUsers()
+      return users.find(user => user.username === username) || null
+    } catch (error) {
+      throw new Error(`Failed to get user by username ${username}: ${error}`)
+    }
+  }
+
+  public async getUserByEmail(email: string): Promise<User | null> {
+    try {
+      const users = await this.listUsers()
+      return users.find(user => user.email === email) || null
+    } catch (error) {
+      throw new Error(`Failed to get user by email ${email}: ${error}`)
+    }
+  }
+
   // Utility operations
   public async healthCheck(): Promise<boolean> {
     try {
+      // Ensure directories exist first
+      await fsExtra.ensureDir(this.config.contentDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.mediaDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
+      
       // Check if directories are accessible
       await fs.access(this.config.contentDir, constants.R_OK | constants.W_OK)
       await fs.access(this.config.mediaDir, constants.R_OK | constants.W_OK)
+      await fs.access(this.config.usersDir, constants.R_OK | constants.W_OK)
       
       // Try to write a test file
       const testFile = path.join(this.config.contentDir, '.health-check')
@@ -453,6 +623,16 @@ export class FilesystemAdapter implements StorageAdapter {
     this.validateSecurePath(metadataPath, this.config.mediaDir)
     
     return metadataPath
+  }
+
+  private getUserPath(id: string): string {
+    // Validate inputs
+    SecurityValidator.validateDocumentId(id)
+    
+    const userPath = path.join(this.config.usersDir, `${id}.json`)
+    this.validateSecurePath(userPath, this.config.usersDir)
+    
+    return userPath
   }
 
   private validateSecurePath(targetPath: string, basePath: string): void {

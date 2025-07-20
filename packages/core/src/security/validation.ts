@@ -229,4 +229,80 @@ export class SecurityValidator {
       throw new InvalidInputError('Document too large (max 10MB)', 'data')
     }
   }
+
+  public static validateUsername(username: string): void {
+    if (typeof username !== 'string') {
+      throw new InvalidInputError('Username must be a string', 'username')
+    }
+
+    if (!username || username.length === 0) {
+      throw new InvalidInputError('Username cannot be empty', 'username')
+    }
+
+    if (username.length < 3) {
+      throw new InvalidInputError('Username must be at least 3 characters long', 'username')
+    }
+
+    if (username.length > 50) {
+      throw new InvalidInputError('Username too long (max 50 characters)', 'username')
+    }
+
+    // Username can contain letters, numbers, underscores, and hyphens
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      throw new InvalidInputError(
+        'Username must contain only letters, numbers, underscores, and hyphens',
+        'username'
+      )
+    }
+
+    // Must start with a letter or number
+    if (!/^[a-zA-Z0-9]/.test(username)) {
+      throw new InvalidInputError('Username must start with a letter or number', 'username')
+    }
+
+    // Reserved usernames (system-level reservations, but allow admin for CMS)
+    const reservedUsernames = [
+      'root', 'system', 'api', 'www', 'mail', 'ftp',
+      'user', 'guest', 'anonymous', 'test', 'demo', 'support', 'null', 'undefined'
+    ]
+    if (reservedUsernames.includes(username.toLowerCase())) {
+      throw new InvalidInputError(`Username '${username}' is reserved`, 'username')
+    }
+  }
+
+  public static validateEmail(email: string): void {
+    if (typeof email !== 'string') {
+      throw new InvalidInputError('Email must be a string', 'email')
+    }
+
+    if (!email || email.length === 0) {
+      throw new InvalidInputError('Email cannot be empty', 'email')
+    }
+
+    if (email.length > 320) { // RFC 5321 limit
+      throw new InvalidInputError('Email too long (max 320 characters)', 'email')
+    }
+
+    // Basic email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      throw new InvalidInputError('Invalid email format', 'email')
+    }
+
+    // Check for dangerous characters
+    const dangerousChars = ['<', '>', '"', "'", '&', '%', '$', '#', '!', '?', '*']
+    if (dangerousChars.some(char => email.includes(char))) {
+      throw new InvalidInputError('Email contains invalid characters', 'email')
+    }
+
+    // Validate local part length (before @)
+    const [localPart, domain] = email.split('@')
+    if (localPart.length > 64) {
+      throw new InvalidInputError('Email local part too long (max 64 characters)', 'email')
+    }
+
+    if (domain.length > 253) {
+      throw new InvalidInputError('Email domain too long (max 253 characters)', 'email')
+    }
+  }
 }

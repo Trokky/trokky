@@ -9,7 +9,9 @@ Trokky v2 provides both **REST** and **GraphQL** APIs, automatically generated f
 ### Base URL Structure
 ```
 /api/documents/:collection     # Document operations
-/api/media                     # Media operations  
+/api/media                     # Media operations
+/api/users                     # User management operations (admin only)
+/api/auth                      # Authentication operations
 /api/graphql                   # GraphQL endpoint
 /api/schemas                   # Schema introspection
 /studio/*                      # Studio static files
@@ -17,10 +19,17 @@ Trokky v2 provides both **REST** and **GraphQL** APIs, automatically generated f
 
 ### Authentication
 
-#### API Token Authentication
+Trokky v2 uses **JWT (JSON Web Token)** authentication with role-based access control.
+
+#### JWT Token Authentication
 ```http
-Authorization: Bearer <api_token>
+Authorization: Bearer <jwt_token>
 ```
+
+#### User Roles & Permissions
+- **admin**: Full access to all operations including user management
+- **editor**: Can read, write, and upload media
+- **viewer**: Read-only access to content
 
 #### Session Authentication (Studio)
 ```http
@@ -209,6 +218,163 @@ GET /api/media
 - `type` (string) - Filter by media type (image, video, document)
 - `limit` (number, default: 50)
 - `offset` (number, default: 0)
+
+## 👥 User Management Operations
+
+**Authentication Required**: Admin role or `manage_users` permission
+
+### List Users
+```http
+GET /api/users
+```
+
+**Parameters:**
+- `role` (string) - Filter by user role (admin, editor, viewer)
+- `isActive` (boolean) - Filter by active status
+- `limit` (number, default: 50)
+- `offset` (number, default: 0)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "users": [
+      {
+        "id": "user_abc123",
+        "username": "johndoe",
+        "email": "john@example.com", 
+        "firstName": "John",
+        "lastName": "Doe",
+        "role": "editor",
+        "permissions": ["read", "write", "upload_media"],
+        "isActive": true,
+        "lastLoginAt": "2024-01-15T10:30:00Z",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+      }
+    ],
+    "meta": {
+      "total": 1,
+      "limit": 50,
+      "offset": 0
+    }
+  }
+}
+```
+
+### Create User
+```http
+POST /api/users
+```
+
+**Request Body:**
+```json
+{
+  "userData": {
+    "username": "johndoe",
+    "email": "john@example.com",
+    "password": "SecurePassword123!",
+    "firstName": "John",
+    "lastName": "Doe", 
+    "role": "editor",
+    "permissions": ["read", "write"],
+    "isActive": true
+  }
+}
+```
+
+### Get User
+```http
+GET /api/users/:id
+```
+
+### Update User
+```http
+PUT /api/users/:id
+```
+
+### Delete User
+```http
+DELETE /api/users/:id
+```
+
+### Get User by Username
+```http
+GET /api/users/by-username/:username
+```
+
+### Get User by Email
+```http  
+GET /api/users/by-email/:email
+```
+
+## 🔐 Authentication Operations
+
+### Login
+```http
+POST /api/auth/login
+```
+
+**Request Body:**
+```json
+{
+  "credentials": {
+    "username": "johndoe",
+    "password": "SecurePassword123!"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user_abc123",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "role": "editor",
+    "permissions": ["read", "write", "upload_media"]
+  },
+  "expiresAt": "2024-01-16T10:30:00Z"
+}
+```
+
+### Logout
+```http
+POST /api/auth/logout
+```
+
+### Validate Token
+```http
+POST /api/auth/validate
+```
+
+**Request Body:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "valid": true,
+  "message": "Token is valid",
+  "session": {
+    "userId": "user_abc123",
+    "username": "johndoe",
+    "role": "editor",
+    "permissions": ["read", "write", "upload_media"],
+    "loginAt": "2024-01-15T10:30:00Z",
+    "expiresAt": "2024-01-16T10:30:00Z"
+  }
+}
+```
 
 ## 🎯 GraphQL API
 

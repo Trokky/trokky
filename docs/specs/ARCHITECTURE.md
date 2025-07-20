@@ -44,10 +44,13 @@ export class TrokkyCore {
   private storage: StorageAdapter
   private schemas: SchemaRegistry
   private validator: DocumentValidator
+  private cryptoAdapter: CryptoAdapter
+  private auditLogger?: (event: AuditEvent) => void
 
-  constructor(config: TrokkyConfig) {
+  constructor(config: TrokkyConfig, options: TrokkyCoreOptions = {}) {
     this.storage = createStorageAdapter(config.storage)
     this.schemas = new SchemaRegistry(config.schemas)
+    this.cryptoAdapter = options.cryptoAdapter || detectCryptoAdapter(options.cryptoOptions)
     this.validator = new DocumentValidator(this.schemas)
   }
 
@@ -84,6 +87,24 @@ export class TrokkyCore {
 - Abstract interface for storage operations
 - Pluggable adapter system
 - Consistent API across storage types
+
+**User Management System**
+- JWT-based authentication with role-based access control
+- bcrypt password hashing with configurable salt rounds
+- Multi-environment crypto adapters (Node.js, Web Crypto API, fallback)
+- Comprehensive audit logging for security compliance
+
+**Crypto Adapter System**
+- Environment-aware cryptographic operations
+- Node.js adapter: bcrypt + jsonwebtoken (maximum security)
+- Web Crypto adapter: PBKDF2 + HMAC-SHA256 (edge-compatible)
+- Fallback adapter: Development-only with security warnings
+
+**Audit & Security**
+- Built-in security event tracking
+- Configurable audit logging for enterprise compliance
+- Rate limiting and DoS protection
+- Input validation and sanitization
 
 ## 🛣️ Routes Package (`@trokky/routes`)
 
@@ -506,20 +527,175 @@ export default defineConfig({
 
 ## 🔒 Security Architecture
 
-### Authentication
-- JWT-based session management
-- API token authentication for external access
-- Role-based access control
+Trokky v2 implements enterprise-grade security with a comprehensive authentication and authorization system.
 
-### Validation
-- Schema-based validation at API level
-- XSS protection in Studio
-- CSRF protection for state-changing operations
+### Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant R as Routes
+    participant E as Core Engine
+    participant CA as Crypto Adapter
+    participant S as Storage
+
+    C->>R: POST /api/auth/login
+    R->>E: authenticateUser(username, password)
+    E->>S: getUserByUsername(username)
+    S-->>E: User data
+    E->>CA: verifyPassword(password, hash)
+    CA-->>E: Password valid
+    E->>CA: generateJWT(userPayload, secret)
+    CA-->>E: JWT token
+    E-->>R: { user, token }
+    R-->>C: Login response with JWT
+    
+    Note over C,S: Subsequent requests
+    C->>R: API request with Authorization header
+    R->>E: verifyAuthToken(token)
+    E->>CA: verifyJWT(token, secret)
+    CA-->>E: Decoded user session
+    E-->>R: Session data
+    R->>R: Check permissions
+    R->>E: Authorized operation
+```
+
+### Multi-Environment Crypto System
+
+```typescript
+// Automatic adapter selection based on environment
+export function detectCryptoAdapter(options: CryptoAdapterOptions = {}): CryptoAdapter {
+  if (isNodeEnvironment()) {
+    return new NodeCryptoAdapter(options)     // bcrypt + jsonwebtoken
+  }
+  
+  if (hasWebCrypto()) {
+    return new WebCryptoAdapter(options)      // PBKDF2 + HMAC-SHA256
+  }
+  
+  return new FallbackCryptoAdapter(options)   // Development only (with warnings)
+}
+```
+
+**Environment Compatibility:**
+- **Node.js**: Uses bcrypt (12 salt rounds) + jsonwebtoken for maximum security
+- **Cloudflare Workers**: Uses Web Crypto API with PBKDF2 + HMAC-SHA256
+- **Deno**: Native Web Crypto API support
+- **Vercel Edge**: Web Crypto API compatible
+- **Fallback**: Development mode with security warnings
+
+### Role-Based Access Control (RBAC)
+
+```typescript
+// User roles and permissions
+type UserRole = 'admin' | 'editor' | 'viewer'
+
+type Permission = 
+  | 'read'              // View content
+  | 'write'             // Create/edit content  
+  | 'delete'            // Delete content
+  | 'manage_users'      // User management
+  | 'manage_settings'   // System settings
+  | 'upload_media'      // Media upload
+  | 'delete_media'      // Media deletion
+
+// Default role permissions
+const rolePermissions = {
+  admin: ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'upload_media', 'delete_media'],
+  editor: ['read', 'write', 'upload_media'],
+  viewer: ['read']
+}
+```
+
+### Security Validation Pipeline
+
+```typescript
+// Request validation flow
+async function validateRequest(request: HttpRequest): Promise<void> {
+  // 1. Input sanitization
+  SecurityValidator.validateCollectionName(request.params.collection)
+  SecurityValidator.validateDocumentId(request.params.id)
+  SecurityValidator.validateDocumentData(request.body)
+  
+  // 2. Authentication check
+  if (authenticationRequired) {
+    const token = extractBearerToken(request.headers.authorization)
+    const session = await core.verifyAuthToken(token)
+    if (!session) throw new UnauthorizedError()
+  }
+  
+  // 3. Authorization check  
+  if (adminRequired) {
+    const hasAccess = session.role === 'admin' || 
+                     session.permissions.includes('manage_users')
+    if (!hasAccess) throw new ForbiddenError()
+  }
+  
+  // 4. Rate limiting
+  await rateLimiter.checkRateLimit(request.ip)
+}
+```
+
+### Audit & Compliance Logging
+
+```typescript
+// Comprehensive audit events
+interface AuditEvent {
+  type: 'user_created' | 'user_updated' | 'user_deleted' | 'user_login' | 'admin_access'
+  userId?: string
+  targetUserId?: string  
+  username?: string
+  action: string
+  timestamp: string
+  ipAddress?: string
+  userAgent?: string
+  success: boolean
+  details?: Record<string, unknown>
+}
+
+// Automatic audit logging
+core.logAuditEvent({
+  type: 'user_login',
+  userId: user.id,
+  username: user.username,
+  action: 'User authenticated successfully',
+  timestamp: new Date().toISOString(),
+  success: true,
+  details: { role: user.role, lastLoginAt: new Date().toISOString() }
+})
+```
+
+### Password Security
+
+- **bcrypt hashing** with 12 salt rounds (Node.js environments)
+- **PBKDF2** with SHA-256 and 4096 iterations (edge environments)
+- **Password strength validation** with complexity requirements
+- **Automatic weak password detection** with detailed feedback
+- **Secure random salt generation** for each password
 
 ### Data Protection
-- Encrypted sensitive fields
-- Audit logging for admin actions
-- Content versioning and backup
+
+- **JWT tokens** cryptographically signed with HMAC-SHA256
+- **Token expiration** configurable (default 24h)
+- **Secure random generation** for secrets and salts
+- **Path traversal protection** in file operations
+- **Input sanitization** preventing injection attacks
+- **CORS security** with configurable origins
+- **Rate limiting** preventing DoS attacks
+
+### Development vs Production Security
+
+**Development Mode:**
+- Environment-based admin user creation
+- Detailed security warnings and guidance
+- Fallback crypto adapter with prominent warnings
+- Verbose audit logging
+
+**Production Mode:**
+- Mandatory strong passwords with complexity validation
+- Secure JWT secret requirement (`TROKKY_JWT_SECRET`)
+- Automatic crypto adapter selection for maximum security
+- Audit logging with configurable enterprise integrations
 
 ---
 

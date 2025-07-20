@@ -1,5 +1,13 @@
 // Core engine
-export { TrokkyCore, type TrokkyCoreOptions } from './core/engine.js'
+export { TrokkyCore, type TrokkyCoreOptions, type AuditEvent } from './core/engine.js'
+
+// Crypto adapters
+export { 
+  detectCryptoAdapter, 
+  type CryptoAdapter, 
+  type CryptoAdapterOptions, 
+  type JWTOptions 
+} from './crypto/adapter.js'
 
 // Schema management
 export { SchemaRegistry } from './schema/registry.js'
@@ -41,7 +49,16 @@ export type {
   StorageAdapter,
   StorageAdapterOptions,
   ApiConfig,
-  TrokkyConfig
+  TrokkyConfig,
+  User,
+  UserRole,
+  Permission,
+  UserPreferences,
+  CreateUserData,
+  UpdateUserData,
+  UserListOptions,
+  LoginCredentials,
+  UserSession
 } from './types/index.js'
 
 // Zod schemas for validation

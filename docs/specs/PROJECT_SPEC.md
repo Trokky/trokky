@@ -149,8 +149,11 @@ Build a CMS that developers **actually want to use** by solving the key pain poi
 
 **`@trokky/core` v0.1.0** - The foundational CMS engine
 - ✅ **Schema Management**: TypeScript-native schema registry with Zod validation
-- ✅ **Security-First**: Comprehensive input validation, rate limiting, and DoS protection
+- ✅ **User Management**: Complete authentication system with role-based access control
+- ✅ **Security-First**: Enterprise-grade crypto adapters, JWT authentication, bcrypt password hashing
+- ✅ **Multi-Environment Crypto**: Automatic adapter selection (Node.js, Web Crypto API, fallback)
 - ✅ **Storage Interface**: Type-safe adapter pattern for pluggable storage backends
+- ✅ **Audit Logging**: Built-in security event tracking and compliance logging
 - ✅ **Error Handling**: Custom error classes with detailed error reporting
 - ✅ **Test Coverage**: 173 passing tests covering all functionality
 - ✅ **Type Safety**: Strict TypeScript with generics throughout
@@ -164,7 +167,10 @@ Build a CMS that developers **actually want to use** by solving the key pain poi
 - ✅ **Test Coverage**: 40 passing tests including security and edge cases
 
 **`@trokky/routes` v0.1.0** - Framework-agnostic HTTP route handlers
-- ✅ **Complete REST API**: Full CRUD operations for documents and media
+- ✅ **Complete REST API**: Full CRUD operations for documents, media, and users
+- ✅ **User Management API**: Login, logout, user creation, role management, token validation
+- ✅ **JWT Authentication**: Secure token-based authentication with role-based access control
+- ✅ **Admin Protection**: Automatic admin access validation for user management operations
 - ✅ **Enterprise Security**: Authentication, path traversal protection, input validation
 - ✅ **Framework Agnostic**: Works with Express, Fastify, Hono, Next.js, and more
 - ✅ **Media Upload Security**: File type, size, and malware protection
@@ -175,13 +181,18 @@ Build a CMS that developers **actually want to use** by solving the key pain poi
 ### Technical Achievements
 
 🔒 **Enterprise-Grade Security**
-- Path traversal attack prevention with parameter validation
-- Comprehensive input sanitization and runtime validation
-- Authentication middleware with Bearer token support
-- Media upload security (file type, size, extension validation)
-- CORS security hardening (no dangerous defaults)
-- Resource exhaustion protection and rate limiting
-- Race condition prevention with atomic operations
+- **User Authentication System**: Complete JWT-based authentication with role-based access control
+- **Password Security**: bcrypt hashing with configurable salt rounds, password strength validation
+- **Multi-Environment Crypto**: Automatic adapter selection for Node.js, edge runtimes, and fallback environments
+- **Admin Access Control**: Automatic validation for user management operations with permission checking
+- **Audit Logging**: Comprehensive security event tracking for compliance and monitoring
+- **Path Traversal Protection**: Parameter validation preventing directory traversal attacks
+- **Input Sanitization**: Runtime validation and comprehensive input sanitization
+- **Authentication Middleware**: Bearer token support with automatic token validation
+- **Media Upload Security**: File type, size, extension validation with malware protection
+- **CORS Security**: Hardened cross-origin resource sharing (no dangerous defaults)
+- **Rate Limiting**: Resource exhaustion protection and DoS prevention
+- **Atomic Operations**: Race condition prevention with atomic file operations
 
 🧪 **Quality Assurance**
 - 100% test pass rate (264 total tests)

@@ -12,6 +12,12 @@ export interface FilesystemAdapterConfig {
   mediaDir?: string
 
   /**
+   * Base directory for user storage (system entities)
+   * @default './users'
+   */
+  usersDir?: string
+
+  /**
    * Whether to create directories if they don't exist
    * @default true
    */

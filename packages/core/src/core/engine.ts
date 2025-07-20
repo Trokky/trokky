@@ -1,3 +1,4 @@
+import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter.js'
 import { SchemaRegistry } from '../schema/registry.js'
 import { DocumentValidator } from '../validation/validator.js'
 import { SecurityValidator } from '../security/validation.js'
@@ -18,7 +19,13 @@ import {
   MediaFile,
   MediaMetadata,
   ContentSchema,
-  ValidationResult
+  ValidationResult,
+  User,
+  CreateUserData,
+  UpdateUserData,
+  UserListOptions,
+  Permission,
+  UserSession
 } from '../types/index.js'
 
 export interface TrokkyCoreOptions {
@@ -27,6 +34,24 @@ export interface TrokkyCoreOptions {
   idGenerator?: IdGenerator
   rateLimiter?: RateLimiter
   enableSecurity?: boolean
+  setupAdminFromEnv?: boolean // Automatically create admin user from env vars on startup
+  jwtSecret?: string // JWT signing secret for token authentication
+  auditLogger?: (event: AuditEvent) => void // Optional audit logging function
+  cryptoAdapter?: CryptoAdapter // Custom crypto adapter (auto-detected if not provided)
+  cryptoOptions?: CryptoAdapterOptions // Options for crypto adapter
+}
+
+export interface AuditEvent {
+  type: 'user_created' | 'user_updated' | 'user_deleted' | 'user_login' | 'user_logout' | 'admin_access'
+  userId?: string
+  targetUserId?: string
+  username?: string
+  action: string
+  timestamp: string
+  ipAddress?: string
+  userAgent?: string
+  success: boolean
+  details?: Record<string, unknown>
 }
 
 export class TrokkyCore {
@@ -36,6 +61,10 @@ export class TrokkyCore {
   private idGenerator: IdGenerator
   private rateLimiter?: RateLimiter
   private securityEnabled: boolean
+  private options: TrokkyCoreOptions
+  private jwtSecret: string
+  private auditLogger?: (event: AuditEvent) => void
+  private cryptoAdapter: CryptoAdapter
 
   constructor(
     config: TrokkyConfig, 
@@ -43,10 +72,25 @@ export class TrokkyCore {
     options: TrokkyCoreOptions = {}
   ) {
     this.storage = storageAdapter
+    this.options = options
     this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas)
     this.validator = options.validator || new DocumentValidator(this.schemas)
     this.idGenerator = options.idGenerator || new IdGenerator()
     this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true
+    
+    // Initialize JWT secret (use provided secret, environment variable, or generate one)
+    this.jwtSecret = options.jwtSecret || 
+                     process.env.TROKKY_JWT_SECRET || 
+                     this.generateSecureSecret()
+    
+    // Initialize audit logger
+    this.auditLogger = options.auditLogger
+    
+    // Initialize crypto adapter
+    this.cryptoAdapter = options.cryptoAdapter || detectCryptoAdapter({
+      ...options.cryptoOptions,
+      adapterType: options.cryptoOptions?.adapterType || 'auto'
+    })
     
     if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
       const rateLimitConfig: RateLimitConfig = {
@@ -54,6 +98,14 @@ export class TrokkyCore {
         maxRequests: config.api?.rateLimit?.maxRequests || 1000
       }
       this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig)
+    }
+  }
+
+  // Initialization
+  public async init(): Promise<void> {
+    // Setup admin user from environment variables if configured
+    if (this.options.setupAdminFromEnv) {
+      await this.setupAdminFromEnv()
     }
   }
 
@@ -264,6 +316,445 @@ export class TrokkyCore {
   private getFileExtension(filename: string): string {
     const parts = filename.split('.')
     return parts.length > 1 ? parts.pop()! : ''
+  }
+
+  // User management operations (system entities)
+  public async createUser(userData: CreateUserData): Promise<User> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('createUser')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateEmail(userData.email)
+      SecurityValidator.validateUsername(userData.username)
+    }
+
+    if (!this.storage.saveUser) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    // Hash password before saving
+    const passwordHash = await this.hashPassword(userData.password)
+    
+    const userId = this.idGenerator.generate({ prefix: 'user' })
+    const now = new Date().toISOString()
+    
+    const userToSave: Partial<User> = {
+      username: userData.username,
+      email: userData.email,
+      passwordHash,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role,
+      permissions: userData.permissions || this.getDefaultPermissions(userData.role),
+      isActive: userData.isActive ?? true,
+      profileImage: userData.profileImage,
+      preferences: userData.preferences || {},
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const createdUser = await this.storage.saveUser(userId, userToSave)
+    
+    // Log audit event
+    this.logAuditEvent({
+      type: 'user_created',
+      targetUserId: userId,
+      username: userData.username,
+      action: `User created with role: ${userData.role}`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        email: userData.email,
+        role: userData.role,
+        permissions: userData.permissions || this.getDefaultPermissions(userData.role)
+      }
+    })
+    
+    return createdUser
+  }
+
+  public async getUser(id: string): Promise<User | null> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getUser')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    if (!this.storage.getUser) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    return await this.storage.getUser(id)
+  }
+
+  public async getUserByUsername(username: string): Promise<User | null> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getUserByUsername')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateUsername(username)
+    }
+
+    if (!this.storage.getUserByUsername) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    return await this.storage.getUserByUsername(username)
+  }
+
+  public async getUserByEmail(email: string): Promise<User | null> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getUserByEmail')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateEmail(email)
+    }
+
+    if (!this.storage.getUserByEmail) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    return await this.storage.getUserByEmail(email)
+  }
+
+  public async updateUser(id: string, userData: UpdateUserData): Promise<User> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('updateUser')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+      if (userData.email) SecurityValidator.validateEmail(userData.email)
+      if (userData.username) SecurityValidator.validateUsername(userData.username)
+    }
+
+    if (!this.storage.saveUser) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    const existingUser = await this.getUser(id)
+    if (!existingUser) {
+      throw new DocumentNotFoundError('users', id)
+    }
+
+    const updatedUserData: Partial<User> = {
+      ...userData,
+      updatedAt: new Date().toISOString()
+    }
+
+    const updatedUser = await this.storage.saveUser(id, updatedUserData)
+    
+    // Log audit event
+    this.logAuditEvent({
+      type: 'user_updated',
+      targetUserId: id,
+      username: existingUser.username,
+      action: `User updated`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        updatedFields: Object.keys(userData),
+        previousRole: existingUser.role,
+        newRole: userData.role || existingUser.role
+      }
+    })
+    
+    return updatedUser
+  }
+
+  public async listUsers(options?: UserListOptions): Promise<User[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('listUsers')
+    }
+
+    if (!this.storage.listUsers) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    return await this.storage.listUsers(options)
+  }
+
+  public async deleteUser(id: string): Promise<void> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('deleteUser')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    if (!this.storage.deleteUser) {
+      throw new Error('User operations not supported by storage adapter')
+    }
+
+    const existingUser = await this.getUser(id)
+    if (!existingUser) {
+      throw new DocumentNotFoundError('users', id)
+    }
+
+    await this.storage.deleteUser(id)
+    
+    // Log audit event
+    this.logAuditEvent({
+      type: 'user_deleted',
+      targetUserId: id,
+      username: existingUser.username,
+      action: `User deleted`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        email: existingUser.email,
+        role: existingUser.role
+      }
+    })
+  }
+
+  // Authentication utilities
+  public async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+    return await this.cryptoAdapter.verifyPassword(plainPassword, hashedPassword)
+  }
+
+  private async hashPassword(password: string): Promise<string> {
+    return await this.cryptoAdapter.hashPassword(password)
+  }
+
+  private getDefaultPermissions(role: string): Permission[] {
+    switch (role) {
+      case 'admin':
+        return ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'upload_media', 'delete_media']
+      case 'editor':
+        return ['read', 'write', 'upload_media']
+      case 'viewer':
+        return ['read']
+      default:
+        return ['read']
+    }
+  }
+
+  private checkWeakPassword(password: string): { isWeak: boolean; reason?: string } {
+    // Common weak passwords
+    const commonPasswords = [
+      'password', 'admin', 'changeme', 'changeme123', '123456', 
+      'qwerty', 'abc123', 'password123', 'admin123', 'letmein',
+      'welcome', 'monkey', 'dragon', 'master', 'secret'
+    ]
+
+    // Check if password is too short
+    if (password.length < 8) {
+      return { isWeak: true, reason: 'Password is too short (minimum 8 characters)' }
+    }
+
+    // Check for common weak passwords
+    if (commonPasswords.includes(password.toLowerCase())) {
+      return { isWeak: true, reason: 'Password is a common weak password' }
+    }
+
+    // Check for simple patterns
+    if (/^(.)\1+$/.test(password)) {
+      return { isWeak: true, reason: 'Password contains only repeated characters' }
+    }
+
+    if (/^(012|123|234|345|456|567|678|789|890|abc|def|qwe|asd|zxc)/i.test(password)) {
+      return { isWeak: true, reason: 'Password contains sequential characters' }
+    }
+
+    // Warn if password is short (8-11 characters) even if not technically weak
+    if (password.length < 12) {
+      return { isWeak: true, reason: 'Password is shorter than recommended (12+ characters)' }
+    }
+
+    // Check password complexity
+    const hasLower = /[a-z]/.test(password)
+    const hasUpper = /[A-Z]/.test(password)
+    const hasNumber = /\d/.test(password)
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+
+    const complexityCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length
+
+    if (complexityCount < 3) {
+      return { isWeak: true, reason: 'Password lacks complexity (needs lowercase, uppercase, numbers, and/or symbols)' }
+    }
+
+    return { isWeak: false }
+  }
+
+  // JWT Token Management
+  public async generateAuthToken(user: User, expiresIn: string = '24h'): Promise<string> {
+    const payload: Omit<UserSession, 'loginAt' | 'expiresAt'> = {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      permissions: user.permissions
+    }
+    
+    return await this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn })
+  }
+
+  public async verifyAuthToken(token: string): Promise<UserSession | null> {
+    const decoded = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret)
+    
+    if (!decoded || !decoded.userId || !decoded.username || !decoded.role || !decoded.permissions) {
+      return null
+    }
+
+    return {
+      userId: decoded.userId,
+      username: decoded.username,
+      role: decoded.role,
+      permissions: decoded.permissions,
+      loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+      expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+    }
+  }
+
+  public async authenticateUser(username: string, password: string): Promise<{ user: User; token: string } | null> {
+    try {
+      // Get user by username
+      const user = await this.getUserByUsername(username)
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Verify password
+      const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
+      if (!isPasswordValid) {
+        return null
+      }
+
+      // Update last login time
+      await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
+
+      // Generate token
+      const token = await this.generateAuthToken(user)
+
+      // Log successful login
+      this.logAuditEvent({
+        type: 'user_login',
+        userId: user.id,
+        username: user.username,
+        action: 'User authenticated successfully',
+        timestamp: new Date().toISOString(),
+        success: true,
+        details: {
+          role: user.role,
+          lastLoginAt: new Date().toISOString()
+        }
+      })
+
+      // Return user without password hash
+      const { passwordHash, ...safeUser } = user
+      return { 
+        user: { ...safeUser, passwordHash: '' } as User, // Keep type but empty the hash
+        token 
+      }
+    } catch (error) {
+      console.error('Authentication failed:', error instanceof Error ? error.message : 'Unknown error')
+      return null
+    }
+  }
+
+  private generateSecureSecret(): string {
+    // Generate a cryptographically secure random secret using crypto adapter
+    // This will be called during initialization, but we need to create a temporary adapter
+    const tempAdapter = detectCryptoAdapter()
+    const secret = tempAdapter.generateSecureRandom(64)
+    
+    // Warn if using generated secret (should use environment variable in production)
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('⚠️  Using auto-generated JWT secret. Set TROKKY_JWT_SECRET environment variable for production.')
+    }
+    
+    return secret
+  }
+
+  public logAuditEvent(event: AuditEvent): void {
+    if (this.auditLogger) {
+      this.auditLogger(event)
+    } else if (process.env.NODE_ENV !== 'test') {
+      // Default logging to console if no custom logger provided
+      console.log(`[AUDIT] ${event.type}: ${event.action} - ${event.success ? 'SUCCESS' : 'FAILED'}`, {
+        user: event.username,
+        target: event.targetUserId,
+        timestamp: event.timestamp,
+        details: event.details
+      })
+    }
+  }
+
+  // Development utility: Setup admin user from environment variables
+  public async setupAdminFromEnv(): Promise<User | null> {
+    const adminEmail = process.env.TROKKY_ADMIN_EMAIL
+    const adminPassword = process.env.TROKKY_ADMIN_PASSWORD
+    
+    // Only proceed if environment variables are set
+    if (!adminEmail || !adminPassword) {
+      return null
+    }
+
+    // Check if any users exist
+    try {
+      const existingUsers = await this.listUsers({ limit: 1 })
+      if (existingUsers.length > 0) {
+        // Users already exist, don't create admin
+        return null
+      }
+    } catch (error) {
+      // If user operations aren't supported, skip
+      if (error instanceof Error && error.message.includes('not supported by storage adapter')) {
+        return null
+      }
+      throw error
+    }
+
+    // Create admin user from environment variables
+    const adminUser = await this.createUser({
+      username: 'admin',
+      email: adminEmail,
+      password: adminPassword,
+      firstName: 'Admin',
+      lastName: 'User',
+      role: 'admin',
+      permissions: ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'upload_media', 'delete_media'],
+      isActive: true,
+      preferences: {
+        theme: 'dark',
+        language: 'en'
+      }
+    })
+
+    // Log admin creation with security warning
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('🔧 Admin user created from environment variables')
+      console.log(`   Email: ${adminEmail}`)
+      console.log('   Username: admin')
+      
+      // Enhanced password strength warnings
+      const isWeakPassword = this.checkWeakPassword(adminPassword)
+      if (isWeakPassword.isWeak) {
+        console.warn('')
+        console.warn('🚨 SECURITY WARNING: Weak admin password detected!')
+        console.warn(`   Reason: ${isWeakPassword.reason}`)
+        console.warn('   Please use a strong password with:')
+        console.warn('   • At least 12 characters')
+        console.warn('   • Mixed case letters (A-z)')
+        console.warn('   • Numbers (0-9)')
+        console.warn('   • Special characters (!@#$%^&*)')
+        console.warn('   • No common words or patterns')
+        if (process.env.NODE_ENV === 'production') {
+          console.warn('🔥 CRITICAL: Change this password immediately in production!')
+        }
+      } else {
+        console.log('✅ Password strength check passed')
+      }
+      console.log('')
+    }
+
+    return adminUser
   }
 
   // Rate limiter cleanup (call periodically)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { User, UserListOptions } from './user.js'
 
 // Base document structure
 export interface Document {
@@ -125,6 +126,14 @@ export interface StorageAdapter {
   getFile(id: string): Promise<MediaFile | null>
   deleteFile(id: string): Promise<void>
 
+  // User operations (system entities)
+  getUser?(id: string): Promise<User | null>
+  saveUser?(id: string, userData: Partial<User>): Promise<User>
+  listUsers?(options?: UserListOptions): Promise<User[]>
+  deleteUser?(id: string): Promise<void>
+  getUserByUsername?(username: string): Promise<User | null>
+  getUserByEmail?(email: string): Promise<User | null>
+
   // Utility operations
   healthCheck(): Promise<boolean>
   migrate(migrations: Migration[]): Promise<void>
@@ -156,3 +165,16 @@ export interface TrokkyConfig {
     rateLimitEnabled?: boolean
   }
 }
+
+// User management types (system entities, not user-defined schemas)
+export type {
+  User,
+  UserRole,
+  Permission,
+  UserPreferences,
+  CreateUserData,
+  UpdateUserData,
+  UserListOptions,
+  LoginCredentials,
+  UserSession
+} from './user.js'
