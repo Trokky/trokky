@@ -46,3 +46,7 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Test-generated files
+content/
+media/

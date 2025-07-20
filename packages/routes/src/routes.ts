@@ -195,7 +195,11 @@ export class TrokkyRoutes {
       'text/plain', 'text/csv',
       'application/json'
     ]
-    const forbiddenExtensions = ['.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js', '.jar']
+    const forbiddenExtensions = [
+      '.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js', '.jar',
+      '.ps1', '.sh', '.php', '.jsp', '.asp', '.aspx', '.msi', '.dll', '.sys',
+      '.bin', '.app', '.deb', '.rpm', '.dmg', '.pkg', '.run', '.out'
+    ]
 
     if (files.length > maxFiles) {
       throw new InvalidInputError(`Too many files. Maximum ${maxFiles} files allowed`, 'files')
@@ -212,10 +216,19 @@ export class TrokkyRoutes {
         throw new InvalidInputError(`File type ${file.type} is not allowed`, 'file_type')
       }
 
-      // Extension validation
-      const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
-      if (forbiddenExtensions.includes(extension)) {
-        throw new InvalidInputError(`File extension ${extension} is not allowed`, 'file_extension')
+      // Extension validation (check all extensions, not just the last one)
+      const getAllExtensions = (filename: string): string[] => {
+        const parts = filename.toLowerCase().split('.')
+        if (parts.length <= 1) return []
+        return parts.slice(1).map(ext => `.${ext}`)
+      }
+      
+      const fileExtensions = getAllExtensions(file.name)
+      const hasForbiddenExtension = fileExtensions.some(ext => forbiddenExtensions.includes(ext))
+      
+      if (hasForbiddenExtension) {
+        const foundForbiddenExt = fileExtensions.find(ext => forbiddenExtensions.includes(ext))
+        throw new InvalidInputError(`File extension ${foundForbiddenExt} is not allowed`, 'file_extension')
       }
 
       // Filename validation (prevent path traversal)
