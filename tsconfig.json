@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@trokky/core": ["./packages/core/src"],
+      "@trokky/routes": ["./packages/routes/src"],
+      "@trokky/studio": ["./packages/studio/src"],
+      "@trokky/client": ["./packages/client/src"],
+      "@trokky/express": ["./packages/integrations/express/src"],
+      "@trokky/nextjs": ["./packages/integrations/nextjs/src"],
+      "@trokky/cloudflare": ["./packages/integrations/cloudflare-workers/src"],
+      "@trokky/hono": ["./packages/integrations/hono/src"],
+      "@trokky/adapter-filesystem": ["./packages/adapters/filesystem/src"],
+      "@trokky/adapter-cloudflare": ["./packages/adapters/cloudflare/src"],
+      "@trokky/adapter-s3": ["./packages/adapters/s3/src"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
