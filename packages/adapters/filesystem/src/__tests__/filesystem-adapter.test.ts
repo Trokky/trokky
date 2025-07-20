@@ -566,15 +566,15 @@ describe('FilesystemAdapter', () => {
     test('should handle filesystem errors gracefully', async () => {
       await adapter.saveDocument('posts', 'test-post', sampleBlogPost)
 
-      // Make the file read-only then try to update
-      const filePath = path.join(contentDir, 'posts', 'test-post.json')
-      await fs.chmod(filePath, 0o444)
+      // Make the entire posts directory read-only to prevent atomic write
+      const postsDir = path.join(contentDir, 'posts')
+      await fs.chmod(postsDir, 0o444)
 
       await expect(adapter.saveDocument('posts', 'test-post', { ...sampleBlogPost, title: 'Updated' }))
         .rejects.toThrow(/Failed to save document/)
 
       // Restore permissions for cleanup
-      await fs.chmod(filePath, 0o644)
+      await fs.chmod(postsDir, 0o755)
     })
   })
 })

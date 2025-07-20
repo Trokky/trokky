@@ -12,7 +12,8 @@ module.exports = {
     }]
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1'
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@trokky/core$': '<rootDir>/../../core/src/index.ts'
   },
   extensionsToTreatAsEsm: ['.ts'],
   collectCoverageFrom: [

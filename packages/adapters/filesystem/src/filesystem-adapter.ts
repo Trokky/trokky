@@ -8,12 +8,18 @@ import {
   ListOptions,
   MediaFile,
   MediaMetadata,
-  Migration
+  Migration,
+  SecurityValidator,
+  InvalidInputError
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
 export class FilesystemAdapter implements StorageAdapter {
   private config: Required<FilesystemAdapterConfig>
+  
+  // Security limits
+  private readonly MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+  private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
 
   constructor(config: FilesystemAdapterConfig = {}) {
     this.config = {
@@ -54,6 +60,7 @@ export class FilesystemAdapter implements StorageAdapter {
   // Document operations
   public async getDocument(collection: string, id: string): Promise<Document | null> {
     try {
+      // Input validation is handled in getDocumentPath
       const filePath = this.getDocumentPath(collection, id)
       
       // Check if file exists
@@ -64,7 +71,7 @@ export class FilesystemAdapter implements StorageAdapter {
       }
 
       const content = await fs.readFile(filePath, 'utf-8')
-      const documentFile: DocumentFile = JSON.parse(content, this.dateReviver)
+      const documentFile: DocumentFile = this.safeParseJSON<DocumentFile>(content, this.dateReviver)
 
       // Convert stored data back to Document format
       const document: Document = {
@@ -85,6 +92,16 @@ export class FilesystemAdapter implements StorageAdapter {
 
   public async saveDocument(collection: string, id: string, data: DocumentData): Promise<Document> {
     try {
+      // Validate document data
+      SecurityValidator.validateDocumentData(data)
+      
+      // Check document size to prevent DoS attacks
+      const dataSize = JSON.stringify(data).length
+      if (dataSize > this.MAX_DOCUMENT_SIZE) {
+        throw new InvalidInputError(`Document size ${dataSize} exceeds maximum allowed size of ${this.MAX_DOCUMENT_SIZE} bytes`, 'size')
+      }
+      
+      // Input validation is handled in getDocumentPath
       const filePath = this.getDocumentPath(collection, id)
       const collectionDir = path.dirname(filePath)
 
@@ -114,15 +131,12 @@ export class FilesystemAdapter implements StorageAdapter {
         }
       }
 
-      // Write to file with Date serialization
+      // Write to file with Date serialization - use atomic write to prevent race conditions
       const jsonContent = this.config.prettyJson
         ? JSON.stringify(documentFile, this.dateReplacer, this.config.jsonSpaces)
         : JSON.stringify(documentFile, this.dateReplacer)
 
-      await fs.writeFile(filePath, jsonContent, { 
-        mode: this.config.fileMode,
-        flag: 'w'
-      })
+      await this.atomicWriteFile(filePath, jsonContent)
 
       if (this.config.syncWrites) {
         // Force sync to disk
@@ -150,7 +164,16 @@ export class FilesystemAdapter implements StorageAdapter {
 
   public async listDocuments(collection: string, options: ListOptions = {}): Promise<Document[]> {
     try {
+      // Validate inputs
+      SecurityValidator.validateCollectionName(collection)
+      SecurityValidator.sanitizeListOptions(options)
+      
+      // Apply resource limits
+      const limit = Math.min(options.limit || 1000, 1000) // Cap at 1000 documents
+      const offset = Math.max(options.offset || 0, 0)
+      
       const collectionDir = path.join(this.config.contentDir, collection)
+      this.validateSecurePath(collectionDir, this.config.contentDir)
       
       // Check if collection directory exists
       try {
@@ -191,10 +214,7 @@ export class FilesystemAdapter implements StorageAdapter {
         documents = this.sortDocuments(documents, sortFields)
       }
 
-      // Apply pagination
-      const offset = options.offset || 0
-      const limit = options.limit || documents.length
-      
+      // Apply pagination with validated limits
       return documents.slice(offset, offset + limit)
     } catch (error) {
       throw new Error(`Failed to list documents in collection ${collection}: ${error}`)
@@ -203,17 +223,15 @@ export class FilesystemAdapter implements StorageAdapter {
 
   public async deleteDocument(collection: string, id: string): Promise<void> {
     try {
+      // Input validation is handled in getDocumentPath
       const filePath = this.getDocumentPath(collection, id)
       
-      // Check if file exists
-      try {
-        await fs.access(filePath, constants.F_OK)
-      } catch {
+      // Atomic delete - check and delete in one operation
+      await fs.unlink(filePath)
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
         throw new Error(`Document ${collection}/${id} not found`)
       }
-
-      await fs.unlink(filePath)
-    } catch (error) {
       throw new Error(`Failed to delete document ${collection}/${id}: ${error}`)
     }
   }
@@ -221,9 +239,12 @@ export class FilesystemAdapter implements StorageAdapter {
   // Media operations
   public async uploadFile(file: File, metadata: MediaMetadata): Promise<MediaFile> {
     try {
-      const filename = `${metadata.id}.${metadata.extension}`
-      const filePath = path.join(this.config.mediaDir, filename)
-      const metadataPath = path.join(this.config.mediaDir, '.metadata', `${metadata.id}.json`)
+      // Validate media metadata
+      this.validateMediaMetadata(metadata)
+      
+      // Use secure path methods
+      const filePath = this.getMediaPath(metadata.id, metadata.extension)
+      const metadataPath = this.getMediaMetadataPath(metadata.id)
 
       // Ensure media directory exists
       await fsExtra.ensureDir(path.dirname(filePath), { mode: this.config.dirMode })
@@ -245,12 +266,12 @@ export class FilesystemAdapter implements StorageAdapter {
         updatedAt: now
       }
 
-      // Write metadata
+      // Write metadata atomically
       const metadataContent = this.config.prettyJson
         ? JSON.stringify(fileMetadata, this.dateReplacer, this.config.jsonSpaces)
         : JSON.stringify(fileMetadata, this.dateReplacer)
 
-      await fs.writeFile(metadataPath, metadataContent, { mode: this.config.fileMode })
+      await this.atomicWriteFile(metadataPath, metadataContent)
 
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
@@ -277,7 +298,8 @@ export class FilesystemAdapter implements StorageAdapter {
 
   public async getFile(id: string): Promise<MediaFile | null> {
     try {
-      const metadataPath = path.join(this.config.mediaDir, '.metadata', `${id}.json`)
+      // Input validation is handled in getMediaMetadataPath
+      const metadataPath = this.getMediaMetadataPath(id)
       
       // Check if metadata file exists
       try {
@@ -287,9 +309,9 @@ export class FilesystemAdapter implements StorageAdapter {
       }
 
       const metadataContent = await fs.readFile(metadataPath, 'utf-8')
-      const fileMetadata: FileMetadata = JSON.parse(metadataContent, this.dateReviver)
+      const fileMetadata: FileMetadata = this.safeParseJSON<FileMetadata>(metadataContent, this.dateReviver)
 
-      const filePath = path.join(this.config.mediaDir, `${id}.${fileMetadata.extension}`)
+      const filePath = this.getMediaPath(id, fileMetadata.extension)
       
       // Check if actual file exists
       try {
@@ -323,19 +345,20 @@ export class FilesystemAdapter implements StorageAdapter {
 
   public async deleteFile(id: string): Promise<void> {
     try {
-      const metadataPath = path.join(this.config.mediaDir, '.metadata', `${id}.json`)
+      // Input validation is handled in getMediaMetadataPath
+      const metadataPath = this.getMediaMetadataPath(id)
       
       // Read metadata to get file extension
       let extension = ''
       try {
         const metadataContent = await fs.readFile(metadataPath, 'utf-8')
-        const fileMetadata: FileMetadata = JSON.parse(metadataContent, this.dateReviver)
+        const fileMetadata: FileMetadata = this.safeParseJSON<FileMetadata>(metadataContent, this.dateReviver)
         extension = fileMetadata.extension
       } catch {
         throw new Error(`Media file ${id} not found`)
       }
 
-      const filePath = path.join(this.config.mediaDir, `${id}.${extension}`)
+      const filePath = this.getMediaPath(id, extension)
 
       // Delete both the file and metadata
       await Promise.all([
@@ -401,7 +424,122 @@ export class FilesystemAdapter implements StorageAdapter {
 
   // Private helper methods
   private getDocumentPath(collection: string, id: string): string {
-    return path.join(this.config.contentDir, collection, `${id}.json`)
+    // Validate inputs for security
+    SecurityValidator.validateCollectionName(collection)
+    SecurityValidator.validateDocumentId(id)
+    
+    const documentPath = path.join(this.config.contentDir, collection, `${id}.json`)
+    this.validateSecurePath(documentPath, this.config.contentDir)
+    
+    return documentPath
+  }
+
+  private getMediaPath(id: string, extension: string): string {
+    // Validate inputs
+    SecurityValidator.validateDocumentId(id)
+    this.validateFileExtension(extension)
+    
+    const mediaPath = path.join(this.config.mediaDir, `${id}.${extension}`)
+    this.validateSecurePath(mediaPath, this.config.mediaDir)
+    
+    return mediaPath
+  }
+
+  private getMediaMetadataPath(id: string): string {
+    // Validate inputs
+    SecurityValidator.validateDocumentId(id)
+    
+    const metadataPath = path.join(this.config.mediaDir, '.metadata', `${id}.json`)
+    this.validateSecurePath(metadataPath, this.config.mediaDir)
+    
+    return metadataPath
+  }
+
+  private validateSecurePath(targetPath: string, basePath: string): void {
+    const resolvedTarget = path.resolve(targetPath)
+    const resolvedBase = path.resolve(basePath)
+    
+    if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
+      throw new InvalidInputError('Path traversal attempt detected', 'path')
+    }
+  }
+
+  private validateFileExtension(extension: string): void {
+    // Basic extension validation - prevent executable extensions and dangerous files
+    const dangerousExtensions = [
+      'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'vbe', 'js', 'jse',
+      'wsf', 'wsh', 'msi', 'msp', 'mst', 'reg', 'scf', 'lnk', 'inf',
+      'php', 'php3', 'php4', 'php5', 'phtml', 'pl', 'py', 'rb', 'sh'
+    ]
+    
+    const cleanExt = extension.toLowerCase().replace(/^\./, '')
+    
+    if (dangerousExtensions.includes(cleanExt)) {
+      throw new InvalidInputError(`File extension '${extension}' is not allowed for security reasons`, 'extension')
+    }
+    
+    // Ensure extension is alphanumeric with some common safe characters
+    if (!/^[a-z0-9_-]+$/i.test(cleanExt)) {
+      throw new InvalidInputError(`Invalid file extension format: ${extension}`, 'extension')
+    }
+  }
+
+  private validateMediaMetadata(metadata: MediaMetadata): void {
+    // Validate required fields
+    if (!metadata.id || !metadata.filename || !metadata.contentType || !metadata.extension) {
+      throw new InvalidInputError('Missing required metadata fields', 'metadata')
+    }
+
+    // Validate file size
+    if (metadata.size > this.MAX_FILE_SIZE) {
+      throw new InvalidInputError(`File size ${metadata.size} exceeds maximum allowed size of ${this.MAX_FILE_SIZE} bytes`, 'size')
+    }
+
+    // Validate filename format
+    if (!/^[a-zA-Z0-9._-]+$/.test(metadata.filename)) {
+      throw new InvalidInputError('Invalid filename format. Only alphanumeric characters, dots, underscores, and hyphens are allowed', 'filename')
+    }
+
+    // Validate content type format
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9!#$&\-\^_]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-\^_.]*$/.test(metadata.contentType)) {
+      throw new InvalidInputError('Invalid content type format', 'contentType')
+    }
+  }
+
+  private safeParseJSON<T>(content: string, reviver?: (key: string, value: any) => any): T {
+    // Check content size to prevent DoS attacks
+    if (content.length > this.MAX_DOCUMENT_SIZE) {
+      throw new InvalidInputError(`JSON content size ${content.length} exceeds maximum allowed size of ${this.MAX_DOCUMENT_SIZE} bytes`, 'size')
+    }
+
+    try {
+      return JSON.parse(content, reviver)
+    } catch (error) {
+      throw new InvalidInputError(`Invalid JSON format: ${error}`, 'json')
+    }
+  }
+
+  private async atomicWriteFile(filePath: string, content: string): Promise<void> {
+    // Write to temporary file first, then rename to prevent race conditions
+    const tempPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`
+    
+    try {
+      await fs.writeFile(tempPath, content, {
+        mode: this.config.fileMode,
+        flag: 'wx' // Fail if file exists
+      })
+      
+      // Atomic rename
+      await fs.rename(tempPath, filePath)
+    } catch (error) {
+      // Clean up temp file if it exists
+      try {
+        await fs.unlink(tempPath)
+      } catch {
+        // Ignore cleanup errors
+      }
+      throw error
+    }
   }
 
   private dateReplacer = (key: string, value: any): any => {
