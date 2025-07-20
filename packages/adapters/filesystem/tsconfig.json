@@ -1,8 +1,7 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -16,5 +15,8 @@
     "dist",
     "node_modules",
     "**/*.test.ts"
+  ],
+  "references": [
+    { "path": "../../core" }
   ]
 }
