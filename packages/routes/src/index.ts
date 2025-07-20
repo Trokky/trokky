@@ -28,6 +28,22 @@ export type {
   GetMediaRequest,
   DeleteMediaRequest,
   
+  // User management request/response types
+  ListUsersRequest,
+  CreateUserRequest,
+  UpdateUserRequest,
+  GetUserRequest,
+  DeleteUserRequest,
+  GetUserByUsernameRequest,
+  GetUserByEmailRequest,
+  
+  // Authentication request/response types
+  LoginRequest,
+  LoginResponse,
+  LogoutRequest,
+  ValidateTokenRequest,
+  RefreshTokenRequest,
+  
   // Framework adapter types
   RouteContext,
   FrameworkAdapter

@@ -1,4 +1,15 @@
-import type { TrokkyCore, Document, DocumentData, ListOptions, MediaFile } from '@trokky/core'
+import type { 
+  TrokkyCore, 
+  Document, 
+  DocumentData, 
+  ListOptions, 
+  MediaFile,
+  User,
+  CreateUserData,
+  UpdateUserData,
+  UserListOptions,
+  LoginCredentials
+} from '@trokky/core'
 
 // HTTP Method types
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
@@ -127,6 +138,63 @@ export interface GetMediaRequest {
 
 export interface DeleteMediaRequest {
   id: string
+}
+
+// User management endpoints request/response types
+export interface ListUsersRequest {
+  role?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface CreateUserRequest {
+  userData: CreateUserData
+}
+
+export interface UpdateUserRequest {
+  id: string
+  userData: UpdateUserData
+}
+
+export interface GetUserRequest {
+  id: string
+}
+
+export interface DeleteUserRequest {
+  id: string
+}
+
+export interface GetUserByUsernameRequest {
+  username: string
+}
+
+export interface GetUserByEmailRequest {
+  email: string
+}
+
+// Authentication endpoints request/response types
+export interface LoginRequest {
+  credentials: LoginCredentials
+}
+
+export interface LoginResponse {
+  success: boolean
+  token?: string
+  user?: Omit<User, 'passwordHash'>
+  expiresAt?: string
+}
+
+export interface LogoutRequest {
+  token?: string
+}
+
+export interface ValidateTokenRequest {
+  token: string
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string
 }
 
 // Route context for handlers

@@ -12,7 +12,16 @@ import type {
   DeleteDocumentRequest,
   UploadMediaRequest,
   GetMediaRequest,
-  DeleteMediaRequest
+  DeleteMediaRequest,
+  ListUsersRequest,
+  CreateUserRequest,
+  UpdateUserRequest,
+  GetUserRequest,
+  DeleteUserRequest,
+  GetUserByUsernameRequest,
+  GetUserByEmailRequest,
+  LoginRequest,
+  LoginResponse
 } from './types.js'
 import { TrokkyCore, SecurityValidator, InvalidInputError } from '@trokky/core'
 
@@ -47,6 +56,20 @@ export class TrokkyRoutes {
     this.addRoute('POST', `${basePath}/media/upload`, this.uploadMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id`, this.getMedia.bind(this))
     this.addRoute('DELETE', `${basePath}/media/:id`, this.deleteMedia.bind(this))
+
+    // User management routes (admin only)
+    this.addRoute('GET', `${basePath}/users`, this.listUsers.bind(this))
+    this.addRoute('POST', `${basePath}/users`, this.createUser.bind(this))
+    this.addRoute('GET', `${basePath}/users/:id`, this.getUser.bind(this))
+    this.addRoute('PUT', `${basePath}/users/:id`, this.updateUser.bind(this))
+    this.addRoute('DELETE', `${basePath}/users/:id`, this.deleteUser.bind(this))
+    this.addRoute('GET', `${basePath}/users/by-username/:username`, this.getUserByUsername.bind(this))
+    this.addRoute('GET', `${basePath}/users/by-email/:email`, this.getUserByEmail.bind(this))
+
+    // Authentication routes (public)
+    this.addRoute('POST', `${basePath}/auth/login`, this.login.bind(this))
+    this.addRoute('POST', `${basePath}/auth/logout`, this.logout.bind(this))
+    this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
 
     // Health check route
     this.addRoute('GET', `${basePath}/health`, this.healthCheck.bind(this))
@@ -465,6 +488,325 @@ export class TrokkyRoutes {
       headers: corsHeaders,
       body: null
     }
+  }
+
+  // User management handlers
+  private async listUsers(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { role, isActive, limit, offset } = request.query
+
+      // Build list options
+      const options: any = {}
+      if (role && typeof role === 'string') options.role = role
+      if (isActive !== undefined) options.isActive = isActive === 'true'
+      if (limit) options.limit = parseInt(String(limit), 10)
+      if (offset) options.offset = parseInt(String(offset), 10)
+
+      const users = await this.core.listUsers(options)
+      
+      // Remove password hashes from response
+      const safeUsers = users.map(user => {
+        const { passwordHash, ...safeUser } = user
+        return safeUser
+      })
+
+      return this.successResponse({
+        users: safeUsers,
+        meta: {
+          total: safeUsers.length,
+          limit: options.limit,
+          offset: options.offset
+        }
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async createUser(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      // SECURITY: Validate request body structure
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('userData' in body) || !body.userData || typeof body.userData !== 'object') {
+        throw new InvalidInputError('User data is required', 'userData')
+      }
+
+      const { userData } = body as unknown as CreateUserRequest
+
+      const user = await this.core.createUser(userData)
+      
+      // Remove password hash from response
+      const { passwordHash, ...safeUser } = user
+      
+      return this.successResponse({ user: safeUser }, 201)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async getUser(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { id } = request.params
+      SecurityValidator.validateDocumentId(id)
+
+      const user = await this.core.getUser(id)
+      if (!user) {
+        return this.errorResponse(new Error(`User ${id} not found`), 404)
+      }
+
+      // Remove password hash from response
+      const { passwordHash, ...safeUser } = user
+      
+      return this.successResponse({ user: safeUser })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async updateUser(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { id } = request.params
+      SecurityValidator.validateDocumentId(id)
+
+      // SECURITY: Validate request body structure
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('userData' in body) || !body.userData || typeof body.userData !== 'object') {
+        throw new InvalidInputError('User data is required', 'userData')
+      }
+
+      const { userData } = body as unknown as UpdateUserRequest
+
+      const user = await this.core.updateUser(id, userData)
+      
+      // Remove password hash from response
+      const { passwordHash, ...safeUser } = user
+      
+      return this.successResponse({ user: safeUser })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async deleteUser(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { id } = request.params
+      SecurityValidator.validateDocumentId(id)
+
+      await this.core.deleteUser(id)
+      return this.successResponse({ message: 'User deleted successfully' })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async getUserByUsername(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { username } = request.params
+      SecurityValidator.validateUsername(username)
+
+      const user = await this.core.getUserByUsername(username)
+      if (!user) {
+        return this.errorResponse(new Error(`User with username ${username} not found`), 404)
+      }
+
+      // Remove password hash from response
+      const { passwordHash, ...safeUser } = user
+      
+      return this.successResponse({ user: safeUser })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async getUserByEmail(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin privileges
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      const { email } = request.params
+      SecurityValidator.validateEmail(decodeURIComponent(email))
+
+      const user = await this.core.getUserByEmail(decodeURIComponent(email))
+      if (!user) {
+        return this.errorResponse(new Error(`User with email ${email} not found`), 404)
+      }
+
+      // Remove password hash from response
+      const { passwordHash, ...safeUser } = user
+      
+      return this.successResponse({ user: safeUser })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // Authentication handlers
+  private async login(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate request body structure
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('credentials' in body) || !body.credentials || typeof body.credentials !== 'object') {
+        throw new InvalidInputError('Login credentials are required', 'credentials')
+      }
+
+      const { credentials } = body as unknown as LoginRequest
+      
+      // Validate credentials format
+      if (!credentials.username || !credentials.password) {
+        throw new InvalidInputError('Username and password are required', 'credentials')
+      }
+
+      SecurityValidator.validateUsername(credentials.username)
+
+      // Use core engine's authentication method (handles all validation internally)
+      const authResult = await this.core.authenticateUser(credentials.username, credentials.password)
+      if (!authResult) {
+        throw new InvalidInputError('Invalid credentials', 'credentials')
+      }
+
+      const { user: authenticatedUser, token } = authResult
+      
+      // Get token expiration time
+      const session = await this.core.verifyAuthToken(token)
+
+      const response: LoginResponse = {
+        success: true,
+        token,
+        user: authenticatedUser,
+        expiresAt: session?.expiresAt
+      }
+
+      return this.successResponse(response)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async logout(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // For now, logout is client-side token removal
+      // In a full implementation, we'd invalidate the token server-side
+      return this.successResponse({ message: 'Logged out successfully' })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async validateToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate request body structure
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('token' in body) || !body.token || typeof body.token !== 'string') {
+        throw new InvalidInputError('Token is required', 'token')
+      }
+
+      const { token } = body as { token: string }
+
+      // Validate token using core engine's JWT verification
+      const session = await this.core.verifyAuthToken(token)
+      const isValid = session !== null
+      
+      return this.successResponse({ 
+        valid: isValid,
+        message: isValid ? 'Token is valid' : 'Token is invalid',
+        session: isValid ? session : undefined
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // Helper methods for user management
+  private async validateAdminAccess(request: HttpRequest): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or manage_users permission
+    const hasAdminAccess = session.role === 'admin' || session.permissions.includes('manage_users')
+    if (!hasAdminAccess) {
+      throw new InvalidInputError('Insufficient permissions for admin operations', 'authorization')
+    }
+
+    // Log admin access
+    this.logAdminAccess(session, request.path, true)
+  }
+
+  // Token generation and validation now handled by core engine's JWT implementation
+
+  private logAdminAccess(session: any, path: string, success: boolean): void {
+    // Use core engine's audit logging
+    this.core.logAuditEvent({
+      type: 'admin_access',
+      userId: session.userId,
+      username: session.username,
+      action: `Admin access to ${path}`,
+      timestamp: new Date().toISOString(),
+      success,
+      details: {
+        path,
+        role: session.role,
+        permissions: session.permissions
+      }
+    })
   }
 
   // Response helpers

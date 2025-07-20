@@ -70,21 +70,40 @@ describe('TrokkyRoutes', () => {
       const minimalRoutes = new TrokkyRoutes(minimalConfig)
       
       expect(minimalRoutes).toBeInstanceOf(TrokkyRoutes)
-      expect(minimalRoutes.getRoutes()).toHaveLength(10) // 5 collection + 3 media + health + CORS
+      expect(minimalRoutes.getRoutes()).toHaveLength(20) // 5 collection + 3 media + 7 users + 3 auth + health + CORS
     })
 
     it('should register all expected routes', () => {
       const routeList = routes.getRoutes()
       const routePaths = routeList.map(r => `${r.method}:${r.path}`)
       
+      // Collection routes
       expect(routePaths).toContain('GET:/api/v1/collections/:collection')
       expect(routePaths).toContain('POST:/api/v1/collections/:collection')
       expect(routePaths).toContain('GET:/api/v1/collections/:collection/:id')
       expect(routePaths).toContain('PUT:/api/v1/collections/:collection/:id')
       expect(routePaths).toContain('DELETE:/api/v1/collections/:collection/:id')
+      
+      // Media routes
       expect(routePaths).toContain('POST:/api/v1/media/upload')
       expect(routePaths).toContain('GET:/api/v1/media/:id')
       expect(routePaths).toContain('DELETE:/api/v1/media/:id')
+      
+      // User management routes
+      expect(routePaths).toContain('GET:/api/v1/users')
+      expect(routePaths).toContain('POST:/api/v1/users')
+      expect(routePaths).toContain('GET:/api/v1/users/:id')
+      expect(routePaths).toContain('PUT:/api/v1/users/:id')
+      expect(routePaths).toContain('DELETE:/api/v1/users/:id')
+      expect(routePaths).toContain('GET:/api/v1/users/by-username/:username')
+      expect(routePaths).toContain('GET:/api/v1/users/by-email/:email')
+      
+      // Authentication routes
+      expect(routePaths).toContain('POST:/api/v1/auth/login')
+      expect(routePaths).toContain('POST:/api/v1/auth/logout')
+      expect(routePaths).toContain('POST:/api/v1/auth/validate')
+      
+      // System routes
       expect(routePaths).toContain('GET:/api/v1/health')
       expect(routePaths).toContain('OPTIONS:/api/v1/*')
     })
