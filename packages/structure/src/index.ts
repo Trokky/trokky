@@ -18,17 +18,22 @@ export type {
   ValidationWarning,
   NavigationTree,
   NavigationItem,
-  GenerationOptions
+  GenerationOptions,
+  CountService
 } from './builder'
 
 // Utilities
 export { PermissionChecker, QueryBuilder, StructureMerger } from './utils'
+export { FastHasher, StableHasher, CacheKeyUtils } from './utils/hash'
 export type {
   PermissionCheckerOptions,
   MergeOptions,
   MergeResult,
   MergeConflict
 } from './utils'
+
+// Errors
+export * from './errors'
 
 // Main exports for convenience
 export { TrokkyStructureSchema } from './validation/schemas'

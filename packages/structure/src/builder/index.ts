@@ -16,3 +16,5 @@ export type {
   BadgeInfo,
   GenerationOptions
 } from './StructureBuilder'
+
+export type { CountService } from './navigation-tree-builder'

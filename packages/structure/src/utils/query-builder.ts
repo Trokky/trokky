@@ -11,6 +11,8 @@ import type {
   DocumentListItem,
   OrderClause
 } from '../types'
+import { QueryError, ErrorCodes, ErrorRecovery } from '../errors'
+import { CacheKeyUtils } from './hash'
 
 export interface QueryBuilderOptions {
   /** Enable query optimization */
@@ -135,9 +137,13 @@ export class QueryBuilder {
     // Validate complexity
     const complexity = this.calculateComplexity(query.options.filter || {})
     if (complexity.score > (this.options.maxComplexity || 1000)) {
-      throw new Error(
-        `Query complexity (${complexity.score}) exceeds maximum allowed (${this.options.maxComplexity}). ` +
-        `Recommendations: ${complexity.recommendations.join(', ')}`
+      throw new QueryError(
+        `Query complexity (${complexity.score}) exceeds maximum allowed (${this.options.maxComplexity})`,
+        {
+          complexity: complexity.score,
+          maxAllowed: this.options.maxComplexity,
+          recommendations: complexity.recommendations
+        }
       )
     }
 
@@ -306,23 +312,42 @@ export class QueryBuilder {
     }
 
     // Convert $in with single value to $eq
-    for (const [key, value] of Object.entries(optimized)) {
+    const optimizedEntries = Object.entries(optimized)
+    for (const [key, value] of optimizedEntries) {
       if (typeof value === 'object' && value !== null && value.$in) {
         if (Array.isArray(value.$in) && value.$in.length === 1) {
-          optimized[key] = { ...value, $eq: value.$in[0] }
-          delete optimized[key].$in
+          // Create new object without mutating during iteration
+          const newValue = { ...value, $eq: value.$in[0] }
+          delete newValue.$in
+          optimized[key] = newValue
         }
       }
     }
 
     // Recursively optimize nested conditions
-    for (const [key, value] of Object.entries(optimized)) {
-      if (typeof value === 'object' && value !== null) {
+    const recursiveEntries = Object.entries(optimized)
+    for (const [key, value] of recursiveEntries) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         optimized[key] = this.optimizeFilter(value)
       }
     }
 
-    return optimized
+    // Remove empty objects and null values
+    const cleanedOptimized: QueryFilter = {}
+    for (const [key, value] of Object.entries(optimized)) {
+      if (value !== null && value !== undefined) {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Only include non-empty objects
+          if (Object.keys(value).length > 0) {
+            cleanedOptimized[key] = value
+          }
+        } else {
+          cleanedOptimized[key] = value
+        }
+      }
+    }
+
+    return cleanedOptimized
   }
 
 
@@ -456,19 +481,21 @@ export class QueryBuilder {
    * Generate cache key
    */
   private generateCacheKey(item: DocumentListItem, context?: QueryContext): string {
-    const key = {
-      schemaType: item.schemaType,
-      filter: item.filter,
-      ordering: item.defaultOrdering,
-      options: item.options,
-      context: context ? {
-        filters: context.filters,
-        ordering: context.ordering,
-        pagination: context.pagination
-      } : undefined
-    }
-    
-    return `query:${JSON.stringify(key)}`
+    const contextData = context ? {
+      filters: context.filters,
+      ordering: context.ordering,
+      pagination: context.pagination
+    } : undefined
+
+    return CacheKeyUtils.queryKey(
+      item.schemaType,
+      {
+        filter: item.filter,
+        ordering: item.defaultOrdering,
+        options: item.options
+      },
+      contextData
+    )
   }
 
   /**
@@ -504,7 +531,7 @@ export class QueryBuilder {
 
         if (key.startsWith('$')) {
           // Validate operator
-          if (!this.complexityWeights.hasOwnProperty(key)) {
+          if (!(key in this.complexityWeights)) {
             errors.push(`Unknown operator: ${key} at ${currentPath}`)
           }
 

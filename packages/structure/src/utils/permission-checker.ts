@@ -12,6 +12,7 @@ import type {
   PermissionContext,
   PermissionResult
 } from '../types'
+import { PermissionError, ErrorCodes, ErrorRecovery } from '../errors'
 
 export interface PermissionCheckerOptions {
   /** Enable permission inheritance */
@@ -50,13 +51,20 @@ export class PermissionChecker {
     user?: User,
     context?: PermissionContext
   ): Promise<boolean> {
-    try {
-      const result = await this.checkDetailed(permissions, action, user, context)
-      return result.allowed
-    } catch (error) {
-      console.warn('Permission check failed:', error)
-      return false
-    }
+    return ErrorRecovery.safeExecute(
+      async () => {
+        const result = await this.checkDetailed(permissions, action, user, context)
+        return result.allowed
+      },
+      false, // Fallback to deny access on error
+      (error) => {
+        console.warn('Permission check failed:', {
+          action,
+          user: user?.id,
+          error: error.message
+        })
+      }
+    )
   }
 
   /**
@@ -145,12 +153,11 @@ export class PermissionChecker {
           rule
         }
       } catch (error: any) {
-        return {
-          allowed: false,
-          reason: 'Custom function error',
-          rule,
-          error: error.message
-        }
+        throw new PermissionError(
+          'Custom permission function failed',
+          { rule, user: user?.id },
+          error
+        )
       }
     }
 
@@ -191,12 +198,11 @@ export class PermissionChecker {
         }
       }
     } catch (error: any) {
-      return {
-        allowed: false,
-        reason: 'Condition evaluation error',
-        rule,
-        error: error.message
-      }
+      throw new PermissionError(
+        'Permission condition evaluation failed',
+        { rule, user: user?.id },
+        error
+      )
     }
 
     if (conditionResult) {

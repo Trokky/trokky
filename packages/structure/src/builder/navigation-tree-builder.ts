@@ -8,7 +8,12 @@ import type {
   TrokkyStructure,
   StructureItem,
   DocumentListItem,
-  BadgeConfig
+  SingletonItem,
+  GroupItem,
+  DividerItem,
+  CustomViewItem,
+  BadgeConfig,
+  QueryFilter
 } from '../types'
 import type {
   NavigationTree,
@@ -17,36 +22,61 @@ import type {
   BadgeInfo
 } from './StructureBuilder'
 import { PermissionChecker } from '../utils/permission-checker'
+import { NavigationError, ErrorCodes, ErrorRecovery } from '../errors'
+
+export interface CountService {
+  getCount(schemaType: string, filter?: QueryFilter): Promise<number>
+}
 
 export class NavigationTreeBuilder {
-  constructor(private permissionChecker: PermissionChecker) {}
+  constructor(
+    private permissionChecker: PermissionChecker,
+    private countService?: CountService
+  ) {}
 
   /**
    * Build navigation tree from structure
    */
   async build(structure: TrokkyStructure, user?: User): Promise<NavigationTree> {
-    const items: NavigationItem[] = []
-    let totalItems = 0
-    let maxDepth = 0
+    try {
+      const items: NavigationItem[] = []
+      let totalItems = 0
+      let maxDepth = 0
 
-    for (const item of structure.items) {
-      const navItem = await this.buildNavigationItem(item, user, 1)
-      if (navItem) {
-        items.push(navItem)
-        totalItems += this.countItems(navItem)
-        maxDepth = Math.max(maxDepth, this.calculateDepth(navItem))
+      for (const item of structure.items) {
+        try {
+          const navItem = await this.buildNavigationItem(item, user, 1)
+          if (navItem) {
+            items.push(navItem)
+            totalItems += this.countItems(navItem)
+            maxDepth = Math.max(maxDepth, this.calculateDepth(navItem))
+          }
+        } catch (error) {
+          console.warn('Failed to build navigation item:', {
+            itemType: item.type,
+            itemTitle: item.title,
+            error: (error as Error).message
+          })
+          // Continue building other items instead of failing completely
+        }
       }
-    }
 
-    const permissions = await this.calculateGlobalPermissions(structure, user)
+      const permissions = await this.calculateGlobalPermissions(structure, user)
 
-    return {
-      items,
-      metadata: {
-        totalItems,
-        maxDepth,
-        permissions
+      return {
+        items,
+        metadata: {
+          totalItems,
+          maxDepth,
+          permissions
+        }
       }
+    } catch (error) {
+      throw new NavigationError(
+        'Failed to build navigation tree',
+        { structureTitle: structure.title, user: user?.id },
+        error as Error
+      )
     }
   }
 
@@ -123,7 +153,7 @@ export class NavigationTreeBuilder {
   }
 
   private async buildSingletonItem(
-    item: any,
+    item: SingletonItem,
     baseItem: Partial<NavigationItem>,
     user?: User
   ): Promise<NavigationItem> {
@@ -141,7 +171,7 @@ export class NavigationTreeBuilder {
   }
 
   private async buildGroupItem(
-    item: any,
+    item: GroupItem,
     baseItem: Partial<NavigationItem>,
     depth: number,
     user?: User
@@ -172,7 +202,7 @@ export class NavigationTreeBuilder {
   }
 
   private buildDividerItem(
-    item: any,
+    item: DividerItem,
     baseItem: Partial<NavigationItem>
   ): NavigationItem {
     return {
@@ -184,7 +214,7 @@ export class NavigationTreeBuilder {
   }
 
   private async buildCustomViewItem(
-    item: any,
+    item: CustomViewItem,
     baseItem: Partial<NavigationItem>,
     user?: User
   ): Promise<NavigationItem> {
@@ -201,50 +231,87 @@ export class NavigationTreeBuilder {
 
   private async buildBadge(
     badgeConfig?: BadgeConfig,
-    item?: any,
+    item?: DocumentListItem,
     user?: User
   ): Promise<BadgeInfo | undefined> {
     if (!badgeConfig) return undefined
 
-    // Custom badge logic
-    if (badgeConfig.custom) {
-      try {
-        const result = badgeConfig.custom([]) // Would need actual items
-        return result || undefined
-      } catch (error) {
-        console.warn('Custom badge function failed:', error)
-        return undefined
+    try {
+      // Custom badge logic
+      if (badgeConfig.custom) {
+        try {
+          // Get actual items for custom badge function
+          let items: any[] = []
+          if (this.countService && item) {
+            const count = await this.countService.getCount(item.schemaType, item.filter)
+            // For custom badge, we pass count as a pseudo-item array
+            items = Array(count).fill(null)
+          }
+          
+          const result = await Promise.resolve(badgeConfig.custom(items))
+          return result || undefined
+        } catch (error) {
+          console.warn('Custom badge function failed:', error)
+          return {
+            text: 'Error',
+            color: 'red'
+          }
+        }
       }
-    }
 
-    // Count badge
-    if (badgeConfig.count) {
-      // Would need to query actual count from client
+      // Count badge
+      if (badgeConfig.count && this.countService && item) {
+        try {
+          const count = await this.countService.getCount(item.schemaType, item.filter)
+          return {
+            text: count.toString(),
+            color: badgeConfig.color || 'gray',
+            count
+          }
+        } catch (error) {
+          console.warn('Failed to get count for badge:', error)
+          return {
+            text: '?',
+            color: badgeConfig.color || 'gray',
+            count: 0
+          }
+        }
+      }
+
+      // Count badge without service - show placeholder
+      if (badgeConfig.count) {
+        return {
+          text: '?',
+          color: badgeConfig.color || 'gray',
+          count: 0
+        }
+      }
+
+      // Text badge
+      if (badgeConfig.text) {
+        return {
+          text: badgeConfig.text,
+          color: badgeConfig.color || 'gray'
+        }
+      }
+
+      // Field-based badge
+      if (badgeConfig.field) {
+        // Could be enhanced to compute field values from actual data
+        return {
+          text: 'N/A',
+          color: badgeConfig.color || 'gray'
+        }
+      }
+
+      return undefined
+    } catch (error) {
+      console.warn('Badge building failed:', error)
       return {
-        text: '?',
-        color: badgeConfig.color || 'gray',
-        count: 0
+        text: 'Error',
+        color: 'red'
       }
     }
-
-    // Text badge
-    if (badgeConfig.text) {
-      return {
-        text: badgeConfig.text,
-        color: badgeConfig.color || 'gray'
-      }
-    }
-
-    // Field-based badge
-    if (badgeConfig.field) {
-      // Would need to compute field value
-      return {
-        text: 'N/A',
-        color: badgeConfig.color || 'gray'
-      }
-    }
-
-    return undefined
   }
 
   private async calculatePermissions(

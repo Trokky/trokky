@@ -18,8 +18,9 @@ import type {
 import { TrokkyStructureSchema } from '../validation/schemas'
 import { PermissionChecker } from '../utils/permission-checker'
 import { QueryBuilder } from '../utils/query-builder'
-import { NavigationTreeBuilder } from './navigation-tree-builder'
+import { NavigationTreeBuilder, CountService } from './navigation-tree-builder'
 import { StructureMerger } from '../utils/structure-merger'
+import { CacheKeyUtils } from '../utils/hash'
 
 /**
  * Structure builder options
@@ -39,6 +40,9 @@ export interface StructureBuilderOptions {
   
   /** Enable permission inheritance */
   enablePermissionInheritance?: boolean
+  
+  /** Count service for badge counting */
+  countService?: CountService
 }
 
 /**
@@ -219,7 +223,7 @@ export class StructureBuilder {
       cacheTTL: options.defaultCacheTTL ?? 300000,
       maxComplexity: options.maxQueryComplexity ?? 1000
     })
-    this.navigationBuilder = new NavigationTreeBuilder(this.permissionChecker)
+    this.navigationBuilder = new NavigationTreeBuilder(this.permissionChecker, options.countService)
     this.structureMerger = new StructureMerger()
   }
 
@@ -278,7 +282,7 @@ export class StructureBuilder {
    * Build navigation tree for Studio
    */
   async buildNavigation(structure: TrokkyStructure, user?: User): Promise<NavigationTree> {
-    const cacheKey = `nav:${JSON.stringify({ structure: structure.title, user: user?.id })}`
+    const cacheKey = CacheKeyUtils.navigationKey(structure.title, user?.id)
     
     if (this.options.enableCaching && this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)
