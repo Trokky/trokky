@@ -79,13 +79,42 @@ global.testUtils = {
   createAsyncSpy: <T = any>() => jest.fn<Promise<T>, any[]>()
 }
 
+// Type definition for test utilities
+interface TestUtils {
+  createMockUser: (overrides?: Record<string, any>) => {
+    id: string;
+    email: string;
+    role: string;
+    isActive: boolean;
+  };
+  createMockStructure: (overrides?: Record<string, any>) => {
+    title: string;
+    items: any[];
+    metadata: {
+      version: string;
+      description: string;
+      author: string;
+    };
+  };
+  createMockDocumentListItem: (overrides?: Record<string, any>) => {
+    type: 'documentList';
+    title: string;
+    schemaType: string;
+    views: Array<{ type: string }>;
+    defaultView: string;
+  };
+  createMockQueryFilter: (overrides?: Record<string, any>) => Record<string, any>;
+  waitFor: (ms: number) => Promise<void>;
+  createAsyncSpy: <T = any>() => jest.Mock<Promise<T>, any[]>;
+}
+
 // Declare global types for TypeScript
 declare global {
   namespace NodeJS {
     interface Global {
-      testUtils: typeof global.testUtils
+      testUtils: TestUtils;
     }
   }
   
-  var testUtils: typeof global.testUtils
+  var testUtils: TestUtils;
 }
