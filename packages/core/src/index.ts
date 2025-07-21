@@ -19,6 +19,32 @@ export { DocumentValidator } from './validation/validator.js'
 export { SecurityValidator } from './security/validation.js'
 export { RateLimiter, type RateLimitConfig } from './security/rate-limiter.js'
 
+// Field system
+export {
+  FieldTypeRegistry,
+  FieldTypeRegistrationError,
+  ConditionalEvaluator,
+  ConditionalEvaluationError,
+  ConditionalUtils,
+  FieldUtils,
+  defineField,
+  defineType,
+  rule,
+  Rule,
+  type FieldType,
+  type FieldCategory,
+  type FieldContext,
+  type FieldDefinition,
+  type FieldProps,
+  type PreviewProps,
+  type ConditionalExpression,
+  type ValidationRule,
+  type FieldMigration,
+  type FieldTypeMetadata,
+  type HttpClient,
+  type ApiClient
+} from './fields/index.js'
+
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
 
@@ -39,8 +65,6 @@ export type {
   DocumentData,
   DocumentWithContent,
   ContentSchema,
-  FieldDefinition,
-  FieldType,
   ListOptions,
   ValidationResult,
   MediaFile,
@@ -63,7 +87,7 @@ export type {
 
 // Zod schemas for validation
 export {
-  FieldTypeSchema,
-  FieldDefinitionSchema,
+  LegacyFieldTypeSchema,
+  LegacyFieldDefinitionSchema,
   ContentSchemaSchema
 } from './types/index.js'

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SchemaRegistry } from '../schema/registry.js'
-import { FieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index.js'
+import { LegacyFieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index.js'
 
 export class DocumentValidator {
   constructor(private schemaRegistry: SchemaRegistry) {}
@@ -45,7 +45,7 @@ export class DocumentValidator {
     }
   }
 
-  private buildZodSchema(fields: Record<string, FieldDefinition>): z.ZodSchema {
+  private buildZodSchema(fields: Record<string, LegacyFieldDefinition>): z.ZodSchema {
     const schemaShape: Record<string, z.ZodSchema> = {}
 
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
@@ -61,7 +61,7 @@ export class DocumentValidator {
     return z.object(schemaShape)
   }
 
-  private buildFieldSchema(fieldDef: FieldDefinition): z.ZodSchema {
+  private buildFieldSchema(fieldDef: LegacyFieldDefinition): z.ZodSchema {
     switch (fieldDef.type) {
       case 'string':
         return z.string()
@@ -91,7 +91,7 @@ export class DocumentValidator {
         }
         const objectShape: Record<string, z.ZodSchema> = {}
         for (const [propName, propDef] of Object.entries(fieldDef.properties)) {
-          const typedPropDef = propDef as FieldDefinition
+          const typedPropDef = propDef as LegacyFieldDefinition
           let propSchema = this.buildFieldSchema(typedPropDef)
           if (!typedPropDef.required) {
             propSchema = propSchema.optional()

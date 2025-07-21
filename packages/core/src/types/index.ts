@@ -20,7 +20,7 @@ export interface DocumentWithContent extends Document {
 export type DocumentData = Omit<Document, 'id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>
 
 // Schema field types
-export const FieldTypeSchema = z.enum([
+export const LegacyFieldTypeSchema = z.enum([
   'string',
   'number',
   'boolean',
@@ -31,27 +31,27 @@ export const FieldTypeSchema = z.enum([
   'media'
 ])
 
-export type FieldType = z.infer<typeof FieldTypeSchema>
+export type LegacyFieldType = z.infer<typeof LegacyFieldTypeSchema>
 
 // Schema field definition interfaces
-export interface FieldDefinition {
-  type: FieldType
+export interface LegacyFieldDefinition {
+  type: LegacyFieldType
   required?: boolean
   description?: string
   validation?: Record<string, unknown>
-  items?: FieldDefinition // For arrays
-  properties?: Record<string, FieldDefinition> // For objects
+  items?: LegacyFieldDefinition // For arrays
+  properties?: Record<string, LegacyFieldDefinition> // For objects
   collection?: string // For references
 }
 
 // Schema field definition Zod schema
-export const FieldDefinitionSchema: z.ZodType<FieldDefinition> = z.object({
-  type: FieldTypeSchema,
+export const LegacyFieldDefinitionSchema: z.ZodType<LegacyFieldDefinition> = z.object({
+  type: LegacyFieldTypeSchema,
   required: z.boolean().optional().default(false),
   description: z.string().optional(),
   validation: z.record(z.unknown()).optional(),
-  items: z.lazy(() => FieldDefinitionSchema).optional(), // For arrays
-  properties: z.record(z.lazy(() => FieldDefinitionSchema)).optional(), // For objects
+  items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
+  properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
   collection: z.string().optional() // For references
 })
 
@@ -61,7 +61,7 @@ export const ContentSchemaSchema = z.object({
   type: z.enum(['document', 'singleton']),
   title: z.string().optional(),
   description: z.string().optional(),
-  fields: z.record(FieldDefinitionSchema)
+  fields: z.record(LegacyFieldDefinitionSchema)
 })
 
 export type ContentSchema = z.infer<typeof ContentSchemaSchema>
