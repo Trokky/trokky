@@ -16,7 +16,7 @@ import {
   HttpClient,
   ApiClient,
   RequestConfig
-} from '../../fields/field-type.js';
+} from '../../fields/field-type';
 
 describe('FieldCategory', () => {
   it('should have all expected categories', () => {

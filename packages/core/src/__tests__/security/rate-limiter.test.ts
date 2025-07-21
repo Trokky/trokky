@@ -1,5 +1,5 @@
-import { RateLimiter } from '../../security/rate-limiter.js'
-import { RateLimitError } from '../../errors/index.js'
+import { RateLimiter } from '../../security/rate-limiter'
+import { RateLimitError } from '../../errors/index'
 
 describe('RateLimiter', () => {
   beforeEach(() => {

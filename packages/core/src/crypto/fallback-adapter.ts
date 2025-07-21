@@ -3,7 +3,7 @@
  * WARNING: This adapter provides minimal security and should only be used for development
  */
 
-import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
+import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter'
 
 export class FallbackCryptoAdapter implements CryptoAdapter {
   private saltRounds: number

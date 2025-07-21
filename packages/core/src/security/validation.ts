@@ -1,5 +1,5 @@
-import { InvalidInputError } from '../errors/index.js'
-import { ListOptions } from '../types/index.js'
+import { InvalidInputError } from '../errors/index'
+import { ListOptions } from '../types/index'
 
 export class SecurityValidator {
   private static readonly COLLECTION_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/

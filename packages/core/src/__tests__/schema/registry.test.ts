@@ -1,6 +1,6 @@
-import { SchemaRegistry } from '../../schema/registry.js'
-import { testSchemas, blogPostSchema, userSchema } from '../fixtures/test-schemas.js'
-import { ContentSchema } from '../../types/index.js'
+import { SchemaRegistry } from '../../schema/registry'
+import { testSchemas, blogPostSchema, userSchema } from '../fixtures/test-schemas'
+import { ContentSchema } from '../../types/index'
 
 describe('SchemaRegistry', () => {
   describe('Array-based initialization', () => {

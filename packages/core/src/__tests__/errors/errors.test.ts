@@ -6,7 +6,7 @@ import {
   InvalidInputError,
   RateLimitError,
   ValidationErrorDetail
-} from '../../errors/index.js'
+} from '../../errors/index'
 
 describe('Error Classes', () => {
   describe('TrokkyError', () => {

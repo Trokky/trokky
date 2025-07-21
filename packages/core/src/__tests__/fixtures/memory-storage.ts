@@ -6,7 +6,7 @@ import {
   MediaFile, 
   MediaMetadata,
   Migration
-} from '../../types/index.js'
+} from '../../types/index'
 
 export class MemoryStorageAdapter implements StorageAdapter {
   private documents = new Map<string, Map<string, Document>>()

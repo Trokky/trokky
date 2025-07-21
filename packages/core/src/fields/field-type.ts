@@ -1,5 +1,5 @@
-import type { User, Permission, UserRole } from '../types/user.js'
-import type { ValidationResult } from '../types/index.js'
+import type { User, Permission, UserRole } from '../types/user'
+import type { ValidationResult } from '../types/index'
 
 /**
  * Field categories for organizing field types in the Studio

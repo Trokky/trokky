@@ -6,17 +6,17 @@
 import {
   FieldTypeRegistry,
   FieldTypeRegistrationError
-} from '../../fields/registry.js';
+} from '../../fields/registry';
 import {
   ConditionalEvaluator,
   ConditionalUtils
-} from '../../fields/conditional.js';
+} from '../../fields/conditional';
 import {
   defineField,
   defineType,
   FieldUtils,
   rule
-} from '../../fields/helpers.js';
+} from '../../fields/helpers';
 import {
   FieldType,
   FieldCategory,
@@ -24,7 +24,7 @@ import {
   FieldDefinition,
   ValidationResult,
   ValidationError
-} from '../../fields/field-type.js';
+} from '../../fields/field-type';
 
 describe('Field System Integration', () => {
   beforeEach(() => {

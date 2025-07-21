@@ -1,4 +1,4 @@
-import { IdGenerator } from '../../utils/id-generator.js'
+import { IdGenerator } from '../../utils/id-generator'
 
 describe('IdGenerator', () => {
   let idGenerator: IdGenerator

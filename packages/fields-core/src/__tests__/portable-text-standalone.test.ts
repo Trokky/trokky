@@ -103,15 +103,15 @@ describe('Portable Text - Standalone Tests', () => {
       
       expect(Array.isArray(result)).toBe(true)
       expect(result).toHaveLength(1)
-      expect(result[0]._type).toBe('block')
+      expect(result[0]?._type).toBe('block')
     })
 
     it('should deserialize string to text block', () => {
       const result = StandalonePortableTextFieldType.deserialize('Hello world', DEFAULT_PORTABLE_TEXT_CONFIG)
       
       expect(result).toHaveLength(1)
-      expect(result[0]._type).toBe('block')
-      expect(result[0].children[0].text).toBe('Hello world')
+      expect(result[0]?._type).toBe('block')
+      expect(result[0]?.children?.[0]?.text).toBe('Hello world')
     })
 
     it('should deserialize null to empty array', () => {
@@ -146,8 +146,8 @@ describe('Portable Text - Standalone Tests', () => {
       const result = htmlToPortableText(html)
       
       expect(result).toHaveLength(1)
-      expect(result[0]._type).toBe('block')
-      expect(result[0].children[0].text).toBe('Hello world') // HTML tags stripped
+      expect(result[0]?._type).toBe('block')
+      expect(result[0]?.children?.[0]?.text).toBe('Hello world') // HTML tags stripped
     })
 
     it('should convert Markdown to portable text', () => {
@@ -155,12 +155,12 @@ describe('Portable Text - Standalone Tests', () => {
       const result = markdownToPortableText(markdown)
       
       expect(result).toHaveLength(3)
-      expect(result[0].style).toBe('h1')
-      expect(result[0].children[0].text).toBe('Hello')
-      expect(result[1].style).toBe('normal')
-      expect(result[1].children[0].text).toBe('This is a paragraph.')
-      expect(result[2].style).toBe('h2')
-      expect(result[2].children[0].text).toBe('Subheading')
+      expect(result[0]?.style).toBe('h1')
+      expect(result[0].children?.[0]?.text).toBe('Hello')
+      expect(result[1]?.style).toBe('normal')
+      expect(result[1]?.children?.[0]?.text).toBe('This is a paragraph.')
+      expect(result[2]?.style).toBe('h2')
+      expect(result[2]?.children?.[0]?.text).toBe('Subheading')
     })
 
     it('should handle empty HTML', () => {
@@ -182,7 +182,7 @@ describe('Portable Text - Standalone Tests', () => {
       expect(block.style).toBe('h1')
       expect(block.children).toHaveLength(1)
       expect(block.children[0]._type).toBe('span')
-      expect(block.children[0].text).toBe('Hello world')
+      expect(block.children?.[0]?.text).toBe('Hello world')
       expect(block.children[0].marks).toEqual(['strong'])
       expect(block._key).toBeDefined()
     })

@@ -1,5 +1,5 @@
-import { FieldDefinition, ConditionalExpression, FieldContext } from './field-type.js'
-import { ConditionalEvaluator } from './conditional.js'
+import { FieldDefinition, ConditionalExpression, FieldContext } from './field-type'
+import { ConditionalEvaluator } from './conditional'
 
 /**
  * Helper function to define a field with TypeScript support

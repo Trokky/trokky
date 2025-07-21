@@ -1,7 +1,7 @@
-import { DocumentValidator } from '../../validation/validator.js'
-import { SchemaRegistry } from '../../schema/registry.js'
-import { testSchemas, sampleBlogPost, sampleUser, invalidBlogPost } from '../fixtures/test-schemas.js'
-import { ContentSchema } from '../../types/index.js'
+import { DocumentValidator } from '../../validation/validator'
+import { SchemaRegistry } from '../../schema/registry'
+import { testSchemas, sampleBlogPost, sampleUser, invalidBlogPost } from '../fixtures/test-schemas'
+import { ContentSchema } from '../../types/index'
 
 describe('DocumentValidator', () => {
   let validator: DocumentValidator

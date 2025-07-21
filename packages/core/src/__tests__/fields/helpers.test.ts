@@ -8,12 +8,12 @@ import {
   FieldUtils,
   Rule,
   rule
-} from '../../fields/helpers.js';
+} from '../../fields/helpers';
 import {
   FieldDefinition,
   FieldContext,
   ConditionalExpression
-} from '../../fields/field-type.js';
+} from '../../fields/field-type';
 
 describe('defineField', () => {
   it('should create a field definition', () => {

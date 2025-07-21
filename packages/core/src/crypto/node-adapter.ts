@@ -3,7 +3,7 @@
  * Best performance and security for Node.js environments
  */
 
-import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
+import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter'
 
 export class NodeCryptoAdapter implements CryptoAdapter {
   private saltRounds: number

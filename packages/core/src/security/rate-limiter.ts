@@ -1,4 +1,4 @@
-import { RateLimitError } from '../errors/index.js'
+import { RateLimitError } from '../errors/index'
 
 export interface RateLimitConfig {
   windowMs: number // Time window in milliseconds

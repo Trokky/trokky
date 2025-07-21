@@ -1,5 +1,5 @@
-import { SecurityValidator } from '../../security/validation.js'
-import { InvalidInputError } from '../../errors/index.js'
+import { SecurityValidator } from '../../security/validation'
+import { InvalidInputError } from '../../errors/index'
 
 describe('SecurityValidator', () => {
   describe('validateCollectionName', () => {

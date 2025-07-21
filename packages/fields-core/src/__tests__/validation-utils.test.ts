@@ -10,9 +10,21 @@ import {
 const mockContext = {
   document: {},
   fieldPath: ['user', 'profile', 'name'],
-  user: { id: 'user1', email: 'test@example.com', firstName: 'Test', lastName: 'User', passwordHash: 'hash', permissions: [], role: 'user' as const },
+  user: { 
+    id: 'user1',
+    username: 'testuser',
+    email: 'test@example.com', 
+    firstName: 'Test', 
+    lastName: 'User', 
+    passwordHash: 'hash',
+    role: 'viewer' as const,
+    permissions: [],
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z'
+  },
   permissions: [],
-  userRole: 'user' as const,
+  userRole: 'viewer' as const,
   httpClient: {} as any,
   apiClient: {} as any,
   getValue: jest.fn(),
@@ -73,13 +85,45 @@ describe('Validation Utilities', () => {
     })
 
     it('should handle single-level path', () => {
-      const singleContext = { ...mockContext, fieldPath: ['name'] }
+      const singleContext = { 
+        ...mockContext, 
+        fieldPath: ['name'],
+        user: { 
+          id: 'user1',
+          username: 'testuser',
+          email: 'test@example.com', 
+          firstName: 'Test', 
+          lastName: 'User', 
+          passwordHash: 'hash',
+          role: 'viewer' as const,
+          permissions: [],
+          isActive: true,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z'
+        }
+      }
       const path = getFieldPath(singleContext)
       expect(path).toBe('name')
     })
 
     it('should handle empty path', () => {
-      const emptyContext = { ...mockContext, fieldPath: [] }
+      const emptyContext = { 
+        ...mockContext, 
+        fieldPath: [],
+        user: { 
+          id: 'user1',
+          username: 'testuser',
+          email: 'test@example.com', 
+          firstName: 'Test', 
+          lastName: 'User', 
+          passwordHash: 'hash',
+          role: 'viewer' as const,
+          permissions: [],
+          isActive: true,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z'
+        }
+      }
       const path = getFieldPath(emptyContext)
       expect(path).toBe('')
     })

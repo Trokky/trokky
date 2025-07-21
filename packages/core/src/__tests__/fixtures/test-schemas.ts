@@ -1,4 +1,4 @@
-import { ContentSchema } from '../../types/index.js'
+import { ContentSchema } from '../../types/index'
 
 export const blogPostSchema: ContentSchema = {
   name: 'posts',

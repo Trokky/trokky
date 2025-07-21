@@ -6,11 +6,11 @@ import {
   ConditionalEvaluator,
   ConditionalEvaluationError,
   ConditionalUtils
-} from '../../fields/conditional.js';
+} from '../../fields/conditional';
 import {
   ConditionalExpression,
   FieldContext
-} from '../../fields/field-type.js';
+} from '../../fields/field-type';
 
 describe('ConditionalEvaluationError', () => {
   it('should create error with message', () => {

@@ -1,14 +1,14 @@
-import { TrokkyCore } from '../../core/engine.js'
-import { MemoryStorageAdapter } from '../fixtures/memory-storage.js'
-import { testSchemas, sampleBlogPost, sampleUser, invalidBlogPost } from '../fixtures/test-schemas.js'
+import { TrokkyCore } from '../../core/engine'
+import { MemoryStorageAdapter } from '../fixtures/memory-storage'
+import { testSchemas, sampleBlogPost, sampleUser, invalidBlogPost } from '../fixtures/test-schemas'
 import { 
   SchemaNotFoundError, 
   DocumentNotFoundError, 
   ValidationError,
   InvalidInputError,
   RateLimitError
-} from '../../errors/index.js'
-import { TrokkyConfig } from '../../types/index.js'
+} from '../../errors/index'
+import { TrokkyConfig } from '../../types/index'
 
 describe('TrokkyCore', () => {
   let core: TrokkyCore

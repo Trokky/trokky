@@ -5,13 +5,13 @@
 import {
   FieldTypeRegistry,
   FieldTypeRegistrationError
-} from '../../fields/registry.js';
+} from '../../fields/registry';
 import {
   FieldType,
   FieldCategory,
   FieldContext,
   ValidationResult
-} from '../../fields/field-type.js';
+} from '../../fields/field-type';
 
 describe('FieldTypeRegistrationError', () => {
   it('should create error with message', () => {

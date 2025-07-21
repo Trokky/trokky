@@ -1,4 +1,4 @@
-import { ContentSchema, ContentSchemaSchema } from '../types/index.js'
+import { ContentSchema, ContentSchemaSchema } from '../types/index'
 
 export class SchemaRegistry {
   private schemas: Map<string, ContentSchema> = new Map()

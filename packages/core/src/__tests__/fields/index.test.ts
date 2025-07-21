@@ -4,7 +4,7 @@
 
 describe('Field System Exports', () => {
   it('should export all field system components', async () => {
-    const fieldSystem = await import('../../fields/index.js');
+    const fieldSystem = await import('../../fields/index');
 
     // Check that all major exports are available
     expect(fieldSystem.FieldCategory).toBeDefined();
@@ -19,7 +19,7 @@ describe('Field System Exports', () => {
   });
 
   it('should export error classes', async () => {
-    const fieldSystem = await import('../../fields/index.js');
+    const fieldSystem = await import('../../fields/index');
 
     expect(fieldSystem.FieldTypeRegistrationError).toBeDefined();
     expect(fieldSystem.ConditionalEvaluationError).toBeDefined();
@@ -27,17 +27,17 @@ describe('Field System Exports', () => {
 
   it('should export TypeScript interfaces and types', async () => {
     // This is more of a compile-time check, but we can verify the exports exist
-    const fieldTypeModule = await import('../../fields/field-type.js');
+    const fieldTypeModule = await import('../../fields/field-type');
     
     // These should be available as type exports (compile-time check)
     expect(typeof fieldTypeModule.FieldCategory).toBe('object');
   });
 
   it('should allow import of individual modules', async () => {
-    const registryModule = await import('../../fields/registry.js');
-    const conditionalModule = await import('../../fields/conditional.js');
-    const helpersModule = await import('../../fields/helpers.js');
-    const fieldTypeModule = await import('../../fields/field-type.js');
+    const registryModule = await import('../../fields/registry');
+    const conditionalModule = await import('../../fields/conditional');
+    const helpersModule = await import('../../fields/helpers');
+    const fieldTypeModule = await import('../../fields/field-type');
 
     expect(registryModule.FieldTypeRegistry).toBeDefined();
     expect(conditionalModule.ConditionalEvaluator).toBeDefined();
@@ -46,10 +46,10 @@ describe('Field System Exports', () => {
   });
 
   it('should have consistent exports between index and individual modules', async () => {
-    const indexModule = await import('../../fields/index.js');
-    const registryModule = await import('../../fields/registry.js');
-    const conditionalModule = await import('../../fields/conditional.js');
-    const helpersModule = await import('../../fields/helpers.js');
+    const indexModule = await import('../../fields/index');
+    const registryModule = await import('../../fields/registry');
+    const conditionalModule = await import('../../fields/conditional');
+    const helpersModule = await import('../../fields/helpers');
 
     // Check that exports match
     expect(indexModule.FieldTypeRegistry).toBe(registryModule.FieldTypeRegistry);
@@ -62,7 +62,7 @@ describe('Module Loading Performance', () => {
   it('should load modules efficiently', async () => {
     const startTime = performance.now();
     
-    await import('../../fields/index.js');
+    await import('../../fields/index');
     
     const endTime = performance.now();
     const loadTime = endTime - startTime;
@@ -76,7 +76,7 @@ describe('Module Loading Performance', () => {
     
     // Import the same module multiple times
     for (let i = 0; i < 10; i++) {
-      await import('../../fields/index.js');
+      await import('../../fields/index');
     }
     
     const endTime = performance.now();
@@ -90,9 +90,9 @@ describe('Module Loading Performance', () => {
 describe('Tree Shaking Support', () => {
   it('should support importing individual exports', async () => {
     // Test that we can import specific exports without importing everything
-    const { FieldTypeRegistry } = await import('../../fields/registry.js');
-    const { ConditionalEvaluator } = await import('../../fields/conditional.js');
-    const { defineField } = await import('../../fields/helpers.js');
+    const { FieldTypeRegistry } = await import('../../fields/registry');
+    const { ConditionalEvaluator } = await import('../../fields/conditional');
+    const { defineField } = await import('../../fields/helpers');
 
     expect(FieldTypeRegistry).toBeDefined();
     expect(ConditionalEvaluator).toBeDefined();
@@ -101,7 +101,7 @@ describe('Tree Shaking Support', () => {
 
   it('should allow selective imports from index', async () => {
     // Modern bundlers should be able to tree-shake unused exports
-    const { FieldTypeRegistry, defineField } = await import('../../fields/index.js');
+    const { FieldTypeRegistry, defineField } = await import('../../fields/index');
 
     expect(FieldTypeRegistry).toBeDefined();
     expect(defineField).toBeDefined();
@@ -114,13 +114,13 @@ describe('TypeScript Compatibility', () => {
     // The real test is that the code compiles without TypeScript errors
     
     // Test that we can import and use types
-    import('../../fields/field-type.js').then(module => {
+    import('../../fields/field-type').then(module => {
       expect(module.FieldCategory).toBeDefined();
     });
   });
 
   it('should support generic type parameters', async () => {
-    const { defineField } = await import('../../fields/helpers.js');
+    const { defineField } = await import('../../fields/helpers');
     
     // This should compile without TypeScript errors
     const field = defineField<{ maxLength: number }>({
@@ -139,7 +139,7 @@ describe('Error Handling in Module Loading', () => {
   it('should handle import errors gracefully', async () => {
     // Test what happens if a module fails to load
     try {
-      await import('../../fields/nonexistent-module.js');
+      await import('../../fields/nonexistent-module');
       // If this doesn't throw, the test should fail
       expect(true).toBe(false);
     } catch (error) {
@@ -150,14 +150,14 @@ describe('Error Handling in Module Loading', () => {
 
   it('should maintain module isolation', async () => {
     // Import the registry module
-    const { FieldTypeRegistry } = await import('../../fields/registry.js');
+    const { FieldTypeRegistry } = await import('../../fields/registry');
     
     // Clear it
     FieldTypeRegistry.clear();
     expect(FieldTypeRegistry.getAll()).toHaveLength(0);
     
     // Import it again in a different context
-    const secondImport = await import('../../fields/registry.js');
+    const secondImport = await import('../../fields/registry');
     
     // Should be the same instance (modules are singletons)
     expect(secondImport.FieldTypeRegistry).toBe(FieldTypeRegistry);
@@ -167,7 +167,7 @@ describe('Error Handling in Module Loading', () => {
 
 describe('Backwards Compatibility', () => {
   it('should maintain API compatibility', async () => {
-    const fieldSystem = await import('../../fields/index.js');
+    const fieldSystem = await import('../../fields/index');
     
     // Test that the main API hasn't changed
     expect(typeof fieldSystem.defineField).toBe('function');
@@ -181,7 +181,7 @@ describe('Backwards Compatibility', () => {
   });
 
   it('should support legacy field definitions', async () => {
-    const { defineField } = await import('../../fields/helpers.js');
+    const { defineField } = await import('../../fields/helpers');
     
     // Test that old-style field definitions still work
     const legacyField = defineField({
@@ -204,7 +204,7 @@ describe('Memory Management', () => {
     
     const imports = [];
     for (let i = 0; i < 100; i++) {
-      const module = await import('../../fields/index.js');
+      const module = await import('../../fields/index');
       imports.push(module.FieldTypeRegistry);
     }
     
@@ -216,7 +216,7 @@ describe('Memory Management', () => {
   });
 
   it('should handle registry cleanup properly', async () => {
-    const { FieldTypeRegistry } = await import('../../fields/registry.js');
+    const { FieldTypeRegistry } = await import('../../fields/registry');
     
     // Mock field type for testing
     const mockFieldType = {
@@ -246,7 +246,7 @@ describe('Memory Management', () => {
 describe('Integration with Package Manager', () => {
   it('should work with ES modules', async () => {
     // Test that the module can be imported as ES module
-    const module = await import('../../fields/index.js');
+    const module = await import('../../fields/index');
     
     // Should have named exports
     expect(module.FieldTypeRegistry).toBeDefined();
@@ -258,8 +258,8 @@ describe('Integration with Package Manager', () => {
 
   it('should support dynamic imports', async () => {
     // Test dynamic import syntax
-    const registryModule = await import('../../fields/registry.js');
-    const conditionalModule = await import('../../fields/conditional.js');
+    const registryModule = await import('../../fields/registry');
+    const conditionalModule = await import('../../fields/conditional');
     
     expect(registryModule).toBeDefined();
     expect(conditionalModule).toBeDefined();
@@ -268,7 +268,7 @@ describe('Integration with Package Manager', () => {
 
 describe('Development vs Production Behavior', () => {
   it('should behave consistently across environments', async () => {
-    const { FieldTypeRegistry } = await import('../../fields/registry.js');
+    const { FieldTypeRegistry } = await import('../../fields/registry');
     
     // Basic functionality should work the same way
     FieldTypeRegistry.clear();
