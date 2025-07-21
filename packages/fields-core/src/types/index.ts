@@ -7,6 +7,7 @@ export * from './date-field'
 export * from './array-field'
 export * from './object-field'
 export * from './reference-field'
+export * from './portable-text'
 
 // Import field types for registry
 import { SimpleStringFieldType } from './simple-string'
@@ -17,6 +18,8 @@ import { DateFieldType } from './date-field'
 import { ArrayFieldType } from './array-field'
 import { ObjectFieldType } from './object-field'
 import { ReferenceFieldType } from './reference-field'
+// Note: PortableTextFieldType is not included due to circular dependency with @trokky/core
+// It will be added to the registry when the dependency is resolved
 
 // Array of all built-in field types
 export const BuiltInFieldTypes = [
@@ -28,4 +31,5 @@ export const BuiltInFieldTypes = [
   ArrayFieldType,
   ObjectFieldType,
   ReferenceFieldType
+  // PortableTextFieldType - will be added separately when core dependency is resolved
 ]
