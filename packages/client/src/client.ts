@@ -1,0 +1,228 @@
+/**
+ * Main Trokky Client
+ * High-level client that orchestrates all SDK functionality
+ */
+
+import { HttpClient } from './http/client'
+import { CacheManager } from './cache/manager'
+import { DocumentClient } from './document/client'
+
+import type { 
+  ClientConfig, 
+  AuthConfig, 
+  AuthTokens,
+  QueryOptions,
+  DocumentResult,
+  CollectionResult,
+  MediaResult,
+  BaseDocument
+} from './types'
+
+export class TrokkyClient {
+  public readonly http: HttpClient
+  public readonly cache: CacheManager
+  public readonly documents: DocumentClient
+
+  constructor(config: ClientConfig) {
+    // Initialize core components
+    this.http = new HttpClient(config)
+    this.cache = new CacheManager(config.cacheMaxAge)
+    this.documents = new DocumentClient(this.http, this.cache)
+  }
+
+  // Authentication methods (delegate to http client)
+  
+  /**
+   * Authenticate with username and password
+   */
+  async authenticate(credentials: AuthConfig): Promise<AuthTokens> {
+    return this.http.authenticate(credentials)
+  }
+
+  /**
+   * Refresh authentication token
+   */
+  async refreshAuth(): Promise<AuthTokens> {
+    return this.http.refreshAuth()
+  }
+
+  /**
+   * Logout and clear tokens
+   */
+  async logout(): Promise<void> {
+    await this.http.logout()
+    this.cache.clear() // Clear cache on logout
+  }
+
+  /**
+   * Check if client is authenticated
+   */
+  isAuthenticated(): boolean {
+    return this.http.isAuthenticated()
+  }
+
+  /**
+   * Get current authentication tokens
+   */
+  getTokens(): AuthTokens | null {
+    return this.http.getTokens()
+  }
+
+  /**
+   * Set authentication tokens
+   */
+  setTokens(tokens: AuthTokens): void {
+    this.http.setTokens(tokens)
+  }
+
+  // Document methods (delegate to document client)
+
+  /**
+   * Get document by ID
+   */
+  async getDocument<T extends BaseDocument>(
+    type: string, 
+    id: string, 
+    useCache = true
+  ): Promise<DocumentResult<T>> {
+    return this.documents.getById<T>(type, id, useCache)
+  }
+
+  /**
+   * Query documents
+   */
+  async queryDocuments<T extends BaseDocument>(
+    type: string, 
+    options: QueryOptions = {},
+    useCache = true
+  ): Promise<CollectionResult<T>> {
+    return this.documents.query<T>(type, options, useCache)
+  }
+
+  /**
+   * Create new document
+   */
+  async createDocument<T extends BaseDocument>(
+    type: string, 
+    data: Omit<T, '_id' | '_type' | '_createdAt' | '_updatedAt' | '_version'>
+  ): Promise<DocumentResult<T>> {
+    return this.documents.create<T>(type, data)
+  }
+
+  /**
+   * Update document
+   */
+  async updateDocument<T extends BaseDocument>(
+    type: string, 
+    id: string, 
+    data: Partial<Omit<T, '_id' | '_type' | '_createdAt' | '_updatedAt' | '_version'>>
+  ): Promise<DocumentResult<T>> {
+    return this.documents.update<T>(type, id, data)
+  }
+
+  /**
+   * Replace document
+   */
+  async replaceDocument<T extends BaseDocument>(
+    type: string, 
+    id: string, 
+    data: Omit<T, '_id' | '_type' | '_createdAt' | '_updatedAt' | '_version'>
+  ): Promise<DocumentResult<T>> {
+    return this.documents.replace<T>(type, id, data)
+  }
+
+  /**
+   * Delete document
+   */
+  async deleteDocument(type: string, id: string): Promise<void> {
+    return this.documents.delete(type, id)
+  }
+
+  /**
+   * Search documents
+   */
+  async searchDocuments<T extends BaseDocument>(
+    type: string, 
+    searchTerm: string,
+    fields?: string[],
+    options: Omit<QueryOptions, 'filter'> = {}
+  ): Promise<CollectionResult<T>> {
+    return this.documents.search<T>(type, searchTerm, fields, options)
+  }
+
+  /**
+   * Count documents
+   */
+  async countDocuments(type: string, filter?: Record<string, any>): Promise<number> {
+    return this.documents.count(type, filter)
+  }
+
+  /**
+   * Check if document exists
+   */
+  async documentExists(type: string, id: string): Promise<boolean> {
+    return this.documents.exists(type, id)
+  }
+
+  // Media methods (delegate to http client)
+
+  /**
+   * Upload file
+   */
+  async uploadFile(file: File | Buffer, filename?: string): Promise<MediaResult> {
+    return this.http.upload(file, filename)
+  }
+
+  /**
+   * Get media by ID
+   */
+  async getMedia(id: string): Promise<MediaResult> {
+    return this.http.get<MediaResult>(`/media/${id}`)
+  }
+
+  /**
+   * Delete media
+   */
+  async deleteMedia(id: string): Promise<void> {
+    return this.http.delete(`/media/${id}`)
+  }
+
+  // Utility methods
+
+  /**
+   * Test API connection
+   */
+  async ping(): Promise<{ status: string; timestamp: string }> {
+    return this.http.get('/ping')
+  }
+
+  /**
+   * Get API health status
+   */
+  async health(): Promise<{ status: string; services: Record<string, string> }> {
+    return this.http.get('/health')
+  }
+
+  /**
+   * Clear client cache
+   */
+  clearCache(): void {
+    this.cache.clear()
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { size: number } {
+    return {
+      size: this.cache.size()
+    }
+  }
+
+  /**
+   * Destroy client and cleanup resources
+   */
+  destroy(): void {
+    this.cache.destroy()
+  }
+}
