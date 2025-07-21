@@ -32,7 +32,7 @@ export {
   rule,
   Rule,
   type FieldType,
-  type FieldCategory,
+  FieldCategory,
   type FieldContext,
   type FieldDefinition,
   type FieldProps,
