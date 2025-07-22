@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { TrokkyRoutes } from '@trokky/routes'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
+import { createLogger } from '@trokky/core'
 import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
 
 /**
@@ -10,13 +11,25 @@ import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
  * Creates an Express router with all Trokky routes and middleware
  */
 export class TrokkyExpress {
-  private routes: TrokkyRoutes
+  public routes: TrokkyRoutes  // Make public for debugging
   private adapter: ExpressAdapter
   private middleware: TrokkyExpressMiddleware
   private config: ExpressIntegrationConfig
+  private logger = createLogger('express', 'TrokkyExpress')
 
   constructor(config: ExpressIntegrationConfig) {
     this.config = config
+    
+    // Validate configuration to prevent common mounting issues
+    if (config.basePath && config.basePath.startsWith('/api')) {
+      this.logger.warn(
+        'basePath starts with "/api" but routes will be mounted on a path. ' +
+        'This may cause double paths like "/api/api/v1/*". ' +
+        'Consider using basePath: "" and mounting the router on your desired path.',
+        { basePath: config.basePath }
+      )
+    }
+    
     this.routes = new TrokkyRoutes(config)
     this.adapter = new ExpressAdapter()
     this.middleware = new TrokkyExpressMiddleware(config)
@@ -44,9 +57,11 @@ export class TrokkyExpress {
 
     // Get all routes from TrokkyRoutes
     const routeDefinitions = this.routes.getRoutes()
-
+    this.logger.info('Creating Express router', { routeCount: routeDefinitions.length })
+    
     // Add each route to Express router
     for (const routeDef of routeDefinitions) {
+      this.logger.debug('Registering route', { method: routeDef.method, path: routeDef.path })
       const expressHandler = this.adapter.handleRoute(routeDef.handler)
       
       // Map HTTP methods to Express router methods - cast to any to handle type compatibility
@@ -70,7 +85,7 @@ export class TrokkyExpress {
           router.options(routeDef.path, expressHandler as any)
           break
         default:
-          console.warn(`Unsupported HTTP method: ${routeDef.method}`)
+          this.logger.warn('Unsupported HTTP method', { method: routeDef.method })
       }
     }
 
@@ -97,6 +112,25 @@ export class TrokkyExpress {
   public static setup(config: ExpressIntegrationConfig): ExpressIntegration {
     const integration = new TrokkyExpress(config)
     return integration.createIntegration()
+  }
+
+  /**
+   * Recommended setup method that handles common mounting patterns
+   * 
+   * @param config - Configuration without basePath (will be set to empty)
+   * @param mountPath - Path where routes will be mounted (e.g., '/api', '/api/v1')
+   * @returns Integration ready to mount on the specified path
+   */
+  public static setupForMount(config: Omit<ExpressIntegrationConfig, 'basePath'>, mountPath: string): { integration: ExpressIntegration, mountPath: string } {
+    const integration = new TrokkyExpress({
+      ...config,
+      basePath: ''  // Always use empty basePath for mounting
+    })
+    
+    return {
+      integration: integration.createIntegration(),
+      mountPath
+    }
   }
 
   /**

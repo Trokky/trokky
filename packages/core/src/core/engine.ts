@@ -4,6 +4,7 @@ import { DocumentValidator } from '../validation/validator'
 import { SecurityValidator } from '../security/validation'
 import { RateLimiter, RateLimitConfig } from '../security/rate-limiter'
 import { IdGenerator } from '../utils/id-generator'
+import { createLogger } from '../utils/logger'
 import { 
   SchemaNotFoundError, 
   DocumentNotFoundError, 
@@ -65,6 +66,8 @@ export class TrokkyCore {
   private jwtSecret: string
   private auditLogger?: (event: AuditEvent) => void
   private cryptoAdapter: CryptoAdapter
+  private logger = createLogger('core', 'TrokkyCore')
+  private auditLog = createLogger('core', 'Audit')
 
   constructor(
     config: TrokkyConfig, 
@@ -673,16 +676,25 @@ export class TrokkyCore {
   }
 
   public logAuditEvent(event: AuditEvent): void {
+    // Always call custom audit logger if provided
     if (this.auditLogger) {
       this.auditLogger(event)
-    } else if (process.env.NODE_ENV !== 'test') {
-      // Default logging to console if no custom logger provided
-      console.log(`[AUDIT] ${event.type}: ${event.action} - ${event.success ? 'SUCCESS' : 'FAILED'}`, {
-        user: event.username,
-        target: event.targetUserId,
-        timestamp: event.timestamp,
-        details: event.details
-      })
+    }
+    
+    // Log through our structured logger system
+    const logData = {
+      type: event.type,
+      action: event.action,
+      user: event.username,
+      target: event.targetUserId,
+      timestamp: event.timestamp,
+      ...event.details
+    }
+    
+    if (event.success) {
+      this.auditLog.info(`${event.type}: ${event.action}`, logData)
+    } else {
+      this.auditLog.warn(`${event.type}: ${event.action} - FAILED`, logData)
     }
   }
 

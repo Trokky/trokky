@@ -2,6 +2,7 @@
   "name": "@trokky/adapter-filesystem",
   "version": "0.1.0",
   "description": "File-based storage adapter for Trokky v2",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

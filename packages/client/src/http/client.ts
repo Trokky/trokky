@@ -10,10 +10,12 @@ import type {
   AuthTokens,
   AuthConfig
 } from '../types'
+import { createLogger } from '@trokky/core'
 
 export class HttpClient {
   private config: Required<ClientConfig>
   private tokens: AuthTokens | null = null
+  private logger = createLogger('client', 'HttpClient')
 
   constructor(config: ClientConfig) {
     this.config = {
@@ -289,11 +291,11 @@ export class HttpClient {
   }
 
   private async makeRequest(url: string, options: RequestInit): Promise<Response> {
-    this.log('Request:', options.method, url)
+    this.log('Request', { method: options.method, url })
     
     const response = await fetch(url, options)
     
-    this.log('Response:', response.status, response.statusText)
+    this.log('Response', { status: response.status, statusText: response.statusText })
     
     return response
   }
@@ -347,9 +349,9 @@ export class HttpClient {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 
-  private log(...args: any[]): void {
+  private log(message: string, data?: any): void {
     if (this.config.debug) {
-      console.log('[TrokkyClient]', ...args)
+      this.logger.debug(message, data)
     }
   }
 }

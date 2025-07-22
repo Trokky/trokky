@@ -23,17 +23,18 @@ import type {
   LoginRequest,
   LoginResponse
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
   private config: RoutesConfig
   private routes: Map<string, RouteDefinition> = new Map()
+  private logger = createLogger('routes', 'TrokkyRoutes')
 
   constructor(config: RoutesConfig) {
     this.core = config.core
     this.config = {
-      basePath: '/api/v1',
+      basePath: '',  // Empty by default - let integration layer handle mounting
       // SECURITY: No default CORS configuration - must be explicitly configured
       // The dangerous 'origin: true' default has been removed to prevent CSRF attacks
       ...config
@@ -44,6 +45,7 @@ export class TrokkyRoutes {
 
   private initializeRoutes(): void {
     const basePath = this.config.basePath || ''
+    this.logger.debug('Initializing routes', { basePath })
 
     // Collection routes
     this.addRoute('GET', `${basePath}/collections/:collection`, this.listDocuments.bind(this))
@@ -76,10 +78,13 @@ export class TrokkyRoutes {
 
     // CORS preflight route
     this.addRoute('OPTIONS', `${basePath}/*`, this.handleCors.bind(this))
+
+    this.logger.info('Routes initialized', { count: this.routes.size })
   }
 
   private addRoute(method: string, path: string, handler: RouteHandler): void {
     const key = `${method}:${path}`
+    this.logger.debug('Adding route', { method, path })
     this.routes.set(key, {
       method: method as any,
       path,

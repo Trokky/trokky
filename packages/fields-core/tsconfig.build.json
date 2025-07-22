@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "composite": true,
+    "isolatedModules": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**/*"],
+  "references": [
+    { "path": "../core/tsconfig.build.json" }
+  ]
+}

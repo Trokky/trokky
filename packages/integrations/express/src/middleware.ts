@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from 'express'
 import multer from 'multer'
+import { createLogger } from '@trokky/core'
 import type { ExpressIntegrationConfig, ExpressMiddleware, ExpressErrorHandler } from './types.js'
 
 /**
@@ -175,10 +176,12 @@ export class TrokkyExpressMiddleware {
    * Create error handling middleware
    */
   public static createErrorHandler(): ExpressErrorHandler {
+    const logger = createLogger('express', 'ErrorHandler')
+    
     return (err: Error, req: Request, res: Response, next: NextFunction) => {
       // Log error for debugging (skip in test environment)
       if (process.env.NODE_ENV !== 'test') {
-        console.error('Trokky Express Error:', err)
+        logger.error('Express middleware error', err)
       }
       
       // Don't handle if response already sent

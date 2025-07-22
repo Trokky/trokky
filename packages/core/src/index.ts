@@ -47,6 +47,16 @@ export {
 
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator'
+export { 
+  TrokkyLogger, 
+  LoggerFactory, 
+  createLogger, 
+  LoggerPresets,
+  type LogLevel, 
+  type LogContext, 
+  type LogEntry, 
+  type LoggerConfig 
+} from './utils/logger'
 
 // Errors
 export {

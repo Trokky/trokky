@@ -1,4 +1,5 @@
 import type { BackendCapabilities } from '@/types';
+import { createStudioLogger } from '../utils/logger';
 
 export class BackendDiscoveryError extends Error {
   constructor(message: string, public readonly strategy?: string) {
@@ -15,6 +16,7 @@ export interface DiscoveryStrategy {
 export class BackendDiscovery {
   private cache = new Map<string, { data: BackendCapabilities; timestamp: number }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private logger = createStudioLogger('BackendDiscovery');
 
   /**
    * Discover backend URL using multiple strategies
@@ -24,19 +26,19 @@ export class BackendDiscovery {
     
     for (const strategy of strategies) {
       try {
-        console.log(`Trying discovery strategy: ${strategy.name}`);
+        this.logger.debug(`Trying discovery strategy: ${strategy.name}`);
         const url = await strategy.discover();
         
         if (url) {
-          console.log(`Found potential backend: ${url}`);
+          this.logger.debug(`Found potential backend: ${url}`);
           const validated = await this.validateBackend(url);
           if (validated) {
-            console.log(`✅ Backend validated: ${url}`);
+            this.logger.info(`Backend validated: ${url}`);
             return url;
           }
         }
       } catch (error) {
-        console.warn(`Strategy ${strategy.name} failed:`, error);
+        this.logger.warn(`Strategy ${strategy.name} failed`, error);
         continue;
       }
     }
@@ -66,7 +68,7 @@ export class BackendDiscovery {
       // Check if it's a Trokky backend
       return info?.name === 'trokky' || info?.product === 'trokky';
     } catch (error) {
-      console.warn(`Backend validation failed for ${url}:`, error);
+      this.logger.warn(`Backend validation failed for ${url}`, error);
       return false;
     }
   }
@@ -255,7 +257,7 @@ export class BackendDiscovery {
     try {
       localStorage.setItem('trokky_backend_url', url);
     } catch (error) {
-      console.warn('Failed to save backend URL:', error);
+      this.logger.warn('Failed to save backend URL', error);
     }
   }
 
@@ -266,7 +268,7 @@ export class BackendDiscovery {
     try {
       localStorage.removeItem('trokky_backend_url');
     } catch (error) {
-      console.warn('Failed to clear saved backend:', error);
+      this.logger.warn('Failed to clear saved backend', error);
     }
   }
 

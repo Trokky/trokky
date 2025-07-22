@@ -9,6 +9,7 @@ import type {
   SearchResponse
 } from '@/types';
 import { BackendDiscovery } from './backend-discovery';
+import { createStudioLogger } from '../utils/logger';
 
 export class ApiClientError extends Error {
   constructor(
@@ -27,6 +28,7 @@ export class ApiClient {
   private capabilities: BackendCapabilities | null = null;
   private discovery = new BackendDiscovery();
   private authToken: string | null = null;
+  private logger = createStudioLogger('ApiClient');
 
   constructor(baseUrl?: string) {
     if (baseUrl) {
@@ -51,13 +53,13 @@ export class ApiClient {
       // Try to restore auth token
       this.restoreAuthToken();
       
-      console.log('✅ API Client initialized:', {
+      this.logger.info('API Client initialized', {
         baseUrl: this.baseUrl,
         version: this.capabilities.version,
         features: this.capabilities.features
       });
     } catch (error) {
-      console.error('❌ API Client initialization failed:', error);
+      this.logger.error('API Client initialization failed', error);
       throw error;
     }
   }
@@ -252,36 +254,36 @@ export class ApiClient {
   /**
    * Get documents for a schema
    */
-  async getDocuments(schemaName: string, options: QueryOptions = {}): Promise<ApiResponse<{ items: Document[]; total: number }>> {
-    return this.get<{ items: Document[]; total: number }>(`/documents/${schemaName}`, options);
+  async getDocuments(schemaName: string, options: QueryOptions = {}): Promise<ApiResponse<{ documents: Document[]; total: number }>> {
+    return this.get<{ documents: Document[]; total: number }>(`/collections/${schemaName}`, options);
   }
 
   /**
    * Get single document
    */
   async getDocument(schemaName: string, id: string): Promise<ApiResponse<Document>> {
-    return this.get<Document>(`/documents/${schemaName}/${id}`);
+    return this.get<Document>(`/collections/${schemaName}/${id}`);
   }
 
   /**
    * Create document
    */
   async createDocument(schemaName: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.post<Document>(`/documents/${schemaName}`, data);
+    return this.post<Document>(`/collections/${schemaName}`, { data });
   }
 
   /**
    * Update document
    */
   async updateDocument(schemaName: string, id: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.put<Document>(`/documents/${schemaName}/${id}`, data);
+    return this.put<Document>(`/collections/${schemaName}/${id}`, { data });
   }
 
   /**
    * Delete document
    */
   async deleteDocument(schemaName: string, id: string): Promise<ApiResponse<void>> {
-    return this.delete<void>(`/documents/${schemaName}/${id}`);
+    return this.delete<void>(`/collections/${schemaName}/${id}`);
   }
 
   // ========================================
@@ -359,12 +361,12 @@ export class ApiClient {
         if (schemas.success && schemas.data) {
           for (const schema of schemas.data.slice(0, 3)) {
             const docs = await this.getDocuments(schema.name, { limit: 5, search: query });
-            if (docs.success && docs.data?.items) {
-              results.push(...docs.data.items.map(doc => ({
-                id: doc._id,
+            if (docs.success && docs.data?.documents) {
+              results.push(...docs.data.documents.map((doc: any) => ({
+                id: doc.id || doc._id,
                 type: 'document',
-                title: doc.title || doc.name || doc._id,
-                url: `/content/${schema.name}/${doc._id}`,
+                title: doc.title || doc.name || doc.id || doc._id,
+                url: `/content/${schema.name}/${doc.id || doc._id}`,
                 metadata: {
                   status: doc._status,
                   createdAt: doc._createdAt
