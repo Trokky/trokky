@@ -3,7 +3,34 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Inject runtime config from environment variables
+    {
+      name: 'inject-config',
+      transformIndexHtml: {
+        enforce: 'pre',
+        transform(html, ctx) {
+          const backendUrl = process.env.TROKKY_BACKEND_URL || 'http://localhost:3001';
+          
+          return html.replace(
+            '<head>',
+            `<head>
+    <script>
+      window.TROKKY_CONFIG = {
+        backendUrl: '${backendUrl}',
+        timeout: 30000,
+        branding: {
+          title: 'Trokky Studio',
+          theme: 'system'
+        }
+      };
+    </script>`
+          );
+        }
+      }
+    }
+  ],
   
   resolve: {
     alias: {
@@ -15,14 +42,17 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      // Auto-proxy API calls to common backend ports during development
+      // Auto-proxy API calls to demo backend during development
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, options) => {
-          // Fallback to other common ports if 3000 fails
-          proxy.on('error', () => {
-            console.log('Trying fallback backend ports...');
+          // Log proxy requests for debugging
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log(`Proxying ${req.method} ${req.url} to backend on port 3001`);
+          });
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err.message);
           });
         }
       }

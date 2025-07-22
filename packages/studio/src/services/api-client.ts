@@ -37,14 +37,21 @@ export class ApiClient {
   }
 
   /**
-   * Initialize the API client with auto-discovery
+   * Initialize the API client with runtime config or auto-discovery fallback
    */
   async initialize(): Promise<void> {
     try {
-      // Discover backend if not provided
+      // Check for runtime configuration first
+      if (!this.baseUrl && (window as any).TROKKY_CONFIG?.backendUrl) {
+        this.baseUrl = (window as any).TROKKY_CONFIG.backendUrl;
+        this.logger.info('Using configured backend URL', { baseUrl: this.baseUrl });
+      }
+      
+      // Fallback to auto-discovery if no config
       if (!this.baseUrl) {
         this.baseUrl = await this.discovery.discoverBackend();
         this.discovery.saveBackendUrl(this.baseUrl);
+        this.logger.info('Auto-discovered backend URL', { baseUrl: this.baseUrl });
       }
       
       // Discover capabilities

@@ -89,22 +89,22 @@ export class BackendDiscovery {
       const infoResponse = await fetch(`${baseUrl}/info`);
       const info = await infoResponse.json();
       
-      // Test endpoints to discover capabilities
+      // Use capabilities from info endpoint directly (no need to probe)
       const capabilities: BackendCapabilities = {
         version: info.version || '1.0.0',
-        features: {
-          search: await this.testEndpoint(`${baseUrl}/search`),
-          media: await this.testEndpoint(`${baseUrl}/media`),
-          auth: await this.testEndpoint(`${baseUrl}/auth/me`),
-          structure: await this.testEndpoint(`${baseUrl}/structure`),
-          workflows: await this.testEndpoint(`${baseUrl}/workflows`)
+        features: info.capabilities || {
+          search: false,
+          media: false,
+          auth: false,
+          structure: false,
+          workflows: false
         },
         endpoints: {
-          documents: `${baseUrl}/documents`,
-          ...(await this.testEndpoint(`${baseUrl}/media`) && { media: `${baseUrl}/media` }),
-          ...(await this.testEndpoint(`${baseUrl}/auth/me`) && { auth: `${baseUrl}/auth` }),
-          ...(await this.testEndpoint(`${baseUrl}/structure`) && { structure: `${baseUrl}/structure` }),
-          ...(await this.testEndpoint(`${baseUrl}/users`) && { users: `${baseUrl}/users` })
+          documents: `${baseUrl}/api/collections`,
+          ...(info.capabilities?.media && { media: `${baseUrl}/api/media` }),
+          ...(info.capabilities?.auth && { auth: `${baseUrl}/api/auth` }),
+          ...(info.capabilities?.structure && { structure: `${baseUrl}/api/structure` }),
+          ...(info.capabilities?.auth && { users: `${baseUrl}/api/users` })
         },
         limits: {
           maxUploadSize: info.limits?.maxUploadSize || 100 * 1024 * 1024, // 100MB default
@@ -233,7 +233,7 @@ export class BackendDiscovery {
       return null;
     }
     
-    const commonPorts = [3000, 8000, 8080, 4000, 5000];
+    const commonPorts = [3000, 3001, 8000, 8080, 4000, 5000];
     
     for (const port of commonPorts) {
       // Skip current port to avoid infinite loops

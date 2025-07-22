@@ -234,7 +234,14 @@ export interface StudioError {
 // Window types for global configuration
 declare global {
   interface Window {
-    TROKKY_CONFIG?: Partial<StudioConfig>;
+    TROKKY_CONFIG?: {
+      backendUrl?: string;
+      timeout?: number;
+      branding?: {
+        title?: string;
+        theme?: 'light' | 'dark' | 'system';
+      };
+    };
     TROKKY_STUDIO_CONFIG?: Partial<StudioConfig>;
   }
 }
