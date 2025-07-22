@@ -10,6 +10,15 @@ import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
+// Get basename from integrated config if available
+const getBasename = () => {
+  const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
+  if (integratedConfig?.basePath) {
+    return integratedConfig.basePath;
+  }
+  return undefined;
+};
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -58,7 +67,9 @@ const router = createBrowserRouter([
       }
     ]
   }
-]);
+], {
+  basename: getBasename()
+});
 
 export function AppRouter() {
   return <RouterProvider router={router} />;

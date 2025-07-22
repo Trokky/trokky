@@ -125,17 +125,7 @@ export class BackendDiscovery {
   /**
    * Test if an endpoint exists and is accessible
    */
-  private async testEndpoint(url: string): Promise<boolean> {
-    try {
-      const response = await fetch(url, {
-        method: 'HEAD',
-        credentials: 'omit'
-      });
-      return response.status < 500; // Accept 401, 403 as "exists but needs auth"
-    } catch {
-      return false;
-    }
-  }
+  // Removed testEndpoint method as we now use /info endpoint directly
 
   /**
    * Get all discovery strategies in priority order
@@ -174,7 +164,10 @@ export class BackendDiscovery {
    */
   private async checkWindowConfig(): Promise<string | null> {
     const config = window.TROKKY_CONFIG || window.TROKKY_STUDIO_CONFIG;
-    return config?.backend?.url || null;
+    if (window.TROKKY_CONFIG?.backendUrl) {
+      return window.TROKKY_CONFIG.backendUrl;
+    }
+    return (config as any)?.backend?.url || null;
   }
 
   /**

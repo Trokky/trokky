@@ -239,6 +239,7 @@ declare global {
       timeout?: number;
       branding?: {
         title?: string;
+        logo?: string;
         theme?: 'light' | 'dark' | 'system';
       };
     };

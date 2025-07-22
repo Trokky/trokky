@@ -9,8 +9,8 @@ export default defineConfig({
     {
       name: 'inject-config',
       transformIndexHtml: {
-        enforce: 'pre',
-        transform(html, ctx) {
+        order: 'pre',
+        handler(html, ctx) {
           const backendUrl = process.env.TROKKY_BACKEND_URL || 'http://localhost:3001';
           
           return html.replace(

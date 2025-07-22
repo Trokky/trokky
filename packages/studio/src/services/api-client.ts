@@ -41,7 +41,35 @@ export class ApiClient {
    */
   async initialize(): Promise<void> {
     try {
-      // Check for runtime configuration first
+      // Check for integrated mode configuration first
+      if ((window as any).TROKKY_INTEGRATED_CONFIG) {
+        const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
+        this.baseUrl = window.location.origin + (integratedConfig.basePath || '/admin');
+        this.capabilities = {
+          version: '2.0.0',
+          features: {
+            search: false,
+            media: false,
+            auth: true,
+            structure: true,
+            workflows: false
+          },
+          endpoints: {
+            documents: `${this.baseUrl}/api/collections`,
+            auth: `${this.baseUrl}/api/auth`,
+            structure: `${this.baseUrl}/api/structure`
+          },
+          limits: {
+            maxUploadSize: 100 * 1024 * 1024,
+            maxResults: 100,
+            requestRate: 1000
+          }
+        };
+        this.logger.info('Using integrated Studio configuration', { baseUrl: this.baseUrl });
+        return;
+      }
+      
+      // Check for runtime configuration next
       if (!this.baseUrl && (window as any).TROKKY_CONFIG?.backendUrl) {
         this.baseUrl = (window as any).TROKKY_CONFIG.backendUrl;
         this.logger.info('Using configured backend URL', { baseUrl: this.baseUrl });
