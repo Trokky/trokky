@@ -418,10 +418,13 @@ function DocumentEditor({ schemaName, documentId }: { schemaName?: string; docum
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [schema, setSchema] = useState<any>(null);
+  const [schemaLoading, setSchemaLoading] = useState(true);
   const isNewDocument = documentId === 'new';
 
   useEffect(() => {
     if (schemaName) {
+      loadSchema();
       if (isNewDocument) {
         // Initialize empty form for new document
         setFormData({});
@@ -430,6 +433,33 @@ function DocumentEditor({ schemaName, documentId }: { schemaName?: string; docum
       }
     }
   }, [schemaName, documentId]);
+
+  const loadSchema = async () => {
+    if (!schemaName) return;
+    
+    try {
+      setSchemaLoading(true);
+      setError(null);
+      
+      if (!apiClient.isInitialized) {
+        await apiClient.initialize();
+      }
+      
+      const response = await apiClient.getSchema(schemaName);
+      
+      if (response.success && response.data) {
+        setSchema(response.data);
+        logger.info('Schema loaded', { schema: schemaName });
+      } else {
+        setError(`Schema '${schemaName}' not found`);
+      }
+    } catch (err) {
+      logger.error('Failed to load schema', err);
+      setError(err instanceof ApiClientError ? err.message : 'Failed to load schema');
+    } finally {
+      setSchemaLoading(false);
+    }
+  };
 
   const loadDocument = async () => {
     if (!schemaName || !documentId || isNewDocument) return;
@@ -610,12 +640,14 @@ function DocumentEditor({ schemaName, documentId }: { schemaName?: string; docum
     }
   };
 
-  if (loading) {
+  if (loading || schemaLoading) {
     return (
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading document...</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            {schemaLoading ? 'Loading schema...' : 'Loading document...'}
+          </p>
         </div>
       </div>
     );
@@ -637,36 +669,26 @@ function DocumentEditor({ schemaName, documentId }: { schemaName?: string; docum
     );
   }
 
-  // Simple schema fields for demo - in a real implementation, you'd fetch schema details
+  // Get schema fields from loaded schema
   const getSchemaFields = () => {
-    switch (schemaName) {
-      case 'post':
-        return {
-          title: { title: 'Title', type: 'string', required: true, maxLength: 100 },
-          slug: { title: 'Slug', type: 'string', required: true, description: 'URL-friendly version of title' },
-          excerpt: { title: 'Excerpt', type: 'string', maxLength: 300, description: 'Short description for previews' },
-          content: { title: 'Content', type: 'string', required: true, description: 'Main blog post content' },
-          publishedAt: { title: 'Published Date', type: 'date' },
-          tags: { title: 'Tags', type: 'array', of: { type: 'string' } },
-          published: { title: 'Published', type: 'boolean', defaultValue: false, description: 'Make this post visible to readers' },
-          featured: { title: 'Featured', type: 'boolean', defaultValue: false, description: 'Highlight this post on homepage' }
-        };
-      case 'author':
-        return {
-          name: { title: 'Name', type: 'string', required: true, maxLength: 50 },
-          slug: { title: 'Slug', type: 'string', required: true, description: 'URL-friendly version of name' },
-          email: { title: 'Email', type: 'string', required: true, description: 'Author email address' },
-          bio: { title: 'Bio', type: 'string', maxLength: 500, description: 'Short biography' },
-          website: { title: 'Website', type: 'string', description: 'Personal or professional website URL' }
-        };
-      case 'settings':
-        return {
-          siteTitle: { title: 'Site Title', type: 'string', required: true, maxLength: 60, defaultValue: 'My Blog' },
-          siteDescription: { title: 'Site Description', type: 'string', required: true, maxLength: 160, description: 'SEO description for the site' }
-        };
-      default:
-        return {};
+    if (!schema || !schema.fields) {
+      return {};
     }
+    
+    // Convert schema fields to the format expected by renderField
+    const fields: Record<string, any> = {};
+    
+    for (const field of schema.fields) {
+      fields[field.name] = {
+        title: field.title || field.name,
+        type: field.type,
+        required: field.required || false,
+        description: field.description,
+        ...field.options
+      };
+    }
+    
+    return fields;
   };
 
   const schemaFields = getSchemaFields();

@@ -31,6 +31,9 @@ interface IntegratedStudioConfig {
     theme?: 'light' | 'dark' | 'system';
   };
   
+  /** Custom structure configuration */
+  structure?: any;
+  
   /** Additional Studio configuration */
   config?: {
     pageSize?: number;
@@ -157,6 +160,7 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
         mode: 'integrated',
         schemas: config.cms.getAllSchemas(),
         branding: config.branding || { title: 'Trokky Studio' },
+        structure: config.structure || null,
         config: config.config || {},
         basePath
       };

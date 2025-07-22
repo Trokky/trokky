@@ -7,10 +7,16 @@ import {
   UsersIcon,
   Cog6ToothIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  FolderIcon,
+  TagIcon,
+  UserIcon,
+  DocumentIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
-import type { NavigationItem } from '@/types';
+import { useNavigation } from '@/hooks/useStructure';
+import type { NavigationItem as StructureNavigationItem } from '@/types/structure';
 
 interface MainSidebarProps {
   isMobile?: boolean;
@@ -20,64 +26,20 @@ interface MainSidebarProps {
 export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [navigationItems, setNavigationItems] = useState<NavigationItem[]>([]);
-
-  // Load navigation items on mount
-  useEffect(() => {
-    loadNavigationItems();
-  }, []);
-
-  const loadNavigationItems = async () => {
-    // For now, use default navigation
-    // In the future, this will be structure-driven
-    const defaultItems: NavigationItem[] = [
-      {
-        id: 'dashboard',
-        title: 'Dashboard',
-        href: '/',
-        icon: 'home',
-        description: 'Overview & analytics'
-      },
-      {
-        id: 'content',
-        title: 'Content',
-        href: '/content',
-        icon: 'document-text',
-        description: 'All your content'
-      },
-      {
-        id: 'media',
-        title: 'Media',
-        href: '/media',
-        icon: 'photo',
-        description: 'Images & files'
-      },
-      {
-        id: 'users',
-        title: 'Users',
-        href: '/users',
-        icon: 'users',
-        description: 'User management'
-      },
-      {
-        id: 'settings',
-        title: 'Settings',
-        href: '/settings',
-        icon: 'cog',
-        description: 'Studio settings'
-      }
-    ];
-
-    setNavigationItems(defaultItems);
-  };
+  const { navigation, loading, error } = useNavigation();
 
   const getIconComponent = (iconName: string) => {
     const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
       'home': HomeIcon,
       'document-text': DocumentTextIcon,
+      'document': DocumentIcon,
       'photo': PhotoIcon,
       'users': UsersIcon,
-      'cog': Cog6ToothIcon
+      'user': UserIcon,
+      'cog': Cog6ToothIcon,
+      'folder': FolderIcon,
+      'tag': TagIcon,
+      'menu': Bars3Icon
     };
     return iconMap[iconName] || DocumentTextIcon;
   };
@@ -112,11 +74,100 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
     }
   }, [isMobile]);
 
-  const isActiveRoute = (href: string) => {
-    if (href === '/') {
+  const isActiveRoute = (path: string) => {
+    if (path === '/') {
       return location.pathname === '/';
     }
-    return location.pathname.startsWith(href);
+    return location.pathname.startsWith(path);
+  };
+
+  const renderNavigationItem = (item: StructureNavigationItem, depth = 0) => {
+    const IconComponent = getIconComponent(item.icon || 'document-text');
+    const isActive = item.path ? isActiveRoute(item.path) : false;
+
+    if (item.type === 'divider') {
+      // In collapsed mode, show a subtle separator, otherwise show full divider
+      if (isCollapsed) {
+        return (
+          <div key={item.id} className="mx-3 my-2 border-t border-gray-200 dark:border-gray-700" />
+        );
+      }
+      
+      return (
+        <div key={item.id} className={cn(
+          'border-t border-gray-200 dark:border-gray-700',
+          depth === 0 ? 'mx-4 my-2' : 'mx-2 my-1'
+        )}>
+          {item.title && (
+            <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              {item.title}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (item.type === 'group') {
+      return (
+        <div key={item.id} className="space-y-1">
+          {!isCollapsed && (
+            <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              {item.title}
+            </div>
+          )}
+          {item.children?.map(child => renderNavigationItem(child, depth + 1))}
+        </div>
+      );
+    }
+
+    if (!item.path) {
+      return null;
+    }
+
+    return (
+      <NavLink
+        key={item.id}
+        to={item.path}
+        onClick={handleItemClick}
+        className={({ isActive: navIsActive }) => {
+          const active = navIsActive || isActive;
+          return cn(
+            'flex items-center transition-colors group relative',
+            isCollapsed 
+              ? 'p-3 mx-2 rounded-lg justify-center' 
+              : 'px-3 py-2 rounded-lg',
+            depth > 0 && !isCollapsed && 'ml-4',
+            active
+              ? isCollapsed
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+          );
+        }}
+        title={isCollapsed ? item.title : undefined}
+      >
+        <IconComponent 
+          className={cn(
+            'h-5 w-5 flex-shrink-0',
+            isCollapsed ? '' : 'mr-3'
+          )} 
+        />
+        {!isCollapsed && (
+          <div className="flex-1 min-w-0">
+            <span className="font-medium block truncate">
+              {item.title}
+            </span>
+          </div>
+        )}
+        
+        {/* Tooltip for collapsed mode */}
+        {isCollapsed && (
+          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+            {item.title}
+          </div>
+        )}
+      </NavLink>
+    );
   };
 
   const sidebarWidth = isCollapsed ? 'w-16' : 'w-64';
@@ -152,59 +203,59 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
 
       {/* Navigation items */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {navigationItems.map((item) => {
-          const IconComponent = getIconComponent(item.icon);
-          const isActive = isActiveRoute(item.href);
-
-          return (
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+            {!isCollapsed && (
+              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading navigation...</span>
+            )}
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Failed to load navigation
+            </p>
+          </div>
+        )}
+        
+        {navigation && (
+          <>
+            {/* Dashboard always first */}
             <NavLink
-              key={item.id}
-              to={item.href}
+              to="/"
               onClick={handleItemClick}
-              className={({ isActive: navIsActive }) => {
-                const active = navIsActive || isActive;
-                return cn(
-                  'flex items-center px-3 py-2 rounded-lg transition-colors group',
-                  active
-                    ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
-                );
-              }}
-              title={isCollapsed ? item.title : undefined}
+              className={({ isActive }) => cn(
+                'flex items-center transition-colors group relative',
+                isCollapsed 
+                  ? 'p-3 mx-2 rounded-lg justify-center' 
+                  : 'px-3 py-2 rounded-lg',
+                isActive
+                  ? isCollapsed
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+              )}
+              title={isCollapsed ? 'Dashboard' : undefined}
             >
-              <IconComponent 
-                className={cn(
-                  'h-5 w-5 flex-shrink-0',
-                  isCollapsed ? '' : 'mr-3'
-                )} 
-              />
+              <HomeIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
               {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium block truncate">
-                    {item.title}
-                  </span>
-                  {item.description && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400 block truncate">
-                      {item.description}
-                    </span>
-                  )}
+                <span className="font-medium">Dashboard</span>
+              )}
+              
+              {/* Tooltip for collapsed mode */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                  Dashboard
                 </div>
               )}
-              {!isCollapsed && item.badge && (
-                <span className={cn(
-                  'ml-auto text-xs px-2 py-1 rounded-full',
-                  item.badge.variant === 'primary' && 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300',
-                  item.badge.variant === 'secondary' && 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-                  item.badge.variant === 'success' && 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-                  item.badge.variant === 'warning' && 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-                  item.badge.variant === 'danger' && 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                )}>
-                  {item.badge.text}
-                </span>
-              )}
             </NavLink>
-          );
-        })}
+            
+            {/* Structure-driven navigation */}
+            {navigation.items.map(item => renderNavigationItem(item))}
+          </>
+        )}
       </nav>
 
       {/* Footer */}
