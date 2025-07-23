@@ -29,6 +29,26 @@ export default defineConfig({
           );
         }
       }
+    },
+    // Completely exclude integrated directory from browser builds
+    {
+      name: 'exclude-integrated',
+      resolveId(id, importer) {
+        // Exclude any import from the integrated directory
+        if (id.includes('/integrated/') || id.includes('\\integrated\\') || 
+            id.includes('/integrated') || id.includes('\\integrated') ||
+            id.endsWith('integrated/index.ts') || id.endsWith('integrated\\index.ts') ||
+            id.endsWith('integrated/index.js') || id.endsWith('integrated\\index.js')) {
+          return { id: 'virtual:integrated-stub', external: false };
+        }
+        return null;
+      },
+      load(id) {
+        if (id === 'virtual:integrated-stub') {
+          return 'export const createStudio = () => ({ router: null, api: null }); export default createStudio;';
+        }
+        return null;
+      }
     }
   ],
   
@@ -36,6 +56,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  
+  define: {
+    global: 'globalThis',
   },
   
   server: {
@@ -63,7 +87,38 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
+      external: [
+        'crypto', 
+        'bcrypt', 
+        'jsonwebtoken', 
+        'module',
+        'express',
+        'fs',
+        'path',
+        'url',
+        // Node.js built-ins that shouldn't be bundled for browser
+        'fs/promises',
+        'stream',
+        'util',
+        'os',
+        // Integrated studio is server-side only (exclude all variations)
+        './src/integrated/index.js',
+        './src/integrated/index.ts',
+        '/src/integrated/index.js',
+        '/src/integrated/index.ts'
+      ],
       output: {
+        globals: {
+          crypto: 'crypto',
+          bcrypt: 'bcrypt',
+          jsonwebtoken: 'jsonwebtoken',
+          module: 'module',
+          express: 'express',
+          fs: 'fs',
+          path: 'path',
+          url: 'url',
+          '@trokky/core': 'TrokkyCore'
+        },
         manualChunks: {
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],

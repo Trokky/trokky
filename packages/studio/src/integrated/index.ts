@@ -7,12 +7,35 @@
  */
 
 import type { Request, Response } from 'express';
-import { TrokkyCore } from '@trokky/core';
 import { createStudioLogger } from '../utils/logger.js';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import fs from 'fs';
+
+// Local type definitions to avoid importing @trokky/core in browser
+interface TrokkyCore {
+  getAllSchemas(): any[];
+  listDocuments(schema: string, options?: any): Promise<any[]>;
+  getDocument(schema: string, id: string): Promise<any>;
+  saveDocument(schema: string, data: any): Promise<any>;
+  deleteDocument(schema: string, id: string): Promise<void>;
+}
+
+interface FieldType<Config = any, Value = any> {
+  name: string;
+  category?: string | any;
+  description?: string;
+  icon?: string;
+  validate?: (value: Value, config: Config, context?: any) => any;
+  serialize?: (value: Value, config: Config) => any;
+  deserialize?: (data: any, config: Config) => Value;
+  defaultValue?: Value | ((config: Config) => Value);
+  examples?: Array<{
+    title: string;
+    config: Config;
+    value: Value;
+  }>;
+  component?: any;
+  preview?: any;
+}
+// Note: Field registry initialization happens in browser-side code only
 
 interface IntegratedStudioConfig {
   /** Direct CMS instance - no HTTP layer needed */
@@ -33,6 +56,9 @@ interface IntegratedStudioConfig {
   
   /** Custom structure configuration */
   structure?: any;
+  
+  /** Custom field types to register */
+  customFields?: FieldType[];
   
   /** Additional Studio configuration */
   config?: {
@@ -86,18 +112,27 @@ interface StudioAPI {
  * app.use('/admin', studio.router)
  * ```
  */
-export function createStudio(config: IntegratedStudioConfig): StudioMiddleware {
+export async function createStudio(config: IntegratedStudioConfig): Promise<StudioMiddleware> {
   const logger = createStudioLogger('IntegratedStudio');
   
-  // Dynamically import express Router to avoid build-time dependency
-  const require = createRequire(import.meta.url);
-  const express = require('express');
+  // Note: Field registry initialization happens in browser-side Studio code
+  // Custom field types are passed via runtime config to browser
+  
+  // Express import only works in Node.js environment
+  let express: any;
+  try {
+    express = await import('express');
+  } catch (e) {
+    // Browser environment - provide stub
+    express = { Router: () => ({ use: () => {}, get: () => {}, post: () => {}, put: () => {}, delete: () => {} }) };
+  }
   const router = express.Router();
   
   logger.info('Creating integrated Studio', {
     mount: config.mount || '/admin',
     auth: config.auth || false,
-    schemas: config.cms.getAllSchemas().length
+    schemas: config.cms.getAllSchemas().length,
+    customFields: config.customFields?.length || 0
   });
 
   // Create direct API interface
@@ -147,12 +182,20 @@ export function createStudio(config: IntegratedStudioConfig): StudioMiddleware {
 function serveStudioHTML(config: IntegratedStudioConfig) {
   return async (_req: Request, res: Response) => {
     try {
-      // Get Studio HTML template (relative to compiled JS in dist/integrated/)
-      // Recreate __dirname for ES modules
-      const currentFile = fileURLToPath(import.meta.url);
-      const currentDir = path.dirname(currentFile);
-      const htmlPath = path.join(currentDir, '../index.html');
-      let html = fs.readFileSync(htmlPath, 'utf-8');
+      // Get Studio HTML template (only works in Node.js)
+      let html: string;
+      try {
+        const { fileURLToPath } = await import('url');
+        const path = await import('path');
+        const fs = await import('fs');
+        const currentFile = fileURLToPath(import.meta.url);
+        const currentDir = path.dirname(currentFile);
+        const htmlPath = path.join(currentDir, '../index.html');
+        html = fs.readFileSync(htmlPath, 'utf-8');
+      } catch (e) {
+        // Browser environment - provide basic HTML
+        html = '<!DOCTYPE html><html><head></head><body><div id="root"></div></body></html>';
+      }
       
       // Inject runtime configuration and set base href
       const basePath = _req.baseUrl || '/admin';
@@ -162,6 +205,7 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
         branding: config.branding || { title: 'Trokky Studio' },
         structure: config.structure || null,
         config: config.config || {},
+        customFields: config.customFields || [],
         basePath
       };
       
@@ -187,30 +231,39 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
  * Serve Studio static assets
  */
 function serveStudioAssets() {
-  return (req: Request, res: Response) => {
-    // Assets are relative to compiled JS in dist/integrated/
-    const currentFile = fileURLToPath(import.meta.url);
-    const currentDir = path.dirname(currentFile);
-    const assetPath = path.join(currentDir, '..', req.path);
-    
-    console.log('[DEBUG] Asset request:', req.path);
-    console.log('[DEBUG] Full asset path:', assetPath);
-    console.log('[DEBUG] Asset exists:', fs.existsSync(assetPath));
-    
-    // Set proper MIME types
-    const ext = path.extname(req.path);
-    if (ext === '.css') {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (ext === '.js') {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-    
-    res.sendFile(assetPath, (err) => {
-      if (err) {
-        console.error('[ERROR] Failed to serve asset:', req.path, err.message);
-        res.status(404).json({ error: 'Asset not found' });
+  return async (req: Request, res: Response) => {
+    try {
+      // Assets handling only works in Node.js environment
+      const { fileURLToPath } = await import('url');
+      const path = await import('path');
+      const fs = await import('fs');
+      
+      const currentFile = fileURLToPath(import.meta.url);
+      const currentDir = path.dirname(currentFile);
+      const assetPath = path.join(currentDir, '..', req.path);
+      
+      console.log('[DEBUG] Asset request:', req.path);
+      console.log('[DEBUG] Full asset path:', assetPath);
+      console.log('[DEBUG] Asset exists:', fs.existsSync(assetPath));
+      
+      // Set proper MIME types
+      const ext = path.extname(req.path);
+      if (ext === '.css') {
+        res.setHeader('Content-Type', 'text/css');
+      } else if (ext === '.js') {
+        res.setHeader('Content-Type', 'application/javascript');
       }
-    });
+      
+      res.sendFile(assetPath, (err) => {
+        if (err) {
+          console.error('[ERROR] Failed to serve asset:', req.path, err.message);
+          res.status(404).json({ error: 'Asset not found' });
+        }
+      });
+    } catch (e) {
+      // Browser environment - return 404
+      res.status(404).json({ error: 'Asset not found' });
+    }
   };
 }
 

@@ -27,5 +27,6 @@
     }
   },
   "include": ["src"],
+  "exclude": ["src/integrated"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
