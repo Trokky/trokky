@@ -6,7 +6,7 @@ import {
   FieldProps,
   ValidationErrorDetail
 } from '@trokky/core'
-import { createValidationError, getFieldPath, createValidationResult } from '../utils/validation'
+import { createValidationError, getFieldPath, createValidationResult } from '../utils/validation.js'
 
 /**
  * Reference field configuration

@@ -3,7 +3,8 @@
  * WARNING: This adapter provides minimal security and should only be used for development
  */
 
-import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter'
+import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
+import { getUniversalCrypto, generateRandomHex } from '../utils/universal-crypto.js'
 
 export class FallbackCryptoAdapter implements CryptoAdapter {
   private saltRounds: number
@@ -154,18 +155,8 @@ export class FallbackCryptoAdapter implements CryptoAdapter {
   }
 
   generateSecureRandom(length: number = 64): string {
-    // Log warning on first use
-    if (process.env.NODE_ENV !== 'test') {
-      console.warn('⚠️ INSECURE: Using fallback random generation')
-    }
-    
-    // Simple random string (NOT CRYPTOGRAPHICALLY SECURE)
-    const chars = 'abcdef0123456789'
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
+    // Use universal crypto which will provide the best available random source
+    return generateRandomHex(length)
   }
 
   // Helper methods (NOT SECURE)

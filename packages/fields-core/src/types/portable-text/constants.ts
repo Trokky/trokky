@@ -9,7 +9,7 @@ import type {
   ListConfig,
   StyleConfig,
   PortableTextFieldConfig
-} from './types'
+} from './types.js'
 
 // Built-in block types
 export const BUILTIN_BLOCK_TYPES: BlockTypeConfig[] = [

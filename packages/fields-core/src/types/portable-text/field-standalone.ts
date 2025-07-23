@@ -6,10 +6,10 @@
 import type { 
   PortableTextValue, 
   PortableTextFieldConfig 
-} from './types'
-import { DEFAULT_PORTABLE_TEXT_CONFIG } from './constants'
-import { normalizePortableText } from './utils'
-import { toHTML, toMarkdown, toPlainText } from './serializers'
+} from './types.js'
+import { DEFAULT_PORTABLE_TEXT_CONFIG } from './constants.js'
+import { normalizePortableText } from './utils.js'
+import { toHTML, toMarkdown, toPlainText } from './serializers.js'
 
 // Minimal interfaces for standalone usage
 interface StandaloneValidationError {

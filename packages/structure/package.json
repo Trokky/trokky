@@ -40,8 +40,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "workspace:*",
-    "@trokky/client": "workspace:*",
+    "@trokky/core": "0.1.0",
+    "@trokky/client": "0.1.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {

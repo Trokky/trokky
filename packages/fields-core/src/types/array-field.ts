@@ -7,7 +7,7 @@ import {
   FieldDefinition,
   ValidationErrorDetail
 } from '@trokky/core'
-import { createValidationError, getFieldPath, createValidationResult } from '../utils/validation'
+import { createValidationError, getFieldPath, createValidationResult } from '../utils/validation.js'
 
 /**
  * Configuration for array field type

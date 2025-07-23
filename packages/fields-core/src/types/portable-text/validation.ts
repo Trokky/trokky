@@ -9,11 +9,11 @@ import type {
   PortableTextFieldConfig,
   PortableTextValidationResult,
   PortableTextValidationError
-} from './types'
-import { PORTABLE_TEXT_ERROR_CODES } from './constants'
-import { hasChildren, validateBlockStructure } from './utils'
+} from './types.js'
+import { PORTABLE_TEXT_ERROR_CODES } from './constants.js'
+import { hasChildren, validateBlockStructure } from './utils.js'
 import type { FieldContext } from '@trokky/core'
-import { getFieldPath } from '../../utils/validation'
+import { getFieldPath } from '../../utils/validation.js'
 
 export class PortableTextValidator {
   private config: PortableTextFieldConfig

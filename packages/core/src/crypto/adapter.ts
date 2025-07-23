@@ -80,6 +80,6 @@ function hasWebCrypto(): boolean {
 }
 
 // Import adapters
-import { NodeCryptoAdapter } from './node-adapter'
-import { WebCryptoAdapter } from './webcrypto-adapter'
-import { FallbackCryptoAdapter } from './fallback-adapter'
+import { NodeCryptoAdapter } from './node-adapter.js'
+import { WebCryptoAdapter } from './webcrypto-adapter.js'
+import { FallbackCryptoAdapter } from './fallback-adapter.js'

@@ -3,7 +3,7 @@
  * Compatible with Cloudflare Workers, Deno, Vercel Edge, etc.
  */
 
-import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter'
+import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
 
 export class WebCryptoAdapter implements CryptoAdapter {
   private saltRounds: number

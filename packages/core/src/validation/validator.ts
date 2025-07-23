@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { SchemaRegistry } from '../schema/registry'
-import { LegacyFieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index'
+import { SchemaRegistry } from '../schema/registry.js'
+import { LegacyFieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index.js'
 
 export class DocumentValidator {
   constructor(private schemaRegistry: SchemaRegistry) {}

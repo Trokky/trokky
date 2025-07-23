@@ -1,4 +1,4 @@
-import { FieldType, FieldCategory, FieldTypeRegistrationOptions, FieldTypeMetadata } from './field-type'
+import { FieldType, FieldCategory, FieldTypeRegistrationOptions, FieldTypeMetadata } from './field-type.js'
 
 /**
  * Field type registration error

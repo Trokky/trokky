@@ -5,7 +5,7 @@
 
 import type { FieldType, ValidationResult, FieldContext } from '@trokky/core'
 import { FieldCategory } from '@trokky/core'
-import { createValidationResult, createValidationError, getFieldPath } from '../utils/validation'
+import { createValidationResult, createValidationError, getFieldPath } from '../utils/validation.js'
 
 export interface FileFieldConfig {
   // Allow empty/null file

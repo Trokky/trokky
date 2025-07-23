@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { getUniversalCrypto, bytesToHex } from './universal-crypto.js'
 
 export interface IdGeneratorOptions {
   prefix?: string
@@ -9,10 +9,12 @@ export interface IdGeneratorOptions {
 export class IdGenerator {
   private counter = 0
   private readonly instanceId: string
+  private readonly crypto = getUniversalCrypto()
 
   constructor() {
     // Generate a unique instance ID for this generator
-    this.instanceId = randomBytes(4).toString('hex')
+    const bytes = this.crypto.getRandomBytes(4)
+    this.instanceId = bytesToHex(bytes)
   }
 
   public generate(options: IdGeneratorOptions = {}): string {
@@ -43,9 +45,9 @@ export class IdGenerator {
 
     // Add random bytes for additional entropy
     const remainingLength = Math.max(4, length - id.length)
-    const randomPart = randomBytes(Math.ceil(remainingLength / 2))
-      .toString('hex')
-      .slice(0, remainingLength)
+    const randomBytesNeeded = Math.ceil(remainingLength / 2)
+    const randomBytesArray = this.crypto.getRandomBytes(randomBytesNeeded)
+    const randomPart = bytesToHex(randomBytesArray).slice(0, remainingLength)
     
     id += randomPart
 
@@ -54,13 +56,13 @@ export class IdGenerator {
 
   public generateUUID(): string {
     // Generate a proper UUID v4
-    const bytes = randomBytes(16)
+    const bytes = this.crypto.getRandomBytes(16)
     
     // Set version (4) and variant bits
     bytes[6] = (bytes[6] & 0x0f) | 0x40
     bytes[8] = (bytes[8] & 0x3f) | 0x80
 
-    const hex = bytes.toString('hex')
+    const hex = bytesToHex(bytes)
     return [
       hex.slice(0, 8),
       hex.slice(8, 12),

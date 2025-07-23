@@ -6,7 +6,7 @@ import {
   FieldProps,
   ValidationErrorDetail
 } from '@trokky/core'
-import { createValidationError } from '../utils/validation'
+import { createValidationError } from '../utils/validation.js'
 
 /**
  * Configuration for simple string field

@@ -13,7 +13,7 @@ import type {
   CodeBlock,
   CalloutBlock,
   PortableTextQuery
-} from './types'
+} from './types.js'
 
 // Block creation utilities
 export function createTextBlock(

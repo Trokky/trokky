@@ -1,5 +1,5 @@
 // Core engine
-export { TrokkyCore, type TrokkyCoreOptions, type AuditEvent } from './core/engine'
+export { TrokkyCore, type TrokkyCoreOptions, type AuditEvent } from './core/engine.js'
 
 // Crypto adapters
 export { 
@@ -7,17 +7,17 @@ export {
   type CryptoAdapter, 
   type CryptoAdapterOptions, 
   type JWTOptions 
-} from './crypto/adapter'
+} from './crypto/adapter.js'
 
 // Schema management
-export { SchemaRegistry } from './schema/registry'
+export { SchemaRegistry } from './schema/registry.js'
 
 // Validation
-export { DocumentValidator } from './validation/validator'
+export { DocumentValidator } from './validation/validator.js'
 
 // Security
-export { SecurityValidator } from './security/validation'
-export { RateLimiter, type RateLimitConfig } from './security/rate-limiter'
+export { SecurityValidator } from './security/validation.js'
+export { RateLimiter, type RateLimitConfig } from './security/rate-limiter.js'
 
 // Field system
 export {
@@ -43,10 +43,10 @@ export {
   type FieldTypeMetadata,
   type HttpClient,
   type ApiClient
-} from './fields/index'
+} from './fields/index.js'
 
 // Utilities
-export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator'
+export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
 export { 
   TrokkyLogger, 
   LoggerFactory, 
@@ -56,7 +56,7 @@ export {
   type LogContext, 
   type LogEntry, 
   type LoggerConfig 
-} from './utils/logger'
+} from './utils/logger.js'
 
 // Errors
 export {
@@ -67,7 +67,7 @@ export {
   InvalidInputError,
   RateLimitError,
   type ValidationErrorDetail
-} from './errors/index'
+} from './errors/index.js'
 
 // Types
 export type {
@@ -93,11 +93,11 @@ export type {
   UserListOptions,
   LoginCredentials,
   UserSession
-} from './types/index'
+} from './types/index.js'
 
 // Zod schemas for validation
 export {
   LegacyFieldTypeSchema,
   LegacyFieldDefinitionSchema,
   ContentSchemaSchema
-} from './types/index'
+} from './types/index.js'

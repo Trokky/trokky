@@ -3,7 +3,11 @@
  * Best performance and security for Node.js environments
  */
 
-import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter'
+import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
+import { createRequire } from 'module'
+
+// Use createRequire for dynamic loading in ES modules
+const require = createRequire(import.meta.url)
 
 export class NodeCryptoAdapter implements CryptoAdapter {
   private saltRounds: number

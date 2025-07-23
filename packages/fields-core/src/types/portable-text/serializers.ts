@@ -14,7 +14,7 @@ import type {
   CodeBlock,
   CalloutBlock,
   SerializationOptions
-} from './types'
+} from './types.js'
 import { 
   isTextBlock, 
   isListBlock, 
@@ -23,7 +23,7 @@ import {
   isCalloutBlock, 
   hasChildren,
   getPlainText 
-} from './utils'
+} from './utils.js'
 
 // HTML Serializer
 export class PortableTextHTMLSerializer {

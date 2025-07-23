@@ -7,12 +7,12 @@ import { FieldCategory } from '@trokky/core'
 import type { 
   PortableTextValue, 
   PortableTextFieldConfig 
-} from './types'
-import { DEFAULT_PORTABLE_TEXT_CONFIG } from './constants'
-import { validatePortableText } from './validation'
-import { normalizePortableText } from './utils'
-import { toHTML, toMarkdown, toPlainText } from './serializers'
-import { createValidationResult } from '../../utils/validation'
+} from './types.js'
+import { DEFAULT_PORTABLE_TEXT_CONFIG } from './constants.js'
+import { validatePortableText } from './validation.js'
+import { normalizePortableText } from './utils.js'
+import { toHTML, toMarkdown, toPlainText } from './serializers.js'
+import { createValidationResult } from '../../utils/validation.js'
 
 export const PortableTextFieldType: FieldType<PortableTextFieldConfig, PortableTextValue> = {
   name: 'portableText',

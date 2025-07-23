@@ -1,14 +1,14 @@
 // Export all field type implementations
-export * from './simple-string'
-export * from './string-field'
-export * from './number-field'
-export * from './boolean-field'
-export * from './date-field'
-export * from './array-field'
-export * from './object-field'
-export * from './reference-field'
-export * from './portable-text'
-export * from './slug-field'
+export * from './simple-string.js'
+export * from './string-field.js'
+export * from './number-field.js'
+export * from './boolean-field.js'
+export * from './date-field.js'
+export * from './array-field.js'
+export * from './object-field.js'
+export * from './reference-field.js'
+export * from './portable-text/index.js'
+export * from './slug-field.js'
 
 // Export email field types with explicit re-exports to avoid conflicts
 export {
@@ -24,8 +24,8 @@ export {
   createRequiredEmailField,
   createOptionalEmailField,
   createCorporateEmailField
-} from './email-field'
-export { extractDomain as extractEmailDomain } from './email-field'
+} from './email-field.js'
+export { extractDomain as extractEmailDomain } from './email-field.js'
 
 // Export URL field types with explicit re-exports to avoid conflicts  
 export {
@@ -50,10 +50,10 @@ export {
   createHTTPSURLField,
   createWebsiteURLField,
   createInternalURLField
-} from './url-field'
-export { extractDomain as extractURLDomain } from './url-field'
+} from './url-field.js'
+export { extractDomain as extractURLDomain } from './url-field.js'
 
-export * from './image-field'
+export * from './image-field.js'
 
 // Export file field types with explicit re-exports to avoid conflicts
 export {
@@ -82,23 +82,23 @@ export {
   createAudioField,
   createArchiveField,
   createMultipleFileField
-} from './file-field'
-export { isImageFile as isImageFileType } from './file-field'
+} from './file-field.js'
+export { isImageFile as isImageFileType } from './file-field.js'
 
 // Import field types for registry
-import { SimpleStringFieldType } from './simple-string'
-import { StringFieldType } from './string-field'
-import { NumberFieldType } from './number-field'
-import { BooleanFieldType } from './boolean-field'
-import { DateFieldType } from './date-field'
-import { ArrayFieldType } from './array-field'
-import { ObjectFieldType } from './object-field'
-import { ReferenceFieldType } from './reference-field'
-import { SlugFieldType } from './slug-field'
-import { EmailFieldType } from './email-field'
-import { URLFieldType } from './url-field'
-import { ImageFieldType } from './image-field'
-import { FileFieldType } from './file-field'
+import { SimpleStringFieldType } from './simple-string.js'
+import { StringFieldType } from './string-field.js'
+import { NumberFieldType } from './number-field.js'
+import { BooleanFieldType } from './boolean-field.js'
+import { DateFieldType } from './date-field.js'
+import { ArrayFieldType } from './array-field.js'
+import { ObjectFieldType } from './object-field.js'
+import { ReferenceFieldType } from './reference-field.js'
+import { SlugFieldType } from './slug-field.js'
+import { EmailFieldType } from './email-field.js'
+import { URLFieldType } from './url-field.js'
+import { ImageFieldType } from './image-field.js'
+import { FileFieldType } from './file-field.js'
 // Note: PortableTextFieldType is not included due to circular dependency with @trokky/core
 // It will be added to the registry when the dependency is resolved
 

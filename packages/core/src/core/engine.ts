@@ -1,16 +1,16 @@
-import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter'
-import { SchemaRegistry } from '../schema/registry'
-import { DocumentValidator } from '../validation/validator'
-import { SecurityValidator } from '../security/validation'
-import { RateLimiter, RateLimitConfig } from '../security/rate-limiter'
-import { IdGenerator } from '../utils/id-generator'
-import { createLogger } from '../utils/logger'
+import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter.js'
+import { SchemaRegistry } from '../schema/registry.js'
+import { DocumentValidator } from '../validation/validator.js'
+import { SecurityValidator } from '../security/validation.js'
+import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
+import { IdGenerator } from '../utils/id-generator.js'
+import { createLogger } from '../utils/logger.js'
 import { 
   SchemaNotFoundError, 
   DocumentNotFoundError, 
   ValidationError,
   InvalidInputError
-} from '../errors/index'
+} from '../errors/index.js'
 import { 
   TrokkyConfig, 
   StorageAdapter, 
@@ -27,7 +27,7 @@ import {
   UserListOptions,
   Permission,
   UserSession
-} from '../types/index'
+} from '../types/index.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry

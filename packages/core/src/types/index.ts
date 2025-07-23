@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { User, UserListOptions } from './user'
+import type { User, UserListOptions } from './user.js'
 
 // Base document structure
 export interface Document {
@@ -177,4 +177,4 @@ export type {
   UserListOptions,
   LoginCredentials,
   UserSession
-} from './user'
+} from './user.js'

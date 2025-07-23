@@ -1,4 +1,4 @@
-import { ConditionalExpression, FieldContext } from './field-type'
+import { ConditionalExpression, FieldContext } from './field-type.js'
 
 /**
  * Conditional logic evaluation error

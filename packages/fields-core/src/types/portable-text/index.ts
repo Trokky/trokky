@@ -30,7 +30,7 @@ export type {
   PortableTextEditorProps,
   PortableTextQuery,
   PortableTextTransform
-} from './types'
+} from './types.js'
 
 // Constants
 export {
@@ -43,7 +43,7 @@ export {
   MINIMAL_PORTABLE_TEXT_CONFIG,
   RICH_PORTABLE_TEXT_CONFIG,
   PORTABLE_TEXT_ERROR_CODES
-} from './constants'
+} from './constants.js'
 
 // Utilities
 export {
@@ -83,13 +83,13 @@ export {
   removeEmptyBlocks,
   removeOrphanedMarkDefs,
   normalizePortableText
-} from './utils'
+} from './utils.js'
 
 // Validation
 export {
   PortableTextValidator,
   validatePortableText
-} from './validation'
+} from './validation.js'
 
 // Serializers
 export {
@@ -101,7 +101,7 @@ export {
   toMarkdown,
   toPlainText,
   toReact
-} from './serializers'
+} from './serializers.js'
 
 // Field Type
 export {
@@ -113,12 +113,12 @@ export {
   portableTextToPlainText,
   htmlToPortableText,
   markdownToPortableText
-} from './field'
+} from './field.js'
 
 // Standalone Field Type (for testing)
 export {
   StandalonePortableTextFieldType
-} from './field-standalone'
+} from './field-standalone.js'
 
 // Note: PortableTextFieldType is not exported here due to circular dependency with @trokky/core
 // It will be exported from the main package index when the core dependency is resolved
