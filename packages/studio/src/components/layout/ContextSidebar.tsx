@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
+import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
+import { apiClient } from '@/services/api-client';
 
 interface ContextSidebarProps {
   defaultWidth?: number;
@@ -150,17 +152,177 @@ function DashboardContext() {
 }
 
 function ContentContext() {
+  const location = useLocation();
+  const pathParts = location.pathname.split('/');
+  const schemaName = pathParts[2];
+  
   return (
     <div className="p-4">
+      {schemaName ? (
+        <SchemaContentContext schemaName={schemaName} />
+      ) : (
+        <ContentOverviewContext />
+      )}
+    </div>
+  );
+}
+
+function ContentOverviewContext() {
+  const { documentTypes } = useDocumentTypes();
+  
+  return (
+    <>
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
         Content Types
       </h3>
-      <div className="space-y-1">
-        <div className="p-2 text-sm text-gray-600 dark:text-gray-400">
-          Loading content types...
-        </div>
+      <div className="space-y-2">
+        {documentTypes.map((type) => (
+          <div
+            key={type.name}
+            className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium text-gray-900 dark:text-white text-sm">
+                  {type.title}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {type.name}
+                </div>
+              </div>
+              {type.badge && (
+                <span className={cn(
+                  "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
+                  `bg-${type.badge.color}-100 text-${type.badge.color}-800 dark:bg-${type.badge.color}-800 dark:text-${type.badge.color}-100`
+                )}>
+                  {type.badge.count}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+        
+        {documentTypes.length === 0 && (
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            No content types available
+          </div>
+        )}
       </div>
-    </div>
+    </>
+  );
+}
+
+function SchemaContentContext({ schemaName }: { schemaName: string }) {
+  const structureItem = useStructureItem(schemaName);
+  const [stats, setStats] = useState<any>(null);
+  
+  useEffect(() => {
+    loadSchemaStats();
+  }, [schemaName]);
+  
+  const loadSchemaStats = async () => {
+    try {
+      if (!apiClient.isInitialized) {
+        await apiClient.initialize();
+      }
+      
+      const response = await apiClient.get(`/stats/${schemaName}`);
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      // Stats are optional, don't show error
+    }
+  };
+  
+  return (
+    <>
+      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+        {structureItem?.title || schemaName}
+      </h3>
+      
+      {/* Schema stats */}
+      {stats && (
+        <div className="mb-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                {stats.total || 0}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Total
+              </div>
+            </div>
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                {stats.published || 0}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Published
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Available views */}
+      {structureItem?.views && (
+        <div className="mb-6">
+          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Available Views
+          </h4>
+          <div className="space-y-1">
+            {structureItem.views.map((view) => (
+              <div
+                key={view.type}
+                className="flex items-center space-x-2 p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              >
+                <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                <span>{view.title || view.type}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Available filters */}
+      {structureItem?.options?.filters && (
+        <div className="mb-6">
+          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Available Filters
+          </h4>
+          <div className="space-y-1">
+            {structureItem.options.filters.map((filter) => (
+              <div
+                key={filter.id}
+                className="text-sm text-gray-600 dark:text-gray-400"
+              >
+                {filter.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Bulk actions */}
+      {structureItem?.bulkActions && (
+        <div>
+          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+            Bulk Actions
+          </h4>
+          <div className="space-y-1">
+            {structureItem.bulkActions.map((action) => (
+              <div
+                key={action.action}
+                className="text-sm text-gray-600 dark:text-gray-400"
+              >
+                {action.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

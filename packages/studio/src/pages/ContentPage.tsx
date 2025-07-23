@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import type { Document } from '@/types';
 import { createStudioLogger } from '@/utils/logger';
+import { EnhancedContentPage } from '@/components/content/EnhancedContentPage';
 
 const logger = createStudioLogger('ContentPage');
 
@@ -16,7 +17,7 @@ export function ContentPage() {
   }
 
   if (schemaName) {
-    return <SchemaDocuments schemaName={schemaName} />;
+    return <EnhancedContentPage schemaName={schemaName} key={schemaName} />;
   }
 
   return <ContentOverview />;

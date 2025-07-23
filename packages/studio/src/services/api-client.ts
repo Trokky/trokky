@@ -229,7 +229,9 @@ export class ApiClient {
    * GET request helper
    */
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
-    const url = new URL(endpoint, this.baseUrl);
+    // Remove leading slash to ensure proper URL joining with baseUrl
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const url = new URL(cleanEndpoint, this.baseUrl.endsWith('/') ? this.baseUrl : this.baseUrl + '/');
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -245,7 +247,10 @@ export class ApiClient {
    * POST request helper
    */
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
+    // Remove leading slash to ensure proper URL joining with baseUrl
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
+    return this.request<T>(fullEndpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined
     });
@@ -255,7 +260,10 @@ export class ApiClient {
    * PUT request helper
    */
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
+    // Remove leading slash to ensure proper URL joining with baseUrl
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
+    return this.request<T>(fullEndpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined
     });
@@ -265,7 +273,10 @@ export class ApiClient {
    * DELETE request helper
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+    // Remove leading slash to ensure proper URL joining with baseUrl
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
+    return this.request<T>(fullEndpoint, { method: 'DELETE' });
   }
 
   // ========================================
@@ -276,49 +287,57 @@ export class ApiClient {
    * Get all schemas
    */
   async getSchemas(): Promise<ApiResponse<Schema[]>> {
-    return this.get<Schema[]>('/schemas');
+    const response = await this.get<{ collections: Schema[] }>('/api/collections');
+    if (response.success && response.data?.collections) {
+      return {
+        success: true,
+        data: response.data.collections,
+        meta: response.meta
+      };
+    }
+    return { success: false, data: [] } as ApiResponse<Schema[]>;
   }
 
   /**
    * Get schema by name
    */
   async getSchema(name: string): Promise<ApiResponse<Schema>> {
-    return this.get<Schema>(`/schemas/${name}`);
+    return this.get<Schema>(`/api/schemas/${name}`);
   }
 
   /**
    * Get documents for a schema
    */
   async getDocuments(schemaName: string, options: QueryOptions = {}): Promise<ApiResponse<{ documents: Document[]; total: number }>> {
-    return this.get<{ documents: Document[]; total: number }>(`/collections/${schemaName}`, options);
+    return this.get<{ documents: Document[]; total: number }>(`/api/collections/${schemaName}`, options);
   }
 
   /**
    * Get single document
    */
   async getDocument(schemaName: string, id: string): Promise<ApiResponse<Document>> {
-    return this.get<Document>(`/collections/${schemaName}/${id}`);
+    return this.get<Document>(`/api/collections/${schemaName}/${id}`);
   }
 
   /**
    * Create document
    */
   async createDocument(schemaName: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.post<Document>(`/collections/${schemaName}`, { data });
+    return this.post<Document>(`/api/collections/${schemaName}`, { data });
   }
 
   /**
    * Update document
    */
   async updateDocument(schemaName: string, id: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.put<Document>(`/collections/${schemaName}/${id}`, { data });
+    return this.put<Document>(`/api/collections/${schemaName}/${id}`, { data });
   }
 
   /**
    * Delete document
    */
   async deleteDocument(schemaName: string, id: string): Promise<ApiResponse<void>> {
-    return this.delete<void>(`/collections/${schemaName}/${id}`);
+    return this.delete<void>(`/api/collections/${schemaName}/${id}`);
   }
 
   // ========================================

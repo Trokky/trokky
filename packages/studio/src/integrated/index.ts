@@ -118,15 +118,20 @@ export async function createStudio(config: IntegratedStudioConfig): Promise<Stud
   // Note: Field registry initialization happens in browser-side Studio code
   // Custom field types are passed via runtime config to browser
   
-  // Express import only works in Node.js environment
-  let express: any;
+  // Import Express synchronously for Node.js environment
+  let router: any;
+  
+  // For the integrated studio, we know we're in Node.js, so we can use createRequire
   try {
-    express = await import('express');
+    // Use createRequire from module to import Express in ES module context
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const express = require('express');
+    router = express.Router();
   } catch (e) {
-    // Browser environment - provide stub
-    express = { Router: () => ({ use: () => {}, get: () => {}, post: () => {}, put: () => {}, delete: () => {} }) };
+    console.error('[ERROR] Failed to import Express:', e);
+    throw new Error('Express is required for integrated Studio but could not be imported');
   }
-  const router = express.Router();
   
   logger.info('Creating integrated Studio', {
     mount: config.mount || '/admin',
@@ -185,16 +190,35 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
       // Get Studio HTML template (only works in Node.js)
       let html: string;
       try {
-        const { fileURLToPath } = await import('url');
-        const path = await import('path');
-        const fs = await import('fs');
-        const currentFile = fileURLToPath(import.meta.url);
+        const { createRequire } = await import('module');
+        const require = createRequire(import.meta.url);
+        const url = require('url');
+        const path = require('path');
+        const fs = require('fs');
+        const currentFile = url.fileURLToPath(import.meta.url);
         const currentDir = path.dirname(currentFile);
         const htmlPath = path.join(currentDir, '../index.html');
         html = fs.readFileSync(htmlPath, 'utf-8');
       } catch (e) {
-        // Browser environment - provide basic HTML
-        html = '<!DOCTYPE html><html><head></head><body><div id="root"></div></body></html>';
+        // Provide basic HTML template
+        html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trokky Studio</title>
+</head>
+<body>
+    <div id="root">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, sans-serif;">
+            <div style="text-align: center;">
+                <h1>Trokky Studio</h1>
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
       }
       
       // Inject runtime configuration and set base href
@@ -234,11 +258,13 @@ function serveStudioAssets() {
   return async (req: Request, res: Response) => {
     try {
       // Assets handling only works in Node.js environment
-      const { fileURLToPath } = await import('url');
-      const path = await import('path');
-      const fs = await import('fs');
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const url = require('url');
+      const path = require('path');
+      const fs = require('fs');
       
-      const currentFile = fileURLToPath(import.meta.url);
+      const currentFile = url.fileURLToPath(import.meta.url);
       const currentDir = path.dirname(currentFile);
       const assetPath = path.join(currentDir, '..', req.path);
       
@@ -254,14 +280,14 @@ function serveStudioAssets() {
         res.setHeader('Content-Type', 'application/javascript');
       }
       
-      res.sendFile(assetPath, (err) => {
+      res.sendFile(assetPath, (err: any) => {
         if (err) {
           console.error('[ERROR] Failed to serve asset:', req.path, err.message);
           res.status(404).json({ error: 'Asset not found' });
         }
       });
     } catch (e) {
-      // Browser environment - return 404
+      // Return 404 for asset not found
       res.status(404).json({ error: 'Asset not found' });
     }
   };
@@ -272,7 +298,7 @@ function serveStudioAssets() {
  */
 function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioConfig) {
   // Collections metadata
-  router.get('/api/collections', async (_req: Request, res: Response) => {
+  router.get('/api/collections', (_req: Request, res: Response) => {
     try {
       const schemas = api.getSchemas();
       const collections = schemas.map(schema => ({
@@ -353,6 +379,26 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete document' });
+    }
+  });
+
+  // Stats endpoints for Studio analytics
+  router.get('/stats/:collection', async (req: Request, res: Response) => {
+    try {
+      const { collection } = req.params;
+      const documents = await api.getDocuments(collection);
+      const docArray = Array.isArray(documents) ? documents : [];
+      const stats = {
+        total: docArray.length || 0,
+        published: docArray.filter((doc: any) => doc.published).length || 0,
+        drafts: docArray.filter((doc: any) => !doc.published).length || 0,
+        lastUpdated: docArray.length > 0 
+          ? Math.max(...docArray.map((doc: any) => new Date(doc._updatedAt || doc._createdAt).getTime()))
+          : null
+      };
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get collection stats' });
     }
   });
 }

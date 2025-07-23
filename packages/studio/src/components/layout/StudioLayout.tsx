@@ -52,15 +52,15 @@ export function StudioLayout({
           <MainSidebar />
         </div>
 
-        {/* Context sidebar - hidden on mobile and tablet */}
-        <div className="hidden xl:flex">
-          <ContextSidebar />
-        </div>
-
         {/* Main content */}
         <main className="flex-1 overflow-auto bg-white dark:bg-gray-800">
           <Outlet />
         </main>
+
+        {/* Context sidebar - hidden on mobile and tablet */}
+        <div className="hidden lg:flex">
+          <ContextSidebar />
+        </div>
       </div>
 
       {/* Mobile menu overlay */}
