@@ -1,0 +1,40 @@
+{
+  "name": "@trokky/fields",
+  "version": "2.0.0",
+  "description": "Universal field system for Trokky CMS - works in browser, Node.js, and edge environments",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "trokky",
+    "cms",
+    "fields",
+    "react",
+    "universal",
+    "plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trokky/trokky-v2.git",
+    "directory": "packages/fields"
+  },
+  "license": "MIT"
+}
