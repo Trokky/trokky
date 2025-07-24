@@ -68,9 +68,13 @@ export class ApiClient {
       }
     };
     
+    // Restore auth token from localStorage if available
+    this.restoreAuthToken();
+    
     this.logger.info('Studio initialized in integrated mode', { 
       baseUrl: this.baseUrl,
-      mode: 'integrated'
+      mode: 'integrated',
+      hasAuthToken: !!this.authToken
     });
   }
 
@@ -122,11 +126,12 @@ export class ApiClient {
   /**
    * Restore auth token from storage
    */
-  private restoreAuthToken(): void {
+  restoreAuthToken(): void {
     try {
       const token = localStorage.getItem('trokky_auth_token');
       if (token) {
         this.authToken = token;
+        this.logger.info('Auth token restored from localStorage');
       }
     } catch (error) {
       console.warn('Failed to restore auth token:', error);
@@ -176,6 +181,28 @@ export class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle 401 Unauthorized - try to refresh token automatically
+        if (response.status === 401 && this.authToken && !skipAuth && !endpoint.includes('/auth/validate')) {
+          try {
+            // Try to validate stored token to potentially refresh it
+            const storedToken = localStorage.getItem('trokky_auth_token');
+            if (storedToken) {
+              const validateResponse = await this.post('/api/auth/validate', { token: storedToken }, true);
+              if (validateResponse.success && validateResponse.data?.valid && validateResponse.data?.session) {
+                // Token is still valid, retry the original request
+                this.setAuthToken(storedToken);
+                return this.request(endpoint, options, skipAuth);
+              }
+            }
+          } catch (refreshError) {
+            // Token refresh failed, proceed with clearing auth
+          }
+          
+          // Clear invalid token
+          this.clearAuthToken();
+          localStorage.removeItem('trokky_auth_token');
+        }
+        
         throw new ApiClientError(
           data.error?.message || `HTTP ${response.status}`,
           response.status,
@@ -437,18 +464,18 @@ export class ApiClient {
     if (!this.hasFeature('auth')) {
       throw new ApiClientError('Auth feature not available');
     }
-    return this.get<User>('/auth/me');
+    return this.get<User>('/api/auth/me');
   }
 
   /**
    * Login
    */
-  async login(credentials: { email: string; password: string }): Promise<ApiResponse<{ user: User; token: string }>> {
+  async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
     if (!this.hasFeature('auth')) {
       throw new ApiClientError('Auth feature not available');
     }
     
-    const response = await this.post<{ user: User; token: string }>('/auth/login', credentials);
+    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/api/auth/login', { username, password });
     
     if (response.success && response.data?.token) {
       this.setAuthToken(response.data.token);
@@ -463,7 +490,7 @@ export class ApiClient {
   async logout(): Promise<ApiResponse<void>> {
     if (this.hasFeature('auth')) {
       try {
-        await this.post('/auth/logout');
+        await this.post('/api/auth/logout');
       } catch (error) {
         // Continue with local logout even if server logout fails
         console.warn('Server logout failed:', error);

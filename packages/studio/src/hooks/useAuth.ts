@@ -47,8 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Ensure token is set in apiClient before validation
+      apiClient.setAuthToken(storedToken);
+      
       // Validate token with server
-      const response = await apiClient.post('/auth/validate', { token: storedToken });
+      logger.info('Validating stored token with server');
+      const response = await apiClient.post('/api/auth/validate', { token: storedToken });
+      
+      logger.info('Token validation response', { 
+        success: response.success, 
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        error: response.error
+      });
       
       if (response.success && response.data && 'valid' in response.data && response.data.valid && 'session' in response.data && response.data.session) {
         logger.info('Authentication validated successfully');
@@ -60,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Token invalid, clear it
-        logger.warn('Stored token is invalid, clearing auth state');
+        logger.warn('Stored token is invalid, clearing auth state', { response });
         localStorage.removeItem('trokky_auth_token');
         apiClient.clearAuthToken();
         setAuthState({
@@ -133,8 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Check auth on mount
+  // Check auth on mount - but only after apiClient is initialized
   useEffect(() => {
+    // Ensure apiClient is initialized first
+    if (!(apiClient as any).baseUrl) {
+      apiClient.initialize();
+    }
     checkAuth();
   }, []);
 

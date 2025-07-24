@@ -464,7 +464,14 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
     try {
       const { token } = req.body;
       
+      console.log('[DEBUG] Token validation request:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token ? token.substring(0, 20) + '...' : 'none'
+      });
+      
       if (!token) {
+        console.log('[DEBUG] Token validation failed: No token provided');
         return res.status(400).json({
           success: false,
           error: { code: 'INVALID_INPUT', message: 'Token is required' }
@@ -475,6 +482,12 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       const session = await _config.cms.verifyAuthToken(token);
       const isValid = session !== null;
       
+      console.log('[DEBUG] Token validation result:', {
+        isValid,
+        hasSession: !!session,
+        sessionKeys: session ? Object.keys(session) : []
+      });
+      
       res.json({
         success: true,
         data: {
@@ -484,6 +497,7 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
         }
       });
     } catch (error) {
+      console.error('[ERROR] Token validation error:', error.message);
       res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Token validation failed' }
