@@ -336,6 +336,17 @@ export class TrokkyCore {
       throw new Error('User operations not supported by storage adapter')
     }
 
+    // Check if user already exists
+    const existingUserByEmail = await this.getUserByEmail(userData.email)
+    if (existingUserByEmail) {
+      throw new Error(`User with email ${userData.email} already exists`)
+    }
+
+    const existingUserByUsername = await this.getUserByUsername(userData.username)
+    if (existingUserByUsername) {
+      throw new Error(`User with username ${userData.username} already exists`)
+    }
+
     // Hash password before saving
     const passwordHash = await this.hashPassword(userData.password)
     

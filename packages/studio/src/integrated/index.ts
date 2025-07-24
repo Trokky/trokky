@@ -16,6 +16,11 @@ interface TrokkyCore {
   getDocument(schema: string, id: string): Promise<any>;
   saveDocument(schema: string, data: any): Promise<any>;
   deleteDocument(schema: string, id: string): Promise<void>;
+  
+  // Auth methods
+  authenticateUser(username: string, password: string): Promise<{ user: any; token: string } | null>;
+  verifyAuthToken(token: string): Promise<any | null>;
+  createUser(userData: any): Promise<any>;
 }
 
 interface FieldType<Config = any, Value = any> {
@@ -168,9 +173,7 @@ export async function createStudio(config: IntegratedStudioConfig): Promise<Stud
   // Serve Studio static assets
   router.get('/', serveStudioHTML(config));
   router.get('/assets/*', serveStudioAssets());
-  router.get('/demo-config.js', serveStudioAssets());
   
-  console.log('[DEBUG] Registered routes for integrated Studio');
   
   // API routes with direct CMS integration
   setupAPIRoutes(router, api, config);
@@ -200,6 +203,7 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
         const htmlPath = path.join(currentDir, '../index.html');
         html = fs.readFileSync(htmlPath, 'utf-8');
       } catch (e) {
+        console.error('[ERROR] Failed to read Studio HTML:', e.message);
         // Provide basic HTML template
         html = `<!DOCTYPE html>
 <html lang="en">
@@ -267,10 +271,6 @@ function serveStudioAssets() {
       const currentFile = url.fileURLToPath(import.meta.url);
       const currentDir = path.dirname(currentFile);
       const assetPath = path.join(currentDir, '..', req.path);
-      
-      console.log('[DEBUG] Asset request:', req.path);
-      console.log('[DEBUG] Full asset path:', assetPath);
-      console.log('[DEBUG] Asset exists:', fs.existsSync(assetPath));
       
       // Set proper MIME types
       const ext = path.extname(req.path);
@@ -399,6 +399,95 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: 'Failed to get collection stats' });
+    }
+  });
+
+  // Authentication endpoints
+  router.post('/api/auth/login', async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ 
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Username and password are required' }
+        });
+      }
+      
+      // Use core engine's authentication method
+      const authResult = await _config.cms.authenticateUser(username, password);
+      if (!authResult) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' }
+        });
+      }
+      
+      const { user: authenticatedUser, token } = authResult;
+      
+      // Get token expiration time
+      const session = await _config.cms.verifyAuthToken(token);
+      
+      res.json({
+        success: true,
+        data: {
+          token,
+          user: authenticatedUser,
+          expiresAt: session?.expiresAt
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Authentication failed' }
+      });
+    }
+  });
+
+  router.post('/api/auth/logout', async (req: Request, res: Response) => {
+    try {
+      // For now, logout is client-side token removal
+      // In a full implementation, we'd invalidate the token server-side
+      res.json({
+        success: true,
+        data: { message: 'Logged out successfully' }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Logout failed' }
+      });
+    }
+  });
+
+  router.post('/api/auth/validate', async (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Token is required' }
+        });
+      }
+      
+      // Validate token using core engine's JWT verification
+      const session = await _config.cms.verifyAuthToken(token);
+      const isValid = session !== null;
+      
+      res.json({
+        success: true,
+        data: {
+          valid: isValid,
+          message: isValid ? 'Token is valid' : 'Token is invalid',
+          session: isValid ? session : undefined
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Token validation failed' }
+      });
     }
   });
 
