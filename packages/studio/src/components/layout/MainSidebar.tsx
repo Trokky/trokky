@@ -12,7 +12,8 @@ import {
   TagIcon,
   UserIcon,
   DocumentIcon,
-  Bars3Icon
+  Bars3Icon,
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useNavigation } from '@/hooks/useStructure';
@@ -248,6 +249,36 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
               {isCollapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
                   Dashboard
+                </div>
+              )}
+            </NavLink>
+
+            {/* Fields Demo Link */}
+            <NavLink
+              to="/fields-demo"
+              onClick={handleItemClick}
+              className={({ isActive }) => cn(
+                'flex items-center transition-colors group relative',
+                isCollapsed 
+                  ? 'p-3 mx-2 rounded-lg justify-center' 
+                  : 'px-3 py-2 rounded-lg',
+                isActive
+                  ? isCollapsed
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+              )}
+              title={isCollapsed ? 'Fields Demo' : undefined}
+            >
+              <BeakerIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
+              {!isCollapsed && (
+                <span className="font-medium">Fields Demo</span>
+              )}
+              
+              {/* Tooltip for collapsed mode */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                  Fields Demo
                 </div>
               )}
             </NavLink>

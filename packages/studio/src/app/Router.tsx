@@ -8,6 +8,7 @@ import { ContentPage } from '@/pages/ContentPage';
 import { MediaPage } from '@/pages/MediaPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 // Get basename from integrated config if available
@@ -60,6 +61,10 @@ const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />
+      },
+      {
+        path: 'fields-demo',
+        element: <FieldsDemo />
       },
       {
         path: '*',

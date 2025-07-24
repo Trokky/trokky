@@ -401,6 +401,42 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.status(500).json({ error: 'Failed to get collection stats' });
     }
   });
+
+  // Individual schema endpoint
+  router.get('/api/schemas/:schemaName', (req: Request, res: Response) => {
+    try {
+      const { schemaName } = req.params;
+      const schemas = api.getSchemas();
+      const schema = schemas.find(s => s.name === schemaName);
+      
+      if (!schema) {
+        return res.status(404).json({ error: `Schema '${schemaName}' not found` });
+      }
+      
+      // Convert fields object to array format expected by DocumentEditor
+      const convertedSchema = {
+        ...schema,
+        fields: schema.fields && typeof schema.fields === 'object' && !Array.isArray(schema.fields)
+          ? Object.entries(schema.fields).map(([name, config]: [string, any]) => ({
+              name,
+              title: config.title || name, // Ensure title is properly preserved
+              type: config.type,
+              required: config.required || false,
+              description: config.description,
+              maxLength: config.maxLength,
+              defaultValue: config.defaultValue,
+              to: config.to, // For reference fields
+              of: config.of, // For array fields
+              options: config.options
+            }))
+          : schema.fields || []
+      };
+      
+      res.json(convertedSchema);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get schema' });
+    }
+  });
 }
 
 // Re-export types that were declared above

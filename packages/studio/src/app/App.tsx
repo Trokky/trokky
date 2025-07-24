@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouter } from './Router';
 import { InitializationScreen } from './InitializationScreen';
 import { apiClient } from '@/services/api-client';
-import { initializeFieldRegistry } from '@/services/field-registry-setup';
 import type { BackendCapabilities } from '@/types';
 
 // Create a client
@@ -32,9 +31,6 @@ export function App() {
   const initializeApp = async () => {
     try {
       setAppState({ status: 'loading' });
-      
-      // Initialize field registry system
-      initializeFieldRegistry();
       
       // Initialize API client
       await apiClient.initialize();
