@@ -8,3 +8,6 @@
 // Export Studio logger for custom components
 export { createStudioLogger, StudioLogger } from './utils/logger.js'
 export type { LogLevel, StudioLoggerConfig } from './utils/logger.js'
+
+// Export Studio asset serving utilities for @trokky/routes integration
+export { getStudioHTML, getStudioAsset } from './server/assets.js'

@@ -45,6 +45,9 @@ export {
   type ApiClient
 } from './fields/index.js'
 
+// Studio integration
+export { StudioIntegration, type StudioConfig, type StudioRoute, type StudioRequest, type StudioResponse } from './studio/integration.js'
+
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
 export { 
