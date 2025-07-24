@@ -8,7 +8,6 @@ import type {
   QueryOptions,
   SearchResponse
 } from '@/types';
-import { BackendDiscovery } from './backend-discovery';
 import { createStudioLogger } from '../utils/logger';
 
 export class ApiClientError extends Error {
@@ -26,7 +25,6 @@ export class ApiClientError extends Error {
 export class ApiClient {
   private baseUrl: string = '';
   private capabilities: BackendCapabilities | null = null;
-  private discovery = new BackendDiscovery();
   private authToken: string | null = null;
   private logger = createStudioLogger('ApiClient');
 
@@ -37,66 +35,43 @@ export class ApiClient {
   }
 
   /**
-   * Initialize the API client with runtime config or auto-discovery fallback
+   * Initialize the API client with integrated configuration only
    */
-  async initialize(): Promise<void> {
-    try {
-      // Check for integrated mode configuration first
-      if ((window as any).TROKKY_INTEGRATED_CONFIG) {
-        const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
-        this.baseUrl = window.location.origin + (integratedConfig.basePath || '/admin');
-        this.capabilities = {
-          version: '2.0.0',
-          features: {
-            search: false,
-            media: false,
-            auth: true,
-            structure: true,
-            workflows: false
-          },
-          endpoints: {
-            documents: `${this.baseUrl}/api/collections`,
-            auth: `${this.baseUrl}/api/auth`,
-            structure: `${this.baseUrl}/api/structure`
-          },
-          limits: {
-            maxUploadSize: 100 * 1024 * 1024,
-            maxResults: 100,
-            requestRate: 1000
-          }
-        };
-        this.logger.info('Using integrated Studio configuration', { baseUrl: this.baseUrl });
-        return;
-      }
-      
-      // Check for runtime configuration next
-      if (!this.baseUrl && (window as any).TROKKY_CONFIG?.backendUrl) {
-        this.baseUrl = (window as any).TROKKY_CONFIG.backendUrl;
-        this.logger.info('Using configured backend URL', { baseUrl: this.baseUrl });
-      }
-      
-      // Fallback to auto-discovery if no config
-      if (!this.baseUrl) {
-        this.baseUrl = await this.discovery.discoverBackend();
-        this.discovery.saveBackendUrl(this.baseUrl);
-        this.logger.info('Auto-discovered backend URL', { baseUrl: this.baseUrl });
-      }
-      
-      // Discover capabilities
-      this.capabilities = await this.discovery.discoverCapabilities(this.baseUrl);
-      
-      // Try to restore auth token
-      this.restoreAuthToken();
-      
-      this.logger.info('API Client initialized', {
-        baseUrl: this.baseUrl,
-        version: this.capabilities.version,
-        features: this.capabilities.features
-      });
-    } catch (error) {
-      this.logger.error('API Client initialization failed', error);
-      throw error;
+  initialize(): void {
+    // Check for integrated mode configuration (required)
+    if (!(window as any).TROKKY_INTEGRATED_CONFIG) {
+      throw new Error('Studio can only run in integrated mode. TROKKY_INTEGRATED_CONFIG not found.');
     }
+
+    const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
+    this.baseUrl = window.location.origin + (integratedConfig.basePath || '/studio');
+    
+    this.capabilities = {
+      version: '2.0.0',
+      mode: 'integrated',
+      features: {
+        search: false,
+        media: false,
+        auth: true,
+        structure: true,
+        workflows: false
+      },
+      endpoints: {
+        documents: `${this.baseUrl}/api/collections`,
+        auth: `${this.baseUrl}/api/auth`,
+        structure: `${this.baseUrl}/api/structure`
+      },
+      limits: {
+        maxUploadSize: 100 * 1024 * 1024,
+        maxResults: 100,
+        requestRate: 1000
+      }
+    };
+    
+    this.logger.info('Studio initialized in integrated mode', { 
+      baseUrl: this.baseUrl,
+      mode: 'integrated'
+    });
   }
 
   /**

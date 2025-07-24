@@ -36,24 +36,6 @@
   <body class="bg-gray-50 dark:bg-gray-900">
     <div id="root"></div>
     
-    <!-- Load demo configuration in development mode -->
-    <script>
-      // Check if we're in development mode with demo backend
-      if (location.hostname === 'localhost' && location.port === '3000') {
-        // Try to load demo configuration
-        fetch('/demo-config.js')
-          .then(response => response.ok ? response.text() : null)
-          .then(script => {
-            if (script) {
-              eval(script);
-              console.log('🎯 Loaded demo configuration for blog demo');
-            }
-          })
-          .catch(() => {
-            // Silently ignore if demo config doesn't exist
-          });
-      }
-    </script>
     
     <script type="module" src="/src/main.tsx"></script>
   </body>
