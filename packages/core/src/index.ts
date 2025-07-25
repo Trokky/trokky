@@ -60,6 +60,17 @@ export {
   type LogEntry, 
   type LoggerConfig 
 } from './utils/logger.js'
+export {
+  getUniversalCrypto,
+  bytesToHex,
+  generateRandomHex,
+  generateUUID,
+  getSecureRandomInt,
+  secureShuffleArray,
+  generateSecurePassword,
+  type UniversalCrypto,
+  type SecurePasswordOptions
+} from './utils/universal-crypto.js'
 
 // Errors
 export {

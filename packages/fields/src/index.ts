@@ -73,5 +73,17 @@ export type {
   URLFieldDefinition
 } from './definitions/URLField/index.js';
 
+export {
+  passwordFieldPlugin,
+  PasswordFieldComponent,
+  PasswordFieldPreview,
+  validatePasswordField,
+  calculatePasswordStrength
+} from './definitions/PasswordField/index.js';
+
+export type {
+  PasswordFieldDefinition
+} from './definitions/PasswordField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';
