@@ -150,7 +150,7 @@ export function FieldsDemo() {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Fields Reference</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Interactive field documentation
+            UPDATED+ field documentation with watch mode
           </p>
         </div>
 
@@ -204,7 +204,7 @@ export function FieldsDemo() {
               >
                 {showErrors ? 'Hide Errors' : 'Show Errors'}
               </button>
-              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded">
+              <span className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 px-3 py-1.5 rounded">
                 type: '{currentField.type}'
               </span>
             </div>
@@ -258,7 +258,7 @@ export function FieldsDemo() {
                 </div>
               </div>
               
-              <div className="p-8">
+              <div className="p-4">
                 {/* Tab Content */}
                 <div>
                   {activeTab === 'edit' ? (
