@@ -3,8 +3,8 @@
  * Clean field reference with sidebar navigation and context panel integration
  */
 
-import { useState } from 'react';
-import { FieldRenderer, fieldRegistry, type StringFieldDefinition, type TextareaFieldDefinition } from '@trokky/fields';
+import { useState, useMemo } from 'react';
+import { FieldRenderer, fieldRegistry } from '@trokky/fields';
 
 // Field demo configuration
 interface FieldDemo {
@@ -19,93 +19,66 @@ interface FieldDemo {
   examples: { name: string; value: any; description: string; }[];
 }
 
-// Sample field configurations
-const FIELD_DEMOS: FieldDemo[] = [
-  {
-    id: 'string-basic',
-    name: 'String Field',
-    type: 'string',
-    category: 'Text Fields',
-    description: 'Single-line text input for short content like titles, names, and labels.',
-    definition: {
-      type: 'string',
-      title: 'String Field',
-      description: 'Basic text input',
-      options: { placeholder: 'Enter text...' }
-    } as StringFieldDefinition,
-    initialValue: 'Hello World!',
-    invalidValue: '',
-    examples: [
-      { name: 'Title', value: 'My Blog Post Title', description: 'Article title' },
-      { name: 'Name', value: 'John Doe', description: 'Person name' },
-      { name: 'Label', value: 'Important', description: 'Category label' }
-    ]
-  },
-  {
-    id: 'string-email',
-    name: 'Email Field',
-    type: 'string',
-    category: 'Text Fields',
-    description: 'Email input with built-in validation and clickable preview.',
-    definition: {
-      type: 'string',
-      title: 'Email Field',
-      description: 'Email with validation',
-      required: true,
-      options: { inputType: 'email', placeholder: 'user@example.com' },
-      validation: { email: true }
-    } as StringFieldDefinition,
-    initialValue: 'user@example.com',
-    invalidValue: 'invalid-email',
-    examples: [
-      { name: 'Personal', value: 'john@gmail.com', description: 'Personal email' },
-      { name: 'Business', value: 'contact@company.com', description: 'Business email' }
-    ]
-  },
-  {
-    id: 'string-url',
-    name: 'URL Field',
-    type: 'string',
-    category: 'Text Fields',
-    description: 'URL input with validation and clickable link preview.',
-    definition: {
-      type: 'string',
-      title: 'URL Field',
-      description: 'URL with validation',
-      options: { inputType: 'url', placeholder: 'https://example.com' },
-      validation: { url: true }
-    } as StringFieldDefinition,
-    initialValue: 'https://example.com',
-    invalidValue: 'not-a-url',
-    examples: [
-      { name: 'Website', value: 'https://mysite.com', description: 'Company website' },
-      { name: 'GitHub', value: 'https://github.com/user/repo', description: 'Repository' }
-    ]
-  },
-  {
-    id: 'textarea-basic',
-    name: 'Textarea Field',
-    type: 'text',
-    category: 'Text Fields',
-    description: 'Multi-line text input for longer content with auto-resize.',
-    definition: {
-      type: 'text',
-      title: 'Textarea Field',
-      description: 'Multi-line text input',
-      options: { rows: 4, autoResize: true, placeholder: 'Write your content...' },
-      validation: { maxLength: 500, wordCount: { max: 100 } }
-    } as TextareaFieldDefinition,
-    initialValue: 'This is a longer text\\nthat spans multiple lines\\nand shows how textarea works.',
-    invalidValue: 'A'.repeat(501),
-    examples: [
-      { name: 'Description', value: 'This is a detailed description\\nof the product features.', description: 'Product description' },
-      { name: 'Notes', value: 'Meeting notes:\\n- Discussed new features\\n- Set deadlines', description: 'Meeting notes' }
-    ]
-  }
-];
+// Helper function to generate field demos from fieldRegistry
+function generateFieldDemos(): FieldDemo[] {
+  const plugins = fieldRegistry.getAll();
+  const demos: FieldDemo[] = [];
+
+  console.log('Debug: All plugins:', plugins.length);
+  
+  plugins.forEach(plugin => {
+    console.log(`Debug: Plugin ${plugin.type}:`, {
+      hasDemoConfig: !!plugin.demoConfig,
+      variants: plugin.demoConfig?.variants?.length || 0
+    });
+    
+    if (!plugin.demoConfig) return;
+
+    // Create a demo for each variant
+    plugin.demoConfig.variants.forEach((variant, index) => {
+      const id = `${plugin.type}-${index}`;
+      const demo: FieldDemo = {
+        id,
+        name: variant.name,
+        type: plugin.type,
+        category: getCategoryDisplayName(plugin.category),
+        description: plugin.description,
+        definition: variant.definition,
+        initialValue: plugin.getDefaultValue(variant.definition),
+        invalidValue: plugin.demoConfig?.invalidValue,
+        examples: plugin.demoConfig?.examples || []
+      };
+      console.log('Debug: Generated demo:', demo.name);
+      demos.push(demo);
+    });
+  });
+
+  console.log('Debug: Total demos generated:', demos.length);
+  return demos;
+}
+
+// Helper to convert field category to display name
+function getCategoryDisplayName(category: string): string {
+  const categoryMap: Record<string, string> = {
+    'text': 'Text Fields',
+    'number': 'Number Fields',
+    'boolean': 'Boolean Fields',
+    'date': 'Date Fields',
+    'media': 'Media Fields',
+    'reference': 'Reference Fields',
+    'structure': 'Structure Fields',
+    'custom': 'Custom Fields'
+  };
+  return categoryMap[category] || category;
+}
 
 export function FieldsDemo() {
-  const [selectedFieldId, setSelectedFieldId] = useState<string>('string-basic');
+  // Generate field demos from registry
+  const FIELD_DEMOS = useMemo(() => generateFieldDemos(), []);
+  
+  const [selectedFieldId, setSelectedFieldId] = useState<string>(() => 
+    FIELD_DEMOS.length > 0 ? FIELD_DEMOS[0].id : ''
+  );
   const [fieldValues, setFieldValues] = useState<Record<string, any>>(() => {
     const initialValues: Record<string, any> = {};
     FIELD_DEMOS.forEach(demo => {
@@ -118,13 +91,29 @@ export function FieldsDemo() {
 
   // Get current field demo
   const currentField = FIELD_DEMOS.find(field => field.id === selectedFieldId) || FIELD_DEMOS[0];
+
+  // Handle case where no field demos are available
+  if (!currentField || FIELD_DEMOS.length === 0) {
+    return (
+      <div className="flex h-full bg-gray-50 dark:bg-gray-900 items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Field Demos Available</h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Register field plugins with demoConfig to see them here.
+          </p>
+        </div>
+      </div>
+    );
+  }
   
   // Group fields by category
-  const fieldsByCategory = FIELD_DEMOS.reduce((acc, field) => {
-    if (!acc[field.category]) acc[field.category] = [];
-    acc[field.category].push(field);
-    return acc;
-  }, {} as Record<string, FieldDemo[]>);
+  const fieldsByCategory = useMemo(() => {
+    return FIELD_DEMOS.reduce((acc, field) => {
+      if (!acc[field.category]) acc[field.category] = [];
+      acc[field.category].push(field);
+      return acc;
+    }, {} as Record<string, FieldDemo[]>);
+  }, [FIELD_DEMOS]);
 
   // Update field value
   const updateFieldValue = (fieldId: string, value: any) => {
@@ -150,7 +139,7 @@ export function FieldsDemo() {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Fields Reference</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            UPDATED+ field documentation with watch mode
+            Auto-generated from field plugin registry
           </p>
         </div>
 

@@ -60,12 +60,40 @@ export interface FieldPlugin<TDefinition extends BaseFieldDefinition = BaseField
     color?: string;
     tags?: string[];
   };
+
+  // Demo configuration for auto-generated field demonstrations
+  demoConfig?: {
+    examples: Array<{
+      name: string;
+      value: TValue;
+      description: string;
+    }>;
+    invalidValue?: TValue;
+    variants: Array<{
+      name: string;
+      definition: TDefinition;
+    }>;
+  };
 }
 
 // Registered field plugin with metadata
 export interface RegisteredFieldPlugin extends FieldPlugin {
   source: FieldPluginSource;
   registeredAt: Date;
+  
+  // Ensure demoConfig is properly typed for registered plugins
+  demoConfig?: {
+    examples: Array<{
+      name: string;
+      value: any;
+      description: string;
+    }>;
+    invalidValue?: any;
+    variants: Array<{
+      name: string;
+      definition: any;
+    }>;
+  };
 }
 
 // Export types (already declared above, no need to re-export)

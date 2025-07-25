@@ -53,6 +53,48 @@ export const stringFieldPlugin: FieldPlugin<StringFieldDefinition, string> = {
     icon: 'text',
     color: '#3B82F6',
     tags: ['text', 'input', 'basic']
+  },
+
+  // Demo configuration for auto-generated field demos
+  demoConfig: {
+    examples: [
+      { name: 'Title', value: 'My Blog Post Title', description: 'Article title' },
+      { name: 'Name', value: 'John Doe', description: 'Person name' },
+      { name: 'Label', value: 'Important', description: 'Category label' }
+    ],
+    invalidValue: '', // Empty string for required validation
+    variants: [
+      {
+        name: 'Basic String',
+        definition: {
+          type: 'string' as const,
+          title: 'String Field',
+          description: 'Basic text input',
+          options: { placeholder: 'Enter text...' }
+        }
+      },
+      {
+        name: 'Email Field',
+        definition: {
+          type: 'string' as const,
+          title: 'Email Field',
+          description: 'Email with validation',
+          required: true,
+          options: { inputType: 'email' as const, placeholder: 'user@example.com' },
+          validation: { email: true }
+        }
+      },
+      {
+        name: 'URL Field',
+        definition: {
+          type: 'string' as const,
+          title: 'URL Field',
+          description: 'URL with validation',
+          options: { inputType: 'url' as const, placeholder: 'https://example.com' },
+          validation: { url: true }
+        }
+      }
+    ]
   }
 };
 

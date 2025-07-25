@@ -52,5 +52,15 @@ export type {
   StringFieldOptions
 } from './definitions/StringField/index.js';
 
+export {
+  textareaFieldPlugin
+} from './definitions/TextareaField/index.js';
+
+export type {
+  TextareaFieldDefinition,
+  TextareaValidation,
+  TextareaFieldOptions
+} from './definitions/TextareaField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

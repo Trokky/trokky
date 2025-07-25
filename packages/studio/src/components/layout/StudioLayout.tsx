@@ -57,8 +57,8 @@ export function StudioLayout({
           <Outlet />
         </main>
 
-        {/* Context sidebar - hidden on mobile and tablet */}
-        <div className="hidden lg:flex">
+        {/* Context sidebar - always visible for debugging */}
+        <div className="flex">
           <ContextSidebar />
         </div>
       </div>
