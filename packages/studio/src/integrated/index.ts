@@ -200,7 +200,12 @@ function serveStudioHTML(config: IntegratedStudioConfig) {
         const fs = require('fs');
         const currentFile = url.fileURLToPath(import.meta.url);
         const currentDir = path.dirname(currentFile);
-        const htmlPath = path.join(currentDir, '../index.html');
+        
+        // Check if we're running from TypeScript source or compiled dist
+        const isTypeScript = currentFile.includes('/src/integrated/');
+        const htmlPath = isTypeScript 
+          ? path.join(currentDir, '../../dist/index.html')  // From src/integrated/ to dist/
+          : path.join(currentDir, '../index.html');         // From dist/integrated/ to dist/
         html = fs.readFileSync(htmlPath, 'utf-8');
       } catch (e) {
         console.error('[ERROR] Failed to read Studio HTML:', e.message);
@@ -270,7 +275,12 @@ function serveStudioAssets() {
       
       const currentFile = url.fileURLToPath(import.meta.url);
       const currentDir = path.dirname(currentFile);
-      const assetPath = path.join(currentDir, '..', req.path);
+      
+      // Check if we're running from TypeScript source or compiled dist
+      const isTypeScript = currentFile.includes('/src/integrated/');
+      const assetPath = isTypeScript 
+        ? path.join(currentDir, '../..', req.path)  // From src/integrated/ to dist/
+        : path.join(currentDir, '..', req.path);    // From dist/integrated/ to dist/
       
       // Set proper MIME types
       const ext = path.extname(req.path);
