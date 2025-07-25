@@ -4,6 +4,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
+import { fieldRegistry } from '@trokky/fields';
 
 interface ContextSidebarProps {
   defaultWidth?: number;
@@ -66,6 +67,10 @@ export function ContextSidebar({
     
     if (path.startsWith('/settings')) {
       return <SettingsContext />;
+    }
+    
+    if (path.startsWith('/fields-demo')) {
+      return <FieldsDemoContext />;
     }
     
     return <DefaultContext />;
@@ -365,6 +370,78 @@ function SettingsContext() {
       <div className="space-y-2">
         <div className="text-sm text-gray-500 dark:text-gray-400">
           Configure your studio
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldsDemoContext() {
+  const registryStats = fieldRegistry.getStats();
+  const availableTypes = fieldRegistry.getTypes();
+  
+  return (
+    <div className="p-4">
+      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+        Fields Registry
+      </h3>
+      
+      {/* Registry Status */}
+      <div className="mb-6">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="text-sm font-medium text-gray-900 dark:text-white">
+              {registryStats.total || 0}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Total Fields
+            </div>
+          </div>
+          <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className={`text-sm font-medium ${
+              registryStats.initialized 
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            }`}>
+              {registryStats.initialized ? 'Yes' : 'No'}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Initialized
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Available Field Types */}
+      <div className="mb-6">
+        <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Available Types
+        </h4>
+        <div className="space-y-2">
+          {availableTypes.map((type) => (
+            <div
+              key={type}
+              className="flex items-center space-x-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
+            >
+              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <span className="text-sm text-gray-700 dark:text-gray-300 font-mono">
+                {type}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Help */}
+      <div>
+        <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          Documentation
+        </h4>
+        <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <div>• Select fields from the sidebar to test different types</div>
+          <div>• Use the Edit/Preview tabs to see both modes</div>
+          <div>• Click example "Use" buttons to try different values</div>
+          <div>• Toggle "Show Errors" to test validation</div>
         </div>
       </div>
     </div>
