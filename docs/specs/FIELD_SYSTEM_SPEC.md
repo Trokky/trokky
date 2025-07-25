@@ -2,85 +2,85 @@
 
 ## 🎯 Overview
 
-The Trokky v2 Field System provides a powerful, extensible architecture for defining content fields with enterprise-grade features including conditional logic, external API integration, and permission-aware controls.
+The Trokky v2 Field System provides a powerful, extensible plugin-based architecture for defining content fields. Built on proven patterns from Trokky v1 and inspired by Sanity CMS, it offers enterprise-grade features including conditional logic, validation, and seamless Studio integration.
 
 ## 🏗️ Core Architecture
 
-### Field Type Interface
+### Field Plugin Interface
+
+Based on our current implementation in `@trokky/fields`, the core field plugin interface provides a clean, extensible foundation:
 
 ```typescript
-export interface FieldType<TConfig = any, TValue = any> {
-  // Basic field identification
-  name: string
-  category?: FieldCategory
+export interface FieldPlugin<TDefinition extends BaseFieldDefinition = BaseFieldDefinition, TValue = any> {
+  // Plugin identification
+  type: string
+  displayName: string
+  description: string
+  category: FieldCategory
   
-  // Validation
-  validate(
-    value: TValue,
-    config: TConfig,
-    context: FieldContext
-  ): ValidationResult | Promise<ValidationResult>
+  // React rendering
+  component: ComponentType<FieldComponentProps<TDefinition, TValue>>
+  previewComponent?: ComponentType<FieldComponentProps<TDefinition, TValue>>
   
-  // Data handling
-  serialize(value: TValue, config: TConfig): any
-  deserialize(data: any, config: TConfig): TValue
-  defaultValue?: TValue | ((config: TConfig, context: FieldContext) => TValue)
+  // Data validation
+  validate: (value: TValue, definition: TDefinition, context?: DocumentContext) => ValidationResult
   
-  // Studio components (optional - for headless usage)
-  component?: React.ComponentType<FieldProps<TConfig, TValue>>
-  preview?: React.ComponentType<PreviewProps<TValue>>
+  // Default value generation
+  getDefaultValue: (definition: TDefinition) => TValue
   
-  // Conditional behavior
-  hidden?(config: TConfig, context: FieldContext): boolean | Promise<boolean>
-  readOnly?(config: TConfig, context: FieldContext): boolean | Promise<boolean>
-  disabled?(config: TConfig, context: FieldContext): boolean | Promise<boolean>
+  // Schema conversion (for storage/API)
+  toSchemaField: (definition: TDefinition) => any
+  fromSchemaField: (schemaField: any) => TDefinition
   
-  // Field metadata
-  description?: string
-  icon?: string
-  examples?: Array<{
-    title: string
-    config: TConfig
-    value: TValue
-  }>
+  // Plugin metadata
+  settings?: {
+    icon?: string
+    color?: string
+    tags?: string[]
+  }
 }
 ```
 
-### Field Context System
+### Base Field Definition
+
+All field types extend from a common base definition:
 
 ```typescript
-export interface FieldContext {
-  // Document state
+export interface BaseFieldDefinition {
+  type: string
+  title?: string
+  description?: string
+  required?: boolean
+  hidden?: boolean
+  readOnly?: boolean
+  validation?: BaseValidation
+}
+
+export interface BaseValidation {
+  required?: boolean
+  custom?: (value: any, definition: any, context?: DocumentContext) => ValidationResult
+}
+
+export interface ValidationResult {
+  isValid: boolean
+  errors?: string[]
+  warnings?: string[]
+}
+```
+
+### Document Context (Current Simple Implementation)
+
+The document context provides field access to document state and validation information:
+
+```typescript
+export interface DocumentContext {
   document: Record<string, any>
-  parentPath?: string[]
   fieldPath: string[]
-  
-  // User & permissions
-  user: User
-  permissions: Permission[]
-  userRole: UserRole
-  
-  // API access
-  httpClient: HttpClient
-  apiClient: ApiClient
-  
-  // Document manipulation
-  getValue(path: string): any
-  setValue(path: string, value: any): void
-  getFieldConfig(path: string): FieldDefinition | undefined
-  
-  // Validation state
   errors: ValidationError[]
-  touched: Record<string, boolean>
-  
-  // Runtime environment
-  isStudio: boolean
-  isPreview: boolean
-  studioConfig?: StudioConfig
-  
-  // Event system
-  emit(event: FieldEvent): void
-  on(event: string, handler: Function): void
+  user?: User
+  permissions?: Permission[]
+  isStudio?: boolean
+  isPreview?: boolean
 }
 ```
 
@@ -197,214 +197,250 @@ defineField({
 
 ## 🧩 Built-in Field Types
 
-### Core Field Types
+Based on our research of legacy Trokky v1 and Sanity CMS, here are the field types we plan to implement:
 
-#### String Field
+### Phase 1: Core Field Types (Essential)
+
+#### 1. Text Fields (`'text'` category)
+- **StringField** ✅ (Currently implemented)
+- **TextareaField** - Multi-line text input
+- **RichTextField** - Rich text editor with formatting
+- **EmailField** - Email validation (extends StringField)
+- **UrlField** - URL validation (extends StringField)
+- **SlugField** - URL-safe slugs with auto-generation
+
+#### 2. Number Fields (`'number'` category)
+- **NumberField** - Numeric input with validation
+- **IntegerField** - Integer-only numbers
+
+#### 3. Boolean Fields (`'boolean'` category)
+- **BooleanField** - Checkbox/toggle input
+
+#### 4. Date Fields (`'date'` category)
+- **DateField** - Date picker with optional time
+
+### Phase 2: Advanced Field Types (Important)
+
+#### 5. Media Fields (`'media'` category)
+- **ImageField** - Image upload with thumbnails, cropping
+- **FileField** - Generic file upload
+- **VideoField** - Video upload with metadata
+- **AudioField** - Audio upload with metadata
+
+#### 6. Reference Fields (`'reference'` category)
+- **ReferenceField** - References to other documents
+
+#### 7. Structure Fields (`'structure'` category)
+- **ArrayField** - Arrays of items with drag/drop
+- **ObjectField** - Nested objects with field grouping
+
+### Current Implementation Status
+
+Currently implemented (in `@trokky/fields`):
 ```typescript
-interface StringFieldConfig {
-  minLength?: number
-  maxLength?: number
-  pattern?: RegExp
-  format?: 'email' | 'url' | 'tel' | 'password'
-  placeholder?: string
-  multiline?: boolean
-  rows?: number
-}
-```
-
-#### Number Field
-```typescript
-interface NumberFieldConfig {
-  min?: number
-  max?: number
-  step?: number
-  format?: 'integer' | 'float' | 'currency' | 'percentage'
-  currency?: string
-  precision?: number
-}
-```
-
-#### Boolean Field
-```typescript
-interface BooleanFieldConfig {
-  layout?: 'checkbox' | 'switch' | 'radio'
-  trueLabel?: string
-  falseLabel?: string
-}
-```
-
-#### Date Field
-```typescript
-interface DateFieldConfig {
-  includeTime?: boolean
-  format?: string
-  min?: Date | string
-  max?: Date | string
-  timezone?: string
-}
-```
-
-### Advanced Field Types
-
-#### Array Field
-```typescript
-interface ArrayFieldConfig {
-  of: FieldDefinition[]
-  min?: number
-  max?: number
-  sortable?: boolean
-  layout?: 'list' | 'grid' | 'tags'
-  addLabel?: string
-}
-```
-
-#### Object Field
-```typescript
-interface ObjectFieldConfig {
-  fields: Record<string, FieldDefinition>
-  layout?: 'sections' | 'tabs' | 'accordion'
-  collapsible?: boolean
-  collapsed?: boolean
-}
-```
-
-#### Reference Field
-```typescript
-interface ReferenceFieldConfig {
-  to: string[]
-  weak?: boolean
-  bidirectional?: boolean
-  searchable?: string[]
-  preview?: PreviewConfig
-  filter?: FilterExpression
-}
-```
-
-#### Portable Text Field
-```typescript
-interface PortableTextFieldConfig {
-  marks?: MarkConfig[]
-  blocks?: BlockConfig[]
-  lists?: ListConfig[]
-  annotations?: AnnotationConfig[]
-  styles?: StyleConfig[]
-}
-```
-
-### Media Field Types
-
-#### Image Field
-```typescript
-interface ImageFieldConfig {
-  accept?: string[]
-  maxSize?: number
-  dimensions?: {
-    width?: number
-    height?: number
-    aspectRatio?: number
+// StringField with variants
+const stringField: StringFieldDefinition = {
+  type: 'string',
+  title: 'Text Field',
+  options: {
+    inputType: 'text' | 'email' | 'url' | 'password',
+    multiline?: boolean,
+    placeholder?: string
+  },
+  validation: {
+    required?: boolean,
+    minLength?: number,
+    maxLength?: number,
+    pattern?: RegExp,
+    email?: boolean,
+    url?: boolean
   }
-  crop?: boolean
-  hotspot?: boolean
-  variants?: ImageVariantConfig[]
 }
 ```
 
-#### File Field
+### Field Categories
+
 ```typescript
-interface FileFieldConfig {
-  accept?: string[]
-  maxSize?: number
-  storeOriginalFilename?: boolean
-  metadata?: boolean
+export enum FieldCategory {
+  TEXT = 'text',
+  NUMBER = 'number', 
+  BOOLEAN = 'boolean',
+  DATE = 'date',
+  MEDIA = 'media',
+  REFERENCE = 'reference',
+  STRUCTURE = 'structure'
 }
 ```
 
-### Specialized Field Types
+## 🔧 Field Registration System (Current Implementation)
 
-#### Slug Field
-```typescript
-interface SlugFieldConfig {
-  source: string | string[]
-  prefix?: string
-  suffix?: string
-  separator?: string
-  lowercase?: boolean
-  validation?: SlugValidationConfig
-}
-```
+Based on our current `@trokky/fields` implementation:
 
-#### Email Field
-```typescript
-interface EmailFieldConfig {
-  domains?: string[]
-  verification?: boolean
-  placeholder?: string
-}
-```
-
-#### URL Field
-```typescript
-interface URLFieldConfig {
-  schemes?: string[]
-  allowRelative?: boolean
-  validation?: URLValidationConfig
-}
-```
-
-## 🔧 Field Registration System
-
-### Field Type Registry
+### Field Registry
 
 ```typescript
-export class FieldTypeRegistry {
-  private static types = new Map<string, FieldType>()
-  private static categories = new Map<FieldCategory, FieldType[]>()
-  
-  static register<T extends FieldType>(fieldType: T): void {
-    this.types.set(fieldType.name, fieldType)
-    
-    const category = fieldType.category || 'other'
-    if (!this.categories.has(category)) {
-      this.categories.set(category, [])
+export class FieldRegistry {
+  private plugins = new Map<string, FieldPlugin>()
+  private sources = new Map<string, 'builtin' | 'external' | 'custom'>()
+  private categories = new Map<FieldCategory, string[]>()
+  private isInitialized = false
+
+  // Register a field plugin
+  register(plugin: FieldPlugin, source: 'builtin' | 'external' | 'custom' = 'external'): void {
+    // Validation and registration logic
+    this.plugins.set(plugin.type, plugin)
+    this.sources.set(plugin.type, source)
+    this.addToCategory(plugin.type, plugin.category)
+  }
+
+  // Get field plugin by type
+  get(type: string): FieldPlugin | undefined {
+    return this.plugins.get(type)
+  }
+
+  // Get all registered fields
+  getAll(): FieldPlugin[] {
+    return Array.from(this.plugins.values())
+  }
+
+  // Get fields by category
+  getByCategory(category: FieldCategory): FieldPlugin[] {
+    const types = this.categories.get(category) || []
+    return types.map(type => this.plugins.get(type)!).filter(Boolean)
+  }
+
+  // Registry statistics
+  getStats() {
+    return {
+      total: this.plugins.size,
+      bySource: this.getSourceStats(),
+      byCategory: this.getCategoryStats(),
+      initialized: this.isInitialized
     }
-    this.categories.get(category)!.push(fieldType)
   }
-  
-  static get(name: string): FieldType | undefined {
-    return this.types.get(name)
-  }
-  
-  static getAll(): FieldType[] {
-    return Array.from(this.types.values())
-  }
-  
-  static getByCategory(category: FieldCategory): FieldType[] {
-    return this.categories.get(category) || []
-  }
-  
-  static exists(name: string): boolean {
-    return this.types.has(name)
+}
+
+// Global registry instance
+export const fieldRegistry = new FieldRegistry()
+```
+
+### Auto-Registration (Current)
+
+Built-in fields are automatically registered:
+
+```typescript
+// packages/fields/src/builtin.ts
+import { fieldRegistry } from './registry'
+import { stringFieldPlugin } from './definitions/StringField'
+
+export function registerBuiltinFields() {
+  fieldRegistry.register(stringFieldPlugin, 'builtin')
+  // More fields will be added here
+}
+
+// Auto-register when package is imported
+registerBuiltinFields()
+```
+
+## 🚀 Future Extensions (Phase 2+)
+
+The following features are planned for future phases but **not implemented yet**. They're documented here to ensure we design the current system to support them later:
+
+### 1. Advanced Conditional Logic
+Fields that show/hide or become required based on other field values:
+
+```typescript
+// Future extension to BaseFieldDefinition
+interface BaseFieldDefinition {
+  // ... current fields
+  showIf?: ConditionalExpression
+  hideIf?: ConditionalExpression
+  requiredIf?: ConditionalExpression
+}
+
+interface ConditionalExpression {
+  field: string
+  operator?: 'equals' | 'notEquals' | 'in' | 'notIn' | 'exists' | 'empty'
+  value?: any
+  and?: ConditionalExpression[]
+  or?: ConditionalExpression[]
+}
+```
+
+### 2. Event System & Field Communication
+Allow fields to react to changes in other fields:
+
+```typescript
+// Future extension to DocumentContext
+interface DocumentContext {
+  // ... current fields
+  emit(event: FieldEvent): void
+  on(event: string, handler: Function): void
+  getValue(fieldPath: string): any
+  setValue(fieldPath: string, value: any): void
+}
+```
+
+### 3. HTTP Client Integration
+Enable fields to make external API calls:
+
+```typescript
+// Future extension to DocumentContext
+interface DocumentContext {
+  // ... current fields
+  httpClient: HttpClient
+  apiClient: ApiClient
+}
+
+// Example: Unsplash image picker, address autocomplete
+```
+
+### 4. Advanced Permission System
+Role-based field access control:
+
+```typescript
+// Future extension to DocumentContext
+interface DocumentContext {
+  // ... current fields
+  user: User
+  permissions: Permission[]
+  userRole: UserRole
+}
+
+// Future extension to BaseFieldDefinition
+interface BaseFieldDefinition {
+  // ... current fields
+  readOnly?: boolean | ((context: DocumentContext) => boolean)
+  hidden?: boolean | ((context: DocumentContext) => boolean)
+}
+```
+
+### 5. Field Dependencies & Validation
+Fields that depend on or affect other fields:
+
+```typescript
+// Future extension to BaseFieldDefinition
+interface BaseFieldDefinition {
+  // ... current fields
+  dependsOn?: string[]
+  affects?: string[]
+  validation?: {
+    // ... current validation
+    crossField?: (value: any, document: any) => ValidationResult
+    async?: boolean
   }
 }
 ```
 
-### Auto-Registration
+### 6. Advanced Field Types
+More specialized field types for later phases:
+- **GeoLocationField** - GPS coordinates with map picker
+- **ColorField** - Color picker with palette support
+- **MarkdownField** - Markdown editor with preview
+- **CodeField** - Syntax-highlighted code editor
+- **JsonField** - JSON editor with schema validation
 
-```typescript
-// packages/fields-core/src/index.ts
-import { FieldTypeRegistry } from '@trokky/core'
-import * as BuiltInFields from './types'
-
-// Auto-register all built-in field types
-Object.values(BuiltInFields).forEach(fieldType => {
-  FieldTypeRegistry.register(fieldType)
-})
-
-export * from './types'
-export { FieldTypeRegistry }
-```
-
-## 🎛️ Conditional Logic System
+## 🎛️ Current Simple Implementation
 
 ### Conditional Expressions
 
@@ -643,48 +679,75 @@ enum FieldCategory {
 └── @trokky/field-markdown
 ```
 
-## 🚀 Usage in Studio
+## 🚀 Current Usage in Studio
 
-### Field Renderer
+### FieldRenderer Component
+
+Our current implementation provides a universal field renderer:
 
 ```typescript
-export function FieldRenderer({ 
-  field, 
-  value, 
-  onChange, 
-  context 
+export function FieldRenderer({
+  fieldId,
+  value,
+  onChange,
+  definition,
+  mode = 'edit',
+  compact = false,
+  maxLength
 }: FieldRendererProps) {
-  const fieldType = FieldTypeRegistry.get(field.type)
+  const plugin = fieldRegistry.get(definition.type)
   
-  if (!fieldType) {
-    return <UnknownFieldType type={field.type} />
+  if (!plugin) {
+    return <div>Unknown field type: {definition.type}</div>
   }
   
-  // Evaluate conditional logic
-  const isHidden = fieldType.hidden?.(field.config, context) || false
-  const isReadOnly = fieldType.readOnly?.(field.config, context) || false
-  const isDisabled = fieldType.disabled?.(field.config, context) || false
-  
-  if (isHidden) return null
-  
-  const FieldComponent = fieldType.component
-  if (!FieldComponent) {
-    return <div>Field type '{field.type}' has no Studio component</div>
-  }
+  const Component = mode === 'preview' && plugin.previewComponent 
+    ? plugin.previewComponent 
+    : plugin.component
   
   return (
-    <FieldWrapper field={field} readOnly={isReadOnly} disabled={isDisabled}>
-      <FieldComponent
-        field={field}
+    <FieldWrapper definition={definition} mode={mode}>
+      <Component
+        fieldId={fieldId}
         value={value}
         onChange={onChange}
-        context={context}
-        readOnly={isReadOnly}
-        disabled={isDisabled}
+        definition={definition}
+        mode={mode}
+        compact={compact}
+        maxLength={maxLength}
       />
     </FieldWrapper>
   )
 }
+```
+
+### Current Usage Examples (from FieldsDemo)
+
+```typescript
+// Edit Mode
+<FieldRenderer
+  fieldId="email-field"
+  value={emailValue}
+  onChange={setEmailValue}
+  definition={{
+    type: 'string',
+    title: 'Email Field',
+    options: { inputType: 'email' },
+    validation: { email: true }
+  }}
+  mode="edit"
+/>
+
+// Preview Mode
+<FieldRenderer
+  fieldId="email-preview"
+  value={emailValue}
+  onChange={() => {}}
+  definition={emailDefinition}
+  mode="preview"
+  compact={true}
+  maxLength={50}
+/>
 ```
 
 ## 🔄 Migration & Compatibility
