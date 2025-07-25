@@ -3,8 +3,9 @@
  * Clean field reference with sidebar navigation and context panel integration
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { FieldRenderer, fieldRegistry } from '@trokky/fields';
+import type { ValidationResult } from '@trokky/fields';
 
 // Field demo configuration
 interface FieldDemo {
@@ -24,14 +25,7 @@ function generateFieldDemos(): FieldDemo[] {
   const plugins = fieldRegistry.getAll();
   const demos: FieldDemo[] = [];
 
-  console.log('Debug: All plugins:', plugins.length);
-  
   plugins.forEach(plugin => {
-    console.log(`Debug: Plugin ${plugin.type}:`, {
-      hasDemoConfig: !!plugin.demoConfig,
-      variants: plugin.demoConfig?.variants?.length || 0
-    });
-    
     if (!plugin.demoConfig) return;
 
     // Create a demo for each variant
@@ -48,12 +42,10 @@ function generateFieldDemos(): FieldDemo[] {
         invalidValue: plugin.demoConfig?.invalidValue,
         examples: plugin.demoConfig?.examples || []
       };
-      console.log('Debug: Generated demo:', demo.name);
       demos.push(demo);
     });
   });
 
-  console.log('Debug: Total demos generated:', demos.length);
   return demos;
 }
 
@@ -86,11 +78,22 @@ export function FieldsDemo() {
     });
     return initialValues;
   });
+  const [validationResults, setValidationResults] = useState<Record<string, ValidationResult>>({});
   const [showErrors, setShowErrors] = useState(false);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
   // Get current field demo
   const currentField = FIELD_DEMOS.find(field => field.id === selectedFieldId) || FIELD_DEMOS[0];
+
+  // Run initial validation for all fields
+  useEffect(() => {
+    FIELD_DEMOS.forEach(demo => {
+      const value = fieldValues[demo.id];
+      if (value !== undefined) {
+        validateField(demo.id, value);
+      }
+    });
+  }, [FIELD_DEMOS]); // Only depend on FIELD_DEMOS to avoid infinite loops
 
   // Handle case where no field demos are available
   if (!currentField || FIELD_DEMOS.length === 0) {
@@ -115,9 +118,22 @@ export function FieldsDemo() {
     }, {} as Record<string, FieldDemo[]>);
   }, [FIELD_DEMOS]);
 
-  // Update field value
+  // Validate a field value
+  const validateField = (fieldId: string, value: any) => {
+    const demo = FIELD_DEMOS.find(d => d.id === fieldId);
+    if (!demo) return;
+    
+    const plugin = fieldRegistry.get(demo.type);
+    if (!plugin) return;
+    
+    const result = plugin.validate(value, demo.definition);
+    setValidationResults(prev => ({ ...prev, [fieldId]: result }));
+  };
+
+  // Update field value and run validation
   const updateFieldValue = (fieldId: string, value: any) => {
     setFieldValues(prev => ({ ...prev, [fieldId]: value }));
+    validateField(fieldId, value);
   };
 
   // Toggle error demonstration
@@ -257,6 +273,14 @@ export function FieldsDemo() {
                         value={fieldValues[currentField.id] || ''}
                         onChange={(value) => updateFieldValue(currentField.id, value)}
                         definition={currentField.definition}
+                        hasError={validationResults[currentField.id] && !validationResults[currentField.id].isValid}
+                        error={validationResults[currentField.id]?.errors?.[0]}
+                        validationState={validationResults[currentField.id] ? {
+                          isValidating: false,
+                          isValid: validationResults[currentField.id].isValid,
+                          errors: validationResults[currentField.id].errors || [],
+                          warnings: validationResults[currentField.id].warnings || []
+                        } : undefined}
                         mode="edit"
                       />
                     </div>

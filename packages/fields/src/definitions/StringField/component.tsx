@@ -22,6 +22,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     onFocus,
     onBlur
   } = props;
+
   
   // Type-safe access to string field specific properties
   const stringDefinition = definition as StringFieldDefinition;
@@ -63,14 +64,24 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     autoComplete: options.autoComplete,
     spellCheck: options.spellCheck,
     maxLength: validation.maxLength,
-    className: `
-      w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-      bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-      focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-      disabled:opacity-50 disabled:cursor-not-allowed
-      ${hasError ? 'border-red-500 ring-1 ring-red-500' : ''}
-      ${options.className || ''}
-    `.trim()
+    className: (() => {
+      const baseClasses = hasError 
+        ? 'w-full px-3 py-2 border !border-red-400 rounded-lg'
+        : 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg';
+      
+      const finalClassName = `
+        ${baseClasses}
+        bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+        disabled:opacity-50 disabled:cursor-not-allowed
+        ${options.className || ''}
+      `.trim();
+      return finalClassName;
+    })(),
+    style: hasError ? { 
+      borderColor: '#f87171', // red-400 (more subtle)
+      boxShadow: '0 0 0 1px rgba(248, 113, 113, 0.3)' // subtle ring
+    } : undefined
   };
 
   // Render multiline textarea
