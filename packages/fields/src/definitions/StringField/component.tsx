@@ -20,7 +20,10 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     isDisabled,
     isReadonly,
     onFocus,
-    onBlur
+    onBlur,
+    onKeyPress,
+    onKeyDown,
+    ...restProps
   } = props;
 
   
@@ -58,6 +61,8 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     onChange: handleChange,
     onFocus,
     onBlur,
+    onKeyPress,
+    onKeyDown,
     disabled: isDisabled,
     readOnly: isReadonly,
     placeholder: options.placeholder,

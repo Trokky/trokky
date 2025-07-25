@@ -9,6 +9,7 @@ import { textareaFieldPlugin } from './definitions/TextareaField/index.js';
 import { emailFieldPlugin } from './definitions/EmailField/index.js';
 import { urlFieldPlugin } from './definitions/URLField/index.js';
 import { passwordFieldPlugin } from './definitions/PasswordField/index.js';
+import { numberFieldPlugin } from './definitions/NumberField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -18,6 +19,9 @@ export function registerBuiltinFields(): void {
   fieldRegistry.register(emailFieldPlugin, 'builtin');
   fieldRegistry.register(urlFieldPlugin, 'builtin');
   fieldRegistry.register(passwordFieldPlugin, 'builtin');
+  
+  // Number fields
+  fieldRegistry.register(numberFieldPlugin, 'builtin');
   
   // TODO: Register other built-in fields
   // fieldRegistry.register(numberFieldPlugin, 'builtin');

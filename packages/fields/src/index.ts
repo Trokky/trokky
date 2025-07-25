@@ -78,12 +78,30 @@ export {
   PasswordFieldComponent,
   PasswordFieldPreview,
   validatePasswordField,
-  calculatePasswordStrength
+  calculatePasswordStrength,
+  generatePassword
 } from './definitions/PasswordField/index.js';
 
 export type {
-  PasswordFieldDefinition
+  PasswordFieldDefinition,
+  PasswordGeneratorOptions
 } from './definitions/PasswordField/index.js';
+
+export {
+  numberFieldPlugin,
+  NumberFieldComponent,
+  NumberFieldPreview,
+  validateNumberField,
+  formatNumber,
+  parseFormattedNumber,
+  cleanNumberString
+} from './definitions/NumberField/index.js';
+
+export type {
+  NumberFieldDefinition,
+  NumberValidation,
+  NumberFieldOptions
+} from './definitions/NumberField/index.js';
 
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';
