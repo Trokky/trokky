@@ -62,5 +62,16 @@ export type {
   TextareaFieldOptions
 } from './definitions/TextareaField/index.js';
 
+export {
+  urlFieldPlugin,
+  URLFieldComponent,
+  URLFieldPreview,
+  validateURLField
+} from './definitions/URLField/index.js';
+
+export type {
+  URLFieldDefinition
+} from './definitions/URLField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

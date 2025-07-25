@@ -6,12 +6,16 @@
 import { fieldRegistry } from './registry/FieldRegistry.js';
 import { stringFieldPlugin } from './definitions/StringField/index.js';
 import { textareaFieldPlugin } from './definitions/TextareaField/index.js';
+import { emailFieldPlugin } from './definitions/EmailField/index.js';
+import { urlFieldPlugin } from './definitions/URLField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
   // Text fields
   fieldRegistry.register(stringFieldPlugin, 'builtin');
   fieldRegistry.register(textareaFieldPlugin, 'builtin');
+  fieldRegistry.register(emailFieldPlugin, 'builtin');
+  fieldRegistry.register(urlFieldPlugin, 'builtin');
   
   // TODO: Register other built-in fields
   // fieldRegistry.register(numberFieldPlugin, 'builtin');
