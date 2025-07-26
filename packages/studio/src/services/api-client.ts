@@ -190,8 +190,14 @@ export class ApiClient {
             // Try to validate stored token to potentially refresh it
             const storedToken = localStorage.getItem('trokky_auth_token');
             if (storedToken) {
-              const validateResponse = await this.post('/api/auth/validate', { token: storedToken }, true);
-              if (validateResponse.success && validateResponse.data && 'valid' in validateResponse.data && validateResponse.data.valid && 'session' in validateResponse.data && validateResponse.data.session) {
+              const validateResponse = await this.post('/api/auth/validate', { token: storedToken });
+              if (validateResponse.success && 
+                  validateResponse.data && 
+                  typeof validateResponse.data === 'object' && 
+                  'valid' in validateResponse.data && 
+                  validateResponse.data.valid && 
+                  'session' in validateResponse.data && 
+                  validateResponse.data.session) {
                 // Token is still valid, retry the original request
                 this.setAuthToken(storedToken);
                 return this.request(endpoint, options, skipAuth);

@@ -29,13 +29,23 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
         rememberMe
       });
       
-      if (response.success && response.data && 'token' in response.data && 'refreshToken' in response.data) {
+      if (response.success && response.data && 
+          typeof response.data === 'object' && 
+          'token' in response.data && 
+          'refreshToken' in response.data &&
+          'user' in response.data) {
+        const loginData = response.data as {
+          token: string;
+          refreshToken: string;
+          user: any;
+        };
+        
         // Store tokens in localStorage
-        localStorage.setItem('trokky_auth_token', response.data.token);
-        localStorage.setItem('trokky_refresh_token', response.data.refreshToken);
+        localStorage.setItem('trokky_auth_token', loginData.token);
+        localStorage.setItem('trokky_refresh_token', loginData.refreshToken);
         
         // Call success callback
-        onLoginSuccess(response.data.token, response.data.user);
+        onLoginSuccess(loginData.token, loginData.user);
       } else {
         setError(response.error?.message || 'Login failed');
       }

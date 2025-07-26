@@ -78,8 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: authState.refreshToken 
       });
       
-      if (response.success && response.data) {
-        const { token, refreshToken, expiresAt } = response.data;
+      if (response.success && response.data && 
+          typeof response.data === 'object' && 
+          'token' in response.data && 
+          'refreshToken' in response.data && 
+          'expiresAt' in response.data) {
+        const { token, refreshToken, expiresAt } = response.data as {
+          token: string;
+          refreshToken: string;
+          expiresAt: string;
+        };
         
         // Update stored tokens
         localStorage.setItem('trokky_auth_token', token);
@@ -143,11 +151,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logger.info('Token validation response', { 
         success: response.success, 
         hasData: !!response.data,
-        dataKeys: response.data ? Object.keys(response.data) : [],
+        dataKeys: response.data && typeof response.data === 'object' ? Object.keys(response.data) : [],
         error: response.error
       });
       
-      if (response.success && response.data && 'valid' in response.data && response.data.valid && 'session' in response.data && response.data.session) {
+      if (response.success && 
+          response.data && 
+          typeof response.data === 'object' && 
+          'valid' in response.data && 
+          response.data.valid && 
+          'session' in response.data && 
+          response.data.session) {
         logger.info('Authentication validated successfully');
         
         const sessionData = response.data.session as any;
@@ -174,8 +188,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               refreshToken: storedRefreshToken 
             });
             
-            if (refreshResponse.success && refreshResponse.data) {
-              const { token, refreshToken, user, expiresAt } = refreshResponse.data;
+            if (refreshResponse.success && 
+                refreshResponse.data && 
+                typeof refreshResponse.data === 'object' && 
+                'token' in refreshResponse.data && 
+                'refreshToken' in refreshResponse.data && 
+                'user' in refreshResponse.data && 
+                'expiresAt' in refreshResponse.data) {
+              const { token, refreshToken, user, expiresAt } = refreshResponse.data as {
+                token: string;
+                refreshToken: string;
+                user: any;
+                expiresAt: string;
+              };
               
               localStorage.setItem('trokky_auth_token', token);
               localStorage.setItem('trokky_refresh_token', refreshToken);
@@ -246,8 +271,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberMe 
       });
       
-      if (response.success && response.data) {
-        const { user, token, refreshToken, expiresAt } = response.data;
+      if (response.success && response.data && 
+          typeof response.data === 'object' && 
+          'user' in response.data && 
+          'token' in response.data && 
+          'refreshToken' in response.data && 
+          'expiresAt' in response.data) {
+        const { user, token, refreshToken, expiresAt } = response.data as {
+          user: any;
+          token: string;
+          refreshToken: string;
+          expiresAt: string;
+        };
         
         logger.info('User login successful', { username, rememberMe });
         
