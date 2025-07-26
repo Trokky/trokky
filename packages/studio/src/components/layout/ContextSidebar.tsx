@@ -5,6 +5,7 @@ import { cn } from '@/utils/cn';
 import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { fieldRegistry } from '@trokky/fields';
+import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 
 interface ContextSidebarProps {
   defaultWidth?: number;
@@ -18,9 +19,13 @@ export function ContextSidebar({
   maxWidth = 600
 }: ContextSidebarProps) {
   const location = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [width, setWidth] = useState(defaultWidth);
+  const contextAPI = useContextSidebar();
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Use context API state, fallback to local state for backwards compatibility
+  const isCollapsed = contextAPI.isCollapsed;
+  const width = contextAPI.width || defaultWidth;
+  const isVisible = contextAPI.isVisible;
 
   const handleMouseDown = () => {
     setIsResizing(true);
@@ -28,7 +33,7 @@ export function ContextSidebar({
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX;
       if (newWidth >= minWidth && newWidth <= maxWidth) {
-        setWidth(newWidth);
+        contextAPI.setWidth(newWidth);
       }
     };
 
@@ -43,10 +48,16 @@ export function ContextSidebar({
   };
 
   const toggleCollapsed = () => {
-    setIsCollapsed(!isCollapsed);
+    contextAPI.toggleCollapse();
   };
 
   const getContextContent = () => {
+    // If custom content is set via API, use that instead
+    if (contextAPI.content) {
+      return contextAPI.content;
+    }
+    
+    // Otherwise, use route-based content (default behavior)
     const path = location.pathname;
     
     if (path === '/') {
@@ -75,6 +86,11 @@ export function ContextSidebar({
     
     return <DefaultContext />;
   };
+
+  // Hide the entire sidebar if not visible
+  if (!isVisible) {
+    return null;
+  }
 
   if (isCollapsed) {
     return (

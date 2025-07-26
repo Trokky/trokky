@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { 
   PhotoIcon, 
   PlusIcon, 
@@ -54,6 +55,7 @@ interface MediaTypeInfo {
 }
 
 export function MediaPage() {
+  const contextSidebar = useContextSidebar();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MediaFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,6 +85,38 @@ export function MediaPage() {
   const loadingRef = useRef(false);
   const apiClient = useApiClient();
   const logger = createStudioLogger('MediaPage');
+
+  // Example: You can control the context sidebar from any page
+  // Uncomment these to test the API:
+  // useEffect(() => {
+  //   // Custom content example
+  //   contextSidebar.setContent(
+  //     <div className="p-4">
+  //       <h3 className="font-medium mb-2">Custom Media Context</h3>
+  //       <p className="text-sm text-gray-600">This is custom content set via the API!</p>
+  //       <button 
+  //         onClick={() => contextSidebar.hide()}
+  //         className="mt-2 px-2 py-1 bg-red-500 text-white rounded text-xs"
+  //       >
+  //         Hide Sidebar
+  //       </button>
+  //     </div>
+  //   );
+  // }, []);
+
+  // Example: Hide sidebar on mobile for more space
+  // useEffect(() => {
+  //   const handleResize = () => {
+  //     if (window.innerWidth < 1024) {
+  //       contextSidebar.hide();
+  //     } else {
+  //       contextSidebar.show();
+  //     }
+  //   };
+  //   handleResize();
+  //   window.addEventListener('resize', handleResize);
+  //   return () => window.removeEventListener('resize', handleResize);
+  // }, []);
 
   // Function to update view mode and persist to localStorage
   const updateViewMode = useCallback((mode: ViewMode) => {
@@ -206,6 +240,14 @@ export function MediaPage() {
   useEffect(() => {
     loadMediaFiles();
   }, []); // Empty dependency array - only run on mount
+
+  // Hide context sidebar for Media Page (filters are in main area)
+  useEffect(() => {
+    contextSidebar.hide();
+    
+    // Show it again when leaving the page
+    return () => contextSidebar.show();
+  }, [contextSidebar]);
 
   // Keyboard navigation for viewer
   useEffect(() => {

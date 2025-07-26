@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { MainSidebar } from './MainSidebar';
 import { ContextSidebar } from './ContextSidebar';
+import { ContextSidebarProvider } from '@/contexts/ContextSidebarContext';
 
 interface StudioLayoutProps {
   showSearch?: boolean;
@@ -35,7 +36,8 @@ export function StudioLayout({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <ContextSidebarProvider>
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <Header
         onOpenMobileMenu={handleOpenMobileMenu}
@@ -52,15 +54,15 @@ export function StudioLayout({
           <MainSidebar />
         </div>
 
+        {/* Context sidebar - after main sidebar */}
+        <div className="flex">
+          <ContextSidebar />
+        </div>
+
         {/* Main content */}
         <main className="flex-1 overflow-auto bg-white dark:bg-gray-800">
           <Outlet />
         </main>
-
-        {/* Context sidebar - always visible for debugging */}
-        <div className="flex">
-          <ContextSidebar />
-        </div>
       </div>
 
       {/* Mobile menu overlay */}
@@ -119,6 +121,7 @@ export function StudioLayout({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ContextSidebarProvider>
   );
 }
