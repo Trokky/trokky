@@ -26,9 +26,20 @@ interface TrokkyCore {
   deleteMedia(id: string): Promise<void>;
   
   // Auth methods
-  authenticateUser(username: string, password: string): Promise<{ user: any; token: string } | null>;
+  authenticateUser(username: string, password: string): Promise<{ user: any; accessToken: string; refreshToken: string } | null>;
   verifyAuthToken(token: string): Promise<any | null>;
+  refreshAuthToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null>;
   createUser(userData: any): Promise<any>;
+  updateUser(id: string, userData: any): Promise<any>;
+  deleteUser(id: string): Promise<void>;
+  listUsers(options?: any): Promise<any[]>;
+  
+  // App token methods
+  createAppToken(tokenData: any, createdBy: string): Promise<{ token: string; appToken: any }>;
+  listAppTokens(options?: any): Promise<any[]>;
+  updateAppToken(id: string, tokenData: any): Promise<any>;
+  deleteAppToken(id: string): Promise<void>;
+  getAppToken(id: string): Promise<any>;
 }
 
 interface FieldType<Config = any, Value = any> {
@@ -519,6 +530,225 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Token validation failed' }
+      });
+    }
+  });
+
+  // Enhanced Auth Routes
+  
+  // Refresh token endpoint
+  router.post('/api/auth/refresh', async (req: Request, res: Response) => {
+    try {
+      const { refreshToken } = req.body;
+      
+      if (!refreshToken) {
+        return res.status(400).json({ 
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Refresh token is required' }
+        });
+      }
+      
+      const result = await _config.cms.refreshAuthToken(refreshToken);
+      
+      if (!result) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Invalid or expired refresh token' }
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Token refresh failed' }
+      });
+    }
+  });
+
+  // User Management Routes (Admin only)
+  
+  // List users
+  router.get('/api/users', async (req: Request, res: Response) => {
+    try {
+      const users = await _config.cms.listUsers(req.query);
+      res.json({
+        success: true,
+        data: { users }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to list users' }
+      });
+    }
+  });
+
+  // Create user
+  router.post('/api/users', async (req: Request, res: Response) => {
+    try {
+      const userData = req.body;
+      
+      if (!userData.username || !userData.email || !userData.password) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Username, email, and password are required' }
+        });
+      }
+      
+      const user = await _config.cms.createUser(userData);
+      res.json({
+        success: true,
+        data: { user }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to create user' }
+      });
+    }
+  });
+
+  // Update user
+  router.put('/api/users/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userData = req.body;
+      
+      const user = await _config.cms.updateUser(id, userData);
+      res.json({
+        success: true,
+        data: { user }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to update user' }
+      });
+    }
+  });
+
+  // Delete user
+  router.delete('/api/users/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      await _config.cms.deleteUser(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to delete user' }
+      });
+    }
+  });
+
+  // App Token Management Routes
+  
+  // List app tokens
+  router.get('/api/tokens', async (req: Request, res: Response) => {
+    try {
+      const tokens = await _config.cms.listAppTokens(req.query);
+      res.json({
+        success: true,
+        data: { tokens }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to list app tokens' }
+      });
+    }
+  });
+
+  // Create app token
+  router.post('/api/tokens', async (req: Request, res: Response) => {
+    try {
+      const tokenData = req.body;
+      const createdBy = req.body.createdBy || 'system'; // Should come from auth context
+      
+      if (!tokenData.name || !tokenData.permissions) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Token name and permissions are required' }
+        });
+      }
+      
+      const result = await _config.cms.createAppToken(tokenData, createdBy);
+      res.json({
+        success: true,
+        data: {
+          token: result.token, // Plain text token (only returned once)
+          appToken: result.appToken
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to create app token' }
+      });
+    }
+  });
+
+  // Get app token (without revealing the actual token)
+  router.get('/api/tokens/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const token = await _config.cms.getAppToken(id);
+      
+      if (!token) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'App token not found' }
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: { token }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get app token' }
+      });
+    }
+  });
+
+  // Update app token
+  router.put('/api/tokens/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tokenData = req.body;
+      
+      const token = await _config.cms.updateAppToken(id, tokenData);
+      res.json({
+        success: true,
+        data: { token }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to update app token' }
+      });
+    }
+  });
+
+  // Delete app token
+  router.delete('/api/tokens/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      await _config.cms.deleteAppToken(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to delete app token' }
       });
     }
   });

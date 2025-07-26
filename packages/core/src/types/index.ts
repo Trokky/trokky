@@ -1,5 +1,15 @@
 import { z } from 'zod'
-import type { User, UserListOptions } from './user.js'
+import type { 
+  User, 
+  UserListOptions, 
+  AppToken, 
+  AppTokenListOptions,
+  CreateAppTokenData,
+  UpdateAppTokenData,
+  AuthContext,
+  AuthenticatedUser,
+  AuthenticatedAppToken
+} from './user.js'
 
 // Base document structure
 export interface Document {
@@ -137,6 +147,13 @@ export interface StorageAdapter {
   getUserByUsername?(username: string): Promise<User | null>
   getUserByEmail?(email: string): Promise<User | null>
 
+  // App token operations
+  getAppToken?(id: string): Promise<AppToken | null>
+  saveAppToken?(id: string, tokenData: Partial<AppToken>): Promise<AppToken>
+  listAppTokens?(options?: AppTokenListOptions): Promise<AppToken[]>
+  deleteAppToken?(id: string): Promise<void>
+  getAppTokenByHash?(hash: string): Promise<AppToken | null>
+
   // Utility operations
   healthCheck(): Promise<boolean>
   migrate(migrations: Migration[]): Promise<void>
@@ -191,5 +208,12 @@ export type {
   UpdateUserData,
   UserListOptions,
   LoginCredentials,
-  UserSession
+  UserSession,
+  AppToken,
+  AppTokenListOptions,
+  CreateAppTokenData,
+  UpdateAppTokenData,
+  AuthContext,
+  AuthenticatedUser,
+  AuthenticatedAppToken
 } from './user.js'

@@ -222,12 +222,12 @@ export class FieldUtils {
         firstName: 'Test',
         lastName: 'User',
         role: 'admin',
-        permissions: ['read', 'write', 'manage_users'],
+        permissions: ['content:read', 'content:write', 'users:read'],
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
-      permissions: ['read', 'write', 'manage_users'],
+      permissions: ['content:read', 'content:write', 'users:read'],
       userRole: 'admin',
       httpClient: {
         get: async () => ({}),

@@ -12,12 +12,17 @@ import {
   SecurityValidator,
   InvalidInputError,
   User,
-  UserListOptions
+  UserListOptions,
+  AppToken,
+  AppTokenListOptions
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
 export class FilesystemAdapter implements StorageAdapter {
-  private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl'>> & { mediaBaseUrl?: string }
+  private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl' | 'tokensDir'>> & { 
+    mediaBaseUrl?: string; 
+    tokensDir: string;
+  }
   
   // Security limits
   private readonly MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
@@ -28,6 +33,7 @@ export class FilesystemAdapter implements StorageAdapter {
       contentDir: config.contentDir || './content',
       mediaDir: config.mediaDir || './media',
       usersDir: config.usersDir || './users',
+      tokensDir: config.tokensDir || './tokens',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -429,11 +435,6 @@ export class FilesystemAdapter implements StorageAdapter {
         _createdAt: updatedMetadata.createdAt instanceof Date ? updatedMetadata.createdAt : new Date(updatedMetadata.createdAt)
       }
 
-      console.log('[DEBUG] FilesystemAdapter.updateFile - Updated metadata successfully:', {
-        id,
-        updatedFields: Object.keys(metadata),
-        filename: updatedMetadata.filename
-      })
 
       return mediaFile
     } catch (error) {
@@ -509,32 +510,26 @@ export class FilesystemAdapter implements StorageAdapter {
       
       const metadataDir = path.join(this.config.mediaDir, '.metadata')
       
-      console.log('[DEBUG] FilesystemAdapter.listMedia - checking metadata dir:', metadataDir)
       
       // Check if metadata directory exists
       try {
         await fs.access(metadataDir, constants.F_OK)
-        console.log('[DEBUG] Metadata directory exists')
       } catch (error) {
-        console.log('[DEBUG] Metadata directory does not exist:', error)
         return []
       }
 
       const files = await fs.readdir(metadataDir)
       const jsonFiles = files.filter(file => file.endsWith('.json'))
       
-      console.log('[DEBUG] Found metadata files:', jsonFiles)
 
       let mediaFiles: MediaFile[] = []
 
       // Read all media metadata files
       for (const file of jsonFiles) {
         const id = path.basename(file, '.json')
-        console.log('[DEBUG] Processing media file:', id)
         try {
           const mediaFile = await this.getFile(id)
           if (mediaFile) {
-            console.log('[DEBUG] Successfully loaded media file:', { id: mediaFile.id, filename: mediaFile.filename })
             mediaFiles.push(mediaFile)
           }
         } catch (error) {
@@ -543,14 +538,12 @@ export class FilesystemAdapter implements StorageAdapter {
         }
       }
 
-      console.log('[DEBUG] Total loaded media files:', mediaFiles.length)
 
       // Sort by creation date (newest first)
       mediaFiles.sort((a, b) => new Date(b._createdAt).getTime() - new Date(a._createdAt).getTime())
 
       // Apply pagination
       const result = mediaFiles.slice(offset, offset + limit)
-      console.log('[DEBUG] Returning media files after pagination:', result.length)
       
       return result
     } catch (error) {
@@ -606,7 +599,7 @@ export class FilesystemAdapter implements StorageAdapter {
         firstName: userData.firstName || existingUser?.firstName || '',
         lastName: userData.lastName || existingUser?.lastName || '',
         role: userData.role || existingUser?.role || 'viewer',
-        permissions: userData.permissions || existingUser?.permissions || ['read'],
+        permissions: userData.permissions || existingUser?.permissions || ['content:read'],
         isActive: userData.isActive ?? existingUser?.isActive ?? true,
         profileImage: userData.profileImage || existingUser?.profileImage,
         preferences: userData.preferences || existingUser?.preferences || {},
@@ -719,6 +712,172 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
+  // App Token operations (system entities, stored separately from content)
+  public async getAppToken(id: string): Promise<AppToken | null> {
+    try {
+      const filePath = this.getTokenPath(id)
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      const token: AppToken = this.safeParseJSON<AppToken>(content, this.dateReviver)
+      return token
+    } catch (error) {
+      throw new Error(`Failed to read app token ${id}: ${error}`)
+    }
+  }
+
+  public async saveAppToken(id: string, tokenData: Partial<AppToken>): Promise<AppToken> {
+    try {
+      const filePath = this.getTokenPath(id)
+      const tokenDir = path.dirname(filePath)
+
+      // Ensure tokens directory exists
+      await fsExtra.ensureDir(tokenDir, { mode: this.config.dirMode })
+
+      // Check if token already exists
+      let existingToken: AppToken | null = null
+      try {
+        existingToken = await this.getAppToken(id)
+      } catch {
+        // Token doesn't exist, this is a new token
+      }
+
+      const now = new Date().toISOString()
+      const isUpdate = existingToken !== null
+
+      const token: AppToken = {
+        id,
+        name: tokenData.name || existingToken?.name || '',
+        description: tokenData.description || existingToken?.description,
+        tokenHash: tokenData.tokenHash || existingToken?.tokenHash || '',
+        permissions: tokenData.permissions || existingToken?.permissions || [],
+        createdBy: tokenData.createdBy || existingToken?.createdBy || '',
+        isActive: tokenData.isActive ?? existingToken?.isActive ?? true,
+        lastUsedAt: tokenData.lastUsedAt || existingToken?.lastUsedAt,
+        usageCount: tokenData.usageCount ?? existingToken?.usageCount ?? 0,
+        expiresAt: tokenData.expiresAt || existingToken?.expiresAt,
+        createdAt: existingToken?.createdAt || now,
+        updatedAt: now
+      }
+
+      // Validate required fields
+      if (!token.name) {
+        throw new Error('Token name is required')
+      }
+      if (!token.tokenHash) {
+        throw new Error('Token hash is required')
+      }
+      if (!token.createdBy) {
+        throw new Error('Token createdBy is required')
+      }
+
+      // Write token to file
+      const jsonContent = this.config.prettyJson
+        ? JSON.stringify(token, this.dateReplacer, this.config.jsonSpaces)
+        : JSON.stringify(token, this.dateReplacer)
+      
+      if (this.config.syncWrites) {
+        await fs.writeFile(filePath, jsonContent, { mode: this.config.fileMode, flag: 'w' })
+      } else {
+        await fs.writeFile(filePath, jsonContent, { mode: this.config.fileMode })
+      }
+
+      return token
+    } catch (error) {
+      throw new Error(`Failed to save app token ${id}: ${error}`)
+    }
+  }
+
+  public async listAppTokens(options: AppTokenListOptions = {}): Promise<AppToken[]> {
+    try {
+      const limit = Math.min(options.limit || 1000, 1000)
+      const offset = Math.max(options.offset || 0, 0)
+      
+      // Ensure tokens directory exists
+      await fsExtra.ensureDir(this.config.tokensDir, { mode: this.config.dirMode })
+      
+      let files: string[]
+      try {
+        files = await fs.readdir(this.config.tokensDir)
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          return []
+        }
+        throw error
+      }
+
+      const jsonFiles = files.filter(file => file.endsWith('.json'))
+      const tokens: AppToken[] = []
+
+      for (const file of jsonFiles) {
+        const id = path.basename(file, '.json')
+        try {
+          const token = await this.getAppToken(id)
+          if (token) {
+            tokens.push(token)
+          }
+        } catch (error) {
+          // Skip corrupted files but log the error
+          if (!this.config.silent) {
+            console.warn(`Skipping corrupted app token ${id}: ${error}`)
+          }
+        }
+      }
+
+      // Apply filtering
+      let filteredTokens = tokens
+      if (options.createdBy) {
+        filteredTokens = filteredTokens.filter(token => token.createdBy === options.createdBy)
+      }
+      if (options.isActive !== undefined) {
+        filteredTokens = filteredTokens.filter(token => token.isActive === options.isActive)
+      }
+
+      // Sort by creation date (newest first)
+      filteredTokens.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      // Apply pagination
+      return filteredTokens.slice(offset, offset + limit)
+    } catch (error) {
+      throw new Error(`Failed to list app tokens: ${error}`)
+    }
+  }
+
+  public async deleteAppToken(id: string): Promise<void> {
+    try {
+      const filePath = this.getTokenPath(id)
+      
+      // Atomic delete
+      await fs.unlink(filePath)
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`App token ${id} not found`)
+      }
+      throw new Error(`Failed to delete app token ${id}: ${error}`)
+    }
+  }
+
+  public async getAppTokenByHash(hash: string): Promise<AppToken | null> {
+    try {
+      const tokens = await this.listAppTokens()
+      return tokens.find(token => token.tokenHash === hash) || null
+    } catch (error) {
+      throw new Error(`Failed to get app token by hash: ${error}`)
+    }
+  }
+
+  // Path helpers for app tokens
+  private getTokenPath(id: string): string {
+    SecurityValidator.validateDocumentId(id)
+    return path.join(this.config.tokensDir, `${id}.json`)
+  }
+
   // Utility operations
   public async healthCheck(): Promise<boolean> {
     try {
@@ -726,11 +885,13 @@ export class FilesystemAdapter implements StorageAdapter {
       await fsExtra.ensureDir(this.config.contentDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.mediaDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.tokensDir, { mode: this.config.dirMode })
       
       // Check if directories are accessible
       await fs.access(this.config.contentDir, constants.R_OK | constants.W_OK)
       await fs.access(this.config.mediaDir, constants.R_OK | constants.W_OK)
       await fs.access(this.config.usersDir, constants.R_OK | constants.W_OK)
+      await fs.access(this.config.tokensDir, constants.R_OK | constants.W_OK)
       
       // Try to write a test file
       const testFile = path.join(this.config.contentDir, '.health-check')

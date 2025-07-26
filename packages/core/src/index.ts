@@ -118,7 +118,14 @@ export type {
   UpdateUserData,
   UserListOptions,
   LoginCredentials,
-  UserSession
+  UserSession,
+  AppToken,
+  AppTokenListOptions,
+  CreateAppTokenData,
+  UpdateAppTokenData,
+  AuthContext,
+  AuthenticatedUser,
+  AuthenticatedAppToken
 } from './types/index.js'
 
 // Zod schemas for validation

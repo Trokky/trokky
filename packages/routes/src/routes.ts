@@ -877,8 +877,8 @@ export class TrokkyRoutes {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
 
-    // Check if user has admin role or manage_users permission
-    const hasAdminAccess = session.role === 'admin' || session.permissions.includes('manage_users')
+    // Check if user has admin role or users:write permission
+    const hasAdminAccess = session.role === 'admin' || session.permissions.includes('users:write')
     if (!hasAdminAccess) {
       throw new InvalidInputError('Insufficient permissions for admin operations', 'authorization')
     }

@@ -20,16 +20,61 @@ export interface User {
   updatedAt: string
 }
 
-export type UserRole = 'admin' | 'editor' | 'viewer'
+export type UserRole = 'admin' | 'editor' | 'author' | 'viewer'
 
+// Default permissions for each role
+export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+  admin: [
+    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'media:read', 'media:upload', 'media:edit', 'media:delete',
+    'users:read', 'users:write', 'users:delete', 'users:invite',
+    'settings:read', 'settings:write',
+    'studio:access',
+    'tokens:read', 'tokens:write', 'tokens:delete'
+  ],
+  editor: [
+    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'media:read', 'media:upload', 'media:edit', 'media:delete',
+    'studio:access'
+  ],
+  author: [
+    'content:read', 'content:write', 'content:publish',
+    'media:read', 'media:upload',
+    'studio:access'
+  ],
+  viewer: [
+    'content:read',
+    'media:read',
+    'studio:access'
+  ]
+}
+
+// Granular permissions with resource-based scoping
 export type Permission = 
-  | 'read'
-  | 'write' 
-  | 'delete'
-  | 'manage_users'
-  | 'manage_settings'
-  | 'upload_media'
-  | 'delete_media'
+  // Content permissions
+  | 'content:read'
+  | 'content:write'
+  | 'content:delete'
+  | 'content:publish'
+  // Media permissions
+  | 'media:read'
+  | 'media:upload'
+  | 'media:edit'
+  | 'media:delete'
+  // User management permissions
+  | 'users:read'
+  | 'users:write'
+  | 'users:delete'
+  | 'users:invite'
+  // Settings permissions
+  | 'settings:read'
+  | 'settings:write'
+  // Studio access
+  | 'studio:access'
+  // App token management
+  | 'tokens:read'
+  | 'tokens:write'
+  | 'tokens:delete'
 
 export interface UserPreferences {
   theme?: 'light' | 'dark'
@@ -83,4 +128,88 @@ export interface UserSession {
   permissions: Permission[]
   loginAt: string
   expiresAt?: string
+}
+
+// App Token types for API access
+export interface AppToken {
+  id: string
+  name: string
+  description?: string
+  tokenHash: string // Hashed version of the actual token
+  permissions: Permission[]
+  createdBy: string // User ID who created the token
+  isActive: boolean
+  lastUsedAt?: string
+  usageCount?: number
+  expiresAt?: string // Optional expiration
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateAppTokenData {
+  name: string
+  description?: string
+  permissions: Permission[]
+  expiresAt?: string // Optional expiration date
+}
+
+export interface UpdateAppTokenData {
+  name?: string
+  description?: string
+  permissions?: Permission[]
+  isActive?: boolean
+  expiresAt?: string
+}
+
+export interface AppTokenListOptions {
+  createdBy?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
+}
+
+// Enhanced session types
+export interface AuthenticatedUser {
+  id: string
+  username: string
+  email: string
+  firstName: string
+  lastName: string
+  role: UserRole
+  permissions: Permission[]
+  isActive: boolean
+}
+
+export interface AuthenticatedAppToken {
+  id: string
+  name: string
+  permissions: Permission[]
+  createdBy: string
+  isActive: boolean
+}
+
+export type AuthContext = 
+  | { type: 'user'; user: AuthenticatedUser }
+  | { type: 'app_token'; token: AuthenticatedAppToken }
+  | { type: 'anonymous' }
+
+// JWT token payloads
+export interface UserTokenPayload {
+  type: 'user'
+  userId: string
+  username: string
+  role: UserRole
+  permissions: Permission[]
+  iat: number
+  exp: number
+}
+
+export interface AppTokenPayload {
+  type: 'app_token'
+  tokenId: string
+  name: string
+  permissions: Permission[]
+  createdBy: string
+  iat: number
+  exp?: number
 }

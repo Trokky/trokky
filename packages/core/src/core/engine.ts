@@ -653,13 +653,13 @@ export class TrokkyCore {
   private getDefaultPermissions(role: string): Permission[] {
     switch (role) {
       case 'admin':
-        return ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'upload_media', 'delete_media']
+        return ['content:read', 'content:write', 'content:delete', 'users:read', 'users:write', 'settings:read', 'settings:write', 'media:upload', 'media:delete', 'studio:access']
       case 'editor':
-        return ['read', 'write', 'upload_media']
+        return ['content:read', 'content:write', 'media:upload', 'studio:access']
       case 'viewer':
-        return ['read']
+        return ['content:read', 'studio:access']
       default:
-        return ['read']
+        return ['content:read', 'studio:access']
     }
   }
 
@@ -855,7 +855,7 @@ export class TrokkyCore {
       firstName: 'Admin',
       lastName: 'User',
       role: 'admin',
-      permissions: ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'upload_media', 'delete_media'],
+      permissions: ['content:read', 'content:write', 'content:delete', 'users:read', 'users:write', 'settings:read', 'settings:write', 'media:upload', 'media:delete', 'studio:access'],
       isActive: true,
       preferences: {
         theme: 'dark',

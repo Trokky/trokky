@@ -18,6 +18,12 @@ export interface FilesystemAdapterConfig {
   usersDir?: string
 
   /**
+   * Base directory for app token storage (system entities)
+   * @default './tokens'
+   */
+  tokensDir?: string
+
+  /**
    * Whether to create directories if they don't exist
    * @default true
    */
@@ -77,6 +83,12 @@ export interface FileMetadata {
   originalPath?: string
   createdAt: Date
   updatedAt: Date
+  // User-editable metadata fields
+  title?: string
+  alt?: string
+  author?: string
+  credit?: string
+  tags?: string[]
 }
 
 export interface DocumentFile {
