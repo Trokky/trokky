@@ -14,6 +14,10 @@ import { booleanFieldPlugin } from './definitions/BooleanField/index.js';
 import { arrayFieldPlugin } from './definitions/ArrayField/index.js';
 import { ObjectFieldPlugin } from './definitions/ObjectField/index.js';
 import { mediaFieldPlugin } from './definitions/MediaField/index.js';
+import { AudioFieldPlugin } from './definitions/AudioField/index.js';
+import { VideoFieldPlugin } from './definitions/VideoField/index.js';
+import { ImageFieldPlugin } from './definitions/ImageField/index.js';
+import { DocumentFieldPlugin } from './definitions/DocumentField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -38,6 +42,10 @@ export function registerBuiltinFields(): void {
   
   // Media fields
   fieldRegistry.register(mediaFieldPlugin, 'builtin');
+  fieldRegistry.register(AudioFieldPlugin, 'builtin');
+  fieldRegistry.register(VideoFieldPlugin, 'builtin');
+  fieldRegistry.register(ImageFieldPlugin, 'builtin');
+  fieldRegistry.register(DocumentFieldPlugin, 'builtin');
   
   // TODO: Register other built-in fields
   // fieldRegistry.register(dateFieldPlugin, 'builtin');
