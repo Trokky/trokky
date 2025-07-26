@@ -111,7 +111,12 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       hasApiClient: !!studioContext?.apiClient,
       hasGetMedia: !!(studioContext?.apiClient?.getMedia),
       hasDocumentContext: !!documentContext,
-      fieldId
+      fieldId,
+      fieldType: definition.type,
+      options: options,
+      enableUpload: options.enableUpload,
+      enableBrowse: options.enableBrowse,
+      enableDragDrop: options.enableDragDrop
     });
   }
   
@@ -211,7 +216,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       }, 500);
       
     } catch (error) {
-      studioContext.logger?.error('Upload failed', error);
+      studioContext?.logger?.error('Upload failed', error);
       setIsUploading(false);
       setUploadProgress(0);
       
@@ -254,7 +259,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         throw new Error('Upload failed: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      studioContext.logger?.error('Secure upload failed', error);
+      studioContext?.logger?.error('Secure upload failed', error);
       throw new Error('Upload failed. Please try again or use the media browser to select existing files.');
     }
   };
