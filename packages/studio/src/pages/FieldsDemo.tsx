@@ -281,12 +281,11 @@ export function FieldsDemo() {
                         error={validationResults[currentField.id]?.errors?.[0]}
                         validationState={validationResults[currentField.id] ? {
                           isValidating: false,
-                          isValid: validationResults[currentField.id].isValid,
                           errors: validationResults[currentField.id].errors || [],
                           warnings: validationResults[currentField.id].warnings || []
                         } : undefined}
                         mode="edit"
-                        studioContext={studioContext}
+                        studioContext={studioContext || undefined}
                       />
                     </div>
                   ) : (
@@ -297,7 +296,7 @@ export function FieldsDemo() {
                         onChange={() => {}}
                         definition={currentField.definition}
                         mode="preview"
-                        studioContext={studioContext}
+                        studioContext={studioContext || undefined}
                       />
                     </div>
                   )}

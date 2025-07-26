@@ -92,6 +92,9 @@ export function MediaBrowserContent({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<string>('medium');
+  
+  // Cross-platform development check
+  const isDevelopment = typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true;
 
   // Load media files when component mounts
   useEffect(() => {
@@ -101,41 +104,40 @@ export function MediaBrowserContent({
   const loadMediaFiles = async () => {
     setIsLoading(true);
     try {
-      console.log('MediaBrowser: apiClient received:', apiClient);
-      console.log('MediaBrowser: apiClient type:', typeof apiClient);
-      console.log('MediaBrowser: apiClient.getMedia available:', !!(apiClient?.getMedia));
+      if (isDevelopment) {
+        console.log('MediaBrowser: apiClient received:', apiClient);
+        console.log('MediaBrowser: apiClient type:', typeof apiClient);
+        console.log('MediaBrowser: apiClient.getMedia available:', !!(apiClient?.getMedia));
+      }
       
       if (apiClient && typeof apiClient.getMedia === 'function') {
         // Use real API when available
-        console.log('MediaBrowser: Loading media from API...');
+        if (isDevelopment) {
+          console.log('MediaBrowser: Loading media from API...');
+        }
         const response = await apiClient.getMedia();
-        console.log('MediaBrowser: API response:', response);
         
-        // Handle both legacy (direct array) and v2 (wrapped) response formats
-        let mediaData: MediaFile[] = [];
-        if (Array.isArray(response)) {
-          // Legacy format: direct array
-          mediaData = response;
-          console.log('MediaBrowser: Legacy format - Loaded', mediaData.length, 'media files from API');
-        } else if (response && typeof response === 'object') {
-          // V2 format: wrapped response
-          if (response.success && response.data) {
-            mediaData = response.data;
-            console.log('MediaBrowser: V2 format - Loaded', mediaData.length, 'media files from API');
-          } else if (response.data) {
-            mediaData = response.data;
-            console.log('MediaBrowser: V2 format (no success field) - Loaded', mediaData.length, 'media files from API');
-          } else {
-            console.warn('MediaBrowser: V2 response had no data', response);
-          }
-        } else {
-          console.warn('MediaBrowser: Unexpected response format', response);
+        if (isDevelopment) {
+          console.log('MediaBrowser: API response:', response);
         }
         
-        setMediaFiles(mediaData);
+        // Handle v2 API response format only
+        if (response?.success && Array.isArray(response.data)) {
+          if (isDevelopment) {
+            console.log('MediaBrowser: Loaded', response.data.length, 'media files from API');
+          }
+          setMediaFiles(response.data);
+        } else {
+          if (isDevelopment) {
+            console.warn('MediaBrowser: Invalid API response format', response);
+          }
+          setMediaFiles([]);
+        }
       } else {
         // Fallback to mock data for development/demo
-        console.warn('MediaBrowser: No API client provided, using mock data');
+        if (isDevelopment) {
+          console.warn('MediaBrowser: No API client provided, using mock data');
+        }
         const mockData: MediaFile[] = [
           {
             id: 'asset-1',

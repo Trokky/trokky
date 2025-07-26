@@ -128,7 +128,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
       apiClient: {
         // Document operations
         getDocuments: apiClient.getDocuments.bind(apiClient),
-        getDocument: apiClient.getDocument.bind(apiClient),
+        getDocument: (type: string, id?: string) => apiClient.getDocument(type, id || ''),
         createDocument: apiClient.createDocument.bind(apiClient),
         updateDocument: apiClient.updateDocument.bind(apiClient),
         deleteDocument: apiClient.deleteDocument.bind(apiClient),
@@ -136,7 +136,8 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         // Media operations
         getMedia: apiClient.getMedia.bind(apiClient),
         getMediaById: apiClient.getMediaFile.bind(apiClient),
-        uploadMedia: apiClient.uploadMedia.bind(apiClient),
+        uploadMedia: (file: File, collection?: string, metadata?: any) => 
+          apiClient.uploadMedia(file, metadata),
         deleteMedia: apiClient.deleteMedia.bind(apiClient),
         updateMedia: apiClient.updateMedia.bind(apiClient),
         

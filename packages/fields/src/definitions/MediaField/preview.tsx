@@ -99,6 +99,9 @@ export function MediaFieldPreview(props: MediaFieldPreviewProps) {
   
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
+  
+  // Cross-platform development check
+  const isDevelopment = typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true;
 
   // Load asset when value changes
   useEffect(() => {
@@ -111,20 +114,28 @@ export function MediaFieldPreview(props: MediaFieldPreviewProps) {
 
       try {
         setAssetLoadError(null);
-        console.log('MediaFieldPreview: Loading asset with ID:', value.asset._ref);
+        if (isDevelopment) {
+          console.log('MediaFieldPreview: Loading asset with ID:', value.asset._ref);
+        }
         
         const response = await studioContext.apiClient.getMediaById(value.asset._ref);
         
         if (response.success && response.data?.file) {
-          console.log('MediaFieldPreview: Asset loaded successfully:', response.data.file);
+          if (isDevelopment) {
+            console.log('MediaFieldPreview: Asset loaded successfully:', response.data.file);
+          }
           setCurrentAsset(response.data.file);
         } else {
-          console.warn('MediaFieldPreview: Asset not found:', value.asset._ref);
+          if (isDevelopment) {
+            console.warn('MediaFieldPreview: Asset not found:', value.asset._ref);
+          }
           setAssetLoadError('Media asset no longer exists');
           setCurrentAsset(null);
         }
       } catch (error) {
-        console.error('MediaFieldPreview: Failed to load asset:', error);
+        if (isDevelopment) {
+          console.error('MediaFieldPreview: Failed to load asset:', error);
+        }
         setAssetLoadError('Failed to load media asset');
         setCurrentAsset(null);
       }

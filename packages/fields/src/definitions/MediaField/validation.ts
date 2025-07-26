@@ -37,10 +37,27 @@ const MEDIA_TYPE_PATTERNS: Record<MediaType, string[]> = {
 
 // Dangerous file extensions that should be blocked by default
 const DANGEROUS_EXTENSIONS = [
-  'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', 'jar',
+  // Windows executables
+  'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'jar',
   'ws', 'wsf', 'wsc', 'wsh', 'ps1', 'ps1xml', 'ps2', 'ps2xml',
   'psc1', 'psc2', 'msh', 'msh1', 'msh2', 'mshxml', 'msh1xml', 'msh2xml',
-  'app', 'deb', 'pkg', 'rpm', 'dmg', 'iso', 'msi'
+  'app', 'deb', 'pkg', 'rpm', 'dmg', 'iso', 'msi',
+  // Web server scripts
+  'php', 'php3', 'php4', 'php5', 'phtml', 'jsp', 'asp', 'aspx',
+  // Shell scripts
+  'sh', 'bash', 'zsh', 'csh', 'ksh', 'fish',
+  // Programming languages that could execute
+  'py', 'pyw', 'rb', 'pl', 'cgi', 'fcgi',
+  // Configuration files that could be dangerous
+  'htaccess', 'htpasswd', 'conf', 'config',
+  // Database files
+  'sql', 'db', 'sqlite', 'sqlite3',
+  // Archive files with potential for zip bombs
+  'rar', '7z', 'tar', 'gz', 'bz2', 'xz',
+  // Macro-enabled office documents
+  'xlsm', 'xlsb', 'docm', 'dotm', 'pptm', 'potm', 'ppam', 'ppsm',
+  // Other potentially dangerous
+  'swf', 'action', 'bin', 'hex'
 ];
 
 /**

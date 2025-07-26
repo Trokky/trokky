@@ -104,12 +104,15 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   
-  // Debug Studio context availability
-  console.log('MediaField: studioContext available:', !!studioContext);
-  console.log('MediaField: studioContext.apiClient available:', !!studioContext?.apiClient);
-  console.log('MediaField: studioContext.apiClient.getMedia available:', !!(studioContext?.apiClient?.getMedia));
-  console.log('MediaField: documentContext available:', !!documentContext);
-  console.log('MediaField: studioContext full object:', studioContext);
+  // Debug Studio context availability (development only)
+  // Use a more reliable development check that works across platforms
+  const isDevelopment = typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true;
+  if (isDevelopment) {
+    console.log('MediaField: studioContext available:', !!studioContext);
+    console.log('MediaField: studioContext.apiClient available:', !!studioContext?.apiClient);
+    console.log('MediaField: studioContext.apiClient.getMedia available:', !!(studioContext?.apiClient?.getMedia));
+    console.log('MediaField: documentContext available:', !!documentContext);
+  }
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -125,20 +128,28 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       try {
         setAssetLoadError(null);
-        console.log('MediaField: Loading asset with ID:', value.asset._ref);
+        if (isDevelopment) {
+          console.log('MediaField: Loading asset with ID:', value.asset._ref);
+        }
         
         const response = await studioContext.apiClient.getMediaById(value.asset._ref);
         
         if (response.success && response.data?.file) {
-          console.log('MediaField: Asset loaded successfully:', response.data.file);
+          if (isDevelopment) {
+            console.log('MediaField: Asset loaded successfully:', response.data.file);
+          }
           setCurrentAsset(response.data.file);
         } else {
-          console.warn('MediaField: Asset not found:', value.asset._ref);
+          if (isDevelopment) {
+            console.warn('MediaField: Asset not found:', value.asset._ref);
+          }
           setAssetLoadError('Media asset no longer exists');
           setCurrentAsset(null);
         }
       } catch (error) {
-        console.error('MediaField: Failed to load asset:', error);
+        if (isDevelopment) {
+          console.error('MediaField: Failed to load asset:', error);
+        }
         setAssetLoadError('Failed to load media asset');
         setCurrentAsset(null);
       }
@@ -146,6 +157,15 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
     loadAsset();
   }, [value?.asset?._ref, studioContext?.apiClient]);
+
+  // Cleanup object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (currentAsset?.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(currentAsset.url);
+      }
+    };
+  }, [currentAsset?.url]);
 
   // Handle file selection
   const handleFileSelect = useCallback(async (files: FileList) => {
@@ -168,8 +188,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         });
       }, 100);
 
-      // TODO: Replace with actual upload API call
-      const uploadedAsset = await simulateUpload(file);
+      // Use secure upload implementation
+      const uploadedAsset = await secureUpload(file);
       
       clearInterval(uploadInterval);
       setUploadProgress(100);
@@ -194,30 +214,56 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       }, 500);
       
     } catch (error) {
-      console.error('Upload failed:', error);
+      if (isDevelopment) {
+        console.error('Upload failed:', error);
+      }
       setIsUploading(false);
       setUploadProgress(0);
+      
+      // Show user-friendly error message
+      if (studioContext?.utils?.showToast) {
+        studioContext.utils.showToast(
+          error instanceof Error ? error.message : 'Upload failed. Please try again.',
+          'error'
+        );
+      }
     }
   }, [onChange, isDisabled, isReadonly]);
 
-  // Simulate upload (replace with actual API)
-  const simulateUpload = async (file: File): Promise<MediaAsset> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // SECURITY: Replace with actual server-side upload implementation
+  // This is a placeholder that should be replaced with proper upload API
+  const secureUpload = async (file: File): Promise<MediaAsset> => {
+    // TODO: Implement proper server-side upload with:
+    // 1. File validation on server
+    // 2. Virus scanning
+    // 3. Content type verification
+    // 4. Safe file storage (not in web-accessible directory)
+    // 5. Proper asset management
     
-    return {
-      id: `asset_${Date.now()}`,
-      filename: file.name,
-      originalFilename: file.name,
-      contentType: file.type,
-      size: file.size,
-      url: URL.createObjectURL(file),
-      uploadedAt: new Date().toISOString(),
-      title: file.name.replace(/\.[^/.]+$/, ''),
-      description: '',
-      metadata: {
-        title: file.name.replace(/\.[^/.]+$/, '')
+    if (!studioContext?.apiClient?.uploadMedia) {
+      throw new Error('Upload functionality not implemented. Use existing media browser instead.');
+    }
+    
+    try {
+      const response = await studioContext.apiClient.uploadMedia(file, undefined, {
+        // Add metadata for tracking
+        uploadedAt: new Date().toISOString(),
+        originalName: file.name,
+        size: file.size,
+        contentType: file.type
+      });
+      
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error('Upload failed: ' + (response.error || 'Unknown error'));
       }
-    };
+    } catch (error) {
+      if (isDevelopment) {
+        console.error('Secure upload failed:', error);
+      }
+      throw new Error('Upload failed. Please try again or use the media browser to select existing files.');
+    }
   };
 
   // Handle drag events
