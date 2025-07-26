@@ -57,6 +57,8 @@ export class TrokkyRoutes {
     // Media routes
     this.addRoute('POST', `${basePath}/media/upload`, this.uploadMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id`, this.getMedia.bind(this))
+    this.addRoute('GET', `${basePath}/media/:id/file`, this.serveMediaFile.bind(this))
+    this.addRoute('GET', `${basePath}/media/:id/variant/:variant`, this.serveMediaVariant.bind(this))
     this.addRoute('DELETE', `${basePath}/media/:id`, this.deleteMedia.bind(this))
 
     // User management routes (admin only)
@@ -469,6 +471,96 @@ export class TrokkyRoutes {
 
       await this.core.deleteMedia(id)
       return this.successResponse({ message: 'Media file deleted successfully' })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async serveMediaFile(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // Media files can be served without strict authentication in many cases
+      // but we still validate the request
+      const { id } = request.params
+
+      SecurityValidator.validateDocumentId(id)
+
+      // Get media metadata first
+      const mediaFile = await this.core.getMedia(id)
+      if (!mediaFile) {
+        return this.errorResponse(new Error(`Media file ${id} not found`), 404)
+      }
+
+      // Get file content
+      const content = await this.core.getMediaContent(id)
+      if (!content) {
+        return this.errorResponse(new Error(`Media file content ${id} not found`), 404)
+      }
+
+      // Convert ArrayBuffer to Buffer for HTTP response
+      const buffer = Buffer.from(content)
+
+      return {
+        status: 200,
+        headers: {
+          'Content-Type': mediaFile.contentType,
+          'Content-Length': buffer.length.toString(),
+          'Content-Disposition': `inline; filename="${mediaFile.filename}"`,
+          'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+          'ETag': `"${id}"`,
+          ...this.buildCorsHeaders()
+        },
+        body: buffer
+      }
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async serveMediaVariant(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      const { id, variant } = request.params
+
+      SecurityValidator.validateDocumentId(id)
+
+      if (!variant || !/^[a-zA-Z0-9_-]+$/.test(variant)) {
+        return this.errorResponse(new Error('Invalid variant name'), 400)
+      }
+
+      // Get media metadata first
+      const mediaFile = await this.core.getMedia(id)
+      if (!mediaFile) {
+        return this.errorResponse(new Error(`Media file ${id} not found`), 404)
+      }
+
+      // Check if variant exists in metadata
+      const variants = mediaFile.metadata?.imageVariants as Record<string, any>
+      if (!variants || !variants[variant]) {
+        return this.errorResponse(new Error(`Variant ${variant} not found for media ${id}`), 404)
+      }
+
+      const variantInfo = variants[variant]
+      
+      // For now, we'll serve the original file since we don't have variant storage implemented
+      // In a full implementation, this would serve the processed variant file
+      const content = await this.core.getMediaContent(id)
+      if (!content) {
+        return this.errorResponse(new Error(`Media variant ${variant} content not found`), 404)
+      }
+
+      const buffer = Buffer.from(content)
+
+      return {
+        status: 200,
+        headers: {
+          'Content-Type': variantInfo.format ? `image/${variantInfo.format}` : mediaFile.contentType,
+          'Content-Length': buffer.length.toString(),
+          'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'jpg'}"`,
+          'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+          'ETag': `"${id}-${variant}"`,
+          ...this.buildCorsHeaders()
+        },
+        body: buffer
+      }
     } catch (error) {
       return this.errorResponse(error)
     }

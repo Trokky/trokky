@@ -124,6 +124,7 @@ export interface StorageAdapter {
   // Media operations
   uploadFile(file: File, metadata: MediaMetadata): Promise<MediaFile>
   getFile(id: string): Promise<MediaFile | null>
+  getFileContent(id: string): Promise<ArrayBuffer | null>
   deleteFile(id: string): Promise<void>
 
   // User operations (system entities)

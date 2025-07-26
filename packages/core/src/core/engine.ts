@@ -291,6 +291,18 @@ export class TrokkyCore {
     return await this.storage.getFile(id)
   }
 
+  public async getMediaContent(id: string): Promise<ArrayBuffer | null> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getMediaContent')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    return await this.storage.getFileContent(id)
+  }
+
   public async deleteMedia(id: string): Promise<void> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('deleteMedia')

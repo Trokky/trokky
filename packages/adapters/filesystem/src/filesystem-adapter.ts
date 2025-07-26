@@ -347,6 +347,38 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
+  public async getFileContent(id: string): Promise<ArrayBuffer | null> {
+    try {
+      // Input validation is handled in getMediaMetadataPath
+      const metadataPath = this.getMediaMetadataPath(id)
+      
+      // Check if metadata file exists
+      try {
+        await fs.access(metadataPath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8')
+      const fileMetadata: FileMetadata = this.safeParseJSON<FileMetadata>(metadataContent, this.dateReviver)
+
+      const filePath = this.getMediaPath(id, fileMetadata.extension)
+      
+      // Check if actual file exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      // Read file content as buffer and convert to ArrayBuffer
+      const buffer = await fs.readFile(filePath)
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+    } catch (error) {
+      throw new Error(`Failed to get file content ${id}: ${error}`)
+    }
+  }
+
   public async deleteFile(id: string): Promise<void> {
     try {
       // Input validation is handled in getMediaMetadataPath
