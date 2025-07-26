@@ -167,7 +167,7 @@ export function Header({
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center space-x-2 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                className="flex items-center space-x-2 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!text-gray-100 hover:!bg-transparent dark:hover:!bg-transparent"
               >
                 <UserCircleIcon className="h-6 w-6" />
               </button>
@@ -233,7 +233,7 @@ export function Header({
                             'flex items-center justify-center w-8 h-8 rounded transition-colors',
                             theme === key
                               ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                              : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                              : 'text-gray-500 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent'
                           )}
                           title={label}
                         >
@@ -247,13 +247,13 @@ export function Header({
                   <div className="py-1">
                     <Link
                       to="/user/preferences"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       Preferences
                     </Link>
                     <button
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent"
                       onClick={async () => {
                         setUserMenuOpen(false);
                         await logout();
