@@ -141,5 +141,32 @@ export type {
   ArrayFieldContext
 } from './definitions/ArrayField/index.js';
 
+export {
+  ObjectFieldPlugin,
+  ObjectFieldComponent,
+  ObjectFieldPreview,
+  validateObjectField,
+  validateObjectFieldItem,
+  evaluateConditional,
+  getObjectMetadata,
+  getDefaultObjectValue,
+  sanitizeObjectValue,
+  renderTemplate,
+  isFieldReadOnly
+} from './definitions/ObjectField/index.js';
+
+export type {
+  ObjectFieldDefinition,
+  ObjectValidation,
+  ObjectFieldOptions,
+  ObjectLayout,
+  ObjectFieldItem,
+  ObjectOperations,
+  ObjectFieldContext,
+  ObjectFieldMetadata,
+  ConditionalResult,
+  TemplateContext
+} from './definitions/ObjectField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

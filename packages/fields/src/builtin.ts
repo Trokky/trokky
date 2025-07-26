@@ -12,6 +12,7 @@ import { passwordFieldPlugin } from './definitions/PasswordField/index.js';
 import { numberFieldPlugin } from './definitions/NumberField/index.js';
 import { booleanFieldPlugin } from './definitions/BooleanField/index.js';
 import { arrayFieldPlugin } from './definitions/ArrayField/index.js';
+import { ObjectFieldPlugin } from './definitions/ObjectField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -31,12 +32,11 @@ export function registerBuiltinFields(): void {
   // Array fields
   fieldRegistry.register(arrayFieldPlugin, 'builtin');
   
+  // Object fields
+  fieldRegistry.register(ObjectFieldPlugin, 'builtin');
+  
   // TODO: Register other built-in fields
-  // fieldRegistry.register(numberFieldPlugin, 'builtin');
-  // fieldRegistry.register(booleanFieldPlugin, 'builtin');
   // fieldRegistry.register(dateFieldPlugin, 'builtin');
-  // fieldRegistry.register(arrayFieldPlugin, 'builtin');
-  // fieldRegistry.register(objectFieldPlugin, 'builtin');
   // fieldRegistry.register(referenceFieldPlugin, 'builtin');
   
   // Mark registry as initialized
