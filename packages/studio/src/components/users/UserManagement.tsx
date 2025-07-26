@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  UsersIcon,
   PlusIcon,
   PencilIcon,
   TrashIcon,
-  KeyIcon,
-  ShieldCheckIcon,
   EyeIcon,
   EyeSlashIcon,
-  ChevronDownIcon
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,7 +14,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { useAuth } from '@/hooks/useAuth';
-import type { User, UserRole, Permission } from '@/types';
+import { ROLE_PERMISSIONS, type UserRole, type Permission, type User } from '@/types';
+import { generateWebSecurePassword } from '@/utils/web-crypto';
 
 const logger = createStudioLogger('UserManagement');
 
@@ -79,29 +77,92 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['Access']));
+  const [hasCustomPermissions, setHasCustomPermissions] = useState(false);
+
+  // Check if current permissions match the role's default permissions
+  const checkCustomPermissions = (role: UserRole, permissions: Permission[]) => {
+    const rolePermissions = ROLE_PERMISSIONS[role] || [];
+    const sortedRole = [...rolePermissions].sort();
+    const sortedCurrent = [...permissions].sort();
+    return sortedRole.join(',') !== sortedCurrent.join(',');
+  };
+
+  // Handle role change - always update permissions to match new role
+  const handleRoleChange = (newRole: UserRole) => {
+    const rolePermissions = ROLE_PERMISSIONS[newRole] || [];
+    setFormData(prev => ({
+      ...prev,
+      role: newRole,
+      permissions: rolePermissions
+    }));
+    // Reset custom permissions flag since we're using role defaults
+    setHasCustomPermissions(false);
+  };
+
+  // Handle permission toggle - mark as custom
+  const handlePermissionToggle = (permission: Permission) => {
+    setFormData(prev => {
+      const newPermissions = prev.permissions.includes(permission)
+        ? prev.permissions.filter(p => p !== permission)
+        : [...prev.permissions, permission];
+      
+      const isCustom = checkCustomPermissions(prev.role, newPermissions);
+      setHasCustomPermissions(isCustom);
+      
+      return {
+        ...prev,
+        permissions: newPermissions
+      };
+    });
+  };
+
+  // Reset to role defaults
+  const resetToRolePermissions = () => {
+    const rolePermissions = ROLE_PERMISSIONS[formData.role] || [];
+    setFormData(prev => ({ ...prev, permissions: rolePermissions }));
+    setHasCustomPermissions(false);
+  };
+
+  // Generate secure password
+  const generatePassword = () => {
+    const password = generateWebSecurePassword({
+      length: 12,
+      includeUppercase: true,
+      includeLowercase: true,
+      includeNumbers: true,
+      includeSpecialChars: true,
+      excludeSimilar: true
+    });
+    setFormData(prev => ({ ...prev, password }));
+  };
 
   useEffect(() => {
     if (user) {
+      const userPermissions = user.permissions || [];
+      const isCustom = checkCustomPermissions(user.role, userPermissions);
+      
       setFormData({
         username: user.username,
         email: user.email,
         fullName: `${user.firstName} ${user.lastName}`,
         role: user.role,
-        permissions: user.permissions,
+        permissions: userPermissions,
         password: '',
         active: user.isActive
       });
+      setHasCustomPermissions(isCustom);
     } else {
+      const defaultPermissions = ROLE_PERMISSIONS.viewer;
       setFormData({
         username: '',
         email: '',
         fullName: '',
         role: 'viewer',
-        permissions: ['studio:access'],
+        permissions: defaultPermissions,
         password: '',
         active: true
       });
+      setHasCustomPermissions(false);
     }
   }, [user]);
 
@@ -118,185 +179,222 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
     }
   };
 
-  const togglePermission = (permission: Permission) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permission)
-        ? prev.permissions.filter(p => p !== permission)
-        : [...prev.permissions, permission]
-    }));
-  };
 
-  const toggleGroup = (group: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) {
-        next.delete(group);
-      } else {
-        next.add(group);
-      }
-      return next;
-    });
-  };
 
-  // Group permissions by category
-  const groupedPermissions = PERMISSIONS.reduce((acc, perm) => {
-    if (!acc[perm.group]) acc[perm.group] = [];
-    acc[perm.group].push(perm);
-    return acc;
-  }, {} as Record<string, typeof PERMISSIONS>);
+  // Group permissions by category, excluding studio:access which is handled separately
+  const groupedPermissions = PERMISSIONS
+    .filter(perm => perm.value !== 'studio:access')
+    .reduce((acc, perm) => {
+      if (!acc[perm.group]) acc[perm.group] = [];
+      acc[perm.group].push(perm);
+      return acc;
+    }, {} as Record<string, typeof PERMISSIONS>);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {user ? 'Edit User' : 'Create User'}
           </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Username *
-              </label>
-              <Input
-                type="text"
-                value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                required
-                disabled={isLoading}
-              />
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Basic Information */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1">
+                Basic Information
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Username *
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email *
+                  </label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Full Name *
+                </label>
+                <Input
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {user ? 'New Password (optional)' : 'Password *'}
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                      required={!user}
+                      disabled={isLoading}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={generatePassword}
+                    disabled={isLoading}
+                    className="px-3"
+                  >
+                    Generate
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Role
+                </label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  disabled={isLoading}
+                >
+                  {USER_ROLES.map(role => (
+                    <option key={role.value} value={role.value}>
+                      {role.label} - {role.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email *
-              </label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                required
-                disabled={isLoading}
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Full Name *
-            </label>
-            <Input
-              type="text"
-              value={formData.fullName}
-              onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {user ? 'New Password (leave blank to keep current)' : 'Password *'}
-            </label>
-            <div className="relative">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                required={!user}
-                disabled={isLoading}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 flex items-center pr-3"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <EyeSlashIcon className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <EyeIcon className="h-4 w-4 text-gray-400" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Role
-            </label>
-            <select
-              value={formData.role}
-              onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              disabled={isLoading}
-            >
-              {USER_ROLES.map(role => (
-                <option key={role.value} value={role.value}>
-                  {role.label} - {role.description}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Permissions
-            </label>
-            <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
-              {Object.entries(groupedPermissions).map(([group, permissions]) => (
-                <div key={group}>
+            {/* Access & Permissions */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1">
+                  Access & Permissions
+                </h3>
+                {hasCustomPermissions && (
                   <button
                     type="button"
-                    onClick={() => toggleGroup(group)}
-                    className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                    onClick={resetToRolePermissions}
+                    className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                   >
-                    <span>{group}</span>
-                    <ChevronDownIcon 
-                      className={`h-4 w-4 transition-transform ${expandedGroups.has(group) ? 'rotate-180' : ''}`} 
-                    />
+                    Reset
                   </button>
-                  {expandedGroups.has(group) && (
-                    <div className="mt-1 ml-4 space-y-1">
+                )}
+              </div>
+              
+              {/* Access Controls */}
+              <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.active}
+                      onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Active user account
+                    </span>
+                  </label>
+                  
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.includes('studio:access')}
+                      onChange={() => handlePermissionToggle('studio:access')}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Studio Access
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Custom Permissions Warning */}
+              {hasCustomPermissions && (
+                <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                  <div className="flex items-center">
+                    <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2" />
+                    <span className="text-xs text-amber-800 dark:text-amber-200">
+                      Custom permissions
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Permissions */}
+              <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 max-h-80 overflow-y-auto">
+                {Object.entries(groupedPermissions).map(([group, permissions]) => (
+                  <div key={group} className="mb-3 last:mb-0">
+                    <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                      {group}
+                    </h4>
+                    <div className="grid grid-cols-1 gap-1">
                       {permissions.map(permission => (
                         <label key={permission.value} className="flex items-center">
                           <input
                             type="checkbox"
                             checked={formData.permissions.includes(permission.value)}
-                            onChange={() => togglePermission(permission.value)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                            onChange={() => handlePermissionToggle(permission.value)}
+                            className="h-3 w-3 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                           />
-                          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                          <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
                             {permission.label}
                           </span>
                         </label>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="active"
-              checked={formData.active}
-              onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-            />
-            <label htmlFor="active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-              Active user account
-            </label>
           </div>
         </form>
 
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
@@ -415,6 +513,14 @@ export function UserManagement() {
     }
   };
 
+  const hasCustomPermissions = (user: User) => {
+    const rolePermissions = ROLE_PERMISSIONS[user.role] || [];
+    const userPermissions = user.permissions || [];
+    const sortedRole = [...rolePermissions].sort();
+    const sortedUser = [...userPermissions].sort();
+    return sortedRole.join(',') !== sortedUser.join(',');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -481,9 +587,17 @@ export function UserManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                        {user.role}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                          {user.role}
+                        </span>
+                        {hasCustomPermissions(user) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-full" title="Custom permissions - differs from role defaults">
+                            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+                            Custom
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

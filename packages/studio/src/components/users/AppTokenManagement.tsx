@@ -45,12 +45,26 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
   const [formData, setFormData] = useState<TokenFormData>({
     name: '',
     description: '',
-    permissions: ['content:read'],
+    permissions: ['content:read', 'media:read'],
     expiresAt: undefined
   });
   const [isLoading, setIsLoading] = useState(false);
   const [expiryType, setExpiryType] = useState<'never' | '30days' | '90days' | '1year' | 'custom'>('90days');
   const [customExpiryDate, setCustomExpiryDate] = useState('');
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: '',
+        description: '',
+        permissions: ['content:read', 'media:read'],
+        expiresAt: undefined
+      });
+      setExpiryType('90days');
+      setCustomExpiryDate('');
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

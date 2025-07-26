@@ -201,15 +201,73 @@ export interface QueryOptions {
   order?: 'asc' | 'desc';
 }
 
-// User Types
+// User Management Types
+export type UserRole = 'admin' | 'editor' | 'author' | 'viewer';
+
+export type Permission = 
+  // Content permissions
+  | 'content:read'
+  | 'content:write'
+  | 'content:delete'
+  | 'content:publish'
+  // Media permissions
+  | 'media:read'
+  | 'media:upload'
+  | 'media:edit'
+  | 'media:delete'
+  // User management permissions
+  | 'users:read'
+  | 'users:write'
+  | 'users:delete'
+  | 'users:invite'
+  // Settings permissions
+  | 'settings:read'
+  | 'settings:write'
+  // Studio access
+  | 'studio:access'
+  // App token management
+  | 'tokens:read'
+  | 'tokens:write'
+  | 'tokens:delete';
+
+// Default permissions for each role
+export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+  admin: [
+    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'media:read', 'media:upload', 'media:edit', 'media:delete',
+    'users:read', 'users:write', 'users:delete', 'users:invite',
+    'settings:read', 'settings:write',
+    'studio:access',
+    'tokens:read', 'tokens:write', 'tokens:delete'
+  ],
+  editor: [
+    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'media:read', 'media:upload', 'media:edit', 'media:delete',
+    'studio:access'
+  ],
+  author: [
+    'content:read', 'content:write', 'content:publish',
+    'media:read', 'media:upload',
+    'studio:access'
+  ],
+  viewer: [
+    'content:read',
+    'media:read',
+    'studio:access'
+  ]
+};
+
 export interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  avatar?: string;
-  role: string;
-  permissions: string[];
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  permissions: Permission[];
   isActive: boolean;
+  profileImage?: string;
+  lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
 }
