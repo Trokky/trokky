@@ -85,11 +85,11 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
       setFormData({
         username: user.username,
         email: user.email,
-        fullName: user.fullName,
+        fullName: `${user.firstName} ${user.lastName}`,
         role: user.role,
         permissions: user.permissions,
         password: '',
-        active: user.active
+        active: user.isActive
       });
     } else {
       setFormData({
@@ -387,11 +387,11 @@ export function UserManagement() {
     }
   };
 
-  const filteredUsers = users.filter(user =>
+  const filteredUsers = Array.isArray(users) ? users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.fullName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '').toLowerCase().includes(searchQuery.toLowerCase())
+  ) : [];
 
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
@@ -461,7 +461,7 @@ export function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.fullName}
+                          {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {user.username} • {user.email}
@@ -475,11 +475,11 @@ export function UserManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.active 
+                        user.isActive 
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                           : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                       }`}>
-                        {user.active ? 'Active' : 'Inactive'}
+                        {user.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

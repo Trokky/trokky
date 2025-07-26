@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { Button } from './Button';
+import { DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 interface Props {
   children: ReactNode;
@@ -9,24 +10,69 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  errorInfo?: React.ErrorInfo;
+  copied: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, copied: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, copied: false };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    this.setState({ errorInfo });
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: undefined });
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined, copied: false });
+  };
+
+  handleCopyError = async () => {
+    if (!this.state.error) return;
+    
+    const errorDetails = this.getErrorDetails();
+    try {
+      await navigator.clipboard.writeText(errorDetails);
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2000);
+    } catch (err) {
+      console.error('Failed to copy error details:', err);
+    }
+  };
+
+  getErrorDetails = () => {
+    const { error, errorInfo } = this.state;
+    if (!error) return '';
+    
+    const timestamp = new Date().toISOString();
+    const userAgent = navigator.userAgent;
+    const url = window.location.href;
+    
+    return `Trokky Studio Error Report
+Timestamp: ${timestamp}
+URL: ${url}
+User Agent: ${userAgent}
+
+Error Message:
+${error.message}
+
+Stack Trace:
+${error.stack || 'No stack trace available'}
+
+Component Stack:
+${errorInfo?.componentStack || 'No component stack available'}
+
+Additional Details:
+- Error Name: ${error.name}
+- Browser: ${navigator.userAgent}
+- Viewport: ${window.innerWidth}x${window.innerHeight}
+- Timestamp: ${timestamp}`;
   };
 
   render() {
@@ -36,49 +82,103 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <div className="flex items-center mb-4">
-              <div className="flex-shrink-0">
-                <svg
-                  className="h-6 w-6 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Something went wrong
-                </h3>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+          <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                    Something went wrong
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    The application encountered an unexpected error
+                  </p>
+                </div>
               </div>
             </div>
             
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                The application encountered an unexpected error. Please try refreshing the page or contact support if the problem persists.
-              </p>
-              
-              {this.state.error && (
-                <details className="mt-3">
-                  <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
-                    Error details
-                  </summary>
-                  <pre className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded overflow-auto">
-                    {this.state.error.message}
-                  </pre>
-                </details>
-              )}
+            {/* Content */}
+            <div className="px-6 py-4">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Please try refreshing the page or contact support if the problem persists. 
+                  You can copy the error details below to help with troubleshooting.
+                </p>
+                
+                {this.state.error && (
+                  <div className="space-y-3">
+                    {/* Error Message */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        Error Message:
+                      </h4>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                        <p className="text-sm text-red-800 dark:text-red-200 font-mono">
+                          {this.state.error.name}: {this.state.error.message}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Stack Trace */}
+                    <details className="group">
+                      <summary className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white flex items-center">
+                        <span>Stack Trace</span>
+                        <svg className="w-4 h-4 ml-1 group-open:rotate-90 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </summary>
+                      <div className="mt-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                        <pre className="text-xs text-gray-800 dark:text-gray-200 font-mono overflow-auto max-h-40">
+                          {this.state.error.stack || 'No stack trace available'}
+                        </pre>
+                      </div>
+                    </details>
+                    
+                    {/* Component Stack */}
+                    {this.state.errorInfo?.componentStack && (
+                      <details className="group">
+                        <summary className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white flex items-center">
+                          <span>Component Stack</span>
+                          <svg className="w-4 h-4 ml-1 group-open:rotate-90 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </summary>
+                        <div className="mt-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                          <pre className="text-xs text-gray-800 dark:text-gray-200 font-mono overflow-auto max-h-40">
+                            {this.state.errorInfo.componentStack}
+                          </pre>
+                        </div>
+                      </details>
+                    )}
+                    
+                    {/* Environment Info */}
+                    <details className="group">
+                      <summary className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-white flex items-center">
+                        <span>Environment Details</span>
+                        <svg className="w-4 h-4 ml-1 group-open:rotate-90 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </summary>
+                      <div className="mt-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                        <div className="text-xs text-gray-800 dark:text-gray-200 space-y-1">
+                          <div><strong>URL:</strong> {window.location.href}</div>
+                          <div><strong>Timestamp:</strong> {new Date().toISOString()}</div>
+                          <div><strong>User Agent:</strong> {navigator.userAgent}</div>
+                          <div><strong>Viewport:</strong> {window.innerWidth}x{window.innerHeight}</div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </div>
             </div>
             
-            <div className="flex space-x-3">
+            {/* Actions */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
               <Button onClick={this.handleReset} size="sm">
                 Try again
               </Button>
@@ -89,6 +189,17 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 Refresh page
               </Button>
+              {this.state.error && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={this.handleCopyError}
+                  className="ml-auto"
+                >
+                  <DocumentDuplicateIcon className="h-4 w-4 mr-1" />
+                  {this.state.copied ? 'Copied!' : 'Copy Error Details'}
+                </Button>
+              )}
             </div>
           </div>
         </div>
