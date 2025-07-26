@@ -13,6 +13,7 @@ import { numberFieldPlugin } from './definitions/NumberField/index.js';
 import { booleanFieldPlugin } from './definitions/BooleanField/index.js';
 import { arrayFieldPlugin } from './definitions/ArrayField/index.js';
 import { ObjectFieldPlugin } from './definitions/ObjectField/index.js';
+import { mediaFieldPlugin } from './definitions/MediaField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -34,6 +35,9 @@ export function registerBuiltinFields(): void {
   
   // Object fields
   fieldRegistry.register(ObjectFieldPlugin, 'builtin');
+  
+  // Media fields
+  fieldRegistry.register(mediaFieldPlugin, 'builtin');
   
   // TODO: Register other built-in fields
   // fieldRegistry.register(dateFieldPlugin, 'builtin');

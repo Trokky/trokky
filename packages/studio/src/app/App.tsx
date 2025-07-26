@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
+import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 
 // Create a client
@@ -68,9 +69,11 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="App">
-          <AppContent />
-        </div>
+        <StudioContextProvider>
+          <div className="App">
+            <AppContent />
+          </div>
+        </StudioContextProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

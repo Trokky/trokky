@@ -17,5 +17,6 @@ export type {
   FieldPlugin,
   RegisteredFieldPlugin,
   FieldPluginSource,
-  FieldComponentProps
+  FieldComponentProps,
+  StudioContext
 } from './FieldPlugin.js';

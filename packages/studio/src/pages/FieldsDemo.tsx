@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { FieldRenderer, fieldRegistry } from '@trokky/fields';
 import type { ValidationResult } from '@trokky/fields';
+import { useStudioContext } from '@/contexts/StudioContext';
 
 // Field demo configuration
 interface FieldDemo {
@@ -65,6 +66,9 @@ function getCategoryDisplayName(category: string): string {
 }
 
 export function FieldsDemo() {
+  // Get Studio context for field access to Studio capabilities
+  const studioContext = useStudioContext();
+  
   // Generate field demos from registry
   const FIELD_DEMOS = useMemo(() => generateFieldDemos(), []);
   
@@ -282,6 +286,7 @@ export function FieldsDemo() {
                           warnings: validationResults[currentField.id].warnings || []
                         } : undefined}
                         mode="edit"
+                        studioContext={studioContext}
                       />
                     </div>
                   ) : (
@@ -292,6 +297,7 @@ export function FieldsDemo() {
                         onChange={() => {}}
                         definition={currentField.definition}
                         mode="preview"
+                        studioContext={studioContext}
                       />
                     </div>
                   )}

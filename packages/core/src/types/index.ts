@@ -217,3 +217,5 @@ export type {
   AuthenticatedUser,
   AuthenticatedAppToken
 } from './user.js'
+
+export { ROLE_PERMISSIONS } from './user.js'

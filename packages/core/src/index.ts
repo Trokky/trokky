@@ -128,6 +128,8 @@ export type {
   AuthenticatedAppToken
 } from './types/index.js'
 
+export { ROLE_PERMISSIONS } from './types/index.js'
+
 // Zod schemas for validation
 export {
   LegacyFieldTypeSchema,

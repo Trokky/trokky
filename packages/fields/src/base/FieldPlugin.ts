@@ -12,6 +12,57 @@ export type FieldPluginSource = 'builtin' | 'external' | 'custom';
 // Import ValidationState from FieldDefinition to avoid duplication
 import type { ValidationState } from './FieldDefinition.js';
 
+// Studio context interface for field access to Studio capabilities
+export interface StudioContext {
+  // API client for Studio operations
+  apiClient: {
+    // Document operations
+    getDocuments: (type: string, params?: any) => Promise<any>;
+    getDocument: (type: string, id?: string) => Promise<any>;
+    createDocument: (type: string, document: any) => Promise<any>;
+    updateDocument: (type: string, id: string, document: any) => Promise<any>;
+    deleteDocument: (type: string, id: string) => Promise<any>;
+    
+    // Media operations
+    getMedia: (options?: any) => Promise<any>;
+    getMediaById: (id: string) => Promise<any>;
+    uploadMedia: (file: File, collection?: string, metadata?: any) => Promise<any>;
+    deleteMedia: (id: string) => Promise<any>;
+    updateMedia: (id: string, metadata: any) => Promise<any>;
+    
+    // Schema operations
+    getSchemas: () => Promise<any>;
+    getSchema: (id: string) => Promise<any>;
+    
+    // Generic HTTP methods
+    get: (endpoint: string, options?: any) => Promise<any>;
+    post: (endpoint: string, options?: any) => Promise<any>;
+  };
+  
+  // Authentication and user context
+  auth: {
+    getCurrentUser: () => any;
+    hasPermission: (resource: string, action: string) => boolean;
+    getAccessToken: () => string | null;
+  };
+  
+  // Inter-field communication
+  fieldEvents: {
+    emit: (event: string, data: any) => void;
+    on: (event: string, callback: (data: any) => void) => () => void;
+    getFieldValue: (fieldId: string) => any;
+    watchField: (fieldId: string, callback: (value: any) => void) => () => void;
+  };
+  
+  // Studio utilities
+  utils: {
+    showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+    showConfirm: (message: string) => Promise<boolean>;
+    openModal: (component: React.ComponentType, props?: any) => void;
+    closeModal: () => void;
+  };
+}
+
 // Props passed to field components
 export interface FieldComponentProps {
   fieldId: string;
@@ -24,6 +75,7 @@ export interface FieldComponentProps {
   isDisabled?: boolean;
   isReadonly?: boolean;
   documentContext?: DocumentContext;
+  studioContext?: StudioContext;
   onValidationChange?: (result: ValidationResult) => void;
   onFocus?: () => void;
   onBlur?: () => void;

@@ -91,11 +91,18 @@ Always pass your work to our Task tool to launch a code review agent before buil
 
 ---
 - Continue Fields: MediaFields and variants
+- -Persist contextual sidebar state per page kind in local storage
 - Update/ trokky/client
-- Ensure/improve the relevance of trokkt config file
+- Ensure/improve the relevance of trokky config file
 - Study the relevance to have a higher trokky orchestrator/cms to setup thing quicky, more quickly than how it's done in examples/blog-integrated/server.ts
 - - Thing of other implentation like Hono for cloudflare - can we still use express on cloudflare? which one is better
 - 
 - Circling back to Media Page, currently, the libray is using the real image which an be very heavy. Do you think, we could have an internet automatic variant that could create a thumbnail that Studio could use, regardless of the processing engine selected by user? It's a design and I dont know how this will be possible. How that could be possible?
 - In media Library, List view: file has long name sometimes. find a way to truncate them
-- 
+
+
+
+src/definitions/MediaField/MediaBrowserContent.tsx
+
+
+StudioContext:

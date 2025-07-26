@@ -35,7 +35,8 @@ export type {
   RegisteredFieldPlugin,
   FieldPluginSource,
   FieldComponentProps,
-  ValidationState
+  ValidationState,
+  StudioContext
 } from './base/index.js';
 
 // Built-in field exports
@@ -167,6 +168,24 @@ export type {
   ConditionalResult,
   TemplateContext
 } from './definitions/ObjectField/index.js';
+
+export {
+  mediaFieldPlugin,
+  MediaFieldComponent,
+  MediaFieldPreview,
+  validateMediaField,
+  MEDIA_FIELD_DEFAULTS,
+  MEDIA_TYPE_PRESETS
+} from './definitions/MediaField/index.js';
+
+export type {
+  MediaFieldDefinition,
+  MediaFieldValue,
+  MediaValidation,
+  MediaFieldOptions,
+  MediaAssetReference,
+  MediaType
+} from './definitions/MediaField/index.js';
 
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';
