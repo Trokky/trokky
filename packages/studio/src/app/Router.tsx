@@ -8,6 +8,7 @@ import { ContentPage } from '@/pages/ContentPage';
 import { MediaPage } from '@/pages/MediaPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -61,6 +62,14 @@ const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />
+      },
+      {
+        path: 'settings/:section',
+        element: <SettingsPage />
+      },
+      {
+        path: 'user/preferences',
+        element: <UserPreferencesPage />
       },
       {
         path: 'fields-demo',

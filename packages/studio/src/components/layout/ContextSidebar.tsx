@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
@@ -363,6 +363,7 @@ function MediaContext() {
 }
 
 function UsersContext() {
+  const navigate = useNavigate();
   const [userStats, setUserStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -375,20 +376,29 @@ function UsersContext() {
       const response = await apiClient.get('/api/users');
       if (response.success && response.data && response.data.users) {
         const users = response.data.users;
+        
+        // Calculate recent logins more accurately
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
         const stats = {
           total: users.length,
-          active: users.filter((u: any) => u.isActive).length,
-          inactive: users.filter((u: any) => !u.isActive).length,
+          active: users.filter((u: any) => u.isActive !== false).length, // Default to active if not specified
+          inactive: users.filter((u: any) => u.isActive === false).length,
           roles: users.reduce((acc: any, user: any) => {
             acc[user.role] = (acc[user.role] || 0) + 1;
             return acc;
           }, {}),
           recentLogins: users.filter((u: any) => {
             if (!u.lastLoginAt) return false;
-            const loginDate = new Date(u.lastLoginAt);
-            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            return loginDate > weekAgo;
-          }).length
+            try {
+              const loginDate = new Date(u.lastLoginAt);
+              return !isNaN(loginDate.getTime()) && loginDate > weekAgo;
+            } catch {
+              return false;
+            }
+          }).length,
+          neverLoggedIn: users.filter((u: any) => !u.lastLoginAt).length
         };
         setUserStats(stats);
       }
@@ -397,6 +407,16 @@ function UsersContext() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAddUser = () => {
+    // Navigate to users page and trigger add user modal
+    navigate('/users?action=add');
+  };
+
+  const handleManageTokens = () => {
+    // Navigate to API tokens management
+    navigate('/settings/tokens');
   };
 
   if (isLoading) {
@@ -462,14 +482,21 @@ function UsersContext() {
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
               Recent Activity
             </h4>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {userStats.recentLogins} users logged in this week
-            </div>
-            {userStats.inactive > 0 && (
-              <div className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                {userStats.inactive} inactive user{userStats.inactive > 1 ? 's' : ''}
+            <div className="space-y-1 text-sm">
+              <div className="text-gray-600 dark:text-gray-400">
+                {userStats.recentLogins} user{userStats.recentLogins !== 1 ? 's' : ''} logged in this week
               </div>
-            )}
+              {userStats.neverLoggedIn > 0 && (
+                <div className="text-amber-600 dark:text-amber-400">
+                  {userStats.neverLoggedIn} user{userStats.neverLoggedIn !== 1 ? 's' : ''} never logged in
+                </div>
+              )}
+              {userStats.inactive > 0 && (
+                <div className="text-red-600 dark:text-red-400">
+                  {userStats.inactive} inactive user{userStats.inactive !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Quick Actions */}
@@ -478,10 +505,16 @@ function UsersContext() {
               Quick Actions
             </h4>
             <div className="space-y-2">
-              <button className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm">
+              <button 
+                onClick={handleAddUser}
+                className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm"
+              >
                 Add New User
               </button>
-              <button className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm">
+              <button 
+                onClick={handleManageTokens}
+                className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm"
+              >
                 Manage API Tokens
               </button>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   UsersIcon,
   PlusIcon,
@@ -317,6 +318,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -339,7 +341,17 @@ export function UserManagement() {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+    
+    // Check for action parameter to auto-open add user modal
+    if (searchParams.get('action') === 'add') {
+      handleCreateUser();
+      // Clear the action parameter
+      setSearchParams(params => {
+        params.delete('action');
+        return params;
+      });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleCreateUser = () => {
     setSelectedUser(null);

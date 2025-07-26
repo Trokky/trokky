@@ -177,27 +177,27 @@ export function Header({
                   {/* User info */}
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center space-x-3">
-                      {user?.profileImage ? (
+                      {(user as any)?.profileImage ? (
                         <img 
-                          src={user.profileImage} 
+                          src={(user as any).profileImage} 
                           alt="Profile" 
                           className="h-10 w-10 rounded-full object-cover"
                         />
                       ) : (
                         <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
                           <span className="text-white font-medium text-sm">
-                            {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+                            {((user as any)?.firstName?.[0] || (user as any)?.username?.[0] || (user as any)?.name?.[0] || 'U').toUpperCase()}
                           </span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {user?.firstName && user?.lastName 
-                            ? `${user.firstName} ${user.lastName}`
-                            : user?.username || 'Studio User'}
+                          {(user as any)?.firstName && (user as any)?.lastName 
+                            ? `${(user as any).firstName} ${(user as any).lastName}`
+                            : (user as any)?.username || (user as any)?.name || 'Studio User'}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                          {user?.email || 'user@example.com'}
+                          {(user as any)?.email || 'user@example.com'}
                         </p>
                         {user?.role && (
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full mt-1 ${
@@ -245,21 +245,12 @@ export function Header({
 
                   {/* Menu items */}
                   <div className="py-1">
-                    {user?.role === 'admin' && (
-                      <Link
-                        to="/users"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Users & Access
-                      </Link>
-                    )}
                     <Link
-                      to="/settings"
+                      to="/user/preferences"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => setUserMenuOpen(false)}
                     >
-                      Settings
+                      Preferences
                     </Link>
                     <button
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"

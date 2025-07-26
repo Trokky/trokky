@@ -39,6 +39,7 @@ interface AuthContextType extends AuthState {
   refreshSession: () => Promise<void>;
   dismissTimeoutWarning: () => void;
   updateActivity: () => void;
+  updateUser: (user: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -360,6 +361,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState(prev => ({ ...prev, showTimeoutWarning: false }));
   }, []);
 
+  const updateUser = useCallback((user: any) => {
+    setAuthState(prev => ({ ...prev, user }));
+  }, []);
+
   // Session monitoring functions
   const startSessionMonitoring = useCallback((expiresAt: Date | null) => {
     if (!expiresAt) return;
@@ -457,7 +462,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth,
     refreshSession,
     dismissTimeoutWarning,
-    updateActivity
+    updateActivity,
+    updateUser
   } as AuthContextType;
 
   return React.createElement(
