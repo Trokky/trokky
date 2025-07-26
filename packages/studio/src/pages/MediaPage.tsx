@@ -58,10 +58,19 @@ export function MediaPage() {
   const [filteredFiles, setFilteredFiles] = useState<MediaFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Try to get saved view mode from localStorage
+    try {
+      const saved = localStorage.getItem('trokky-media-view-mode');
+      return (saved === 'list' || saved === 'grid') ? saved : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<MediaType>('all');
   const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null);
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -74,6 +83,16 @@ export function MediaPage() {
   const loadingRef = useRef(false);
   const apiClient = useApiClient();
   const logger = createStudioLogger('MediaPage');
+
+  // Function to update view mode and persist to localStorage
+  const updateViewMode = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('trokky-media-view-mode', mode);
+    } catch (error) {
+      logger.warn('Failed to save view mode to localStorage:', error);
+    }
+  }, [logger]);
 
   // Media type definitions
   const mediaTypes: Record<MediaType, MediaTypeInfo> = {
@@ -296,9 +315,23 @@ export function MediaPage() {
   };
 
   // Media actions
-  const handleEdit = (file: MediaFile) => {
-    setEditingFile({ ...file });
-    setIsEditModalOpen(true);
+  const handleEdit = async (file: MediaFile) => {
+    try {
+      // Fetch the latest file data to ensure we have up-to-date metadata
+      const response = await apiClient.getMediaFile(file.id);
+      if (response.success && response.data?.file) {
+        setEditingFile({ ...response.data.file });
+      } else {
+        // Fallback to the file passed in if API call fails
+        setEditingFile({ ...file });
+      }
+      setIsEditModalOpen(true);
+    } catch (error) {
+      logger.error('Failed to fetch latest file data for editing:', error);
+      // Fallback to the file passed in if API call fails
+      setEditingFile({ ...file });
+      setIsEditModalOpen(true);
+    }
   };
 
   const handleDelete = (file: MediaFile) => {
@@ -339,13 +372,35 @@ export function MediaPage() {
     }
     
     try {
-      // For now, just close the modal since we don't have update media endpoint
-      // TODO: Implement media update endpoint when available
-      logger.info('Media edit saved (local only - backend update not implemented)');
+      // Update media metadata via API
+      const response = await apiClient.updateMedia(editingFile.id, {
+        title: editingFile.metadata?.title || '',
+        alt: editingFile.metadata?.alt || '',
+        author: editingFile.metadata?.author || '',
+        credit: editingFile.metadata?.credit || ''
+      });
+      
+      logger.info('Media metadata updated successfully:', response.data.file);
+      
+      // Update the local state to reflect the changes
+      setMediaFiles(prevFiles => 
+        prevFiles.map(file => 
+          file.id === editingFile.id 
+            ? { ...file, metadata: response.data.file.metadata }
+            : file
+        )
+      );
+      
+      // Update selectedFile if it's the same one
+      if (selectedFile?.id === editingFile.id) {
+        setSelectedFile({ ...selectedFile, metadata: response.data.file.metadata });
+      }
+      
       setIsEditModalOpen(false);
       setEditingFile(null);
     } catch (error) {
       logger.error('Save failed:', error);
+      // TODO: Add error toast notification
     }
   };
 
@@ -596,53 +651,84 @@ export function MediaPage() {
           />
         </div>
         
-        {/* View mode toggle */}
-        <div className="flex border border-gray-200 dark:border-gray-600 rounded-lg">
+        {/* Controls */}
+        <div className="flex gap-2">
+          {/* Filter toggle for mobile */}
           <Button
-            variant={viewMode === 'grid' ? 'default' : 'ghost'}
+            variant="ghost"
             size="sm"
-            onClick={() => setViewMode('grid')}
-            className="rounded-r-none"
+            className="lg:hidden"
+            onClick={() => setIsFilterSidebarOpen(!isFilterSidebarOpen)}
           >
-            <ViewColumnsIcon className="h-4 w-4" />
+            <FunnelIcon className="h-4 w-4" />
           </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-            className="rounded-l-none"
-          >
-            <Bars3Icon className="h-4 w-4" />
-          </Button>
+          
+          {/* View mode toggle */}
+          <div className="flex border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+            <button
+              onClick={() => updateViewMode('grid')}
+              className={`px-3 py-2 text-sm transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              }`}
+            >
+              <ViewColumnsIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => updateViewMode('list')}
+              className={`px-3 py-2 text-sm transition-colors border-l border-gray-200 dark:border-gray-600 ${
+                viewMode === 'list'
+                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Bars3Icon className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex gap-4 lg:gap-6">
         {/* Sidebar with media type filters */}
-        <div className="w-64 flex-shrink-0">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-              <FunnelIcon className="h-4 w-4 inline mr-2" />
-              Filter by Type
-            </h3>
-            <div className="space-y-1">
+        <div className={`${isFilterSidebarOpen ? 'block' : 'hidden'} lg:block w-48 lg:w-56 flex-shrink-0`}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wide">
+                <FunnelIcon className="h-3 w-3 inline mr-1" />
+                Filter by Type
+              </h3>
+              <button
+                onClick={() => setIsFilterSidebarOpen(false)}
+                className="lg:hidden p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <XMarkIcon className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="space-y-0.5">
               {Object.entries(mediaTypes).map(([type, info]) => {
                 const Icon = info.icon;
                 return (
                   <button
                     key={type}
-                    onClick={() => setSelectedType(type as MediaType)}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                    onClick={() => {
+                      setSelectedType(type as MediaType);
+                      // Close mobile filter on selection
+                      if (window.innerWidth < 1024) {
+                        setIsFilterSidebarOpen(false);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-md transition-colors ${
                       selectedType === type
                         ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     <div className="flex items-center">
-                      <Icon className="h-4 w-4 mr-2" />
+                      <Icon className="h-3 w-3 mr-1.5" />
                       {info.label}
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                       {info.count}
                     </span>
                   </button>
@@ -676,7 +762,7 @@ export function MediaPage() {
           ) : (
             <div className={
               viewMode === 'grid'
-                ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'
+                ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4'
                 : 'space-y-2'
             }>
               {filteredFiles.map(renderMediaItem)}
@@ -726,7 +812,14 @@ export function MediaPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.open(selectedFile.url, '_blank')}
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = selectedFile.url;
+                    link.download = selectedFile.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
                 </Button>
@@ -795,7 +888,14 @@ export function MediaPage() {
                       Preview not available for this file type
                     </p>
                     <Button
-                      onClick={() => window.open(selectedFile.url, '_blank')}
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = selectedFile.url;
+                        link.download = selectedFile.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
                     >
                       <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
                       Download File
@@ -839,7 +939,7 @@ export function MediaPage() {
                       Uploaded
                     </dt>
                     <dd className="text-sm text-gray-900 dark:text-white">
-                      {new Date(selectedFile.uploadedAt).toLocaleDateString()}
+                      {new Date(selectedFile._createdAt).toLocaleString()}
                     </dd>
                   </div>
                   {selectedFile.metadata?.width && selectedFile.metadata?.height && (

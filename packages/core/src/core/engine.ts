@@ -291,6 +291,29 @@ export class TrokkyCore {
     return await this.storage.getFile(id)
   }
 
+  public async updateMedia(id: string, metadata: Record<string, any>): Promise<MediaFile> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('updateMedia')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    // Check if media exists first
+    const existingMedia = await this.storage.getFile(id)
+    if (!existingMedia) {
+      throw new DocumentNotFoundError('media', id)
+    }
+
+    // Use the storage adapter's updateFile method if available
+    if (!this.storage.updateFile) {
+      throw new Error('Media update not supported by storage adapter')
+    }
+    
+    return await this.storage.updateFile(id, metadata)
+  }
+
   public async getMediaContent(id: string): Promise<ArrayBuffer | null> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('getMediaContent')

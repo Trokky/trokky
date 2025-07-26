@@ -20,6 +20,7 @@ interface TrokkyCore {
   // Media methods
   uploadMedia(file: any): Promise<any>;
   getMedia(id: string): Promise<any>;
+  updateMedia(id: string, metadata: Record<string, any>): Promise<any>;
   getMediaContent(id: string): Promise<ArrayBuffer>;
   listMedia(options?: any): Promise<any[]>;
   deleteMedia(id: string): Promise<void>;
@@ -803,6 +804,48 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Failed to get media file' }
+      });
+    }
+  });
+
+  router.put('/api/media/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { metadata } = req.body;
+      
+      if (!metadata || typeof metadata !== 'object') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Metadata is required' }
+        });
+      }
+      
+      // Get the existing media file first
+      const existingMedia = await _config.cms.getMedia(id);
+      if (!existingMedia) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Media file not found' }
+        });
+      }
+      
+      // Update the metadata using the core engine's updateMedia method
+      const updatedMedia = await _config.cms.updateMedia(id, metadata);
+      
+      console.log('[DEBUG] Media metadata updated successfully via core engine:', { 
+        id, 
+        metadata,
+        updatedFile: updatedMedia 
+      });
+      
+      res.json({
+        success: true,
+        data: { file: updatedMedia }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to update media metadata' }
       });
     }
   });

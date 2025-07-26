@@ -124,6 +124,7 @@ export interface StorageAdapter {
   // Media operations
   uploadFile(file: File, metadata: MediaMetadata): Promise<MediaFile>
   getFile(id: string): Promise<MediaFile | null>
+  updateFile?(id: string, metadata: Record<string, any>): Promise<MediaFile>
   getFileContent(id: string): Promise<ArrayBuffer | null>
   listMedia?(options?: { limit?: number; offset?: number }): Promise<MediaFile[]>
   deleteFile(id: string): Promise<void>

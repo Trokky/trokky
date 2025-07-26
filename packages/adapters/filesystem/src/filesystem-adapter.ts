@@ -345,9 +345,15 @@ export class FilesystemAdapter implements StorageAdapter {
         contentType: fileMetadata.contentType,
         size: fileMetadata.size,
         metadata: {
+          // Include basic file metadata
           path: relativeUrl,
           extension: fileMetadata.extension,
-          originalFilename: fileMetadata.filename
+          originalFilename: fileMetadata.filename,
+          // Include all user-editable metadata fields (include even if empty string)
+          ...(fileMetadata.title !== undefined && { title: fileMetadata.title }),
+          ...(fileMetadata.alt !== undefined && { alt: fileMetadata.alt }),
+          ...(fileMetadata.author !== undefined && { author: fileMetadata.author }),
+          ...(fileMetadata.credit !== undefined && { credit: fileMetadata.credit })
         },
         _createdAt: fileMetadata.createdAt instanceof Date ? fileMetadata.createdAt : new Date(fileMetadata.createdAt)
       }
@@ -355,6 +361,84 @@ export class FilesystemAdapter implements StorageAdapter {
       return mediaFile
     } catch (error) {
       throw new Error(`Failed to get file ${id}: ${error}`)
+    }
+  }
+
+  public async updateFile(id: string, metadata: Record<string, any>): Promise<MediaFile> {
+    try {
+      // Input validation
+      SecurityValidator.validateDocumentId(id)
+      
+      const metadataPath = this.getMediaMetadataPath(id)
+      
+      // Check if metadata file exists
+      try {
+        await fs.access(metadataPath, constants.F_OK)
+      } catch {
+        throw new Error(`Media file ${id} not found`)
+      }
+
+      // Read existing metadata
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8')
+      const existingMetadata: FileMetadata = this.safeParseJSON<FileMetadata>(metadataContent, this.dateReviver)
+
+      // Update metadata with new values
+      const updatedMetadata: FileMetadata = {
+        ...existingMetadata,
+        ...metadata,
+        updatedAt: new Date(),
+        // Preserve core fields that shouldn't be changed
+        id: existingMetadata.id,
+        filename: existingMetadata.filename,
+        contentType: existingMetadata.contentType,
+        size: existingMetadata.size,
+        extension: existingMetadata.extension,
+        originalPath: existingMetadata.originalPath,
+        createdAt: existingMetadata.createdAt
+      }
+
+      // Write updated metadata atomically
+      const updatedMetadataContent = this.config.prettyJson
+        ? JSON.stringify(updatedMetadata, this.dateReplacer, this.config.jsonSpaces)
+        : JSON.stringify(updatedMetadata, this.dateReplacer)
+
+      await this.atomicWriteFile(metadataPath, updatedMetadataContent)
+
+      // Return updated MediaFile
+      const filePath = this.getMediaPath(id, updatedMetadata.extension)
+      const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
+
+      // Generate appropriate URL based on configuration
+      const fileUrl = this.config.mediaBaseUrl 
+        ? `${this.config.mediaBaseUrl}/${updatedMetadata.id}/file`
+        : `file://${path.resolve(filePath)}`
+
+      const mediaFile: MediaFile = {
+        id: updatedMetadata.id,
+        url: fileUrl,
+        filename: updatedMetadata.filename,
+        contentType: updatedMetadata.contentType,
+        size: updatedMetadata.size,
+        metadata: {
+          path: relativeUrl,
+          extension: updatedMetadata.extension,
+          originalFilename: updatedMetadata.filename,
+          // Include custom metadata fields
+          ...metadata
+        },
+        _createdAt: updatedMetadata.createdAt instanceof Date ? updatedMetadata.createdAt : new Date(updatedMetadata.createdAt)
+      }
+
+      console.log('[DEBUG] FilesystemAdapter.updateFile - Updated metadata successfully:', {
+        id,
+        updatedFields: Object.keys(metadata),
+        filename: updatedMetadata.filename
+      })
+
+      return mediaFile
+    } catch (error) {
+      console.error('[ERROR] FilesystemAdapter.updateFile failed:', error)
+      throw new Error(`Failed to update file metadata ${id}: ${error}`)
     }
   }
 

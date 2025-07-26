@@ -361,6 +361,16 @@ export class ApiClient {
   }
 
   /**
+   * Get single media file by ID
+   */
+  async getMediaFile(id: string): Promise<ApiResponse<{ file: MediaFile }>> {
+    if (!this.hasFeature('media')) {
+      throw new ApiClientError('Media feature not available');
+    }
+    return this.get<{ file: MediaFile }>(`/api/media/${id}`);
+  }
+
+  /**
    * Upload media file
    */
   async uploadMedia(file: File, metadata?: Record<string, any>): Promise<ApiResponse<MediaFile>> {
@@ -378,6 +388,16 @@ export class ApiClient {
       method: 'POST',
       body: formData
     });
+  }
+
+  /**
+   * Update media metadata
+   */
+  async updateMedia(id: string, metadata: Record<string, any>): Promise<ApiResponse<{ file: MediaFile }>> {
+    if (!this.hasFeature('media')) {
+      throw new ApiClientError('Media feature not available');
+    }
+    return this.put<{ file: MediaFile }>(`/api/media/${id}`, { metadata });
   }
 
   /**
