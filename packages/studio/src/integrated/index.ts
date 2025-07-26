@@ -17,6 +17,13 @@ interface TrokkyCore {
   saveDocument(schema: string, data: any): Promise<any>;
   deleteDocument(schema: string, id: string): Promise<void>;
   
+  // Media methods
+  uploadMedia(file: any): Promise<any>;
+  getMedia(id: string): Promise<any>;
+  getMediaContent(id: string): Promise<ArrayBuffer>;
+  listMedia(options?: any): Promise<any[]>;
+  deleteMedia(id: string): Promise<void>;
+  
   // Auth methods
   authenticateUser(username: string, password: string): Promise<{ user: any; token: string } | null>;
   verifyAuthToken(token: string): Promise<any | null>;
@@ -548,6 +555,328 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       res.json(convertedSchema);
     } catch (error) {
       res.status(500).json({ error: 'Failed to get schema' });
+    }
+  });
+
+  // Media endpoints - moved to /api/media to avoid conflict with Studio routing
+  router.get('/api/media', async (req: Request, res: Response) => {
+    try {
+      console.log('[DEBUG] Media files list request starting...');
+      const mediaFiles = await _config.cms.listMedia(req.query);
+      
+      console.log('[DEBUG] Media files list request result:', {
+        query: req.query,
+        filesCount: mediaFiles?.length || 0,
+        files: mediaFiles?.map((f: any) => ({ id: f.id, name: f.filename, size: f.size })) || []
+      });
+      
+      res.json({
+        success: true,
+        data: mediaFiles
+      });
+    } catch (error) {
+      console.error('[ERROR] Failed to list media files:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get media files' }
+      });
+    }
+  });
+
+  router.post('/api/media', async (req: Request, res: Response) => {
+    try {
+      // Parse multipart/form-data using native Web APIs for edge compatibility
+      const contentType = req.headers['content-type'] || req.get('content-type');
+      
+      console.log('[DEBUG] Media upload request headers:', {
+        contentType,
+        userAgent: req.get('user-agent'),
+        contentLength: req.get('content-length')
+      });
+      
+      if (!contentType || !contentType.includes('multipart/form-data')) {
+        return res.status(400).json({
+          success: false,
+          error: { 
+            code: 'INVALID_INPUT', 
+            message: `Content-Type must be multipart/form-data, received: ${contentType || 'none'}` 
+          }
+        });
+      }
+
+      // Extract boundary from content-type header
+      const boundary = contentType.split('boundary=')[1];
+      if (!boundary) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Missing boundary in multipart data' }
+        });
+      }
+
+      // Read the raw body as buffer for proper binary handling
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      
+      await new Promise((resolve, reject) => {
+        req.on('end', resolve);
+        req.on('error', reject);
+      });
+
+      const body = Buffer.concat(chunks);
+      const boundaryBuffer = Buffer.from(`--${boundary}`);
+      
+      // Find file part by splitting on boundary
+      const parts: Buffer[] = [];
+      let start = 0;
+      let pos = body.indexOf(boundaryBuffer, start);
+      
+      while (pos !== -1) {
+        if (start !== pos) {
+          parts.push(body.subarray(start, pos));
+        }
+        start = pos + boundaryBuffer.length;
+        pos = body.indexOf(boundaryBuffer, start);
+      }
+      if (start < body.length) {
+        parts.push(body.subarray(start));
+      }
+
+      let fileFound = false;
+      let fileName = 'unnamed';
+      let fileType = 'application/octet-stream';
+      let fileBuffer: Buffer;
+      
+      console.log('[DEBUG] Multipart parsing:', {
+        boundary,
+        partsCount: parts.length,
+        bodyLength: body.length
+      });
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const partStr = part.toString('utf8', 0, Math.min(500, part.length)); // Only convert header portion to string
+        
+        console.log(`[DEBUG] Part ${i} header:`, partStr.substring(0, 200).replace(/[\r\n]/g, '\\n'));
+        
+        if (partStr.includes('Content-Disposition: form-data') && partStr.includes('filename=')) {
+          // Extract filename from UTF-8 string
+          const fileNameMatch = partStr.match(/filename="([^"]+)"/) || partStr.match(/filename=([^;\r\n]+)/);
+          if (fileNameMatch) {
+            const rawFileName = fileNameMatch[1].trim();
+            // Sanitize filename to only include allowed characters
+            fileName = rawFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+            console.log('[DEBUG] Extracted filename - raw:', rawFileName, 'sanitized:', fileName);
+            
+            // Final validation - if still invalid, use fallback
+            if (!/^[a-zA-Z0-9._-]+$/.test(fileName) || fileName.length === 0) {
+              fileName = 'upload_' + Date.now() + '.bin';
+              console.log('[DEBUG] Filename still invalid, using fallback:', fileName);
+            }
+          }
+
+          // Extract content type
+          const contentTypeMatch = partStr.match(/Content-Type:\s*([^\r\n]+)/);
+          if (contentTypeMatch) {
+            fileType = contentTypeMatch[1].trim();
+          }
+
+          // Validate file type
+          const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            'video/mp4', 'video/webm', 'video/mov',
+            'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a',
+            'application/pdf',
+            'text/plain', 'text/csv'
+          ];
+          
+          if (!allowedTypes.includes(fileType)) {
+            return res.status(400).json({
+              success: false,
+              error: { code: 'INVALID_FILE_TYPE', message: `File type ${fileType} not allowed` }
+            });
+          }
+
+          // Find the start of file data (after double CRLF)
+          const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
+          if (headerEnd !== -1) {
+            fileBuffer = part.subarray(headerEnd + 4);
+            
+            // Remove trailing boundary markers if present
+            const trailingBoundary = Buffer.from(`\r\n--${boundary}`);
+            const boundaryPos = fileBuffer.lastIndexOf(trailingBoundary);
+            if (boundaryPos !== -1) {
+              fileBuffer = fileBuffer.subarray(0, boundaryPos);
+            }
+            
+            // Check file size (100MB limit)
+            if (fileBuffer.length > 100 * 1024 * 1024) {
+              return res.status(400).json({
+                success: false,
+                error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds 100MB limit' }
+              });
+            }
+            
+            console.log('[DEBUG] File data extracted:', {
+              fileName,
+              fileType,
+              fileSize: fileBuffer.length
+            });
+            
+            fileFound = true;
+            break;
+          }
+        }
+      }
+
+      if (!fileFound) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'No file provided' }
+        });
+      }
+
+      // Ensure we have a valid filename
+      if (!fileName || fileName === 'unnamed') {
+        fileName = 'upload_' + Date.now() + '.bin';
+        console.log('[DEBUG] No valid filename found, using fallback:', fileName);
+      }
+
+      // Create a File-like object for the CMS using Web API standards
+      const fileObject = {
+        name: fileName,
+        type: fileType,
+        size: fileBuffer!.length,
+        arrayBuffer: async () => fileBuffer!,
+        stream: () => new ReadableStream({
+          start(controller) {
+            controller.enqueue(fileBuffer!);
+            controller.close();
+          }
+        }),
+        text: async () => fileBuffer!.toString(),
+        slice: () => fileObject
+      } as File;
+
+      // Upload through CMS
+      const mediaFile = await _config.cms.uploadMedia(fileObject);
+      
+      console.log('[DEBUG] Media file uploaded successfully:', {
+        id: mediaFile.id,
+        filename: mediaFile.filename,
+        size: mediaFile.size,
+        type: mediaFile.type
+      });
+      
+      res.json({
+        success: true,
+        data: mediaFile
+      });
+    } catch (error) {
+      console.error('[ERROR] Media upload failed:', error);
+      res.status(500).json({
+        success: false,
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: error instanceof Error ? error.message : 'Failed to upload media file'
+        }
+      });
+    }
+  });
+
+  router.get('/api/media/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const mediaFile = await _config.cms.getMedia(id);
+      
+      if (!mediaFile) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Media file not found' }
+        });
+      }
+
+      res.json({
+        success: true,
+        data: { file: mediaFile }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get media file' }
+      });
+    }
+  });
+
+  router.delete('/api/media/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      await _config.cms.deleteMedia(id);
+      
+      res.json({
+        success: true,
+        data: { message: 'Media file deleted successfully' }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to delete media file' }
+      });
+    }
+  });
+
+  // Media file serving endpoint
+  router.get('/api/media/:id/file', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      console.log('[DEBUG] Serving media file:', id);
+      
+      // Get media metadata first
+      const mediaFile = await _config.cms.getMedia(id);
+      if (!mediaFile) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: `Media file ${id} not found` }
+        });
+      }
+
+      // Get file content
+      const content = await _config.cms.getMediaContent(id);
+      if (!content) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: `Media file content ${id} not found` }
+        });
+      }
+
+      // Convert ArrayBuffer to Buffer for HTTP response
+      const buffer = Buffer.from(content);
+
+      // Set headers for file serving
+      res.set({
+        'Content-Type': mediaFile.contentType,
+        'Content-Length': buffer.length.toString(),
+        'Content-Disposition': `inline; filename="${mediaFile.filename}"`,
+        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        'ETag': `"${id}"`
+      });
+
+      console.log('[DEBUG] Serving media file successfully:', {
+        id,
+        filename: mediaFile.filename,
+        contentType: mediaFile.contentType,
+        size: buffer.length
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('[ERROR] Media file serving failed:', error);
+      res.status(500).json({
+        success: false,
+        error: { 
+          code: 'MEDIA_SERVE_FAILED', 
+          message: error instanceof Error ? error.message : 'Failed to serve media file' 
+        }
+      });
     }
   });
 }

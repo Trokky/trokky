@@ -58,6 +58,14 @@ export interface FilesystemAdapterConfig {
    * @default false
    */
   silent?: boolean
+
+  /**
+   * Base URL for serving media files via HTTP
+   * When provided, media URLs will be HTTP URLs instead of file:// URLs
+   * Example: 'http://localhost:3000/studio/api/media'
+   * @default null (uses file:// URLs)
+   */
+  mediaBaseUrl?: string
 }
 
 export interface FileMetadata {

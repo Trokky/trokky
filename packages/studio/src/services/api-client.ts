@@ -51,7 +51,7 @@ export class ApiClient {
       mode: 'integrated',
       features: {
         search: false,
-        media: false,
+        media: true, // Enable media features for integrated mode
         auth: true,
         structure: true,
         workflows: false
@@ -149,10 +149,14 @@ export class ApiClient {
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
     
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...(options.headers as Record<string, string> || {})
     };
+
+    // Only set Content-Type if not FormData (browser will set it automatically for FormData)
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     // Add auth token if available and not skipped
     if (this.authToken && !skipAuth) {
@@ -353,7 +357,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.get<MediaFile[]>('/media', options);
+    return this.get<MediaFile[]>('/api/media', options);
   }
 
   /**
@@ -370,10 +374,9 @@ export class ApiClient {
       formData.append('metadata', JSON.stringify(metadata));
     }
 
-    return this.request<MediaFile>('/media', {
+    return this.request<MediaFile>('/api/media', {
       method: 'POST',
-      body: formData,
-      headers: {} // Don't set Content-Type for FormData
+      body: formData
     });
   }
 
@@ -384,7 +387,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.delete<void>(`/media/${id}`);
+    return this.delete<void>(`/api/media/${id}`);
   }
 
   // ========================================

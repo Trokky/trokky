@@ -303,6 +303,19 @@ export class TrokkyCore {
     return await this.storage.getFileContent(id)
   }
 
+  public async listMedia(options?: { limit?: number; offset?: number }): Promise<MediaFile[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('listMedia')
+    }
+
+    // Use the storage adapter's listMedia method if available
+    if (!this.storage.listMedia) {
+      throw new Error('Media listing not supported by storage adapter')
+    }
+    
+    return await this.storage.listMedia(options || {})
+  }
+
   public async deleteMedia(id: string): Promise<void> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('deleteMedia')

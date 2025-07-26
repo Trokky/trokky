@@ -17,7 +17,7 @@ import {
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
 export class FilesystemAdapter implements StorageAdapter {
-  private config: Required<FilesystemAdapterConfig>
+  private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl'>> & { mediaBaseUrl?: string }
   
   // Security limits
   private readonly MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
@@ -34,7 +34,8 @@ export class FilesystemAdapter implements StorageAdapter {
       syncWrites: config.syncWrites ?? false,
       fileMode: config.fileMode ?? 0o644,
       dirMode: config.dirMode ?? 0o755,
-      silent: config.silent ?? false
+      silent: config.silent ?? false,
+      mediaBaseUrl: config.mediaBaseUrl
     }
 
     // Initialize directories
@@ -280,9 +281,14 @@ export class FilesystemAdapter implements StorageAdapter {
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
+      // Generate appropriate URL based on configuration
+      const fileUrl = this.config.mediaBaseUrl 
+        ? `${this.config.mediaBaseUrl}/${metadata.id}/file`
+        : `file://${path.resolve(filePath)}`
+
       const mediaFile: MediaFile = {
         id: metadata.id,
-        url: `file://${path.resolve(filePath)}`,
+        url: fileUrl,
         filename: metadata.filename,
         contentType: metadata.contentType,
         size: metadata.size,
@@ -327,9 +333,14 @@ export class FilesystemAdapter implements StorageAdapter {
 
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
+      // Generate appropriate URL based on configuration
+      const fileUrl = this.config.mediaBaseUrl 
+        ? `${this.config.mediaBaseUrl}/${fileMetadata.id}/file`
+        : `file://${path.resolve(filePath)}`
+
       const mediaFile: MediaFile = {
         id: fileMetadata.id,
-        url: `file://${path.resolve(filePath)}`,
+        url: fileUrl,
         filename: fileMetadata.filename,
         contentType: fileMetadata.contentType,
         size: fileMetadata.size,
@@ -338,7 +349,7 @@ export class FilesystemAdapter implements StorageAdapter {
           extension: fileMetadata.extension,
           originalFilename: fileMetadata.filename
         },
-        _createdAt: fileMetadata.createdAt
+        _createdAt: fileMetadata.createdAt instanceof Date ? fileMetadata.createdAt : new Date(fileMetadata.createdAt)
       }
 
       return mediaFile
@@ -403,6 +414,64 @@ export class FilesystemAdapter implements StorageAdapter {
       ])
     } catch (error) {
       throw new Error(`Failed to delete file ${id}: ${error}`)
+    }
+  }
+
+  public async listMedia(options: ListOptions = {}): Promise<MediaFile[]> {
+    try {
+      // Apply resource limits
+      const limit = Math.min(options.limit || 1000, 1000)
+      const offset = Math.max(options.offset || 0, 0)
+      
+      const metadataDir = path.join(this.config.mediaDir, '.metadata')
+      
+      console.log('[DEBUG] FilesystemAdapter.listMedia - checking metadata dir:', metadataDir)
+      
+      // Check if metadata directory exists
+      try {
+        await fs.access(metadataDir, constants.F_OK)
+        console.log('[DEBUG] Metadata directory exists')
+      } catch (error) {
+        console.log('[DEBUG] Metadata directory does not exist:', error)
+        return []
+      }
+
+      const files = await fs.readdir(metadataDir)
+      const jsonFiles = files.filter(file => file.endsWith('.json'))
+      
+      console.log('[DEBUG] Found metadata files:', jsonFiles)
+
+      let mediaFiles: MediaFile[] = []
+
+      // Read all media metadata files
+      for (const file of jsonFiles) {
+        const id = path.basename(file, '.json')
+        console.log('[DEBUG] Processing media file:', id)
+        try {
+          const mediaFile = await this.getFile(id)
+          if (mediaFile) {
+            console.log('[DEBUG] Successfully loaded media file:', { id: mediaFile.id, filename: mediaFile.filename })
+            mediaFiles.push(mediaFile)
+          }
+        } catch (error) {
+          // Skip corrupted files but log the error
+          console.error(`[ERROR] Failed to load media file ${id}:`, error)
+        }
+      }
+
+      console.log('[DEBUG] Total loaded media files:', mediaFiles.length)
+
+      // Sort by creation date (newest first)
+      mediaFiles.sort((a, b) => new Date(b._createdAt).getTime() - new Date(a._createdAt).getTime())
+
+      // Apply pagination
+      const result = mediaFiles.slice(offset, offset + limit)
+      console.log('[DEBUG] Returning media files after pagination:', result.length)
+      
+      return result
+    } catch (error) {
+      console.error('[ERROR] FilesystemAdapter.listMedia failed:', error)
+      throw new Error(`Failed to list media files: ${error}`)
     }
   }
 
