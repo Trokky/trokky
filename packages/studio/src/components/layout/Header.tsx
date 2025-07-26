@@ -8,10 +8,13 @@ import {
   SunIcon,
   MoonIcon,
   ComputerDesktopIcon,
-  Bars3Icon
+  Bars3Icon,
+  PhotoIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -28,6 +31,7 @@ export function Header({
   showMedia = true,
   showUserMenu = true
 }: HeaderProps) {
+  const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
@@ -134,7 +138,18 @@ export function Header({
           {showMedia && (
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link to="/media">
+                <PhotoIcon className="h-4 w-4 mr-1" />
                 Media
+              </Link>
+            </Button>
+          )}
+
+          {/* Users button - admin only */}
+          {user?.role === 'admin' && (
+            <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
+              <Link to="/users">
+                <UsersIcon className="h-4 w-4 mr-1" />
+                Users
               </Link>
             </Button>
           )}
@@ -142,7 +157,8 @@ export function Header({
           {/* Settings button */}
           <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
             <Link to="/settings">
-              <Cog6ToothIcon className="h-4 w-4" />
+              <Cog6ToothIcon className="h-4 w-4 mr-1" />
+              Settings
             </Link>
           </Button>
 
@@ -158,14 +174,46 @@ export function Header({
 
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                  {/* User info placeholder */}
+                  {/* User info */}
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Studio User
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      user@example.com
-                    </p>
+                    <div className="flex items-center space-x-3">
+                      {user?.profileImage ? (
+                        <img 
+                          src={user.profileImage} 
+                          alt="Profile" 
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
+                          <span className="text-white font-medium text-sm">
+                            {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {user?.firstName && user?.lastName 
+                            ? `${user.firstName} ${user.lastName}`
+                            : user?.username || 'Studio User'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                          {user?.email || 'user@example.com'}
+                        </p>
+                        {user?.role && (
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full mt-1 ${
+                            user.role === 'admin' 
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                              : user.role === 'editor'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                              : user.role === 'author'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                          }`}>
+                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Theme selector */}
@@ -197,6 +245,15 @@ export function Header({
 
                   {/* Menu items */}
                   <div className="py-1">
+                    {user?.role === 'admin' && (
+                      <Link
+                        to="/users"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        Users & Access
+                      </Link>
+                    )}
                     <Link
                       to="/settings"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -206,7 +263,10 @@ export function Header({
                     </Link>
                     <button
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                      onClick={() => setUserMenuOpen(false)}
+                      onClick={async () => {
+                        setUserMenuOpen(false);
+                        await logout();
+                      }}
                     >
                       Sign out
                     </button>

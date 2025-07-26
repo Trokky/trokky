@@ -253,6 +253,101 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
               )}
             </NavLink>
 
+            {/* Media Link */}
+            <NavLink
+              to="/media"
+              onClick={handleItemClick}
+              className={({ isActive }) => cn(
+                'flex items-center transition-colors group relative',
+                isCollapsed 
+                  ? 'p-3 mx-2 rounded-lg justify-center' 
+                  : 'px-3 py-2 rounded-lg',
+                isActive
+                  ? isCollapsed
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+              )}
+              title={isCollapsed ? 'Media' : undefined}
+            >
+              <PhotoIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
+              {!isCollapsed && (
+                <span className="font-medium">Media</span>
+              )}
+              
+              {/* Tooltip for collapsed mode */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                  Media
+                </div>
+              )}
+            </NavLink>
+
+            {/* Users Link */}
+            <NavLink
+              to="/users"
+              onClick={handleItemClick}
+              className={({ isActive }) => cn(
+                'flex items-center transition-colors group relative',
+                isCollapsed 
+                  ? 'p-3 mx-2 rounded-lg justify-center' 
+                  : 'px-3 py-2 rounded-lg',
+                isActive
+                  ? isCollapsed
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+              )}
+              title={isCollapsed ? 'Users & Access' : undefined}
+            >
+              <UsersIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
+              {!isCollapsed && (
+                <span className="font-medium">Users & Access</span>
+              )}
+              
+              {/* Tooltip for collapsed mode */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                  Users & Access
+                </div>
+              )}
+            </NavLink>
+
+            {/* Settings Link */}
+            <NavLink
+              to="/settings"
+              onClick={handleItemClick}
+              className={({ isActive }) => cn(
+                'flex items-center transition-colors group relative',
+                isCollapsed 
+                  ? 'p-3 mx-2 rounded-lg justify-center' 
+                  : 'px-3 py-2 rounded-lg',
+                isActive
+                  ? isCollapsed
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+              )}
+              title={isCollapsed ? 'Settings' : undefined}
+            >
+              <Cog6ToothIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
+              {!isCollapsed && (
+                <span className="font-medium">Settings</span>
+              )}
+              
+              {/* Tooltip for collapsed mode */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                  Settings
+                </div>
+              )}
+            </NavLink>
+
+            {/* Divider before content sections */}
+            {navigation && navigation.items.length > 0 && (
+              <div className="mx-3 my-2 border-t border-gray-200 dark:border-gray-700" />
+            )}
+
             {/* Fields Demo Link */}
             <NavLink
               to="/fields-demo"

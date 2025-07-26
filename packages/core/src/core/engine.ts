@@ -739,7 +739,7 @@ export class TrokkyCore {
     }
   }
 
-  public async authenticateUser(username: string, password: string): Promise<{ user: User; token: string } | null> {
+  public async authenticateUser(username: string, password: string, options: { rememberMe?: boolean } = {}): Promise<{ user: User; token: string; refreshToken: string } | null> {
     try {
       // Get user by username
       const user = await this.getUserByUsername(username)
@@ -756,8 +756,12 @@ export class TrokkyCore {
       // Update last login time
       await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
 
-      // Generate token
-      const token = await this.generateAuthToken(user)
+      // Generate tokens - different expiry times based on rememberMe
+      const tokenExpiresIn = options.rememberMe ? '7d' : '2h'
+      const refreshTokenExpiresIn = options.rememberMe ? '30d' : '7d'
+      
+      const token = await this.generateAuthToken(user, tokenExpiresIn)
+      const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn)
 
       // Log successful login
       this.logAuditEvent({
@@ -769,7 +773,8 @@ export class TrokkyCore {
         success: true,
         details: {
           role: user.role,
-          lastLoginAt: new Date().toISOString()
+          lastLoginAt: new Date().toISOString(),
+          rememberMe: options.rememberMe
         }
       })
 
@@ -777,7 +782,8 @@ export class TrokkyCore {
       const { passwordHash, ...safeUser } = user
       return { 
         user: { ...safeUser, passwordHash: '' } as User, // Keep type but empty the hash
-        token 
+        token,
+        refreshToken
       }
     } catch (error) {
       console.error('Authentication failed:', error instanceof Error ? error.message : 'Unknown error')

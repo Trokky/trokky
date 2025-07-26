@@ -434,7 +434,7 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
   // Authentication endpoints
   router.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, rememberMe = false } = req.body;
       
       if (!username || !password) {
         return res.status(400).json({ 
@@ -444,7 +444,7 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       }
       
       // Use core engine's authentication method
-      const authResult = await _config.cms.authenticateUser(username, password);
+      const authResult = await _config.cms.authenticateUser(username, password, { rememberMe });
       if (!authResult) {
         return res.status(401).json({
           success: false,
@@ -452,7 +452,7 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
         });
       }
       
-      const { user: authenticatedUser, token } = authResult;
+      const { user: authenticatedUser, token, refreshToken } = authResult;
       
       // Get token expiration time
       const session = await _config.cms.verifyAuthToken(token);
@@ -461,11 +461,13 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
         success: true,
         data: {
           token,
+          refreshToken: refreshToken || token, // Fallback to token if no refresh token
           user: authenticatedUser,
           expiresAt: session?.expiresAt
         }
       });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Authentication failed' }
