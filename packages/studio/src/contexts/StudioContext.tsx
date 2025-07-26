@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { apiClient } from '@/services/api-client';
+import { createStudioLogger } from '@/utils/logger';
 import type { StudioContext } from '@trokky/fields';
 
 const StudioContextInstance = createContext<StudioContext | null>(null);
@@ -87,7 +88,12 @@ class FieldEventBus {
 const fieldEventBus = new FieldEventBus();
 
 export function StudioContextProvider({ children }: StudioContextProviderProps) {
-  console.log('v2 StudioContextProvider: Rendering provider...');
+  // Create a dedicated logger for field components
+  const fieldLogger = useMemo(() => createStudioLogger('Fields'), []);
+  
+  if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
+    console.log('v2 StudioContextProvider: Rendering provider...');
+  }
   
   // Toast system (simplified - could be enhanced with a proper toast library)
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -119,10 +125,12 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 
   // Create the studio context value
   const studioContext = useMemo((): StudioContext => {
-    console.log('v2 StudioContext: Creating context with apiClient methods:', {
-      getMedia: !!apiClient.getMedia,
-      getDocuments: !!apiClient.getDocuments
-    });
+    if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
+      console.log('v2 StudioContext: Creating context with apiClient methods:', {
+        getMedia: !!apiClient.getMedia,
+        getDocuments: !!apiClient.getDocuments
+      });
+    }
     
     return {
       apiClient: {
@@ -179,8 +187,15 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         openModal,
         closeModal,
       },
+      
+      logger: {
+        debug: fieldLogger.debug.bind(fieldLogger),
+        info: fieldLogger.info.bind(fieldLogger),
+        warn: fieldLogger.warn.bind(fieldLogger),
+        error: fieldLogger.error.bind(fieldLogger),
+      },
     };
-  }, [showToast, showConfirm, openModal, closeModal]);
+  }, [showToast, showConfirm, openModal, closeModal, fieldLogger]);
 
   return (
     <StudioContextInstance.Provider value={studioContext}>
@@ -192,7 +207,9 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 // Hook to use Studio context in components
 export function useStudioContext(): StudioContext | null {
   const context = useContext(StudioContextInstance);
-  console.log('v2 useStudioContext: Retrieved context:', !!context);
+  if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
+    console.log('v2 useStudioContext: Retrieved context:', !!context);
+  }
   return context;
 }
 

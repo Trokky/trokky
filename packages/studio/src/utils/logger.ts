@@ -21,7 +21,8 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 }
 
 // Default to info level in production, debug in development
-const DEFAULT_LEVEL: LogLevel = (import.meta as any).env?.DEV ? 'debug' : 'info'
+// Use cross-platform development detection that works in all environments
+const DEFAULT_LEVEL: LogLevel = (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) ? 'debug' : 'info'
 
 export class StudioLogger {
   private config: StudioLoggerConfig

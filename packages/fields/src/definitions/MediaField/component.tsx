@@ -104,14 +104,15 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   
-  // Debug Studio context availability (development only)
-  // Use a more reliable development check that works across platforms
-  const isDevelopment = typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true;
-  if (isDevelopment) {
-    console.log('MediaField: studioContext available:', !!studioContext);
-    console.log('MediaField: studioContext.apiClient available:', !!studioContext?.apiClient);
-    console.log('MediaField: studioContext.apiClient.getMedia available:', !!(studioContext?.apiClient?.getMedia));
-    console.log('MediaField: documentContext available:', !!documentContext);
+  // Debug Studio context availability using Studio logger
+  if (studioContext?.logger) {
+    studioContext.logger.debug('MediaField initialized', {
+      hasStudioContext: !!studioContext,
+      hasApiClient: !!studioContext?.apiClient,
+      hasGetMedia: !!(studioContext?.apiClient?.getMedia),
+      hasDocumentContext: !!documentContext,
+      fieldId
+    });
   }
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,28 +129,24 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       try {
         setAssetLoadError(null);
-        if (isDevelopment) {
-          console.log('MediaField: Loading asset with ID:', value.asset._ref);
-        }
+        studioContext.logger?.debug('Loading asset', { assetId: value.asset._ref });
         
         const response = await studioContext.apiClient.getMediaById(value.asset._ref);
         
         if (response.success && response.data?.file) {
-          if (isDevelopment) {
-            console.log('MediaField: Asset loaded successfully:', response.data.file);
-          }
+          studioContext.logger?.info('Asset loaded successfully', { 
+            assetId: value.asset._ref,
+            filename: response.data.file.filename,
+            contentType: response.data.file.contentType
+          });
           setCurrentAsset(response.data.file);
         } else {
-          if (isDevelopment) {
-            console.warn('MediaField: Asset not found:', value.asset._ref);
-          }
+          studioContext.logger?.warn('Asset not found', { assetId: value.asset._ref });
           setAssetLoadError('Media asset no longer exists');
           setCurrentAsset(null);
         }
       } catch (error) {
-        if (isDevelopment) {
-          console.error('MediaField: Failed to load asset:', error);
-        }
+        studioContext.logger?.error('Failed to load asset', error);
         setAssetLoadError('Failed to load media asset');
         setCurrentAsset(null);
       }
@@ -214,9 +211,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       }, 500);
       
     } catch (error) {
-      if (isDevelopment) {
-        console.error('Upload failed:', error);
-      }
+      studioContext.logger?.error('Upload failed', error);
       setIsUploading(false);
       setUploadProgress(0);
       
@@ -259,9 +254,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         throw new Error('Upload failed: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      if (isDevelopment) {
-        console.error('Secure upload failed:', error);
-      }
+      studioContext.logger?.error('Secure upload failed', error);
       throw new Error('Upload failed. Please try again or use the media browser to select existing files.');
     }
   };
@@ -636,6 +629,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         mediaTypeFilter={validation.restrictToMediaType}
         showVariantSelector={options.showVariantSelector}
         apiClient={studioContext?.apiClient}
+        logger={studioContext?.logger}
       />
 
       {/* TODO: Add metadata editor modal */}

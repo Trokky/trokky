@@ -114,28 +114,24 @@ export function MediaFieldPreview(props: MediaFieldPreviewProps) {
 
       try {
         setAssetLoadError(null);
-        if (isDevelopment) {
-          console.log('MediaFieldPreview: Loading asset with ID:', value.asset._ref);
-        }
+        studioContext.logger?.debug('MediaFieldPreview: Loading asset', { assetId: value.asset._ref });
         
         const response = await studioContext.apiClient.getMediaById(value.asset._ref);
         
         if (response.success && response.data?.file) {
-          if (isDevelopment) {
-            console.log('MediaFieldPreview: Asset loaded successfully:', response.data.file);
-          }
+          studioContext.logger?.info('MediaFieldPreview: Asset loaded successfully', {
+            assetId: value.asset._ref,
+            filename: response.data.file.filename,
+            contentType: response.data.file.contentType
+          });
           setCurrentAsset(response.data.file);
         } else {
-          if (isDevelopment) {
-            console.warn('MediaFieldPreview: Asset not found:', value.asset._ref);
-          }
+          studioContext.logger?.warn('MediaFieldPreview: Asset not found', { assetId: value.asset._ref });
           setAssetLoadError('Media asset no longer exists');
           setCurrentAsset(null);
         }
       } catch (error) {
-        if (isDevelopment) {
-          console.error('MediaFieldPreview: Failed to load asset:', error);
-        }
+        studioContext.logger?.error('MediaFieldPreview: Failed to load asset', error);
         setAssetLoadError('Failed to load media asset');
         setCurrentAsset(null);
       }

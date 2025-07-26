@@ -63,6 +63,13 @@ interface MediaBrowserProps {
   showVariantSelector?: boolean;
   context?: string;
   apiClient?: MediaBrowserAPI;
+  // Studio logger for consistent logging
+  logger?: {
+    debug: (message: string, data?: any) => void;
+    info: (message: string, data?: any) => void;
+    warn: (message: string, data?: any) => void;
+    error: (message: string, error?: Error | any) => void;
+  };
 }
 
 export function MediaBrowser({ 
@@ -72,7 +79,8 @@ export function MediaBrowser({
   mediaTypeFilter, 
   showVariantSelector = false,
   context,
-  apiClient
+  apiClient,
+  logger
 }: MediaBrowserProps) {
   const handleSelect = (value: MediaFieldValue) => {
     onSelect(value);
@@ -102,6 +110,7 @@ export function MediaBrowser({
         showVariantSelector={showVariantSelector}
         context={context}
         apiClient={apiClient}
+        logger={logger}
       />
     </CustomModal>
   );

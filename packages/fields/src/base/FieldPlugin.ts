@@ -61,6 +61,14 @@ export interface StudioContext {
     openModal: (component: React.ComponentType, props?: any) => void;
     closeModal: () => void;
   };
+  
+  // Studio logger for field components
+  logger: {
+    debug: (message: string, data?: any) => void;
+    info: (message: string, data?: any) => void;
+    warn: (message: string, data?: any) => void;
+    error: (message: string, error?: Error | any) => void;
+  };
 }
 
 // Props passed to field components

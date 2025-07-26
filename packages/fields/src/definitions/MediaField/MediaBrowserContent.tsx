@@ -46,6 +46,13 @@ interface MediaBrowserContentProps {
   context?: string;
   // TODO: Add API client when Studio context is available
   apiClient?: MediaBrowserAPI;
+  // Studio logger for consistent logging
+  logger?: {
+    debug: (message: string, data?: any) => void;
+    info: (message: string, data?: any) => void;
+    warn: (message: string, data?: any) => void;
+    error: (message: string, error?: Error | any) => void;
+  };
 }
 
 // Helper functions
@@ -85,7 +92,8 @@ export function MediaBrowserContent({
   mediaTypeFilter, 
   showVariantSelector = false,
   context,
-  apiClient
+  apiClient,
+  logger
 }: MediaBrowserContentProps) {
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,40 +112,30 @@ export function MediaBrowserContent({
   const loadMediaFiles = async () => {
     setIsLoading(true);
     try {
-      if (isDevelopment) {
-        console.log('MediaBrowser: apiClient received:', apiClient);
-        console.log('MediaBrowser: apiClient type:', typeof apiClient);
-        console.log('MediaBrowser: apiClient.getMedia available:', !!(apiClient?.getMedia));
-      }
+      logger?.debug('MediaBrowser: apiClient received', { 
+        apiClient: !!apiClient, 
+        type: typeof apiClient, 
+        hasGetMedia: !!(apiClient?.getMedia) 
+      });
       
       if (apiClient && typeof apiClient.getMedia === 'function') {
         // Use real API when available
-        if (isDevelopment) {
-          console.log('MediaBrowser: Loading media from API...');
-        }
+        logger?.debug('MediaBrowser: Loading media from API...');
         const response = await apiClient.getMedia();
         
-        if (isDevelopment) {
-          console.log('MediaBrowser: API response:', response);
-        }
+        logger?.debug('MediaBrowser: API response received', response);
         
         // Handle v2 API response format only
         if (response?.success && Array.isArray(response.data)) {
-          if (isDevelopment) {
-            console.log('MediaBrowser: Loaded', response.data.length, 'media files from API');
-          }
+          logger?.info('MediaBrowser: Loaded media files from API', { count: response.data.length });
           setMediaFiles(response.data);
         } else {
-          if (isDevelopment) {
-            console.warn('MediaBrowser: Invalid API response format', response);
-          }
+          logger?.warn('MediaBrowser: Invalid API response format', response);
           setMediaFiles([]);
         }
       } else {
         // Fallback to mock data for development/demo
-        if (isDevelopment) {
-          console.warn('MediaBrowser: No API client provided, using mock data');
-        }
+        logger?.warn('MediaBrowser: No API client provided, using mock data');
         const mockData: MediaFile[] = [
           {
             id: 'asset-1',
@@ -195,7 +193,7 @@ export function MediaBrowserContent({
         setMediaFiles(mockData);
       }
     } catch (error) {
-      console.error('Failed to load media files:', error);
+      logger?.error('Failed to load media files', error);
       setMediaFiles([]);
     } finally {
       setIsLoading(false);
