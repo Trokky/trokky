@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { useAuth } from '@/hooks/useAuth';
@@ -193,15 +194,13 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {user ? 'Edit User' : 'Create User'}
-          </h3>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={user ? 'Edit User' : 'Create User'}
+      size="xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Basic Information */}
             <div className="space-y-3">
@@ -392,25 +391,25 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
               </div>
             </div>
           </div>
+          
+          {/* Form Actions */}
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+              Cancel
+            </Button>
+            <Button type="submit" onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  {user ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                user ? 'Update User' : 'Create User'
+              )}
+            </Button>
+          </div>
         </form>
-
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-          <Button variant="ghost" onClick={onClose} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button type="submit" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <LoadingSpinner size="sm" className="mr-2" />
-                {user ? 'Updating...' : 'Creating...'}
-              </>
-            ) : (
-              user ? 'Update User' : 'Create User'
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
