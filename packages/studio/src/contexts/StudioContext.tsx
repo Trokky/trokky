@@ -3,7 +3,7 @@
  * Provides field components access to Studio capabilities
  */
 
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import type { StudioContext } from '@trokky/fields';
@@ -91,9 +91,12 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   // Create a dedicated logger for field components
   const fieldLogger = useMemo(() => createStudioLogger('Fields'), []);
   
-  if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
-    console.log('v2 StudioContextProvider: Rendering provider...');
-  }
+  // Only log once when provider is first created
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
+      console.log('v2 StudioContextProvider: Initialized');
+    }
+  }, []);
   
   // Toast system (simplified - could be enhanced with a proper toast library)
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -125,12 +128,6 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 
   // Create the studio context value
   const studioContext = useMemo((): StudioContext => {
-    if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
-      console.log('v2 StudioContext: Creating context with apiClient methods:', {
-        getMedia: !!apiClient.getMedia,
-        getDocuments: !!apiClient.getDocuments
-      });
-    }
     
     return {
       apiClient: {
@@ -166,7 +163,6 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         },
         hasPermission: (resource: string, action: string) => {
           // Simple permission check - in production you'd integrate with auth system
-          console.log(`v2 StudioContext: Checking permission ${action} on ${resource}`);
           return true; // For demo, allow all permissions
         },
         getAccessToken: () => {
@@ -206,11 +202,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 
 // Hook to use Studio context in components
 export function useStudioContext(): StudioContext | null {
-  const context = useContext(StudioContextInstance);
-  if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
-    console.log('v2 useStudioContext: Retrieved context:', !!context);
-  }
-  return context;
+  return useContext(StudioContextInstance);
 }
 
 // Export field event bus for form integration

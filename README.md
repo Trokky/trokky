@@ -160,6 +160,32 @@ npx trokky migrate --from sanity \
   --output ./my-trokky-project
 ```
 
+## 🐛 Development & Debugging
+
+### Studio Logger Control
+
+Trokky v2 includes a comprehensive logging system for development and debugging. You can control log verbosity in the browser console:
+
+```javascript
+// Control log levels (most to least verbose)
+window.TrokkyLogger.setLevel('debug')  // Shows everything
+window.TrokkyLogger.setLevel('info')   // Shows info, warnings, errors
+window.TrokkyLogger.setLevel('warn')   // Shows warnings and errors (default)
+window.TrokkyLogger.setLevel('error')  // Shows errors only
+
+// Disable/enable all logging
+window.TrokkyLogger.disable()
+window.TrokkyLogger.enable()
+
+// Check current level
+window.TrokkyLogger.getLevel()
+```
+
+**Default Behavior:**
+- **Development**: `warn` level (warnings and errors only)
+- **Production**: `error` level (errors only)
+- Settings persist across page reloads in development
+
 ## 📚 Documentation
 
 - [**Project Specification**](./docs/specs/PROJECT_SPEC.md) - Detailed project overview

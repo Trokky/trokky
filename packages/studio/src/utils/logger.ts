@@ -20,16 +20,16 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3
 }
 
-// Default to info level in production, debug in development
+// Default to warn level to reduce console noise
 // Use cross-platform development detection that works in all environments
-const DEFAULT_LEVEL: LogLevel = (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) ? 'debug' : 'info'
+let GLOBAL_LOG_LEVEL: LogLevel = (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) ? 'warn' : 'error'
 
 export class StudioLogger {
   private config: StudioLoggerConfig
 
   constructor(component: string, config: Partial<StudioLoggerConfig> = {}) {
     this.config = {
-      level: DEFAULT_LEVEL,
+      level: GLOBAL_LOG_LEVEL,
       enabled: true,
       prefix: `[Studio:${component}]`,
       ...config
@@ -102,12 +102,33 @@ export function createStudioLogger(component: string): StudioLogger {
  * Global configuration for all Studio loggers
  */
 export const StudioLoggerConfig = {
-  setLevel(_level: LogLevel): void {
-    // Note: This affects only new loggers created after this call
-    // Could be enhanced to update existing loggers if needed
+  setLevel(level: LogLevel): void {
+    GLOBAL_LOG_LEVEL = level;
+    // Also store in window for persistence across page reloads in dev
+    if (typeof window !== 'undefined') {
+      (window as any).__TROKKY_LOG_LEVEL__ = level;
+    }
+  },
+  
+  getLevel(): LogLevel {
+    return GLOBAL_LOG_LEVEL;
   },
   
   disable(): void {
-    // Could set a global flag to disable all logging
+    GLOBAL_LOG_LEVEL = 'error'; // Effectively disable by setting to highest level
+  },
+  
+  enable(): void {
+    GLOBAL_LOG_LEVEL = (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) ? 'warn' : 'error';
   }
+}
+
+// Check for persisted log level from previous session
+if (typeof window !== 'undefined' && (window as any).__TROKKY_LOG_LEVEL__) {
+  GLOBAL_LOG_LEVEL = (window as any).__TROKKY_LOG_LEVEL__;
+}
+
+// Expose logger config to window for easy console control
+if (typeof window !== 'undefined') {
+  (window as any).TrokkyLogger = StudioLoggerConfig;
 }

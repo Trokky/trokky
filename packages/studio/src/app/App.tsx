@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
@@ -22,8 +22,19 @@ const queryClient = new QueryClient({
 function AppContent() {
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const logger = createStudioLogger('AppContent');
+  const lastStateRef = useRef<{ isAuthenticated?: boolean; isLoading?: boolean }>({});
 
-  logger.info('AppContent render', { isAuthenticated, isLoading });
+  // Only log when auth state actually changes, not on every render
+  useEffect(() => {
+    const currentState = { isAuthenticated, isLoading };
+    const lastState = lastStateRef.current;
+    
+    // Only log if state actually changed
+    if (lastState.isAuthenticated !== isAuthenticated || lastState.isLoading !== isLoading) {
+      logger.debug('Auth state changed', currentState);
+      lastStateRef.current = currentState;
+    }
+  }, [isAuthenticated, isLoading, logger]);
 
   const handleLoginSuccess = () => {
     logger.info('Login successful, rechecking auth state');
@@ -31,7 +42,6 @@ function AppContent() {
   };
 
   if (isLoading) {
-    logger.info('Showing loading screen');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
@@ -45,11 +55,9 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    logger.info('Not authenticated, showing login page');
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  logger.info('Authenticated, showing app router');
   return (
     <>
       <AppRouter />
