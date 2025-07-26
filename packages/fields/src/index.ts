@@ -103,5 +103,43 @@ export type {
   NumberFieldOptions
 } from './definitions/NumberField/index.js';
 
+export {
+  booleanFieldPlugin,
+  BooleanFieldComponent,
+  BooleanFieldPreview,
+  validateBooleanField,
+  convertToBoolean,
+  getBooleanDisplayText
+} from './definitions/BooleanField/index.js';
+
+export type {
+  BooleanFieldDefinition,
+  BooleanValidation,
+  BooleanFieldOptions
+} from './definitions/BooleanField/index.js';
+
+export {
+  arrayFieldPlugin,
+  ArrayFieldComponent,
+  ArrayFieldPreview,
+  validateArrayField,
+  validateArrayAdd,
+  validateArrayRemove,
+  validateArrayMove,
+  getDefaultItemValue,
+  sanitizeArrayItem
+} from './definitions/ArrayField/index.js';
+
+export type {
+  ArrayFieldDefinition,
+  ArrayValidation,
+  ArrayFieldOptions,
+  ArrayLayout,
+  ArrayItemType,
+  ArrayOption,
+  ArrayOperations,
+  ArrayFieldContext
+} from './definitions/ArrayField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';
