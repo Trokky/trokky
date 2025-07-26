@@ -160,6 +160,18 @@ export interface TrokkyConfig {
   }
   schemas: string | ContentSchema[]
   api?: ApiConfig
+  media?: {
+    imageProcessor?: 'none' | 'sharp' | 'cloudflare-images' | 'imagekit' | 'imgix' | 'custom'
+    imageVariants?: Array<{
+      name: string
+      width?: number
+      height?: number
+      format?: 'jpeg' | 'png' | 'webp' | 'avif'
+      quality?: number
+      fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'
+    }>
+    imageProcessorOptions?: Record<string, unknown>
+  }
   security?: {
     validateInput?: boolean
     rateLimitEnabled?: boolean

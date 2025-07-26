@@ -48,6 +48,18 @@ export {
 // Studio integration
 export { StudioIntegration, type StudioConfig, type StudioRoute, type StudioRequest, type StudioResponse } from './studio/integration.js'
 
+// Media processing
+export { 
+  ImageProcessor, 
+  NoOpImageProcessor, 
+  createImageProcessor, 
+  DEFAULT_IMAGE_VARIANTS,
+  type ImageVariant, 
+  type ProcessedImage, 
+  type ProcessedImageVariant, 
+  type ImageProcessorConfig 
+} from './media/image-processor.js'
+
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
 export { 

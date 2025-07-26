@@ -5,6 +5,7 @@ import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
 import { createLogger } from '../utils/logger.js'
+import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig } from '../media/image-processor.js'
 import { 
   SchemaNotFoundError, 
   DocumentNotFoundError, 
@@ -40,6 +41,8 @@ export interface TrokkyCoreOptions {
   auditLogger?: (event: AuditEvent) => void // Optional audit logging function
   cryptoAdapter?: CryptoAdapter // Custom crypto adapter (auto-detected if not provided)
   cryptoOptions?: CryptoAdapterOptions // Options for crypto adapter
+  imageProcessor?: ImageProcessor // Custom image processor (auto-created if not provided)
+  imageProcessorConfig?: ImageProcessorConfig // Image processor configuration
 }
 
 export interface AuditEvent {
@@ -66,6 +69,7 @@ export class TrokkyCore {
   private jwtSecret: string
   private auditLogger?: (event: AuditEvent) => void
   private cryptoAdapter: CryptoAdapter
+  private imageProcessor: ImageProcessor
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
 
@@ -94,6 +98,14 @@ export class TrokkyCore {
       ...options.cryptoOptions,
       adapterType: options.cryptoOptions?.adapterType || 'auto'
     })
+    
+    // Initialize image processor from config or options
+    const imageProcessorConfig = options.imageProcessorConfig || {
+      type: config.media?.imageProcessor || 'none',
+      variants: config.media?.imageVariants || [],
+      options: config.media?.imageProcessorOptions || {}
+    }
+    this.imageProcessor = options.imageProcessor || createImageProcessor(imageProcessorConfig)
     
     if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
       const rateLimitConfig: RateLimitConfig = {
@@ -234,7 +246,37 @@ export class TrokkyCore {
       extension: this.getFileExtension(file.name)
     }
 
-    return await this.storage.uploadFile(file, metadata)
+    // Upload to storage first
+    const mediaFile = await this.storage.uploadFile(file, metadata)
+
+    // Process image if it's an image file
+    if (file.type.startsWith('image/')) {
+      try {
+        const processedImage = await this.imageProcessor.processImage(file, {
+          id: metadata.id,
+          filename: metadata.filename,
+          path: mediaFile.url
+        })
+
+        // Store processed image metadata in the media file
+        mediaFile.metadata = {
+          ...mediaFile.metadata,
+          imageVariants: processedImage.variants,
+          originalDimensions: {
+            width: processedImage.original.width,
+            height: processedImage.original.height
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail the upload - image processing is optional
+        this.logger.warn('Image processing failed', { 
+          fileId: metadata.id, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        })
+      }
+    }
+
+    return mediaFile
   }
 
   public async getMedia(id: string): Promise<MediaFile | null> {
@@ -264,6 +306,19 @@ export class TrokkyCore {
       throw new DocumentNotFoundError('media', id)
     }
 
+    // Delete image variants if it's an image
+    if (existingMedia.contentType.startsWith('image/')) {
+      try {
+        await this.imageProcessor.deleteImage(id)
+      } catch (error) {
+        // Log error but don't fail the deletion - variants cleanup is optional
+        this.logger.warn('Image variants cleanup failed', { 
+          fileId: id, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        })
+      }
+    }
+
     return await this.storage.deleteFile(id)
   }
 
@@ -280,13 +335,23 @@ export class TrokkyCore {
     return this.validator.validateDocument(collection, data)
   }
 
+  // Image processing operations
+  public getImageUrl(imageId: string, variantName?: string): string {
+    return this.imageProcessor.getImageUrl(imageId, variantName)
+  }
+
+  public async getImageProcessor(): Promise<ImageProcessor> {
+    return this.imageProcessor
+  }
+
   // Health check
   public async healthCheck(): Promise<boolean> {
     try {
       const storageHealthy = await this.storage.healthCheck()
       const schemasLoaded = this.schemas.getAllSchemas().length > 0
+      const imageProcessorHealthy = await this.imageProcessor.healthCheck()
       
-      return storageHealthy && schemasLoaded
+      return storageHealthy && schemasLoaded && imageProcessorHealthy
     } catch {
       return false
     }
