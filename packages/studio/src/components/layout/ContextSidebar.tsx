@@ -363,16 +363,131 @@ function MediaContext() {
 }
 
 function UsersContext() {
+  const [userStats, setUserStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserStats();
+  }, []);
+
+  const loadUserStats = async () => {
+    try {
+      const response = await apiClient.get('/api/users');
+      if (response.success && response.data && response.data.users) {
+        const users = response.data.users;
+        const stats = {
+          total: users.length,
+          active: users.filter((u: any) => u.isActive).length,
+          inactive: users.filter((u: any) => !u.isActive).length,
+          roles: users.reduce((acc: any, user: any) => {
+            acc[user.role] = (acc[user.role] || 0) + 1;
+            return acc;
+          }, {}),
+          recentLogins: users.filter((u: any) => {
+            if (!u.lastLoginAt) return false;
+            const loginDate = new Date(u.lastLoginAt);
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            return loginDate > weekAgo;
+          }).length
+        };
+        setUserStats(stats);
+      }
+    } catch (error) {
+      console.error('Failed to load user stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-4">
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        User Management
+        User Overview
       </h3>
-      <div className="space-y-2">
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          Manage users and permissions
+      
+      {userStats && (
+        <div className="space-y-4">
+          {/* User Statistics */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {userStats.total}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Total Users
+              </div>
+            </div>
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-lg font-semibold text-green-600 dark:text-green-400">
+                {userStats.active}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Active
+              </div>
+            </div>
+          </div>
+
+          {/* Role Distribution */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Roles
+            </h4>
+            <div className="space-y-1">
+              {Object.entries(userStats.roles).map(([role, count]: [string, any]) => (
+                <div key={role} className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 capitalize">
+                    {role}
+                  </span>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    {count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Recent Activity
+            </h4>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {userStats.recentLogins} users logged in this week
+            </div>
+            {userStats.inactive > 0 && (
+              <div className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                {userStats.inactive} inactive user{userStats.inactive > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Quick Actions
+            </h4>
+            <div className="space-y-2">
+              <button className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm">
+                Add New User
+              </button>
+              <button className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm">
+                Manage API Tokens
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -327,8 +327,8 @@ export function UserManagement() {
     try {
       setIsLoading(true);
       const response = await apiClient.get('/api/users');
-      if (response.success && response.data) {
-        setUsers(response.data);
+      if (response.success && response.data && response.data.users) {
+        setUsers(response.data.users);
       }
     } catch (error) {
       logger.error('Failed to load users', error);
