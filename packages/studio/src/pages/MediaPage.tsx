@@ -518,7 +518,7 @@ export function MediaPage() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="destructive"
+                    variant="danger"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(file);
@@ -1142,7 +1142,7 @@ export function MediaPage() {
             </div>
             <div className="flex space-x-3 pt-4">
               <Button
-                variant="destructive"
+                variant="danger"
                 onClick={confirmDelete}
                 className="flex-1"
               >

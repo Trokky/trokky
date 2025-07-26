@@ -48,7 +48,6 @@ export class ApiClient {
     
     this.capabilities = {
       version: '2.0.0',
-      mode: 'integrated',
       features: {
         search: false,
         media: true, // Enable media features for integrated mode
@@ -192,7 +191,7 @@ export class ApiClient {
             const storedToken = localStorage.getItem('trokky_auth_token');
             if (storedToken) {
               const validateResponse = await this.post('/api/auth/validate', { token: storedToken }, true);
-              if (validateResponse.success && validateResponse.data?.valid && validateResponse.data?.session) {
+              if (validateResponse.success && validateResponse.data && 'valid' in validateResponse.data && validateResponse.data.valid && 'session' in validateResponse.data && validateResponse.data.session) {
                 // Token is still valid, retry the original request
                 this.setAuthToken(storedToken);
                 return this.request(endpoint, options, skipAuth);

@@ -13,6 +13,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     username: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,11 +23,16 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setError(null);
 
     try {
-      const response = await apiClient.login(credentials.username, credentials.password);
+      const response = await apiClient.post('/api/auth/login', {
+        username: credentials.username,
+        password: credentials.password,
+        rememberMe
+      });
       
-      if (response.success && response.data) {
-        // Store token in localStorage
+      if (response.success && response.data && 'token' in response.data && 'refreshToken' in response.data) {
+        // Store tokens in localStorage
         localStorage.setItem('trokky_auth_token', response.data.token);
+        localStorage.setItem('trokky_refresh_token', response.data.refreshToken);
         
         // Call success callback
         onLoginSuccess(response.data.token, response.data.user);
@@ -104,6 +110,20 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               disabled={isLoading}
               autoComplete="current-password"
             />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              id="remember-me"
+              name="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+              Remember me for 7 days
+            </label>
           </div>
 
           <Button 

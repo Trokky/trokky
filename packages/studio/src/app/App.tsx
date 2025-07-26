@@ -5,6 +5,7 @@ import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
 import { createStudioLogger } from '@/utils/logger';
 
 // Create a client
@@ -48,7 +49,12 @@ function AppContent() {
   }
 
   logger.info('Authenticated, showing app router');
-  return <AppRouter />;
+  return (
+    <>
+      <AppRouter />
+      <SessionTimeoutWarningContainer />
+    </>
+  );
 }
 
 export function App() {
