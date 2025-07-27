@@ -49,12 +49,32 @@ export class TrokkyExpress {
       studioRouter = await this.createStudioRouter()
     }
 
+    // Create auto-mount function
+    const mount = (app: any, options?: { apiPath?: string; studioPath?: string }) => {
+      const apiPath = options?.apiPath ?? '/api'
+      const studioPath = options?.studioPath ?? '/studio'
+      
+      this.logger.info('Auto-mounting Trokky routers', { apiPath, studioPath, hasStudio: !!studioRouter })
+      
+      // Mount API routes
+      app.use(apiPath, router)
+      
+      // Mount static routes at root level (no authentication)
+      app.use('/', staticRouter)
+      
+      // Mount Studio if enabled
+      if (studioRouter) {
+        app.use(studioPath, studioRouter)
+      }
+    }
+
     return {
       router,
       staticRouter,
       studioRouter,
       middleware,
-      config: this.config
+      config: this.config,
+      mount
     }
   }
 

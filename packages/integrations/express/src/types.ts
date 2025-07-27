@@ -87,4 +87,10 @@ export interface ExpressIntegration {
   studioRouter?: Router
   middleware: ExpressMiddleware[]
   config: ExpressIntegrationConfig
+  
+  /** Auto-mount all routers to the Express app */
+  mount: (app: any, options?: {
+    apiPath?: string
+    studioPath?: string
+  }) => void
 }
