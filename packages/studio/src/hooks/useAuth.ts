@@ -5,20 +5,25 @@ import type { User } from '@/types';
 
 const logger = createStudioLogger('useAuth');
 
-// Session configuration
-const SESSION_CONFIG = {
-  // Auto-refresh token 5 minutes before expiry
-  REFRESH_BUFFER_MS: 5 * 60 * 1000,
-  // Warn user 10 minutes before expiry
-  WARNING_BUFFER_MS: 10 * 60 * 1000,
-  // Check session every 30 seconds
-  CHECK_INTERVAL_MS: 30 * 1000,
-  // Session timeout for content management (2 hours)
-  DEFAULT_TIMEOUT_MS: 2 * 60 * 60 * 1000,
-  // Extended session for "Remember Me" (7 days)
-  EXTENDED_TIMEOUT_MS: 7 * 24 * 60 * 60 * 1000,
-  // Inactivity timeout (30 minutes)
-  INACTIVITY_TIMEOUT_MS: 30 * 60 * 1000
+// Get session configuration from runtime config or use defaults
+const getSessionConfig = () => {
+  const runtimeConfig = (window as any).TROKKY_CONFIG;
+  const sessionConfig = runtimeConfig?.sessionConfig;
+  
+  return {
+    // Auto-refresh token 30 seconds before expiry
+    REFRESH_BUFFER_MS: sessionConfig?.refreshBufferMs || 30 * 1000,
+    // Warn user 90 seconds before expiry (for testing)
+    WARNING_BUFFER_MS: sessionConfig?.warningBufferMs || 90 * 1000,
+    // Check session every 5 seconds
+    CHECK_INTERVAL_MS: sessionConfig?.checkIntervalMs || 5 * 1000,
+    // Session timeout for content management (2 hours)
+    DEFAULT_TIMEOUT_MS: sessionConfig?.defaultTimeoutMs || 2 * 60 * 60 * 1000,
+    // Extended session for "Remember Me" (7 days)
+    EXTENDED_TIMEOUT_MS: sessionConfig?.extendedTimeoutMs || 7 * 24 * 60 * 60 * 1000,
+    // Inactivity timeout (30 minutes)
+    INACTIVITY_TIMEOUT_MS: sessionConfig?.inactivityTimeoutMs || 30 * 60 * 1000
+  };
 };
 
 interface AuthState {
@@ -75,17 +80,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Auto-refresh session before expiry
   const refreshSession = useCallback(async () => {
+    console.log('🔄 refreshSession called', {
+      isRefreshing: isRefreshingRef.current,
+      hasRefreshToken: !!refreshTokenRef.current,
+      refreshTokenValue: refreshTokenRef.current ? 'exists' : 'null'
+    });
+    
     if (isRefreshingRef.current || !refreshTokenRef.current) {
+      console.log('❌ RefreshSession blocked - conditions not met');
       return;
     }
 
     try {
       isRefreshingRef.current = true;
+      console.log('🚀 Starting session refresh...');
       logger.info('Refreshing session automatically');
       
       const response = await apiClient.post('/api/auth/refresh', { 
         refreshToken: refreshTokenRef.current 
       });
+      
+      console.log('📡 Refresh response:', response);
       
       if (response.success && response.data && 
           typeof response.data === 'object' && 
@@ -105,26 +120,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Update auth client
         apiClient.setAuthToken(token);
         
+        const newExpiresAt = new Date(expiresAt);
+        
         setAuthState(prev => ({
           ...prev,
           token,
           refreshToken,
-          sessionExpiresAt: new Date(expiresAt),
-          showTimeoutWarning: false
+          sessionExpiresAt: newExpiresAt,
+          showTimeoutWarning: false // This should hide the warning
         }));
         
         logger.info('Session refreshed successfully');
       } else {
+        logger.error('Invalid refresh response:', response);
         throw new Error('Failed to refresh session');
       }
     } catch (error) {
       logger.error('Session refresh failed', error);
-      // Force logout on refresh failure
-      await logout();
+      // Force logout on refresh failure - clear state directly
+      localStorage.removeItem('trokky_auth_token');
+      localStorage.removeItem('trokky_refresh_token');
+      apiClient.clearAuthToken();
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        refreshToken: null,
+        isLoading: false,
+        sessionExpiresAt: null,
+        showTimeoutWarning: false,
+        lastActivity: new Date()
+      });
     } finally {
       isRefreshingRef.current = false;
     }
-  }, []); // Remove dependency on authState.refreshToken
+  }, []); // Remove all dependencies to avoid hoisting issues, use refs for stable access
 
   const checkAuth = async () => {
     try {
@@ -280,24 +310,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberMe 
       });
       
+      console.log('📥 Login response:', response);
+      
       if (response.success && response.data && 
           typeof response.data === 'object' && 
           'user' in response.data && 
           'token' in response.data && 
-          'refreshToken' in response.data && 
           'expiresAt' in response.data) {
         const { user, token, refreshToken, expiresAt } = response.data as {
           user: any;
           token: string;
-          refreshToken: string;
+          refreshToken?: string;
           expiresAt: string;
         };
+        
+        console.log('🔑 Extracted tokens:', {
+          hasToken: !!token,
+          hasRefreshToken: !!refreshToken,
+          refreshTokenLength: refreshToken?.length || 0
+        });
         
         logger.info('User login successful', { username, rememberMe });
         
         // Store tokens
         localStorage.setItem('trokky_auth_token', token);
-        localStorage.setItem('trokky_refresh_token', refreshToken);
+        if (refreshToken) {
+          localStorage.setItem('trokky_refresh_token', refreshToken);
+        }
         
         // Update API client
         apiClient.setAuthToken(token);
@@ -308,7 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAuthenticated: true,
           user,
           token,
-          refreshToken,
+          refreshToken: refreshToken || null,
           isLoading: false,
           sessionExpiresAt,
           showTimeoutWarning: false,
@@ -379,6 +418,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     stopSessionMonitoring();
     
+    const sessionConfig = getSessionConfig();
+    
     // Set up periodic session checks
     sessionCheckRef.current = setInterval(() => {
       const now = new Date();
@@ -386,22 +427,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentAuthState = authStateRef.current;
       
       // Show warning if close to expiry
-      if (timeUntilExpiry <= SESSION_CONFIG.WARNING_BUFFER_MS && !currentAuthState.showTimeoutWarning) {
+      if (timeUntilExpiry <= sessionConfig.WARNING_BUFFER_MS && !currentAuthState.showTimeoutWarning) {
         setAuthState(prev => ({ ...prev, showTimeoutWarning: true }));
         logger.warn('Session expiring soon, showing warning');
       }
       
       // Auto-refresh if within refresh buffer
-      if (timeUntilExpiry <= SESSION_CONFIG.REFRESH_BUFFER_MS && timeUntilExpiry > 0) {
+      if (timeUntilExpiry <= sessionConfig.REFRESH_BUFFER_MS && timeUntilExpiry > 0) {
         refreshSession();
       }
       
       // Force logout if expired
       if (timeUntilExpiry <= 0) {
         logger.warn('Session expired, forcing logout');
-        logout();
+        // Clear state directly to avoid hoisting issues
+        localStorage.removeItem('trokky_auth_token');
+        localStorage.removeItem('trokky_refresh_token');
+        apiClient.clearAuthToken();
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          refreshToken: null,
+          isLoading: false,
+          sessionExpiresAt: null,
+          showTimeoutWarning: false,
+          lastActivity: new Date()
+        });
       }
-    }, SESSION_CONFIG.CHECK_INTERVAL_MS);
+    }, sessionConfig.CHECK_INTERVAL_MS);
     
     // Set up inactivity monitoring
     inactivityCheckRef.current = setInterval(() => {
@@ -409,12 +463,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentAuthState = authStateRef.current;
       const timeSinceActivity = now.getTime() - currentAuthState.lastActivity.getTime();
       
-      if (timeSinceActivity >= SESSION_CONFIG.INACTIVITY_TIMEOUT_MS) {
+      if (timeSinceActivity >= sessionConfig.INACTIVITY_TIMEOUT_MS) {
         logger.warn('User inactive for too long, forcing logout');
-        logout();
+        // Clear state directly to avoid hoisting issues
+        localStorage.removeItem('trokky_auth_token');
+        localStorage.removeItem('trokky_refresh_token');
+        apiClient.clearAuthToken();
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          refreshToken: null,
+          isLoading: false,
+          sessionExpiresAt: null,
+          showTimeoutWarning: false,
+          lastActivity: new Date()
+        });
       }
-    }, SESSION_CONFIG.CHECK_INTERVAL_MS);
-  }, [refreshSession, logout]); // Remove authState dependencies
+    }, sessionConfig.CHECK_INTERVAL_MS);
+  }, [refreshSession]); // Remove logout dependency
 
   const stopSessionMonitoring = useCallback(() => {
     if (sessionCheckRef.current) {
@@ -464,6 +531,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return stopSessionMonitoring;
   }, [stopSessionMonitoring]);
+
+  // Restart session monitoring when sessionExpiresAt changes (after refresh)
+  useEffect(() => {
+    if (authState.isAuthenticated && authState.sessionExpiresAt) {
+      startSessionMonitoring(authState.sessionExpiresAt);
+    }
+  }, [authState.sessionExpiresAt, authState.isAuthenticated, startSessionMonitoring]);
 
   const contextValue = {
     ...authState,

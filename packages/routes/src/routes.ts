@@ -64,7 +64,8 @@ export class TrokkyRoutes {
     this.addRoute('GET', `${basePath}/media/:id`, this.getMedia.bind(this))
     this.addRoute('PUT', `${basePath}/media/:id`, this.updateMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id/file`, this.serveMediaFile.bind(this))
-    this.addRoute('GET', `${basePath}/media/:id/variant/:variant`, this.serveMediaVariant.bind(this))
+    this.addRoute('GET', `${basePath}/media/:id/variants/:variant`, this.serveMediaVariant.bind(this))
+    this.addRoute('POST', `${basePath}/media/:id/regenerate-variants`, this.regenerateVariants.bind(this))
     this.addRoute('DELETE', `${basePath}/media/:id`, this.deleteMedia.bind(this))
 
     // User management routes (admin only)
@@ -645,6 +646,39 @@ export class TrokkyRoutes {
     }
   }
 
+  private async regenerateVariants(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+
+      const { id } = request.params
+      SecurityValidator.validateDocumentId(id)
+
+      // Get the media file to check if it exists and is an image
+      const mediaFile = await this.core.getMedia(id)
+      if (!mediaFile) {
+        return this.errorResponse(new Error('Media file not found'), 404)
+      }
+
+      // Check if it's an image file
+      if (!mediaFile.contentType.startsWith('image/')) {
+        return this.errorResponse(new Error('Variant generation is only supported for image files'), 400)
+      }
+
+      this.logger.info('Regenerating variants for media file', { id, filename: mediaFile.filename })
+
+      // Regenerate variants
+      const updatedMediaFile = await this.core.regenerateMediaVariants(id)
+      
+      return this.successResponse({ 
+        message: 'Variants regenerated successfully',
+        file: updatedMediaFile 
+      })
+    } catch (error) {
+      this.logger.error('Failed to regenerate variants', { error: error instanceof Error ? error.message : 'Unknown error' })
+      return this.errorResponse(error)
+    }
+  }
+
   private async serveMediaFile(request: HttpRequest): Promise<HttpResponse> {
     try {
       // Media files can be served without strict authentication in many cases
@@ -709,26 +743,78 @@ export class TrokkyRoutes {
 
       const variantInfo = variants[variant]
       
-      // For now, we'll serve the original file since we don't have variant storage implemented
-      // In a full implementation, this would serve the processed variant file
-      const content = await this.core.getMediaContent(id)
-      if (!content) {
-        return this.errorResponse(new Error(`Media variant ${variant} content not found`), 404)
+      // Use storage adapter to get variant file content
+      const storage = this.core.getStorageAdapter()
+      
+      if (storage.getVariantContent) {
+        // If storage adapter supports variant content retrieval
+        try {
+          const variantContent = await storage.getVariantContent(id, variant)
+          if (!variantContent) {
+            return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
+          }
+
+          const buffer = Buffer.from(variantContent)
+
+          return {
+            status: 200,
+            headers: {
+              'Content-Type': `image/${variantInfo.format || 'webp'}`,
+              'Content-Length': buffer.length.toString(),
+              'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'webp'}"`,
+              'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+              'ETag': `"${id}-${variant}"`,
+              ...this.buildCorsHeaders()
+            },
+            body: buffer
+          }
+        } catch (storageError) {
+          this.logger.error('Failed to read variant from storage adapter', { id, variant, error: storageError })
+        }
       }
 
-      const buffer = Buffer.from(content)
+      // Fallback: try filesystem approach for FilesystemAdapter
+      try {
+        const { createRequire } = await import('module')
+        const require = createRequire(import.meta.url)
+        const fs = require('fs')
+        const path = require('path')
 
-      return {
-        status: 200,
-        headers: {
-          'Content-Type': variantInfo.format ? `image/${variantInfo.format}` : mediaFile.contentType,
-          'Content-Length': buffer.length.toString(),
-          'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'jpg'}"`,
-          'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
-          'ETag': `"${id}-${variant}"`,
-          ...this.buildCorsHeaders()
-        },
-        body: buffer
+        // Build variant file path - variants are stored in media/variants/parentId/variantName.format
+        const variantFilename = `${variant}.${variantInfo.format || 'webp'}`
+        const variantDir = path.join(process.cwd(), 'examples/blog-integrated/media/variants', id)
+        const variantPath = path.join(variantDir, variantFilename)
+        
+        // Security check: ensure the resolved path is still within the media directory
+        const resolvedPath = path.resolve(variantPath)
+        const mediaBaseDir = path.resolve(process.cwd(), 'examples/blog-integrated/media')
+        if (!resolvedPath.startsWith(mediaBaseDir)) {
+          return this.errorResponse(new Error('Access denied'), 403)
+        }
+
+        // Check if variant file exists
+        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+          return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
+        }
+
+        // Read variant file
+        const variantBuffer = fs.readFileSync(resolvedPath)
+
+        return {
+          status: 200,
+          headers: {
+            'Content-Type': `image/${variantInfo.format || 'webp'}`,
+            'Content-Length': variantBuffer.length.toString(),
+            'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'webp'}"`,
+            'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+            'ETag': `"${id}-${variant}"`,
+            ...this.buildCorsHeaders()
+          },
+          body: variantBuffer
+        }
+      } catch (fsError) {
+        this.logger.error('Failed to read variant file from filesystem', { id, variant, error: fsError })
+        return this.errorResponse(new Error(`Variant file ${variant} not accessible for media ${id}`), 404)
       }
     } catch (error) {
       return this.errorResponse(error)
@@ -1137,6 +1223,7 @@ export class TrokkyRoutes {
       }
 
       const { credentials } = body as unknown as LoginRequest
+      const { rememberMe } = body as { rememberMe?: boolean }
       
       // Validate credentials format
       if (!credentials.username || !credentials.password) {
@@ -1146,12 +1233,20 @@ export class TrokkyRoutes {
       SecurityValidator.validateUsername(credentials.username)
 
       // Use core engine's authentication method (handles all validation internally)
-      const authResult = await this.core.authenticateUser(credentials.username, credentials.password)
+      const authResult = await this.core.authenticateUser(credentials.username, credentials.password, { rememberMe })
       if (!authResult) {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }
 
-      const { user: authenticatedUser, token } = authResult
+      console.log('🔍 Auth result from core:', {
+        hasUser: !!authResult.user,
+        hasToken: !!authResult.token,
+        hasRefreshToken: !!authResult.refreshToken,
+        refreshTokenLength: authResult.refreshToken?.length || 0,
+        tokenLength: authResult.token?.length || 0
+      });
+
+      const { user: authenticatedUser, token, refreshToken } = authResult
       
       // Get token expiration time
       const session = await this.core.verifyAuthToken(token)
@@ -1159,9 +1254,19 @@ export class TrokkyRoutes {
       const response: LoginResponse = {
         success: true,
         token,
+        refreshToken,
         user: authenticatedUser,
         expiresAt: session?.expiresAt
       }
+
+      console.log('🚀 Final login response:', {
+        success: response.success,
+        hasToken: !!response.token,
+        hasRefreshToken: !!response.refreshToken,
+        hasUser: !!response.user,
+        hasExpiresAt: !!response.expiresAt,
+        refreshTokenLength: response.refreshToken?.length || 0
+      });
 
       return this.successResponse(response)
     } catch (error) {

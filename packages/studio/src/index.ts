@@ -36,6 +36,22 @@ interface StudioConfig {
     enableDrafts?: boolean;
     enableVersioning?: boolean;
   };
+  
+  /** Session management configuration */
+  sessionConfig?: {
+    /** Auto-refresh token buffer in milliseconds (default: 30000) */
+    refreshBufferMs?: number;
+    /** Warning display buffer in milliseconds (default: 90000) */
+    warningBufferMs?: number;
+    /** Session check interval in milliseconds (default: 5000) */
+    checkIntervalMs?: number;
+    /** Default session timeout in milliseconds (default: 2 hours) */
+    defaultTimeoutMs?: number;
+    /** Extended session timeout for "Remember Me" in milliseconds (default: 7 days) */
+    extendedTimeoutMs?: number;
+    /** Inactivity timeout in milliseconds (default: 30 minutes) */
+    inactivityTimeoutMs?: number;
+  };
 }
 
 interface StudioMiddleware {
@@ -158,6 +174,7 @@ function serveStudioHTML(config: StudioConfig) {
         structure: config.structure || null,
         config: config.config || {},
         customFields: config.customFields || [],
+        sessionConfig: config.sessionConfig || null,
         basePath
       };
       

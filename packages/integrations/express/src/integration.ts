@@ -2,8 +2,8 @@ import { Router } from 'express'
 import { TrokkyRoutes } from '@trokky/routes'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
-import { createLogger } from '@trokky/core'
-import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
+import { createLogger, TrokkyCore, type TrokkyConfig } from '@trokky/core'
+import type { ExpressIntegrationConfig, ExpressIntegration, UltimateExpressConfig } from './types.js'
 
 /**
  * Main Express integration class for Trokky CMS
@@ -163,7 +163,8 @@ export class TrokkyExpress {
         branding: this.config.studio.branding,
         structure: this.config.studio.structure,
         customFields: this.config.studio.customFields,
-        config: this.config.studio.config
+        config: this.config.studio.config,
+        sessionConfig: this.config.studio.config?.session // Pass session config
       }
 
       this.logger.info('Creating Studio router', { mount: studioConfig.mount })
@@ -191,15 +192,114 @@ export class TrokkyExpress {
   }
 
   /**
-   * Quick setup method for common Express integration
+   * 🔥 UNIFIED SETUP - Everything in one call! (Default method)
+   * 
+   * Eliminates all boilerplate:
+   * - Auto creates and initializes TrokkyCore
+   * - Auto creates storage adapter
+   * - Auto creates admin user
+   * - Auto sets up Express integration
+   * - Auto sets up Studio
+   * 
+   * @example
+   * ```typescript
+   * const trokky = await TrokkyExpress.setup({
+   *   schemas: blogSchemas,
+   *   storage: { adapter: 'filesystem', contentDir: './content', mediaDir: './media' },
+   *   adminUser: { username: 'admin', email: 'admin@demo.com', password: 'demo123' },
+   *   studio: { branding: { title: 'My CMS' } }
+   * });
+   * 
+   * trokky.mount(app);
+   * ```
    */
-  public static async setup(config: ExpressIntegrationConfig): Promise<ExpressIntegration> {
+  public static async setup(config: UltimateExpressConfig): Promise<ExpressIntegration> {
+    const logger = createLogger('express', 'UnifiedSetup')
+    logger.info('🚀 Starting unified Trokky setup')
+
+    try {
+      // 1. Create storage adapter based on config
+      const storageAdapter = await this.createStorageAdapter(config.storage)
+      
+      // 2. Create TrokkyConfig for core
+      const coreConfig: TrokkyConfig = {
+        storage: {
+          adapter: config.storage.adapter,
+          options: config.storage.options || {}
+        },
+        schemas: config.schemas,
+        media: config.media,
+        security: config.validation
+      }
+      
+      // 3. Create and initialize TrokkyCore
+      const coreOptions = {
+        enableSecurity: config.enableSecurity ?? true,
+        jwtSecret: config.jwtSecret || process.env.TROKKY_JWT_SECRET || this.generateSecureSecret()
+      }
+      
+      const core = new TrokkyCore(coreConfig, storageAdapter, coreOptions)
+      await core.init()
+      logger.info('✅ TrokkyCore initialized')
+      
+      // 4. Create admin user if specified
+      if (config.adminUser) {
+        try {
+          await core.createUser({
+            username: config.adminUser.username,
+            email: config.adminUser.email,
+            password: config.adminUser.password,
+            firstName: config.adminUser.firstName,
+            lastName: config.adminUser.lastName,
+            role: config.adminUser.role || 'admin'
+          })
+          logger.info('✅ Admin user created')
+        } catch (error: any) {
+          if (error.message.includes('already exists')) {
+            logger.info('✅ Admin user already exists')
+          } else {
+            logger.warn('⚠️ Failed to create admin user', error)
+          }
+        }
+      }
+      
+      // 5. Create Express integration config
+      const expressConfig: ExpressIntegrationConfig = {
+        core,
+        basePath: config.basePath || '',
+        corsOptions: config.corsOptions,
+        authentication: config.authentication,
+        rateLimiting: config.rateLimiting,
+        staticRoutes: config.staticRoutes,
+        fileUpload: config.fileUpload,
+        bodyParser: config.bodyParser,
+        security: config.security,
+        studio: config.studio
+      }
+      
+      // 6. Create final integration
+      const integration = new TrokkyExpress(expressConfig)
+      const result = await integration.createIntegration()
+      
+      logger.info('🎉 Unified setup complete!')
+      return result
+      
+    } catch (error) {
+      logger.error('❌ Unified setup failed', error)
+      throw new Error(`Unified setup failed: ${error.message}`)
+    }
+  }
+
+  /**
+   * Legacy setup method for when you already have a TrokkyCore instance
+   */
+  public static async withCore(config: ExpressIntegrationConfig): Promise<ExpressIntegration> {
     const integration = new TrokkyExpress(config)
     return await integration.createIntegration()
   }
 
   /**
-   * Recommended setup method that handles common mounting patterns
+   * Legacy setup method that handles common mounting patterns (when you have existing TrokkyCore)
    * 
    * @param config - Configuration without basePath (will be set to empty)
    * @param mountPath - Path where routes will be mounted (e.g., '/api', '/api/v1')
@@ -229,5 +329,145 @@ export class TrokkyExpress {
    */
   public extractParamsFromPath(routePattern: string, actualPath: string) {
     return this.routes.extractParams(routePattern, actualPath)
+  }
+
+  /**
+   * 🔥 ULTIMATE UNIFIED SETUP - Everything in one call!
+   * 
+   * Eliminates all boilerplate:
+   * - Auto creates and initializes TrokkyCore
+   * - Auto creates storage adapter
+   * - Auto creates admin user
+   * - Auto sets up Express integration
+   * - Auto sets up Studio
+   * 
+   * @example
+   * ```typescript
+   * const trokky = await TrokkyExpress.ultimate({
+   *   schemas: blogSchemas,
+   *   storage: { adapter: 'filesystem', contentDir: './content', mediaDir: './media' },
+   *   adminUser: { username: 'admin', email: 'admin@demo.com', password: 'demo123' },
+   *   studio: { branding: { title: 'My CMS' } }
+   * });
+   * 
+   * trokky.mount(app);
+   * ```
+   */
+  public static async ultimate(config: UltimateExpressConfig): Promise<ExpressIntegration> {
+    const logger = createLogger('express', 'UltimateSetup')
+    logger.info('🚀 Starting ultimate Trokky setup')
+
+    try {
+      // 1. Create storage adapter based on config
+      const storageAdapter = await this.createStorageAdapter(config.storage)
+      
+      // 2. Create TrokkyConfig for core
+      const coreConfig: TrokkyConfig = {
+        storage: {
+          adapter: config.storage.adapter,
+          options: config.storage.options || {}
+        },
+        schemas: config.schemas,
+        media: config.media,
+        security: config.validation
+      }
+      
+      // 3. Create and initialize TrokkyCore
+      const coreOptions = {
+        enableSecurity: config.enableSecurity ?? true,
+        jwtSecret: config.jwtSecret || process.env.TROKKY_JWT_SECRET || this.generateSecureSecret()
+      }
+      
+      const core = new TrokkyCore(coreConfig, storageAdapter, coreOptions)
+      await core.init()
+      logger.info('✅ TrokkyCore initialized')
+      
+      // 4. Create admin user if specified
+      if (config.adminUser) {
+        try {
+          await core.createUser({
+            username: config.adminUser.username,
+            email: config.adminUser.email,
+            password: config.adminUser.password,
+            firstName: config.adminUser.firstName,
+            lastName: config.adminUser.lastName,
+            role: config.adminUser.role || 'admin'
+          })
+          logger.info('✅ Admin user created')
+        } catch (error: any) {
+          if (error.message.includes('already exists')) {
+            logger.info('✅ Admin user already exists')
+          } else {
+            logger.warn('⚠️ Failed to create admin user', error)
+          }
+        }
+      }
+      
+      // 5. Create Express integration config
+      const expressConfig: ExpressIntegrationConfig = {
+        core,
+        basePath: config.basePath || '',
+        corsOptions: config.corsOptions,
+        authentication: config.authentication,
+        rateLimiting: config.rateLimiting,
+        staticRoutes: config.staticRoutes,
+        fileUpload: config.fileUpload,
+        bodyParser: config.bodyParser,
+        security: config.security,
+        studio: config.studio
+      }
+      
+      // 6. Create final integration
+      const integration = new TrokkyExpress(expressConfig)
+      const result = await integration.createIntegration()
+      
+      logger.info('🎉 Ultimate setup complete!')
+      return result
+      
+    } catch (error) {
+      logger.error('❌ Ultimate setup failed', error)
+      throw new Error(`Ultimate setup failed: ${error.message}`)
+    }
+  }
+
+  /**
+   * Create storage adapter based on unified config
+   */
+  private static async createStorageAdapter(config: UltimateExpressConfig['storage']) {
+    switch (config.adapter) {
+      case 'filesystem': {
+        const { FilesystemAdapter } = await import('@trokky/adapter-filesystem')
+        return new FilesystemAdapter({
+          contentDir: config.contentDir || './content',
+          mediaDir: config.mediaDir || './media',
+          createDirs: config.createDirs ?? true,
+          mediaBaseUrl: config.mediaBaseUrl || '/media',
+          ...config.options
+        })
+      }
+      case 'cloudflare': {
+        const { CloudflareAdapter } = await import('@trokky/adapter-cloudflare')
+        return new CloudflareAdapter(config.options || {})
+      }
+      case 's3': {
+        const { S3Adapter } = await import('@trokky/adapter-s3')
+        return new S3Adapter(config.options || {})
+      }
+      default:
+        throw new Error(`Unsupported storage adapter: ${config.adapter}`)
+    }
+  }
+
+  /**
+   * Generate a secure JWT secret if none provided
+   */
+  private static generateSecureSecret(): string {
+    // Simple secure secret generation for demo purposes
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    for (let i = 0; i < 64; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result
   }
 }
