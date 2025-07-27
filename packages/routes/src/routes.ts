@@ -196,7 +196,10 @@ export class TrokkyRoutes {
     }
 
     const headerName = auth.headerName || 'Authorization'
-    const authHeader = request.headers[headerName]
+    // Case-insensitive header lookup for framework compatibility
+    const authHeader = request.headers[headerName] || 
+                      request.headers[headerName.toLowerCase()] ||
+                      request.headers['authorization']
     
     if (!authHeader) {
       throw new InvalidInputError('Missing authentication token', 'authorization')
