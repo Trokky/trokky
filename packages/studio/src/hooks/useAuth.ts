@@ -56,9 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastActivity: new Date()
   });
 
+  // Keep refs in sync with state
+  useEffect(() => {
+    authStateRef.current = authState;
+    refreshTokenRef.current = authState.refreshToken;
+  }, [authState]);
+
   const sessionCheckRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityCheckRef = useRef<NodeJS.Timeout | null>(null);
   const isRefreshingRef = useRef(false);
+  const refreshTokenRef = useRef<string | null>(null);
+  const authStateRef = useRef<AuthState>(authState);
 
   // Track user activity for inactivity detection
   const updateActivity = useCallback(() => {
@@ -67,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Auto-refresh session before expiry
   const refreshSession = useCallback(async () => {
-    if (isRefreshingRef.current || !authState.refreshToken) {
+    if (isRefreshingRef.current || !refreshTokenRef.current) {
       return;
     }
 
@@ -76,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logger.info('Refreshing session automatically');
       
       const response = await apiClient.post('/api/auth/refresh', { 
-        refreshToken: authState.refreshToken 
+        refreshToken: refreshTokenRef.current 
       });
       
       if (response.success && response.data && 
@@ -116,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [authState.refreshToken]);
+  }, []); // Remove dependency on authState.refreshToken
 
   const checkAuth = async () => {
     try {
@@ -375,9 +383,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionCheckRef.current = setInterval(() => {
       const now = new Date();
       const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+      const currentAuthState = authStateRef.current;
       
       // Show warning if close to expiry
-      if (timeUntilExpiry <= SESSION_CONFIG.WARNING_BUFFER_MS && !authState.showTimeoutWarning) {
+      if (timeUntilExpiry <= SESSION_CONFIG.WARNING_BUFFER_MS && !currentAuthState.showTimeoutWarning) {
         setAuthState(prev => ({ ...prev, showTimeoutWarning: true }));
         logger.warn('Session expiring soon, showing warning');
       }
@@ -397,14 +406,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up inactivity monitoring
     inactivityCheckRef.current = setInterval(() => {
       const now = new Date();
-      const timeSinceActivity = now.getTime() - authState.lastActivity.getTime();
+      const currentAuthState = authStateRef.current;
+      const timeSinceActivity = now.getTime() - currentAuthState.lastActivity.getTime();
       
       if (timeSinceActivity >= SESSION_CONFIG.INACTIVITY_TIMEOUT_MS) {
         logger.warn('User inactive for too long, forcing logout');
         logout();
       }
     }, SESSION_CONFIG.CHECK_INTERVAL_MS);
-  }, [authState.showTimeoutWarning, authState.lastActivity, refreshSession, logout]);
+  }, [refreshSession, logout]); // Remove authState dependencies
 
   const stopSessionMonitoring = useCallback(() => {
     if (sessionCheckRef.current) {
