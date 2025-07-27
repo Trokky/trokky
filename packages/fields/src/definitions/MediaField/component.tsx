@@ -12,7 +12,11 @@ const VideoCameraIcon = ({ className }: { className?: string }) => <div classNam
 const SpeakerWaveIcon = ({ className }: { className?: string }) => <div className={className}>🔊</div>;
 const ArchiveBoxIcon = ({ className }: { className?: string }) => <div className={className}>📦</div>;
 const PlusIcon = ({ className }: { className?: string }) => <div className={className}>➕</div>;
-const XMarkIcon = ({ className }: { className?: string }) => <div className={className}>❌</div>;
+const XMarkIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
 const EyeIcon = ({ className }: { className?: string }) => <div className={className}>👁️</div>;
 const PencilIcon = ({ className }: { className?: string }) => <div className={className}>✏️</div>;
 const CloudArrowUpIcon = ({ className }: { className?: string }) => <div className={className}>☁️</div>;
@@ -75,6 +79,17 @@ interface MediaAsset {
     credit?: string;
     author?: string;
     tags?: string[];
+    imageVariants?: Record<string, {
+      url: string;
+      width: number;
+      height: number;
+      format: string;
+      size: number;
+    }>;
+    originalDimensions?: {
+      width: number;
+      height: number;
+    };
   };
 }
 
@@ -519,7 +534,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center">
               {asset?.url && mediaType === 'image' ? (
                 <img 
-                  src={asset.url} 
+                  src={(() => {
+                    // Try to use thumbnail variant if available
+                    if (asset.metadata?.imageVariants?.thumbnail) {
+                      return asset.metadata.imageVariants.thumbnail.url;
+                    }
+                    // Fallback to main URL
+                    return asset.url;
+                  })()} 
                   alt={value?.alt || asset.title || asset.filename}
                   className="w-full h-full object-cover rounded-md"
                   onError={(e) => {
@@ -533,25 +555,35 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             </div>
             
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={value?.title || asset?.title || asset?.filename || 'Media Asset'}>
                 {value?.title || asset?.title || asset?.filename || 'Media Asset'}
               </h4>
-              <p className="text-xs text-gray-500 truncate">
-                {asset ? `${asset.filename} • ${formatFileSize(asset.size)}` : `Asset ID: ${value.asset._ref}`}
-              </p>
-              {asset?.contentType && (
-                <p className="text-xs text-gray-400 truncate">
-                  {asset.contentType}
+              <div className="space-y-0.5">
+                <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
+                  <span className="font-medium">File:</span> {asset?.filename || 'Unknown'}
                 </p>
-              )}
+                <p className="text-xs text-gray-500">
+                  <span className="font-medium">Size:</span> {asset ? formatFileSize(asset.size) : 'Unknown'}
+                </p>
+                {asset?.contentType && (
+                  <p className="text-xs text-gray-500 truncate" title={asset.contentType}>
+                    <span className="font-medium">Type:</span> {asset.contentType}
+                  </p>
+                )}
+                {value?.variant && mediaType === 'image' && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    <span className="font-medium">Variant:</span> {value.variant}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-start space-x-2">
             {!isReadonly && (
               <button
                 type="button"
-                className="p-1 text-red-400 hover:text-red-600"
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                 onClick={handleRemove}
                 title="Remove media"
               >
@@ -563,7 +595,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
         {/* Instance metadata editor */}
         {options.showMetadata && (
-          <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+          <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-gray-600">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Alt text {options.requireAlt && <span className="text-red-500">*</span>}
