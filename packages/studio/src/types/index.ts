@@ -125,6 +125,7 @@ export interface MediaFile {
   originalFilename: string;
   filename: string;
   mimeType: string;
+  contentType: string; // Added for compatibility
   size: number;
   url: string;
   title?: string;
@@ -140,6 +141,8 @@ export interface MediaFile {
   variants?: Record<string, { url: string; width: number; height: number }>;
   createdAt: string;
   updatedAt: string;
+  uploadedAt: string; // Added for compatibility
+  _createdAt?: string; // Legacy field for compatibility
 }
 
 // Search Types
@@ -268,6 +271,20 @@ export interface User {
   isActive: boolean;
   profileImage?: string;
   lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppToken {
+  id: string;
+  name: string;
+  description?: string;
+  tokenHash: string;
+  permissions: Permission[];
+  createdBy: string;
+  isActive: boolean;
+  lastUsedAt?: string;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }

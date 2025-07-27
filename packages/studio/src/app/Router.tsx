@@ -12,11 +12,11 @@ import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
-// Get basename from integrated config if available
+// Get basename from config if available
 const getBasename = () => {
-  const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
-  if (integratedConfig?.basePath) {
-    return integratedConfig.basePath;
+  const config = (window as any).TROKKY_CONFIG;
+  if (config?.basePath) {
+    return config.basePath;
   }
   return undefined;
 };

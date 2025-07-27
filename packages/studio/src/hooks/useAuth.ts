@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Track user activity for inactivity detection
   const updateActivity = useCallback(() => {
     setAuthState(prev => ({ ...prev, lastActivity: new Date() }));
-  }, []);
+  }, []); // Empty dependency array - function doesn't depend on external values
 
   // Auto-refresh session before expiry
   const refreshSession = useCallback(async () => {
@@ -434,7 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         document.removeEventListener(event, handleActivity);
       });
     };
-  }, [authState.isAuthenticated, updateActivity]);
+  }, [authState.isAuthenticated]); // Remove updateActivity dependency since it's now stable
 
   // Check auth on mount - but only after apiClient is initialized
   useEffect(() => {

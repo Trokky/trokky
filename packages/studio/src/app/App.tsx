@@ -70,10 +70,10 @@ function AppContent() {
 
 export function App() {
   useEffect(() => {
-    // Initialize API client synchronously - it's integrated so config is already available
+    // Initialize API client synchronously - config is already available
     apiClient.initialize();
     const logger = createStudioLogger('App');
-    logger.info('Trokky Studio started in integrated mode');
+    logger.info('Trokky Studio started');
   }, []);
 
   return (

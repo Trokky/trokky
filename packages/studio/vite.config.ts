@@ -11,19 +11,24 @@ export default defineConfig({
       transformIndexHtml: {
         order: 'pre',
         handler(html, ctx) {
-          const backendUrl = process.env.TROKKY_BACKEND_URL || 'http://localhost:3001';
+          const backendUrl = process.env.TROKKY_BACKEND_URL || 'http://localhost:3000';
           
           return html.replace(
             '<head>',
             `<head>
     <script>
       window.TROKKY_CONFIG = {
-        backendUrl: '${backendUrl}',
-        timeout: 30000,
+        mode: 'development',
+        apiUrl: '/api',
+        apiBaseUrl: '/api',
+        basePath: '',
         branding: {
-          title: 'Trokky Studio',
+          title: 'Trokky Studio (Dev)',
           theme: 'system'
-        }
+        },
+        structure: null,
+        config: {},
+        customFields: []
       };
     </script>`
           );
@@ -68,12 +73,12 @@ export default defineConfig({
     proxy: {
       // Auto-proxy API calls to demo backend during development
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         configure: (proxy, options) => {
           // Log proxy requests for debugging
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log(`Proxying ${req.method} ${req.url} to backend on port 3001`);
+            console.log(`Proxying ${req.method} ${req.url} to backend on port 3000`);
           });
           proxy.on('error', (err, req, res) => {
             console.log('Proxy error:', err.message);

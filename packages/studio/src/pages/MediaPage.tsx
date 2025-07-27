@@ -249,7 +249,7 @@ export function MediaPage() {
     
     // Show it again when leaving the page
     return () => contextSidebar.show();
-  }, [contextSidebar]);
+  }, []); // Remove contextSidebar dependency to prevent infinite re-renders
 
   // Keyboard navigation for viewer
   useEffect(() => {

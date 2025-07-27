@@ -35,22 +35,21 @@ export class ApiClient {
   }
 
   /**
-   * Initialize the API client with integrated configuration only
+   * Initialize the API client with configuration
    */
   initialize(): void {
-    // Check for integrated mode configuration (required)
-    if (!(window as any).TROKKY_INTEGRATED_CONFIG) {
-      throw new Error('Studio can only run in integrated mode. TROKKY_INTEGRATED_CONFIG not found.');
+    // Check for Studio configuration
+    const config = (window as any).TROKKY_CONFIG;
+    if (!config) {
+      throw new Error('Studio configuration not found. TROKKY_CONFIG not found.');
     }
-
-    const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
-    this.baseUrl = window.location.origin + (integratedConfig.basePath || '/studio');
+    this.baseUrl = window.location.origin; // API is at root level, use config.apiUrl for actual API path
     
     this.capabilities = {
       version: '2.0.0',
       features: {
         search: false,
-        media: true, // Enable media features for integrated mode
+        media: true, // Enable media features
         auth: true,
         structure: true,
         workflows: false
@@ -70,9 +69,8 @@ export class ApiClient {
     // Restore auth token from localStorage if available
     this.restoreAuthToken();
     
-    this.logger.info('Studio initialized in integrated mode', { 
+    this.logger.info('Studio initialized', { 
       baseUrl: this.baseUrl,
-      mode: 'integrated',
       hasAuthToken: !!this.authToken
     });
   }

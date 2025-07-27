@@ -91,6 +91,9 @@ Always pass your work to our Task tool to launch a code review agent before buil
 
 ---
 - Continue Fields: MediaFields and variants
+- Include back the variants
+- Make sure users username+emails are unique
+- Make sure token are unique
 - -Persist contextual sidebar state per page kind in local storage
 - Update/ trokky/client
 - Ensure/improve the relevance of trokky config file

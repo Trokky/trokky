@@ -289,7 +289,7 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Generate appropriate URL based on configuration
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${metadata.id}/file`
+        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {
@@ -341,7 +341,7 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Generate appropriate URL based on configuration
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${fileMetadata.id}/file`
+        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {
@@ -416,7 +416,7 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Generate appropriate URL based on configuration
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${updatedMetadata.id}/file`
+        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {

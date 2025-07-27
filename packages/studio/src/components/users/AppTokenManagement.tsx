@@ -307,7 +307,7 @@ export function AppTokenManagement() {
   const loadTokens = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/app-tokens');
+      const response = await apiClient.get('/api/tokens');
       if (response.success && response.data) {
         setTokens(response.data);
       }
@@ -324,7 +324,7 @@ export function AppTokenManagement() {
 
   const handleCreateToken = async (tokenData: TokenFormData) => {
     try {
-      const response = await apiClient.post('/api/app-tokens', tokenData);
+      const response = await apiClient.post('/api/tokens', tokenData);
       if (response.success && response.data) {
         setNewToken(response.data.token);
         await loadTokens();
@@ -343,7 +343,7 @@ export function AppTokenManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/app-tokens/${token.id}`);
+      const response = await apiClient.delete(`/api/tokens/${token.id}`);
       if (response.success) {
         await loadTokens();
       }

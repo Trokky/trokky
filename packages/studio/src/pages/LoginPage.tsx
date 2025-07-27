@@ -24,28 +24,32 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
     try {
       const response = await apiClient.post('/api/auth/login', {
-        username: credentials.username,
-        password: credentials.password,
-        rememberMe
+        credentials: {
+          username: credentials.username,
+          password: credentials.password
+        }
       });
       
-      if (response.success && response.data && 
-          typeof response.data === 'object' && 
-          'token' in response.data && 
-          'refreshToken' in response.data &&
-          'user' in response.data) {
-        const loginData = response.data as {
-          token: string;
-          refreshToken: string;
-          user: any;
-        };
+      if (response.success && response.data) {
+        // Handle nested response structure from API
+        const actualData = response.data.data || response.data;
         
-        // Store tokens in localStorage
-        localStorage.setItem('trokky_auth_token', loginData.token);
-        localStorage.setItem('trokky_refresh_token', loginData.refreshToken);
-        
-        // Call success callback
-        onLoginSuccess(loginData.token, loginData.user);
+        if (typeof actualData === 'object' && 
+            'token' in actualData && 
+            'user' in actualData) {
+          const loginData = actualData as {
+            token: string;
+            user: any;
+          };
+          
+          // Store token in localStorage
+          localStorage.setItem('trokky_auth_token', loginData.token);
+          
+          // Call success callback
+          onLoginSuccess(loginData.token, loginData.user);
+        } else {
+          setError(response.error?.message || 'Login failed');
+        }
       } else {
         setError(response.error?.message || 'Login failed');
       }
@@ -63,9 +67,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     }));
   };
 
-  // Get branding from integrated config
-  const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG;
-  const branding = integratedConfig?.branding || { title: 'Trokky Studio' };
+  // Get branding from config
+  const config = (window as any).TROKKY_CONFIG;
+  const branding = config?.branding || { title: 'Trokky Studio' };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">

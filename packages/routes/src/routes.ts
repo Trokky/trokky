@@ -50,6 +50,7 @@ export class TrokkyRoutes {
     this.logger.debug('Initializing routes', { basePath })
 
     // Collection routes
+    this.addRoute('GET', `${basePath}/collections`, this.listCollections.bind(this))
     this.addRoute('GET', `${basePath}/collections/:collection`, this.listDocuments.bind(this))
     this.addRoute('POST', `${basePath}/collections/:collection`, this.createDocument.bind(this))
     this.addRoute('GET', `${basePath}/collections/:collection/:id`, this.getDocument.bind(this))
@@ -57,8 +58,10 @@ export class TrokkyRoutes {
     this.addRoute('DELETE', `${basePath}/collections/:collection/:id`, this.deleteDocument.bind(this))
 
     // Media routes
+    this.addRoute('GET', `${basePath}/media`, this.listMedia.bind(this))
     this.addRoute('POST', `${basePath}/media/upload`, this.uploadMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id`, this.getMedia.bind(this))
+    this.addRoute('PUT', `${basePath}/media/:id`, this.updateMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id/file`, this.serveMediaFile.bind(this))
     this.addRoute('GET', `${basePath}/media/:id/variant/:variant`, this.serveMediaVariant.bind(this))
     this.addRoute('DELETE', `${basePath}/media/:id`, this.deleteMedia.bind(this))
@@ -76,6 +79,17 @@ export class TrokkyRoutes {
     this.addRoute('POST', `${basePath}/auth/login`, this.login.bind(this))
     this.addRoute('POST', `${basePath}/auth/logout`, this.logout.bind(this))
     this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
+    this.addRoute('POST', `${basePath}/auth/refresh`, this.refreshToken.bind(this))
+
+    // Token management routes (admin/user)
+    this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
+    this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
+    this.addRoute('GET', `${basePath}/tokens/:id`, this.getToken.bind(this))
+    this.addRoute('PUT', `${basePath}/tokens/:id`, this.updateToken.bind(this))
+    this.addRoute('DELETE', `${basePath}/tokens/:id`, this.deleteToken.bind(this))
+
+    // Schema routes
+    this.addRoute('GET', `${basePath}/schemas/:schemaName`, this.getSchema.bind(this))
 
     // Slug validation routes
     this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
@@ -277,6 +291,61 @@ export class TrokkyRoutes {
   }
 
   // Route handlers
+  private async listCollections(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+
+      // Get all schemas from the core engine
+      const schemas = this.core.getAllSchemas()
+      
+      this.logger.debug('Collections listed', { 
+        count: schemas.length,
+        collections: schemas.map(s => s.name)
+      })
+
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          data: {
+            collections: schemas
+          }
+        })
+      }
+    } catch (error) {
+      this.logger.error('Failed to list collections', { error: error instanceof Error ? error.message : String(error) })
+      
+      if (error instanceof InvalidInputError) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: error.code || 'INVALID_INPUT',
+              message: error.message,
+              details: error.details
+            }
+          })
+        }
+      }
+
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to list collections'
+          }
+        })
+      }
+    }
+  }
+
   private async listDocuments(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
@@ -420,6 +489,71 @@ export class TrokkyRoutes {
       return this.successResponse({ message: 'Document deleted successfully' })
     } catch (error) {
       return this.errorResponse(error)
+    }
+  }
+
+  private async listMedia(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+
+      // Get query parameters
+      const url = new URL(request.url || '', 'http://localhost')
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10)
+      const offset = parseInt(url.searchParams.get('offset') || '0', 10)
+
+      // Get media files from the core engine
+      const mediaFiles = await this.core.listMedia({ limit, offset })
+      
+      this.logger.debug('Media files listed', { 
+        count: mediaFiles.length,
+        limit,
+        offset
+      })
+
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          data: mediaFiles,
+          meta: {
+            count: mediaFiles.length,
+            limit,
+            offset,
+            hasMore: mediaFiles.length === limit
+          }
+        })
+      }
+    } catch (error) {
+      this.logger.error('Failed to list media', { error: error instanceof Error ? error.message : String(error) })
+      
+      if (error instanceof InvalidInputError) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: {
+              code: error.code || 'INVALID_INPUT',
+              message: error.message,
+              details: error.details
+            }
+          })
+        }
+      }
+
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to list media'
+          }
+        })
+      }
     }
   }
 
@@ -750,15 +884,25 @@ export class TrokkyRoutes {
 
       // SECURITY: Validate request body structure
       if (!request.body || typeof request.body !== 'object') {
-        throw new InvalidInputError('Request body is required', 'body')
+        throw new InvalidInputError('User data is required', 'body')
       }
 
-      const body = request.body as Record<string, unknown>
-      if (!('userData' in body) || !body.userData || typeof body.userData !== 'object') {
-        throw new InvalidInputError('User data is required', 'userData')
+      let userData = request.body as Record<string, unknown>
+
+      // Transform fullName to firstName and lastName if present
+      if (userData.fullName && typeof userData.fullName === 'string') {
+        const fullName = userData.fullName.trim()
+        const nameParts = fullName.split(' ')
+        userData = {
+          ...userData,
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || ''
+        }
+        delete userData.fullName
       }
 
-      const { userData } = body as unknown as UpdateUserRequest
+      // Debug: Log what data we're receiving
+      this.logger.debug('Updating user with transformed data:', { id, userData })
 
       const user = await this.core.updateUser(id, userData)
       
@@ -1077,5 +1221,191 @@ export class TrokkyRoutes {
     }
 
     return headers
+  }
+
+  // Additional Media Routes
+  private async updateMedia(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { id } = request.params
+      if (!id) {
+        return this.errorResponse(new InvalidInputError('Media ID is required'))
+      }
+
+      if (!request.body || typeof request.body !== 'object') {
+        return this.errorResponse(new InvalidInputError('Request body is required'))
+      }
+
+      const body = request.body as Record<string, unknown>
+      const metadata = body.metadata
+      
+      if (!metadata || typeof metadata !== 'object') {
+        return this.errorResponse(new InvalidInputError('Metadata is required'))
+      }
+
+      // Validate media exists
+      const existingMedia = await this.core.getMedia(id)
+      if (!existingMedia) {
+        return this.errorResponse(new Error('Media not found'), 404)
+      }
+
+      // Update metadata only (not the file itself)
+      const updatedMedia = await this.core.updateMedia(id, metadata as Record<string, unknown>)
+      
+      return this.successResponse({ file: updatedMedia })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // Authentication Routes
+  private async refreshToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      if (!request.body || typeof request.body !== 'object') {
+        return this.errorResponse(new InvalidInputError('Request body is required'))
+      }
+
+      const body = request.body as Record<string, unknown>
+      const { refreshToken } = body
+      
+      if (!refreshToken) {
+        return this.errorResponse(new InvalidInputError('Refresh token is required'))
+      }
+
+      // TODO: Core method exists but may not be implemented yet
+      const result = await this.core.refreshAuthToken(refreshToken as string)
+      if (!result) {
+        return this.errorResponse(new Error('Invalid or expired refresh token'), 401)
+      }
+      return this.successResponse(result)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // Token Management Routes
+  private async listTokens(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { limit, offset, isActive } = request.query
+      const options: any = {}
+      if (limit) options.limit = parseInt(String(limit), 10)
+      if (offset) options.offset = parseInt(String(offset), 10)
+      if (isActive !== undefined) options.isActive = isActive === 'true'
+      
+      const tokens = await this.core.listAppTokens(options)
+      return this.successResponse(tokens)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async createToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      if (!request.body || typeof request.body !== 'object') {
+        return this.errorResponse(new InvalidInputError('Token data is required'))
+      }
+
+      const tokenData = request.body as Record<string, unknown>
+      
+      // Validate required fields
+      if (!tokenData.name || !tokenData.permissions) {
+        return this.errorResponse(new InvalidInputError('Token name and permissions are required'))
+      }
+      
+      // Get user from auth context (placeholder for now)
+      const createdBy = 'system' // TODO: Get from authenticated user context
+      
+      const result = await this.core.createAppToken(tokenData as any, createdBy)
+      if (!result.success) {
+        return this.errorResponse(new Error(result.error || 'Failed to create token'))
+      }
+      
+      return this.successResponse({ 
+        token: result.token, // Plain text token (only returned once)
+        appToken: result.appToken 
+      }, 201)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async getToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { id } = request.params
+      if (!id) {
+        return this.errorResponse(new InvalidInputError('Token ID is required'))
+      }
+
+      // TODO: Implement token management in core
+      return this.errorResponse(new Error('Token retrieval not implemented yet'), 501)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async updateToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { id } = request.params
+      if (!id) {
+        return this.errorResponse(new InvalidInputError('Token ID is required'))
+      }
+
+      if (!request.body || typeof request.body !== 'object') {
+        return this.errorResponse(new InvalidInputError('Update data is required'))
+      }
+
+      const updateData = request.body as Record<string, unknown>
+
+      // TODO: Implement token management in core
+      return this.errorResponse(new Error('Token update not implemented yet'), 501)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async deleteToken(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { id } = request.params
+      if (!id) {
+        return this.errorResponse(new InvalidInputError('Token ID is required'))
+      }
+
+      await this.core.deleteAppToken(id)
+      return this.successResponse(null, 204)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // Schema Routes
+  private async getSchema(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      const { schemaName } = request.params
+      if (!schemaName) {
+        return this.errorResponse(new InvalidInputError('Schema name is required'))
+      }
+
+      const schema = this.core.getSchema(schemaName)
+      if (!schema) {
+        return this.errorResponse(new Error('Schema not found'), 404)
+      }
+
+      return this.successResponse({ schema })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
   }
 }

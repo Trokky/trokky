@@ -1,0 +1,833 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2025-07-27T05:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_trokky_v2",
+      "_type": "workspace",
+      "parentId": null,
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "Trokky v2 CMS API",
+      "description": "Complete API testing workspace for Trokky v2 CMS"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:3000/api/v1",
+        "auth_token": "",
+        "admin_username": "admin",
+        "admin_password": "admin123",
+        "test_collection": "posts",
+        "test_document_id": "",
+        "test_media_id": "",
+        "test_user_id": ""
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "base_url",
+          "auth_token",
+          "admin_username", 
+          "admin_password",
+          "test_collection",
+          "test_document_id",
+          "test_media_id",
+          "test_user_id"
+        ]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1690444800000
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "🔐 Authentication",
+      "description": "JWT-based authentication endpoints",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1690444700000
+    },
+    {
+      "_id": "req_auth_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/auth/login",
+      "name": "Login",
+      "description": "Authenticate user with username and password to receive a JWT token.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"credentials\": {\n    \"username\": \"{{ _.admin_username }}\",\n    \"password\": \"{{ _.admin_password }}\"\n  }\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444700000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_validate",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/auth/validate",
+      "name": "Validate Token",
+      "description": "Validate a JWT token and get session information.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"token\": \"{{ _.auth_token }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444699000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_auth_logout",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/auth/logout",
+      "name": "Logout",
+      "description": "Logout user (client-side token invalidation).",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444698000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_collections",
+      "_type": "request_group",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "📄 Collections",
+      "description": "Content management endpoints for CRUD operations",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1690444600000
+    },
+    {
+      "_id": "req_collections_list",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections",
+      "name": "List Collections",
+      "description": "Get all available collections (schemas) in the CMS.",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444600000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_collections_list_documents",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections/{{ _.test_collection }}",
+      "name": "List Documents",
+      "description": "Get all documents from a specific collection with optional filtering.",
+      "method": "GET",
+      "body": {},
+      "parameters": [
+        {
+          "name": "limit",
+          "value": "10",
+          "description": "Maximum number of documents to return",
+          "disabled": true
+        },
+        {
+          "name": "offset",
+          "value": "0",
+          "description": "Number of documents to skip",
+          "disabled": true
+        }
+      ],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444599000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_collections_create_document",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections/{{ _.test_collection }}",
+      "name": "Create Document",
+      "description": "Create a new document in a collection.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"data\": {\n    \"title\": \"My New Post\",\n    \"content\": \"This is the content of my new post.\",\n    \"slug\": \"my-new-post\",\n    \"status\": \"draft\"\n  }\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444598000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_collections_get_document",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections/{{ _.test_collection }}/{{ _.test_document_id }}",
+      "name": "Get Document",
+      "description": "Retrieve a specific document by ID from a collection.",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444597000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_collections_update_document",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections/{{ _.test_collection }}/{{ _.test_document_id }}",
+      "name": "Update Document",
+      "description": "Update an existing document in a collection.",
+      "method": "PUT",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"data\": {\n    \"title\": \"Updated Post Title\",\n    \"status\": \"published\"\n  }\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444596000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_collections_delete_document",
+      "_type": "request",
+      "parentId": "fld_collections",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/collections/{{ _.test_collection }}/{{ _.test_document_id }}",
+      "name": "Delete Document",
+      "description": "Delete a document from a collection.",
+      "method": "DELETE",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444595000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_media",
+      "_type": "request_group",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "🖼️ Media Management",
+      "description": "Media upload, serving, and management endpoints",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1690444500000
+    },
+    {
+      "_id": "req_media_upload",
+      "_type": "request",
+      "parentId": "fld_media",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/media/upload",
+      "name": "Upload Media",
+      "description": "Upload one or more media files with automatic validation.",
+      "method": "POST",
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "files",
+            "value": "",
+            "description": "Select files to upload",
+            "type": "file"
+          }
+        ]
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444500000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_media_get",
+      "_type": "request",
+      "parentId": "fld_media",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/media/{{ _.test_media_id }}",
+      "name": "Get Media Metadata",
+      "description": "Get metadata information for a media file.",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444499000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_media_serve_file",
+      "_type": "request",
+      "parentId": "fld_media",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/media/{{ _.test_media_id }}/file",
+      "name": "Serve Media File",
+      "description": "Serve the actual media file content.",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -1690444498000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_media_serve_variant",
+      "_type": "request",
+      "parentId": "fld_media",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/media/{{ _.test_media_id }}/variant/thumbnail",
+      "name": "Serve Media Variant",
+      "description": "Serve a processed variant of an image (thumbnail, medium, etc.).",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -1690444497000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_media_delete",
+      "_type": "request",
+      "parentId": "fld_media",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/media/{{ _.test_media_id }}",
+      "name": "Delete Media",
+      "description": "Delete a media file and all its variants.",
+      "method": "DELETE",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444496000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_users",
+      "_type": "request_group",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "👥 User Management",
+      "description": "Complete user lifecycle management (Admin only)",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1690444400000
+    },
+    {
+      "_id": "req_users_list",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users",
+      "name": "List Users",
+      "description": "Get all users with optional filtering (Admin only).",
+      "method": "GET",
+      "body": {},
+      "parameters": [
+        {
+          "name": "role",
+          "value": "admin",
+          "description": "Filter by user role",
+          "disabled": true
+        },
+        {
+          "name": "isActive",
+          "value": "true",
+          "description": "Filter by active status",
+          "disabled": true
+        }
+      ],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444400000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_create",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users",
+      "name": "Create User",
+      "description": "Create a new user account (Admin only).",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"userData\": {\n    \"username\": \"neweditor\",\n    \"email\": \"editor@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"role\": \"editor\",\n    \"isActive\": true\n  }\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444399000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_get",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users/{{ _.test_user_id }}",
+      "name": "Get User",
+      "description": "Get a specific user by ID (Admin only).",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444398000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_update",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users/{{ _.test_user_id }}",
+      "name": "Update User",
+      "description": "Update an existing user (Admin only).",
+      "method": "PUT",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"userData\": {\n    \"email\": \"updated@example.com\",\n    \"role\": \"admin\",\n    \"isActive\": true\n  }\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444397000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_delete",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users/{{ _.test_user_id }}",
+      "name": "Delete User",
+      "description": "Delete a user account (Admin only).",
+      "method": "DELETE",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444396000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_get_by_username",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users/by-username/{{ _.admin_username }}",
+      "name": "Get User by Username",
+      "description": "Look up a user by their username (Admin only).",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444395000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_users_get_by_email",
+      "_type": "request",
+      "parentId": "fld_users",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/users/by-email/admin%40example.com",
+      "name": "Get User by Email",
+      "description": "Look up a user by their email address (Admin only).",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444394000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "fld_utilities",
+      "_type": "request_group",
+      "parentId": "wrk_trokky_v2",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "name": "🔧 Utilities",
+      "description": "Utility endpoints for system health and slug validation",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1690444300000
+    },
+    {
+      "_id": "req_health_check",
+      "_type": "request",
+      "parentId": "fld_utilities",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/health",
+      "name": "Health Check",
+      "description": "System health check endpoint for monitoring.",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -1690444300000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_slug_check",
+      "_type": "request",
+      "parentId": "fld_utilities",
+      "modified": 1690444800000,
+      "created": 1690444800000,
+      "url": "{{ _.base_url }}/slugs/check-unique",
+      "name": "Check Slug Uniqueness",
+      "description": "Validate if a slug is unique within a collection.",
+      "method": "GET",
+      "body": {},
+      "parameters": [
+        {
+          "name": "slug",
+          "value": "my-unique-post",
+          "description": "Slug to check for uniqueness"
+        },
+        {
+          "name": "collection",
+          "value": "{{ _.test_collection }}",
+          "description": "Collection to check within"
+        },
+        {
+          "name": "excludeId",
+          "value": "",
+          "description": "Document ID to exclude (for updates)",
+          "disabled": true
+        }
+      ],
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.auth_token }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1690444299000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    }
+  ]
+}

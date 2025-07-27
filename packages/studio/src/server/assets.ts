@@ -7,13 +7,16 @@
 
 import { readFileSync, existsSync } from 'fs'
 import { join, dirname, extname } from 'path'
+import { fileURLToPath } from 'url'
 
 // Get the Studio package root directory (assuming we're in dist/server/ when compiled)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const studioDir = join(__dirname, '../..')
 const distDir = join(studioDir, 'dist')
 
 export interface StudioConfig {
-  mode: 'integrated'
+  mode: 'production'
   apiBasePath: string
   schemas: any[]
   branding?: {
@@ -38,10 +41,10 @@ export function getStudioHTML(config: StudioConfig, studioPath: string): string 
     
     let html = readFileSync(htmlPath, 'utf-8')
     
-    // Replace the standalone config with integrated config
+    // Replace any existing config with our config
     html = html.replace(
       /window\.TROKKY_CONFIG\s*=\s*{[^}]*};?/,
-      `window.TROKKY_INTEGRATED_CONFIG = ${JSON.stringify(config)};`
+      `window.TROKKY_CONFIG = ${JSON.stringify(config)};`
     )
     
     // Update asset paths to use our Studio route
@@ -66,7 +69,7 @@ export function getStudioHTML(config: StudioConfig, studioPath: string): string 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${config.branding?.title || 'Trokky Studio'}</title>
     <script>
-      window.TROKKY_INTEGRATED_CONFIG = ${JSON.stringify(config)};
+      window.TROKKY_CONFIG = ${JSON.stringify(config)};
     </script>
 </head>
 <body>

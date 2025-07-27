@@ -24,10 +24,10 @@ export class StructureService {
    */
   async getStructure(options?: StructureGenerationOptions): Promise<StudioStructure> {
     if (!this.cachedStructure) {
-      // Check for integrated mode structure first
-      const integratedConfig = (window as any).TROKKY_INTEGRATED_CONFIG
-      if (integratedConfig?.structure) {
-        this.cachedStructure = integratedConfig.structure
+      // Check for Studio configuration structure first
+      const config = (window as any).TROKKY_CONFIG
+      if (config?.structure) {
+        this.cachedStructure = config.structure
       } else {
         this.cachedStructure = await this.builder.generateFromSchemas(options)
       }

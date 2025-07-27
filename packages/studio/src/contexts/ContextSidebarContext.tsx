@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 
 interface ContextSidebarState {
   isVisible: boolean;
@@ -54,7 +54,7 @@ export function ContextSidebarProvider({
     content: null
   });
 
-  const api: ContextSidebarAPI = {
+  const api: ContextSidebarAPI = useMemo(() => ({
     // Visibility control
     show: () => setState(prev => ({ ...prev, isVisible: true })),
     hide: () => setState(prev => ({ ...prev, isVisible: false })),
@@ -72,12 +72,12 @@ export function ContextSidebarProvider({
     setContent: (content: ReactNode) => setState(prev => ({ ...prev, content })),
     clearContent: () => setState(prev => ({ ...prev, content: null })),
     
-    // State accessors
+    // State accessors (these need to be updated from current state)
     isVisible: state.isVisible,
     isCollapsed: state.isCollapsed,
     width: state.width,
     content: state.content
-  };
+  }), [state]); // Re-create only when state changes
 
   return (
     <ContextSidebarContext.Provider value={api}>
