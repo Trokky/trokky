@@ -19,6 +19,9 @@ import { AudioFieldPlugin } from './definitions/AudioField/index.js';
 import { VideoFieldPlugin } from './definitions/VideoField/index.js';
 import { ImageFieldPlugin } from './definitions/ImageField/index.js';
 import { DocumentFieldPlugin } from './definitions/DocumentField/index.js';
+import { referenceFieldPlugin } from './definitions/ReferenceField/index.js';
+import { richtextFieldPlugin } from './definitions/RichTextField/index.js';
+import { portableTextFieldPlugin } from './definitions/PortableTextField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -49,9 +52,15 @@ export function registerBuiltinFields(): void {
   fieldRegistry.register(ImageFieldPlugin, 'builtin');
   fieldRegistry.register(DocumentFieldPlugin, 'builtin');
   
+  // Rich text fields
+  fieldRegistry.register(richtextFieldPlugin, 'builtin');
+  fieldRegistry.register(portableTextFieldPlugin, 'builtin');
+  
+  // Reference fields
+  fieldRegistry.register(referenceFieldPlugin, 'builtin');
+  
   // TODO: Register other built-in fields
   // fieldRegistry.register(dateFieldPlugin, 'builtin');
-  // fieldRegistry.register(referenceFieldPlugin, 'builtin');
   
   // Mark registry as initialized
   fieldRegistry.markInitialized();
