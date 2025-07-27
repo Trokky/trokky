@@ -27,8 +27,12 @@ import {
   UpdateUserData,
   UserListOptions,
   Permission,
-  UserSession
+  UserSession,
+  AppToken,
+  AppTokenListOptions,
+  CreateAppTokenData
 } from '../types/index.js'
+import { AppTokenCreationResult } from '../security/auth.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -46,10 +50,12 @@ export interface TrokkyCoreOptions {
 }
 
 export interface AuditEvent {
-  type: 'user_created' | 'user_updated' | 'user_deleted' | 'user_login' | 'user_logout' | 'admin_access'
+  type: 'user_created' | 'user_updated' | 'user_deleted' | 'user_login' | 'user_logout' | 'admin_access' | 'app_token_deleted'
   userId?: string
   targetUserId?: string
+  targetTokenId?: string
   username?: string
+  tokenName?: string
   action: string
   timestamp: string
   ipAddress?: string
@@ -641,6 +647,116 @@ export class TrokkyCore {
     })
   }
 
+  // App Token management operations
+  public async listAppTokens(options?: AppTokenListOptions): Promise<AppToken[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('listAppTokens')
+    }
+
+    if (!this.storage.listAppTokens) {
+      throw new Error('App token operations not supported by storage adapter')
+    }
+
+    return await this.storage.listAppTokens(options)
+  }
+
+  public async createAppToken(tokenData: CreateAppTokenData, createdBy: string): Promise<AppTokenCreationResult> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('createAppToken')
+    }
+
+    if (!this.storage.saveAppToken) {
+      throw new Error('App token operations not supported by storage adapter')
+    }
+
+    try {
+      // Generate token and hash using crypto adapter
+      const token = this.cryptoAdapter.generateSecureRandom(32)
+      const tokenHash = await this.cryptoAdapter.hashPassword(token)
+      
+      const now = new Date().toISOString()
+      const tokenId = this.idGenerator.generate()
+      
+      const appToken: AppToken = {
+        id: tokenId,
+        name: tokenData.name,
+        description: tokenData.description,
+        tokenHash,
+        permissions: tokenData.permissions,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        createdBy,
+        lastUsedAt: undefined,
+        expiresAt: tokenData.expiresAt
+      }
+
+      const savedToken = await this.storage.saveAppToken(tokenId, appToken)
+      
+      return {
+        success: true,
+        token, // Plain text token (only returned once)
+        appToken: savedToken
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create app token'
+      }
+    }
+  }
+
+  public async getAppToken(id: string): Promise<AppToken | null> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getAppToken')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    if (!this.storage.getAppToken) {
+      throw new Error('App token operations not supported by storage adapter')
+    }
+
+    return await this.storage.getAppToken(id)
+  }
+
+  public async deleteAppToken(id: string): Promise<void> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('deleteAppToken')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(id)
+    }
+
+    if (!this.storage.deleteAppToken) {
+      throw new Error('App token operations not supported by storage adapter')
+    }
+
+    const existingToken = await this.getAppToken(id)
+    if (!existingToken) {
+      throw new DocumentNotFoundError('tokens', id)
+    }
+
+    await this.storage.deleteAppToken(id)
+    
+    // Log audit event
+    this.logAuditEvent({
+      type: 'app_token_deleted',
+      targetTokenId: id,
+      tokenName: existingToken.name,
+      action: `App token deleted`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        permissions: existingToken.permissions,
+        createdBy: existingToken.createdBy
+      }
+    })
+  }
+
   // Authentication utilities
   public async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
     return await this.cryptoAdapter.verifyPassword(plainPassword, hashedPassword)
@@ -787,6 +903,35 @@ export class TrokkyCore {
       }
     } catch (error) {
       console.error('Authentication failed:', error instanceof Error ? error.message : 'Unknown error')
+      return null
+    }
+  }
+
+  public async refreshAuthToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: User } | null> {
+    try {
+      // Verify the refresh token
+      const session = await this.verifyAuthToken(refreshToken)
+      if (!session) {
+        return null
+      }
+
+      // Get the user
+      const user = await this.getUser(session.userId)
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Generate new tokens
+      const newToken = await this.generateAuthToken(user, '24h')
+      const newRefreshToken = await this.generateAuthToken(user, '7d')
+
+      return {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user
+      }
+    } catch (error) {
+      this.logger.error('Failed to refresh auth token', { error: error instanceof Error ? error.message : String(error) })
       return null
     }
   }
