@@ -916,9 +916,9 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
           // Validate file type
           const allowedTypes = [
             'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-            'video/mp4', 'video/webm', 'video/mov',
-            'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a',
-            'application/pdf',
+            'video/mp4', 'video/webm', 'video/mov', 'video/quicktime',
+            'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/aac',
+            'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'text/plain', 'text/csv'
           ];
           

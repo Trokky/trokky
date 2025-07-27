@@ -187,7 +187,42 @@ export type {
   MediaType
 } from './definitions/MediaField/index.js';
 
-// TODO: Add MediaField variants as presets
+// MediaField variants as separate field types
+export {
+  AudioFieldPlugin
+} from './definitions/AudioField/index.js';
+
+export type {
+  AudioFieldDefinition,
+  AudioFieldValue
+} from './definitions/AudioField/index.js';
+
+export {
+  VideoFieldPlugin
+} from './definitions/VideoField/index.js';
+
+export type {
+  VideoFieldDefinition,
+  VideoFieldValue
+} from './definitions/VideoField/index.js';
+
+export {
+  ImageFieldPlugin
+} from './definitions/ImageField/index.js';
+
+export type {
+  ImageFieldDefinition,
+  ImageFieldValue
+} from './definitions/ImageField/index.js';
+
+export {
+  DocumentFieldPlugin
+} from './definitions/DocumentField/index.js';
+
+export type {
+  DocumentFieldDefinition,
+  DocumentFieldValue
+} from './definitions/DocumentField/index.js';
 
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

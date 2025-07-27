@@ -25,10 +25,10 @@ interface FieldDemo {
 function generateFieldDemos(): FieldDemo[] {
   const plugins = fieldRegistry.getAll();
   const demos: FieldDemo[] = [];
-
+  
   plugins.forEach(plugin => {
     if (!plugin.demoConfig) return;
-
+    
     // Create a demo for each variant
     plugin.demoConfig.variants.forEach((variant, index) => {
       const id = `${plugin.type}-${index}`;
