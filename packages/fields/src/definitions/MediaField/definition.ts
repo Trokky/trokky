@@ -19,6 +19,7 @@ export interface MediaFieldValue {
   alt?: string;
   caption?: string;
   title?: string; // Override asset title for this usage
+  variant?: string; // Selected variant name (e.g., 'thumbnail', 'preview', 'hero')
 }
 
 // Supported media types

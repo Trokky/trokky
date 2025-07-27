@@ -19,7 +19,8 @@ import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -34,6 +35,7 @@ interface MediaFile {
   size: number;
   url: string;
   uploadedAt: string;
+  _createdAt: string;
   metadata?: {
     width?: number;
     height?: number;
@@ -43,6 +45,13 @@ interface MediaFile {
     credit?: string;
     author?: string;
     tags?: string[];
+    imageVariants?: Record<string, {
+      url: string;
+      width: number;
+      height: number;
+      format: string;
+      size: number;
+    }>;
   };
 }
 
@@ -478,6 +487,47 @@ export function MediaPage() {
     }
   };
 
+  const handleRegenerateVariants = async (file: MediaFile) => {
+    if (!hasPermission) return;
+    
+    if (!apiClient.hasFeature('media')) {
+      logger.warn('Regenerate variants attempted but media feature not available');
+      return;
+    }
+    
+    // Check if it's an image file
+    if (!file.contentType.startsWith('image/')) {
+      logger.warn('Regenerate variants attempted on non-image file');
+      return;
+    }
+    
+    try {
+      logger.info('Regenerating variants for:', file.filename);
+      
+      const response = await apiClient.regenerateMediaVariants(file.id);
+      
+      if (response.success && response.data?.file) {
+        // Update the file in the media files list
+        setMediaFiles(prevFiles => 
+          prevFiles.map(f => 
+            f.id === file.id ? response.data.file : f
+          )
+        );
+        
+        // Update selectedFile if it's the same one
+        if (selectedFile?.id === file.id) {
+          setSelectedFile(response.data.file);
+        }
+        
+        logger.info('Variants regenerated successfully');
+        // TODO: Add success toast notification
+      }
+    } catch (error) {
+      logger.error('Failed to regenerate variants:', error);
+      // TODO: Add error toast notification
+    }
+  };
+
   // Get file type icon
   const getFileIcon = (contentType: string) => {
     if (contentType.startsWith('image/')) return PhotoIcon;
@@ -498,10 +548,16 @@ export function MediaPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Get variant count for a media file
+  const getVariantCount = (file: MediaFile) => {
+    return file.metadata?.imageVariants ? Object.keys(file.metadata.imageVariants).length : 0;
+  };
+
   // Render media item
   const renderMediaItem = (file: MediaFile) => {
     const FileIcon = getFileIcon(file.contentType);
     const isImage = file.contentType.startsWith('image/');
+    const variantCount = getVariantCount(file);
 
     if (viewMode === 'grid') {
       return (
@@ -522,6 +578,13 @@ export function MediaPage() {
               <FileIcon className="h-12 w-12 text-gray-400" />
             )}
           </div>
+          
+          {/* Variant count badge */}
+          {variantCount > 0 && (
+            <div className="absolute top-2 right-2 bg-primary-600 text-white text-xs px-2 py-1 rounded-full">
+              {variantCount}
+            </div>
+          )}
           
           {/* Overlay */}
           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
@@ -568,9 +631,11 @@ export function MediaPage() {
             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
               {file.metadata?.title || file.filename}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatFileSize(file.size)}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formatFileSize(file.size)}
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -855,13 +920,13 @@ export function MediaPage() {
           <div className="flex flex-col -m-6 h-[calc(90vh-8rem)]">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {selectedFile.metadata?.title || selectedFile.filename}
-                </h2>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center space-x-4 min-w-0 flex-1">
+                <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
                   {currentViewerIndex + 1} of {filteredFiles.length}
                 </span>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                  {selectedFile.metadata?.title || selectedFile.filename}
+                </h2>
               </div>
               <div className="flex items-center space-x-2">
                 {/* Navigation */}
@@ -909,6 +974,16 @@ export function MediaPage() {
                     >
                       <PencilIcon className="h-4 w-4" />
                     </Button>
+                    {selectedFile.contentType.startsWith('image/') && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRegenerateVariants(selectedFile)}
+                        title="Regenerate image variants"
+                      >
+                        <ArrowPathIcon className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -933,9 +1008,11 @@ export function MediaPage() {
 
             {/* Content */}
             <div className="flex-1 flex">
-              {/* Media preview */}
-              <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
-                {selectedFile.contentType.startsWith('image/') ? (
+              {/* Left section: Media preview + variants */}
+              <div className="flex-1 flex flex-col">
+                {/* Media preview */}
+                <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
+                  {selectedFile.contentType.startsWith('image/') ? (
                   <img
                     src={selectedFile.url}
                     alt={selectedFile.metadata?.alt || selectedFile.filename}
@@ -974,6 +1051,104 @@ export function MediaPage() {
                       <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
                       Download File
                     </Button>
+                  </div>
+                  )}
+                </div>
+                
+                {/* Image Variants Section */}
+                {selectedFile.contentType.startsWith('image/') && selectedFile.metadata?.imageVariants && Object.keys(selectedFile.metadata.imageVariants).length > 0 && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                        Image Variants
+                      </h3>
+                      {hasPermission && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRegenerateVariants(selectedFile)}
+                          title="Regenerate all variants"
+                          className="text-xs"
+                        >
+                          <ArrowPathIcon className="h-3 w-3 mr-1" />
+                          Regenerate
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex space-x-3 overflow-x-auto pb-2">
+                      {Object.entries(selectedFile.metadata.imageVariants).map(([variantName, variant]) => {
+                        // Use thumbnail for display in Studio, but original variant URL for copy/view actions
+                        const thumbnailUrl = selectedFile.metadata?.imageVariants?.thumbnail?.url || variant.url;
+                        
+                        return (
+                          <div key={variantName} className="flex-shrink-0 group relative">
+                            <img
+                              src={thumbnailUrl}
+                              alt={`${variantName} variant`}
+                              className="w-20 h-20 object-cover rounded border border-gray-200 dark:border-gray-600"
+                              loading="lazy"
+                            />
+                            {/* Hover overlay with buttons */}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity rounded flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <div className="flex space-x-1">
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(variant.url);
+                                  }}
+                                  className="text-[10px] bg-white bg-opacity-90 text-gray-800 px-1.5 py-0.5 rounded hover:bg-opacity-100 transition-all"
+                                  title="Copy URL"
+                                >
+                                  Copy
+                                </button>
+                                <a
+                                  href={variant.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] bg-primary-600 bg-opacity-90 text-white px-1.5 py-0.5 rounded hover:bg-opacity-100 transition-all"
+                                >
+                                  View
+                                </a>
+                              </div>
+                            </div>
+                            {/* Variant label and dimensions */}
+                            <div className="mt-1 text-center">
+                              <div className="text-xs text-gray-600 dark:text-gray-400 capitalize truncate">
+                                {variantName}
+                              </div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-500">
+                                {variant.width} × {variant.height}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* No variants section for images without variants */}
+                {selectedFile.contentType.startsWith('image/') && 
+                 (!selectedFile.metadata?.imageVariants || Object.keys(selectedFile.metadata.imageVariants).length === 0) && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                    <div className="text-center">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        Image Variants
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        No variants generated for this image.
+                      </p>
+                      {hasPermission && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleRegenerateVariants(selectedFile)}
+                          className="text-xs"
+                        >
+                          <ArrowPathIcon className="h-4 w-4 mr-2" />
+                          Generate Variants
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1063,6 +1238,16 @@ export function MediaPage() {
                       </dt>
                       <dd className="text-sm text-gray-900 dark:text-white">
                         {selectedFile.metadata.credit}
+                      </dd>
+                    </div>
+                  )}
+                  {selectedFile.metadata?.originalDimensions && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Original Dimensions
+                      </dt>
+                      <dd className="text-sm text-gray-900 dark:text-white">
+                        {selectedFile.metadata.originalDimensions.width} × {selectedFile.metadata.originalDimensions.height}px
                       </dd>
                     </div>
                   )}
