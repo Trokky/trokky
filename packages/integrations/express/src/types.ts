@@ -197,7 +197,7 @@ export interface ExpressIntegrationConfig extends RoutesConfig {
 
 // Express request with file upload support
 export interface ExpressRequestWithFiles extends Request {
-  files?: Express.Multer.File[]
+  files?: any[] // Using any[] to avoid Multer type dependency
 }
 
 // Middleware function type

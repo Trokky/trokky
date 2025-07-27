@@ -23,6 +23,7 @@
   ],
   "references": [
     { "path": "../../core" },
-    { "path": "../../routes" }
+    { "path": "../../routes" },
+    { "path": "../../adapters/filesystem" }
   ]
 }
