@@ -44,6 +44,13 @@ export interface RouteDefinition {
   description?: string
 }
 
+// Static route configuration
+export interface StaticRouteConfig {
+  mountPath: string
+  directory: string
+  maxAge?: number // Cache control in seconds
+}
+
 // Routes configuration
 export interface RoutesConfig {
   core: TrokkyCore
@@ -51,6 +58,11 @@ export interface RoutesConfig {
   corsOptions?: CorsOptions
   rateLimiting?: RateLimitOptions
   authentication?: AuthenticationOptions
+  staticRoutes?: {
+    media?: StaticRouteConfig
+    assets?: StaticRouteConfig
+    [key: string]: StaticRouteConfig | undefined
+  }
 }
 
 // CORS configuration

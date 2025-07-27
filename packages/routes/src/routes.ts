@@ -5,6 +5,7 @@ import type {
   HttpRequest,
   HttpResponse,
   ApiResponse,
+  StaticRouteConfig,
   ListDocumentsRequest,
   CreateDocumentRequest,
   UpdateDocumentRequest,
@@ -100,6 +101,9 @@ export class TrokkyRoutes {
     // CORS preflight route
     this.addRoute('OPTIONS', `${basePath}/*`, this.handleCors.bind(this))
 
+    // Initialize static routes if configured
+    this.initializeStaticRoutes()
+
     this.logger.info('Routes initialized', { count: this.routes.size })
   }
 
@@ -116,6 +120,29 @@ export class TrokkyRoutes {
 
   public getRoutes(): RouteDefinition[] {
     return Array.from(this.routes.values())
+  }
+
+  public getApiRoutes(): RouteDefinition[] {
+    return Array.from(this.routes.values()).filter(route => 
+      !this.isStaticRoute(route.path)
+    )
+  }
+
+  public getStaticRoutes(): RouteDefinition[] {
+    return Array.from(this.routes.values()).filter(route => 
+      this.isStaticRoute(route.path)
+    )
+  }
+
+  private isStaticRoute(path: string): boolean {
+    if (!this.config.staticRoutes) return false
+    
+    for (const staticConfig of Object.values(this.config.staticRoutes)) {
+      if (staticConfig && path === `${staticConfig.mountPath}/*`) {
+        return true
+      }
+    }
+    return false
   }
 
   public findRoute(method: string, path: string): RouteDefinition | undefined {
@@ -782,6 +809,125 @@ export class TrokkyRoutes {
       headers: corsHeaders,
       body: null
     }
+  }
+
+  // Static file serving initialization
+  private initializeStaticRoutes(): void {
+    if (!this.config.staticRoutes) {
+      return
+    }
+
+    for (const [routeName, routeConfig] of Object.entries(this.config.staticRoutes)) {
+      if (!routeConfig) continue
+      
+      this.logger.debug('Adding static route', { 
+        name: routeName, 
+        mountPath: routeConfig.mountPath, 
+        directory: routeConfig.directory 
+      })
+      
+      // Add the static file route with wildcard to catch all files
+      this.addRoute('GET', `${routeConfig.mountPath}/*`, this.createStaticHandler(routeConfig))
+    }
+  }
+
+  // Create a static file handler for a specific configuration
+  private createStaticHandler(config: StaticRouteConfig): RouteHandler {
+    return async (request: HttpRequest): Promise<HttpResponse> => {
+      try {
+        // Extract the file path from the URL
+        const filePath = request.path.replace(config.mountPath, '')
+        if (!filePath || filePath === '/' || filePath.includes('..')) {
+          return {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' },
+            body: 'File not found'
+          }
+        }
+
+        // Node.js specific implementation for file serving
+        const { createRequire } = await import('module')
+        const require = createRequire(import.meta.url)
+        const fs = require('fs')
+        const path = require('path')
+
+        const fullPath = path.join(config.directory, filePath)
+        
+        // Security check: ensure the resolved path is still within the directory
+        const resolvedPath = path.resolve(fullPath)
+        const resolvedDir = path.resolve(config.directory)
+        if (!resolvedPath.startsWith(resolvedDir)) {
+          return {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain' },
+            body: 'Access denied'
+          }
+        }
+
+        // Check if file exists
+        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+          return {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' },
+            body: 'File not found'
+          }
+        }
+
+        // Read file and determine content type
+        const fileContent = fs.readFileSync(resolvedPath)
+        const contentType = this.getContentType(path.extname(resolvedPath))
+        
+        // Set cache headers if maxAge is configured
+        const headers: Record<string, string> = {
+          'Content-Type': contentType,
+          'Content-Length': fileContent.length.toString()
+        }
+        
+        if (config.maxAge) {
+          headers['Cache-Control'] = `public, max-age=${config.maxAge}`
+        }
+
+        return {
+          status: 200,
+          headers,
+          body: fileContent
+        }
+      } catch (error) {
+        this.logger.error('Static file serving error', error)
+        return {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' },
+          body: 'Internal server error'
+        }
+      }
+    }
+  }
+
+  // Helper method to determine content type from file extension
+  private getContentType(extension: string): string {
+    const mimeTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
+      '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.xml': 'application/xml',
+      '.zip': 'application/zip',
+      '.ico': 'image/x-icon'
+    }
+    
+    return mimeTypes[extension.toLowerCase()] || 'application/octet-stream'
   }
 
   // User management handlers

@@ -38,25 +38,34 @@ export class TrokkyExpress {
   /**
    * Create complete Express integration with router and middleware
    */
-  public createIntegration(): ExpressIntegration {
+  public async createIntegration(): Promise<ExpressIntegration> {
     const router = this.createRouter()
+    const staticRouter = this.createStaticRouter()
     const middleware = this.middleware.getMiddleware()
+    
+    // Create Studio router if enabled
+    let studioRouter: Router | undefined
+    if (this.config.studio?.enabled !== false) {
+      studioRouter = await this.createStudioRouter()
+    }
 
     return {
       router,
+      staticRouter,
+      studioRouter,
       middleware,
       config: this.config
     }
   }
 
   /**
-   * Create Express router with all Trokky routes
+   * Create Express router with API routes only (excludes static routes)
    */
   public createRouter(): Router {
     const router = Router()
 
-    // Get all routes from TrokkyRoutes
-    const routeDefinitions = this.routes.getRoutes()
+    // Get only API routes from TrokkyRoutes (not static routes)
+    const routeDefinitions = this.routes.getApiRoutes()
     this.logger.info('Creating Express router', { routeCount: routeDefinitions.length })
     
     // Add each route to Express router
@@ -93,6 +102,61 @@ export class TrokkyExpress {
   }
 
   /**
+   * Create Express router with static routes only (excludes API routes)
+   */
+  public createStaticRouter(): Router {
+    const router = Router()
+
+    // Get only static routes from TrokkyRoutes
+    const staticRoutes = this.routes.getStaticRoutes()
+    this.logger.info('Creating static router', { routeCount: staticRoutes.length })
+    
+    // Add each static route to Express router
+    for (const routeDef of staticRoutes) {
+      this.logger.debug('Registering static route', { method: routeDef.method, path: routeDef.path })
+      const expressHandler = this.adapter.handleRoute(routeDef.handler)
+      
+      // Static routes are typically GET only
+      router.get(routeDef.path, expressHandler as any)
+    }
+
+    return router
+  }
+
+  /**
+   * Create Studio router if Studio integration is enabled
+   */
+  public async createStudioRouter(): Promise<Router | undefined> {
+    if (!this.config.studio) {
+      return undefined
+    }
+
+    try {
+      // Import createStudio dynamically to avoid circular dependencies
+      const { createStudio } = await import('@trokky/studio')
+      
+      // Create Studio configuration
+      const studioConfig = {
+        apiRouter: this.createRouter(), // Pass the API router
+        mount: this.config.studio.mount || '/studio',
+        auth: this.config.studio.auth ?? true,
+        branding: this.config.studio.branding,
+        structure: this.config.studio.structure,
+        customFields: this.config.studio.customFields,
+        config: this.config.studio.config
+      }
+
+      this.logger.info('Creating Studio router', { mount: studioConfig.mount })
+      const studio = await createStudio(studioConfig)
+      
+      return studio.router
+    } catch (error) {
+      this.logger.error('Failed to create Studio router', error)
+      throw new Error(`Studio integration failed: ${error.message}`)
+    }
+  }
+
+  /**
    * Get just the middleware array
    */
   public getMiddleware() {
@@ -109,9 +173,9 @@ export class TrokkyExpress {
   /**
    * Quick setup method for common Express integration
    */
-  public static setup(config: ExpressIntegrationConfig): ExpressIntegration {
+  public static async setup(config: ExpressIntegrationConfig): Promise<ExpressIntegration> {
     const integration = new TrokkyExpress(config)
-    return integration.createIntegration()
+    return await integration.createIntegration()
   }
 
   /**
@@ -121,14 +185,14 @@ export class TrokkyExpress {
    * @param mountPath - Path where routes will be mounted (e.g., '/api', '/api/v1')
    * @returns Integration ready to mount on the specified path
    */
-  public static setupForMount(config: Omit<ExpressIntegrationConfig, 'basePath'>, mountPath: string): { integration: ExpressIntegration, mountPath: string } {
+  public static async setupForMount(config: Omit<ExpressIntegrationConfig, 'basePath'>, mountPath: string): Promise<{ integration: ExpressIntegration, mountPath: string }> {
     const integration = new TrokkyExpress({
       ...config,
       basePath: ''  // Always use empty basePath for mounting
     })
     
     return {
-      integration: integration.createIntegration(),
+      integration: await integration.createIntegration(),
       mountPath
     }
   }

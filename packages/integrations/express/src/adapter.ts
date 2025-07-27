@@ -93,6 +93,9 @@ export class ExpressAdapter {
       res.end()
     } else if (typeof httpResponse.body === 'string') {
       res.send(httpResponse.body)
+    } else if (Buffer.isBuffer(httpResponse.body)) {
+      // Handle binary data (like images, videos, etc.) without charset
+      res.end(httpResponse.body)
     } else {
       res.json(httpResponse.body)
     }

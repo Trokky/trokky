@@ -2,6 +2,38 @@ import type { Request, Response, NextFunction, Router } from 'express'
 import type { TrokkyCore } from '@trokky/core'
 import type { RoutesConfig, HttpRequest, HttpResponse } from '@trokky/routes'
 
+// Studio configuration (matches Studio's StudioConfig interface)
+export interface StudioIntegrationConfig {
+  /** Enable Studio integration */
+  enabled?: boolean
+  
+  /** Mount point for Studio (default: '/studio') */
+  mount?: string
+  
+  /** Enable authentication */
+  auth?: boolean
+  
+  /** Studio branding configuration */
+  branding?: {
+    title?: string
+    logo?: string
+    theme?: 'light' | 'dark' | 'system'
+  }
+  
+  /** Custom structure configuration */
+  structure?: any
+  
+  /** Custom field types to register */
+  customFields?: any[]
+  
+  /** Additional Studio configuration */
+  config?: {
+    pageSize?: number
+    enableDrafts?: boolean
+    enableVersioning?: boolean
+  }
+}
+
 // Express-specific configuration
 export interface ExpressIntegrationConfig extends RoutesConfig {
   // File upload configuration
@@ -29,6 +61,9 @@ export interface ExpressIntegrationConfig extends RoutesConfig {
     enableHelmet?: boolean
     customHeaders?: Record<string, string>
   }
+  
+  // Studio integration
+  studio?: StudioIntegrationConfig
 }
 
 // Express request with file upload support
@@ -48,6 +83,8 @@ export type ExpressRouteHandler = (req: ExpressRequestWithFiles, res: Response, 
 // Express integration result
 export interface ExpressIntegration {
   router: Router
+  staticRouter: Router
+  studioRouter?: Router
   middleware: ExpressMiddleware[]
   config: ExpressIntegrationConfig
 }
