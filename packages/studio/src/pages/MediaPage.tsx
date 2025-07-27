@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useStudioContext } from '@/contexts/StudioContext';
 import { 
   PhotoIcon, 
   PlusIcon, 
@@ -56,6 +57,7 @@ interface MediaTypeInfo {
 
 export function MediaPage() {
   const contextSidebar = useContextSidebar();
+  const studioContext = useStudioContext();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MediaFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -300,11 +302,15 @@ export function MediaPage() {
 
   // File upload
   const uploadFiles = async (files: File[]) => {
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      studioContext?.utils.showToast('You do not have permission to upload files', 'error');
+      return;
+    }
     
     // Check if media feature is available
     if (!apiClient.hasFeature('media')) {
       logger.warn('Upload attempted but media feature not available');
+      studioContext?.utils.showToast('Media upload feature is not available', 'error');
       return;
     }
     
@@ -315,9 +321,31 @@ export function MediaPage() {
       }
       
       await loadMediaFiles();
-      logger.info(`Successfully uploaded ${files.length} file(s)`);
+      const successMessage = files.length === 1 
+        ? `Successfully uploaded "${files[0].name}"` 
+        : `Successfully uploaded ${files.length} files`;
+      logger.info(successMessage);
+      studioContext?.utils.showToast(successMessage, 'success');
     } catch (error) {
-      logger.error('Upload failed:', error);
+      // Note: HTTP 400 errors from fetch() are automatically logged by the browser.
+      // This is expected behavior for upload validation errors and cannot be suppressed.
+      // We provide user-friendly toast notifications instead of relying on console logs.
+      
+      // Extract meaningful error message for user notification
+      let errorMessage = 'Upload failed. Please try again.';
+      if (error instanceof Error) {
+        if (error.message.includes('File size exceeds')) {
+          errorMessage = 'File size exceeds 100MB limit. Please choose a smaller file.';
+        } else if (error.message.includes('File type') && error.message.includes('not allowed')) {
+          errorMessage = 'File type not supported. Please choose a different file format.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      studioContext?.utils.showToast(errorMessage, 'error');
     } finally {
       setIsUploading(false);
     }
@@ -331,9 +359,13 @@ export function MediaPage() {
   };
 
   const handleUploadClick = () => {
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      studioContext?.utils.showToast('You do not have permission to upload files', 'error');
+      return;
+    }
     if (!apiClient.hasFeature('media')) {
       logger.warn('Upload button clicked but media feature not available');
+      studioContext?.utils.showToast('Media upload feature is not available', 'error');
       return;
     }
     fileInputRef.current?.click();

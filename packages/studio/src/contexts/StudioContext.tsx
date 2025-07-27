@@ -100,10 +100,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   
   // Toast system (simplified - could be enhanced with a proper toast library)
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-    // For now, use console - in production you'd integrate with your toast system
-    console.log(`[${type.toUpperCase()}] ${message}`);
-    
-    // You could also dispatch a custom event that a toast component listens to
+    // Dispatch toast event for visual notification component
     window.dispatchEvent(new CustomEvent('studio:toast', {
       detail: { message, type }
     }));

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
+import { ToastContainer } from '@/components/ui/Toast';
 import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 
@@ -62,6 +63,7 @@ function AppContent() {
     <>
       <AppRouter />
       <SessionTimeoutWarningContainer />
+      <ToastContainer />
     </>
   );
 }
