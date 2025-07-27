@@ -231,6 +231,12 @@ export class TrokkyExpress {
       await core.init()
       logger.info('✅ TrokkyCore initialized with professional config')
       
+      // Set global studio config for API endpoint access
+      if (fullConfig.studio?.enabled) {
+        (global as any).__TROKKY_STUDIO_CONFIG__ = fullConfig.studio
+        logger.debug('✅ Studio configuration registered globally')
+      }
+      
       // 4. Create admin user if specified
       if (fullConfig.security.adminUser) {
         try {

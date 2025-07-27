@@ -15,6 +15,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { useStudioBranding } from '@/hooks/useStudioConfig';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -35,11 +36,8 @@ export function Header({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
-  // Get branding from config or use defaults
-  const branding = {
-    title: window.TROKKY_CONFIG?.branding?.title || 'Trokky Studio',
-    logo: window.TROKKY_CONFIG?.branding?.logo
-  };
+  // Get branding from API or fallback to window config
+  const { branding } = useStudioBranding();
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);

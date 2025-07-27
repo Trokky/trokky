@@ -95,6 +95,7 @@ export class TrokkyRoutes {
 
     // Configuration routes
     this.addRoute('GET', `${basePath}/config/structure`, this.getStructure.bind(this))
+    this.addRoute('GET', `${basePath}/config/studio`, this.getStudioConfig.bind(this))
 
     // Slug validation routes
     this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
@@ -1716,6 +1717,35 @@ export class TrokkyRoutes {
       return this.successResponse({ structure })
     } catch (error) {
       this.logger.error('Failed to get structure', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get studio configuration from trokky.config
+   */
+  private async getStudioConfig(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      // Get studio configuration from global config or fallback
+      const studioConfig = (global as any).__TROKKY_STUDIO_CONFIG__ || {
+        branding: { title: 'Trokky Studio' },
+        enabled: true,
+        path: '/studio',
+        requireAuth: true
+      }
+      
+      this.logger.debug('Serving studio configuration', { 
+        title: studioConfig.branding?.title,
+        enabled: studioConfig.enabled 
+      })
+
+      return this.successResponse({ studioConfig })
+    } catch (error) {
+      this.logger.error('Failed to get studio config', { 
         error: error instanceof Error ? error.message : String(error) 
       })
       return this.errorResponse(error)
