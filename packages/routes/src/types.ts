@@ -197,6 +197,20 @@ export interface RefreshTokenRequest {
   refreshToken: string
 }
 
+// Slug validation endpoints request/response types
+export interface CheckSlugUniquenessRequest {
+  slug: string
+  collection: string
+  excludeId?: string
+}
+
+export interface CheckSlugUniquenessResponse {
+  unique: boolean
+  slug: string
+  collection: string
+  reason?: string
+}
+
 // Route context for handlers
 export interface RouteContext {
   core: TrokkyCore

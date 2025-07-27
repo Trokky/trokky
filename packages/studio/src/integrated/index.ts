@@ -1154,6 +1154,66 @@ function setupAPIRoutes(router: any, api: StudioAPI, _config: IntegratedStudioCo
       });
     }
   });
+
+  // Slug uniqueness validation endpoint
+  router.get('/api/slugs/check-unique', async (req: Request, res: Response) => {
+    try {
+      const { slug, collection, excludeId } = req.query;
+      
+      if (!slug || typeof slug !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Slug parameter is required' }
+        });
+      }
+      
+      if (!collection || typeof collection !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_INPUT', message: 'Collection parameter is required' }
+        });
+      }
+
+      console.log('[DEBUG] Checking slug uniqueness:', { slug, collection, excludeId });
+
+      // Check if slug exists in the collection
+      const documents = await _config.cms.listDocuments(collection, {
+        filter: { slug: slug }
+      });
+
+      console.log('[DEBUG] Found documents with slug:', documents.length);
+
+      // If excludeId is provided, filter out that document (for updates)
+      const conflictingDocs = excludeId 
+        ? documents.filter(doc => doc._id !== excludeId)
+        : documents;
+
+      const isUnique = conflictingDocs.length === 0;
+
+      const responseData = { 
+        unique: isUnique,
+        slug: slug,
+        collection: collection,
+        ...(isUnique ? {} : { reason: 'Slug already exists in collection' })
+      };
+
+      console.log('[DEBUG] Slug uniqueness result:', responseData);
+
+      res.json({
+        success: true,
+        data: responseData
+      });
+    } catch (error) {
+      console.error('[ERROR] Slug uniqueness check failed:', error);
+      res.status(500).json({
+        success: false,
+        error: { 
+          code: 'SLUG_CHECK_FAILED', 
+          message: error instanceof Error ? error.message : 'Failed to check slug uniqueness' 
+        }
+      });
+    }
+  });
 }
 
 // Re-export types that were declared above

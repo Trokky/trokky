@@ -21,7 +21,9 @@ import type {
   GetUserByUsernameRequest,
   GetUserByEmailRequest,
   LoginRequest,
-  LoginResponse
+  LoginResponse,
+  CheckSlugUniquenessRequest,
+  CheckSlugUniquenessResponse
 } from './types.js'
 import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
 
@@ -74,6 +76,9 @@ export class TrokkyRoutes {
     this.addRoute('POST', `${basePath}/auth/login`, this.login.bind(this))
     this.addRoute('POST', `${basePath}/auth/logout`, this.logout.bind(this))
     this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
+
+    // Slug validation routes
+    this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
 
     // Health check route
     this.addRoute('GET', `${basePath}/health`, this.healthCheck.bind(this))
@@ -562,6 +567,61 @@ export class TrokkyRoutes {
         body: buffer
       }
     } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async checkSlugUniqueness(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+      
+      const { slug, collection, excludeId } = request.query
+      
+      if (!slug || typeof slug !== 'string') {
+        throw new InvalidInputError('Slug parameter is required', 'slug')
+      }
+      
+      if (!collection || typeof collection !== 'string') {
+        throw new InvalidInputError('Collection parameter is required', 'collection')
+      }
+
+      // Validate collection name and slug format
+      SecurityValidator.validateCollectionName(collection)
+      
+      if (!slug.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)) {
+        return this.successResponse({ 
+          unique: false,
+          reason: 'Invalid slug format'
+        })
+      }
+
+      // Check if slug exists in the collection
+      console.log('🔍 Checking for documents with slug:', slug, 'in collection:', collection);
+      const documents = await this.core.listDocuments(collection, {
+        filter: { slug: slug }
+      })
+      console.log('📄 Found documents:', documents.length, documents);
+
+      // If excludeId is provided, filter out that document (for updates)
+      const conflictingDocs = excludeId 
+        ? documents.filter(doc => doc._id !== excludeId)
+        : documents
+      console.log('⚡ Conflicting docs after exclusion:', conflictingDocs.length);
+
+      const isUnique = conflictingDocs.length === 0
+
+      const responseData = { 
+        unique: isUnique,
+        slug: slug,
+        collection: collection,
+        ...(isUnique ? {} : { reason: 'Slug already exists in collection' })
+      };
+      console.log('📤 Sending response:', responseData);
+
+      return this.successResponse(responseData)
+    } catch (error) {
+      console.error('❌ Error in checkSlugUniqueness:', error);
       return this.errorResponse(error)
     }
   }

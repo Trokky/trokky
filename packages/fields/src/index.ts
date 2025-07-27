@@ -224,5 +224,21 @@ export type {
   DocumentFieldValue
 } from './definitions/DocumentField/index.js';
 
+export {
+  SlugFieldPlugin,
+  SlugFieldComponent,
+  SlugFieldPreview,
+  defaultSlugify,
+  generateUniqueSlug,
+  validateSlugFormat,
+  getSourceValue
+} from './definitions/SlugField/index.js';
+
+export type {
+  SlugFieldDefinition,
+  SlugFieldValue,
+  SlugifyOptions
+} from './definitions/SlugField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

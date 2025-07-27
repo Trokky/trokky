@@ -44,6 +44,10 @@ export type {
   ValidateTokenRequest,
   RefreshTokenRequest,
   
+  // Slug validation request/response types
+  CheckSlugUniquenessRequest,
+  CheckSlugUniquenessResponse,
+  
   // Framework adapter types
   RouteContext,
   FrameworkAdapter
