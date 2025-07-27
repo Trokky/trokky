@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev": "cd examples/demo && npm run dev:full",
+    "dev:packages": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "test": "turbo test",

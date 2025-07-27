@@ -339,8 +339,8 @@ export class AuthenticationService {
  */
 export const DEFAULT_AUTH_CONFIG: AuthConfig = {
   jwtSecret: process.env.TROKKY_JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
-  jwtExpiresIn: '1h',
-  refreshTokenExpiresIn: '7d',
+  jwtExpiresIn: '2h', // 2 hours for access tokens
+  refreshTokenExpiresIn: '7d', // 7 days for refresh tokens
   bcryptRounds: 12,
   rateLimitAttempts: 5,
   rateLimitWindow: 15 * 60 * 1000 // 15 minutes

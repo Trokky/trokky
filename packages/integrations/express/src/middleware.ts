@@ -1,5 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express'
-import multer from 'multer'
+// Removed multer import - using edge-compatible busboy in adapter instead
 import { createLogger } from '@trokky/core'
 import type { ExpressIntegrationConfig, ExpressMiddleware, ExpressErrorHandler } from './types.js'
 
@@ -27,8 +27,8 @@ export class TrokkyExpressMiddleware {
     // Body parsing middleware
     middleware.push(...this.createBodyParsers())
 
-    // File upload middleware
-    middleware.push(this.createFileUploadMiddleware())
+    // Note: File upload is now handled directly in the adapter using busboy
+    // No middleware needed for edge-compatible upload handling
 
     // Error handling should be added by the user as the last middleware
 
@@ -89,88 +89,7 @@ export class TrokkyExpressMiddleware {
     return middleware
   }
 
-  /**
-   * Create file upload middleware using Multer
-   */
-  private createFileUploadMiddleware(): ExpressMiddleware {
-    const uploadConfig = this.config.fileUpload || {}
-    
-    const storage = multer.memoryStorage() // Store files in memory for processing
-    
-    const upload = multer({
-      storage,
-      limits: {
-        fileSize: uploadConfig.maxFileSize || 50 * 1024 * 1024, // 50MB default
-        files: uploadConfig.maxFiles || 10
-      },
-      fileFilter: (req, file, cb) => {
-        // Check allowed MIME types
-        const allowedTypes = uploadConfig.allowedMimeTypes
-        if (allowedTypes && !allowedTypes.includes(file.mimetype)) {
-          cb(new Error(`File type ${file.mimetype} is not allowed`))
-          return
-        }
-        
-        // Security: Check for dangerous file extensions (all extensions, not just the last one)
-        const dangerousExts = [
-          '.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js', '.jar',
-          '.ps1', '.sh', '.php', '.jsp', '.asp', '.aspx', '.msi', '.dll', '.sys',
-          '.bin', '.app', '.deb', '.rpm', '.dmg', '.pkg', '.run', '.out'
-        ]
-        
-        // Extract all extensions from filename (handles cases like file.tar.gz)
-        const getAllExtensions = (filename: string): string[] => {
-          const parts = filename.toLowerCase().split('.')
-          if (parts.length <= 1) return []
-          return parts.slice(1).map(ext => `.${ext}`)
-        }
-        
-        const fileExtensions = getAllExtensions(file.originalname)
-        const hasDangerousExtension = fileExtensions.some(ext => dangerousExts.includes(ext))
-        
-        if (hasDangerousExtension) {
-          const foundDangerousExt = fileExtensions.find(ext => dangerousExts.includes(ext))
-          cb(new Error(`File extension ${foundDangerousExt} is not allowed`))
-          return
-        }
-        
-        // Security: Check for path traversal in filename
-        if (file.originalname.includes('..') || file.originalname.includes('/') || file.originalname.includes('\\')) {
-          cb(new Error('Invalid filename. Path separators not allowed'))
-          return
-        }
-        
-        cb(null, true)
-      }
-    })
-
-    // Return middleware that handles both single and multiple files
-    return (req: Request, res: Response, next: NextFunction) => {
-      // Use multer's array method to handle multiple files
-      const uploadHandler = upload.array('files', uploadConfig.maxFiles || 10)
-      
-      uploadHandler(req, res, (err) => {
-        if (err) {
-          // Convert Multer errors to our error format
-          if (err instanceof multer.MulterError) {
-            switch (err.code) {
-              case 'LIMIT_FILE_SIZE':
-                return next(new Error(`File too large. Maximum size is ${uploadConfig.maxFileSize || 50 * 1024 * 1024} bytes`))
-              case 'LIMIT_FILE_COUNT':
-                return next(new Error(`Too many files. Maximum is ${uploadConfig.maxFiles || 10} files`))
-              case 'LIMIT_UNEXPECTED_FILE':
-                return next(new Error('Unexpected file field'))
-              default:
-                return next(new Error(`File upload error: ${err.message}`))
-            }
-          }
-          return next(err)
-        }
-        
-        next()
-      })
-    }
-  }
+  // File upload is now handled directly in the adapter using busboy for edge compatibility
 
   /**
    * Create error handling middleware

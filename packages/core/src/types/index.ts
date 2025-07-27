@@ -138,6 +138,12 @@ export interface StorageAdapter {
   getFileContent(id: string): Promise<ArrayBuffer | null>
   listMedia?(options?: { limit?: number; offset?: number }): Promise<MediaFile[]>
   deleteFile(id: string): Promise<void>
+  
+  // Variant operations (for image processing)
+  saveVariantFile?(parentId: string, variantName: string, buffer: Buffer, format: string): Promise<string>
+  getVariantContent?(parentId: string, variantName: string): Promise<ArrayBuffer | null>
+  getVariantUrl?(parentId: string, variantName: string): string
+  deleteVariantFiles?(parentId: string): Promise<void>
 
   // User operations (system entities)
   getUser?(id: string): Promise<User | null>

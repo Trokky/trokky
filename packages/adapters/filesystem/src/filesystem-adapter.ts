@@ -287,9 +287,9 @@ export class FilesystemAdapter implements StorageAdapter {
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate appropriate URL based on configuration
+      // Generate API-based URL for controlled access
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
+        ? `${this.config.mediaBaseUrl}/api/media/${metadata.id}/file`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {
@@ -339,9 +339,9 @@ export class FilesystemAdapter implements StorageAdapter {
 
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate appropriate URL based on configuration
+      // Generate API-based URL for controlled access
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
+        ? `${this.config.mediaBaseUrl}/api/media/${fileMetadata.id}/file`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {
@@ -359,7 +359,12 @@ export class FilesystemAdapter implements StorageAdapter {
           ...(fileMetadata.title !== undefined && { title: fileMetadata.title }),
           ...(fileMetadata.alt !== undefined && { alt: fileMetadata.alt }),
           ...(fileMetadata.author !== undefined && { author: fileMetadata.author }),
-          ...(fileMetadata.credit !== undefined && { credit: fileMetadata.credit })
+          ...(fileMetadata.credit !== undefined && { credit: fileMetadata.credit }),
+          // Include image processing metadata with updated URLs
+          ...(fileMetadata.imageVariants && { 
+            imageVariants: this.updateVariantUrls(fileMetadata.imageVariants, fileMetadata.id) 
+          }),
+          ...(fileMetadata.originalDimensions && { originalDimensions: fileMetadata.originalDimensions })
         },
         _createdAt: fileMetadata.createdAt instanceof Date ? fileMetadata.createdAt : new Date(fileMetadata.createdAt)
       }
@@ -414,9 +419,9 @@ export class FilesystemAdapter implements StorageAdapter {
       const filePath = this.getMediaPath(id, updatedMetadata.extension)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate appropriate URL based on configuration
+      // Generate API-based URL for controlled access
       const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/${path.basename(filePath)}`
+        ? `${this.config.mediaBaseUrl}/api/media/${updatedMetadata.id}/file`
         : `file://${path.resolve(filePath)}`
 
       const mediaFile: MediaFile = {
@@ -1177,5 +1182,109 @@ export class FilesystemAdapter implements StorageAdapter {
       
       return 0
     })
+  }
+
+  // Variant file operations
+  public async saveVariantFile(parentId: string, variantName: string, buffer: Buffer, format: string): Promise<string> {
+    try {
+      // Create variants directory if it doesn't exist
+      const variantsDir = path.join(this.config.mediaDir, 'variants')
+      await fsExtra.ensureDir(variantsDir, { mode: this.config.dirMode })
+
+      // Create parent directory for this image's variants
+      const parentVariantsDir = path.join(variantsDir, parentId)
+      await fsExtra.ensureDir(parentVariantsDir, { mode: this.config.dirMode })
+
+      // Save variant file
+      const variantFilename = `${variantName}.${format}`
+      const variantPath = path.join(parentVariantsDir, variantFilename)
+      
+      await fs.writeFile(variantPath, buffer)
+      
+      // Return relative path for URL generation
+      return `variants/${parentId}/${variantFilename}`
+    } catch (error) {
+      console.error('[ERROR] FilesystemAdapter.saveVariantFile failed:', error)
+      throw new Error(`Failed to save variant file ${parentId}/${variantName}: ${error}`)
+    }
+  }
+
+  public getVariantUrl(parentId: string, variantName: string): string {
+    // Generate API-based URL for controlled variant access
+    return `${this.config.mediaBaseUrl}/api/media/${parentId}/variants/${variantName}`
+  }
+
+  private updateVariantUrls(imageVariants: Record<string, any>, parentId: string): Record<string, any> {
+    // Update variant URLs to use the new API format
+    const updatedVariants: Record<string, any> = {}
+    for (const [variantName, variantData] of Object.entries(imageVariants)) {
+      updatedVariants[variantName] = {
+        ...variantData,
+        url: this.getVariantUrl(parentId, variantName)
+      }
+    }
+    return updatedVariants
+  }
+
+  public async getVariantContent(parentId: string, variantName: string): Promise<ArrayBuffer | null> {
+    try {
+      // First check if the parent media file exists
+      const mediaFile = await this.getFile(parentId)
+      if (!mediaFile) {
+        return null
+      }
+
+      // Get variant info from metadata to determine format
+      const variants = mediaFile.metadata?.imageVariants as Record<string, any>
+      if (!variants || !variants[variantName]) {
+        return null
+      }
+
+      const variantInfo = variants[variantName]
+      const variantFilename = `${variantName}.${variantInfo.format || 'webp'}`
+      const variantPath = path.join(this.config.mediaDir, 'variants', parentId, variantFilename)
+
+      // Security check: ensure the resolved path is still within the media directory
+      const resolvedPath = path.resolve(variantPath)
+      const mediaBaseDir = path.resolve(this.config.mediaDir)
+      if (!resolvedPath.startsWith(mediaBaseDir)) {
+        throw new Error('Access denied: path traversal detected')
+      }
+
+      // Check if variant file exists
+      try {
+        await fs.access(resolvedPath, constants.F_OK)
+        const stats = await fs.stat(resolvedPath)
+        if (!stats.isFile()) {
+          return null
+        }
+      } catch {
+        return null
+      }
+
+      // Read and return variant file content
+      const buffer = await fs.readFile(resolvedPath)
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+    } catch (error) {
+      console.error(`[ERROR] FilesystemAdapter.getVariantContent failed for ${parentId}/${variantName}:`, error)
+      return null
+    }
+  }
+
+  public async deleteVariantFiles(parentId: string): Promise<void> {
+    try {
+      const parentVariantsDir = path.join(this.config.mediaDir, 'variants', parentId)
+      
+      // Check if directory exists before trying to delete
+      try {
+        await fs.access(parentVariantsDir, constants.F_OK)
+        await fs.rm(parentVariantsDir, { recursive: true, force: true })
+      } catch {
+        // Directory doesn't exist, nothing to delete
+      }
+    } catch (error) {
+      console.error('[ERROR] FilesystemAdapter.deleteVariantFiles failed:', error)
+      throw new Error(`Failed to delete variant files for ${parentId}: ${error}`)
+    }
   }
 }

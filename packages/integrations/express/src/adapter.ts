@@ -14,7 +14,7 @@ export class ExpressAdapter {
   /**
    * Convert Express Request to framework-agnostic HttpRequest
    */
-  public convertRequest(req: ExpressRequestWithFiles): HttpRequest {
+  public async convertRequest(req: ExpressRequestWithFiles): Promise<HttpRequest> {
     // Extract query parameters
     const query: Record<string, string | string[] | undefined> = {}
     for (const [key, value] of Object.entries(req.query)) {
@@ -35,10 +35,20 @@ export class ExpressAdapter {
       }
     }
 
-    // Convert uploaded files to File objects
+    // Handle file uploads using edge-compatible FormData parsing
     let files: File[] | undefined
-    if (req.files) {
-      files = this.convertMulterFiles(req.files)
+    let body = req.body
+
+    // Check if this is a multipart/form-data request
+    const contentType = req.get('content-type') || ''
+    if (contentType.includes('multipart/form-data')) {
+      try {
+        const formData = await this.parseFormData(req)
+        files = formData.files
+        body = formData.fields
+      } catch (error) {
+        console.warn('Failed to parse FormData:', error)
+      }
     }
 
     return {
@@ -48,7 +58,7 @@ export class ExpressAdapter {
       query,
       params: req.params,
       headers,
-      body: req.body,
+      body,
       files
     }
   }
@@ -60,7 +70,7 @@ export class ExpressAdapter {
     return async (req: ExpressRequestWithFiles, res: Response, next: NextFunction) => {
       try {
         // Convert Express request to HttpRequest
-        const httpRequest = this.convertRequest(req)
+        const httpRequest = await this.convertRequest(req)
         
         // Call the framework-agnostic handler
         const httpResponse = await routeHandler(httpRequest)
@@ -102,27 +112,97 @@ export class ExpressAdapter {
   }
 
   /**
-   * Convert Multer file objects to File objects
+   * Parse FormData from Express request using edge-compatible approach
    */
-  private convertMulterFiles(multerFiles: Express.Multer.File[] | Express.Multer.File): File[] {
+  private async parseFormData(req: ExpressRequestWithFiles): Promise<{ files: File[]; fields: Record<string, any> }> {
     const files: File[] = []
-    const fileArray = Array.isArray(multerFiles) ? multerFiles : [multerFiles]
+    const fields: Record<string, any> = {}
 
-    for (const multerFile of fileArray) {
-      // Create a File-like object from Multer file
-      const file = new Blob([multerFile.buffer], { type: multerFile.mimetype })
+    // Use busboy for parsing multipart data in edge-compatible way
+    const busboy = await import('busboy')
+    
+    return new Promise((resolve, reject) => {
+      const bb = busboy.default({ headers: req.headers })
       
-      // Add File properties that aren't in Blob
-      Object.defineProperties(file, {
-        name: { value: multerFile.originalname, writable: false },
-        size: { value: multerFile.size, writable: false },
-        type: { value: multerFile.mimetype, writable: false },
-        lastModified: { value: Date.now(), writable: false }
+      bb.on('file', (name: string, file: NodeJS.ReadableStream, info: { filename: string; encoding: string; mimeType: string }) => {
+        // Security: Check for dangerous file extensions
+        const dangerousExts = [
+          '.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js', '.jar',
+          '.ps1', '.sh', '.php', '.jsp', '.asp', '.aspx', '.msi', '.dll', '.sys',
+          '.bin', '.app', '.deb', '.rpm', '.dmg', '.pkg', '.run', '.out'
+        ]
+        
+        const getAllExtensions = (filename: string): string[] => {
+          const parts = filename.toLowerCase().split('.')
+          if (parts.length <= 1) return []
+          return parts.slice(1).map(ext => `.${ext}`)
+        }
+        
+        const fileExtensions = getAllExtensions(info.filename)
+        const hasDangerousExtension = fileExtensions.some(ext => dangerousExts.includes(ext))
+        
+        if (hasDangerousExtension) {
+          const foundDangerousExt = fileExtensions.find(ext => dangerousExts.includes(ext))
+          reject(new Error(`File extension ${foundDangerousExt} is not allowed`))
+          return
+        }
+        
+        // Security: Check for path traversal in filename
+        if (info.filename.includes('..') || info.filename.includes('/') || info.filename.includes('\\')) {
+          reject(new Error('Invalid filename. Path separators not allowed'))
+          return
+        }
+        
+        const chunks: Buffer[] = []
+        let totalSize = 0
+        const maxSize = 100 * 1024 * 1024 // 100MB limit
+        
+        file.on('data', (chunk: Buffer) => {
+          totalSize += chunk.length
+          if (totalSize > maxSize) {
+            reject(new Error(`File too large. Maximum size is ${maxSize} bytes`))
+            return
+          }
+          chunks.push(chunk)
+        })
+        
+        file.on('end', () => {
+          const buffer = Buffer.concat(chunks)
+          
+          // Create edge-compatible File object
+          const fileBlob = new Blob([buffer], { type: info.mimeType })
+          
+          // Add File properties
+          Object.defineProperties(fileBlob, {
+            name: { value: info.filename, writable: false },
+            size: { value: buffer.length, writable: false },
+            type: { value: info.mimeType, writable: false },
+            lastModified: { value: Date.now(), writable: false }
+          })
+          
+          files.push(fileBlob as File)
+        })
+        
+        file.on('error', reject)
       })
-
-      files.push(file as File)
-    }
-
-    return files
+      
+      bb.on('field', (name: string, value: string) => {
+        // Handle JSON metadata
+        if (name === 'metadata') {
+          try {
+            fields[name] = JSON.parse(value)
+          } catch {
+            fields[name] = value
+          }
+        } else {
+          fields[name] = value
+        }
+      })
+      
+      bb.on('error', reject)
+      bb.on('close', () => resolve({ files, fields }))
+      
+      req.pipe(bb)
+    })
   }
 }

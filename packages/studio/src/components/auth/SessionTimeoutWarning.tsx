@@ -66,7 +66,10 @@ export function SessionTimeoutWarning({
             <div className="mt-3 flex space-x-2">
               <Button
                 size="sm"
-                onClick={onRefresh}
+                onClick={() => {
+                  console.log('🔘 Extend Session button clicked!');
+                  onRefresh();
+                }}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 Extend Session

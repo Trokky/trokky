@@ -264,14 +264,82 @@ export class TrokkyCore {
           path: mediaFile.url
         })
 
+        // Save variant files directly to storage without creating separate MediaFile records
+        const savedVariants: Record<string, any> = {}
+        for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
+          if (variantData.buffer) {
+            try {
+              // Save variant file directly using storage adapter's variant support
+              if (this.storage.saveVariantFile) {
+                const variantPath = await this.storage.saveVariantFile(
+                  metadata.id, 
+                  variantName, 
+                  variantData.buffer, 
+                  variantData.format
+                )
+                
+                // Store variant info with the correct URL
+                savedVariants[variantName] = {
+                  url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(metadata.id, variantName) : variantPath}`,
+                  width: variantData.width,
+                  height: variantData.height,
+                  format: variantData.format,
+                  size: variantData.size
+                }
+
+                this.logger.info('Variant file saved directly', { 
+                  parentId: metadata.id, 
+                  variantName,
+                  path: variantPath
+                })
+              } else {
+                // Fallback: just store metadata without physical files for now
+                savedVariants[variantName] = {
+                  url: variantData.url,
+                  width: variantData.width,
+                  height: variantData.height,
+                  format: variantData.format,
+                  size: variantData.size
+                }
+                this.logger.warn('Storage adapter does not support variant files - storing metadata only', {
+                  parentId: metadata.id,
+                  variantName
+                })
+              }
+            } catch (variantError) {
+              this.logger.warn('Failed to save variant file', {
+                parentId: metadata.id,
+                variantName,
+                error: variantError instanceof Error ? variantError.message : 'Unknown error'
+              })
+            }
+          }
+        }
+
         // Store processed image metadata in the media file
         mediaFile.metadata = {
           ...mediaFile.metadata,
-          imageVariants: processedImage.variants,
+          imageVariants: savedVariants,
           originalDimensions: {
             width: processedImage.original.width,
             height: processedImage.original.height
           }
+        }
+
+        // Save the updated metadata back to storage
+        try {
+          if (this.storage.updateFile) {
+            await this.storage.updateFile(mediaFile.id, mediaFile.metadata)
+          }
+          this.logger.info('Image variants metadata saved', { 
+            fileId: metadata.id, 
+            variantCount: Object.keys(processedImage.variants).length 
+          })
+        } catch (updateError) {
+          this.logger.warn('Failed to save image variants metadata', { 
+            fileId: metadata.id, 
+            error: updateError instanceof Error ? updateError.message : 'Unknown error' 
+          })
         }
       } catch (error) {
         // Log error but don't fail the upload - image processing is optional
@@ -376,6 +444,119 @@ export class TrokkyCore {
     return await this.storage.deleteFile(id)
   }
 
+  public async regenerateMediaVariants(id: string): Promise<MediaFile> {
+    try {
+      await this.rateLimiter?.checkRateLimit('regenerateMediaVariants')
+
+      // Get the existing media file
+      const mediaFile = await this.storage.getFile(id)
+      if (!mediaFile) {
+        throw new Error(`Media file with id ${id} not found`)
+      }
+
+      // Check if it's an image file
+      if (!mediaFile.contentType.startsWith('image/')) {
+        throw new InvalidInputError('Variant regeneration is only supported for image files', 'contentType')
+      }
+
+      this.logger.info('Starting variant regeneration', { id, filename: mediaFile.filename })
+
+      // Get the original file content
+      const fileContent = await this.storage.getFileContent(id)
+      if (!fileContent) {
+        throw new Error('Unable to read original file content')
+      }
+
+      // Convert ArrayBuffer to File object for image processing
+      const file = new File([new Uint8Array(fileContent)], mediaFile.filename, {
+        type: mediaFile.contentType
+      })
+
+      // Process the image to generate new variants
+      const processedImage = await this.imageProcessor.processImage(file, {
+        id: mediaFile.id,
+        filename: mediaFile.filename,
+        path: mediaFile.url
+      })
+
+      // Delete existing variants first
+      if (this.storage.deleteVariantFiles) {
+        try {
+          await this.storage.deleteVariantFiles(id)
+          this.logger.info('Existing variants deleted', { id })
+        } catch (deleteError) {
+          this.logger.warn('Failed to delete existing variants', { id, error: deleteError })
+        }
+      }
+
+      // Save new variant files
+      const savedVariants: Record<string, any> = {}
+      for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
+        if (variantData.buffer) {
+          try {
+            if (this.storage.saveVariantFile) {
+              const variantPath = await this.storage.saveVariantFile(
+                id, 
+                variantName, 
+                variantData.buffer, 
+                variantData.format
+              )
+              
+              savedVariants[variantName] = {
+                url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(id, variantName) : variantPath}`,
+                width: variantData.width,
+                height: variantData.height,
+                format: variantData.format,
+                size: variantData.size
+              }
+
+              this.logger.info('New variant saved', { 
+                parentId: id, 
+                variantName,
+                path: variantPath
+              })
+            }
+          } catch (variantError) {
+            this.logger.warn('Failed to save new variant', {
+              parentId: id,
+              variantName,
+              error: variantError instanceof Error ? variantError.message : 'Unknown error'
+            })
+          }
+        }
+      }
+
+      // Update metadata with new variants
+      const updatedMetadata = {
+        ...mediaFile.metadata,
+        imageVariants: savedVariants,
+        originalDimensions: {
+          width: processedImage.original.width,
+          height: processedImage.original.height
+        }
+      }
+
+      // Save updated metadata
+      const updatedMediaFile = await this.storage.updateFile?.(id, updatedMetadata)
+      if (!updatedMediaFile) {
+        throw new Error('Failed to update media file metadata')
+      }
+      
+      this.logger.info('Variants regenerated successfully', { 
+        id, 
+        variantCount: Object.keys(savedVariants).length 
+      })
+
+      return updatedMediaFile
+    } catch (error) {
+      this.logger.error('Failed to regenerate variants', { 
+        id, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      })
+      throw error
+    }
+  }
+
   // Schema operations
   public getSchema(name: string): ContentSchema | null {
     return this.schemas.getSchema(name)
@@ -396,6 +577,13 @@ export class TrokkyCore {
 
   public async getImageProcessor(): Promise<ImageProcessor> {
     return this.imageProcessor
+  }
+
+  /**
+   * Get storage adapter
+   */
+  public getStorageAdapter(): StorageAdapter {
+    return this.storage
   }
 
   // Health check
@@ -873,8 +1061,8 @@ export class TrokkyCore {
       await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
 
       // Generate tokens - different expiry times based on rememberMe
-      const tokenExpiresIn = options.rememberMe ? '7d' : '2h'
-      const refreshTokenExpiresIn = options.rememberMe ? '30d' : '7d'
+      const tokenExpiresIn = options.rememberMe ? '7d' : '2h' // 2 hours for normal sessions
+      const refreshTokenExpiresIn = options.rememberMe ? '30d' : '7d' // 7 days for refresh tokens
       
       const token = await this.generateAuthToken(user, tokenExpiresIn)
       const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn)
@@ -907,7 +1095,7 @@ export class TrokkyCore {
     }
   }
 
-  public async refreshAuthToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: User } | null> {
+  public async refreshAuthToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: User; expiresAt: string } | null> {
     try {
       // Verify the refresh token
       const session = await this.verifyAuthToken(refreshToken)
@@ -921,14 +1109,19 @@ export class TrokkyCore {
         return null
       }
 
-      // Generate new tokens
-      const newToken = await this.generateAuthToken(user, '24h')
-      const newRefreshToken = await this.generateAuthToken(user, '7d')
+      // Generate new tokens with consistent expiration times
+      const newToken = await this.generateAuthToken(user, '2h') // Match login token expiry
+      const newRefreshToken = await this.generateAuthToken(user, '7d') // Match refresh token expiry
+      
+      // Get the new token's expiration time
+      const newSession = await this.verifyAuthToken(newToken)
+      const expiresAt = newSession?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
 
       return {
         token: newToken,
         refreshToken: newRefreshToken,
-        user
+        user,
+        expiresAt
       }
     } catch (error) {
       this.logger.error('Failed to refresh auth token', { error: error instanceof Error ? error.message : String(error) })

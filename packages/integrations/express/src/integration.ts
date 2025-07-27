@@ -155,6 +155,15 @@ export class TrokkyExpress {
       // Import createStudio dynamically to avoid circular dependencies
       const { createStudio } = await import('@trokky/studio')
       
+      // Register custom structure function globally for API endpoint access
+      if (this.config.studio.structure) {
+        (global as any).__TROKKY_STRUCTURE__ = this.config.studio.structure
+        this.logger.debug('Registered custom structure', { 
+          type: typeof this.config.studio.structure,
+          isFunction: typeof this.config.studio.structure === 'function'
+        })
+      }
+      
       // Create Studio configuration
       const studioConfig = {
         apiRouter: this.createRouter(), // Pass the API router

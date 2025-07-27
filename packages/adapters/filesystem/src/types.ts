@@ -89,6 +89,18 @@ export interface FileMetadata {
   author?: string
   credit?: string
   tags?: string[]
+  // Image processing metadata (added by Sharp processor)
+  imageVariants?: Record<string, {
+    url: string
+    width: number
+    height: number
+    format: string
+    size: number
+  }>
+  originalDimensions?: {
+    width: number
+    height: number
+  }
 }
 
 export interface DocumentFile {

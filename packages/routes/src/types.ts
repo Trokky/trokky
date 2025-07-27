@@ -193,6 +193,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   success: boolean
   token?: string
+  refreshToken?: string
   user?: Omit<User, 'passwordHash'>
   expiresAt?: string
 }

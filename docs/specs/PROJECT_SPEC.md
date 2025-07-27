@@ -222,7 +222,7 @@ Build a CMS that developers **actually want to use** by solving the key pain poi
 - ✅ **Production Ready**: Clean TypeScript compilation and optimized Vite builds
 - ✅ **Integrated Mode**: Zero-config Sanity-like architecture with real-time backend integration
 - ✅ **Content Management Foundation**: Document listing, creation, and basic editing interface
-- ✅ **Demo Implementation**: Complete blog-integrated example showcasing zero-config setup
+- ✅ **Demo Implementation**: Complete main demo example showcasing zero-config setup
 
 ### Technical Achievements
 
@@ -433,7 +433,7 @@ Build a CMS that developers **actually want to use** by solving the key pain poi
 3. ✅ **Security Implementation** - Enterprise-grade security with comprehensive testing
 4. ✅ **Studio Foundation** - React-based admin interface foundation (`@trokky/studio`)
 5. ✅ **Client SDK** - Type-safe frontend client with auto-generated types
-6. ✅ **Studio Integrated Mode** - Zero-config Sanity-like architecture with blog-integrated demo
+6. ✅ **Studio Integrated Mode** - Zero-config Sanity-like architecture with main demo
 7. 🎯 **DocumentEditor Implementation** - Advanced field rendering and form management
 8. 🎯 **Structure (Desk) Integration** - Schema-driven navigation and content organization
 9. 🎯 **Authentication & Permissions** - User management interface and role-based access control

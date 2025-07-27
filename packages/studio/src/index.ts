@@ -167,7 +167,7 @@ function serveStudioHTML(config: StudioConfig) {
       const basePath = _req.baseUrl || '/studio';
       
       const runtimeConfig = {
-        mode: 'production',
+        mode: process.env.NODE_ENV || 'production',
         apiUrl: '/api',  // API is at server root level
         apiBaseUrl: '/api',
         branding: config.branding || { title: 'Trokky Studio' },

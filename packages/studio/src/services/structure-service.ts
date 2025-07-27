@@ -11,11 +11,13 @@ import type {
 } from '../types/structure'
 
 export class StructureService {
+  private client: ApiClient
   private builder: StructureBuilder
   private cachedStructure: StudioStructure | null = null
   private cachedNavigation: NavigationTree | null = null
 
   constructor(client: ApiClient) {
+    this.client = client
     this.builder = new StructureBuilder(client)
   }
 
@@ -24,12 +26,30 @@ export class StructureService {
    */
   async getStructure(options?: StructureGenerationOptions): Promise<StudioStructure> {
     if (!this.cachedStructure) {
-      // Check for Studio configuration structure first
+      // Priority 1: Try to fetch dynamic structure from API endpoint
+      try {
+        const response = await this.client.get('/api/config/structure')
+        if (response.success && response.data) {
+          this.cachedStructure = (response.data as any).structure
+          console.debug('[StructureService] Loaded dynamic structure from endpoint', {
+            title: this.cachedStructure?.title,
+            itemsCount: this.cachedStructure?.items?.length || 0
+          })
+          return this.cachedStructure!
+        }
+      } catch (error) {
+        console.warn('[StructureService] Failed to fetch dynamic structure from endpoint, falling back to static', error)
+      }
+      
+      // Priority 2: Check for static Studio configuration structure
       const config = (window as any).TROKKY_CONFIG
-      if (config?.structure) {
+      if (config?.structure && typeof config.structure === 'object') {
         this.cachedStructure = config.structure
+        console.debug('[StructureService] Using static structure from config')
       } else {
+        // Priority 3: Auto-generate structure from schemas
         this.cachedStructure = await this.builder.generateFromSchemas(options)
+        console.debug('[StructureService] Generated structure from schemas')
       }
     }
     return this.cachedStructure!
@@ -68,6 +88,36 @@ export class StructureService {
   clearCache(): void {
     this.cachedStructure = null
     this.cachedNavigation = null
+    console.debug('[StructureService] Cache cleared, next request will fetch fresh structure')
+  }
+
+  /**
+   * Refresh structure from endpoint (bypasses cache)
+   */
+  async refreshFromEndpoint(): Promise<StudioStructure | null> {
+    try {
+      const response = await this.client.get('/api/config/structure', { 
+        // Add cache-busting parameter
+        _refresh: Date.now() 
+      })
+      
+      if (response.success && response.data) {
+        this.cachedStructure = (response.data as any).structure
+        this.cachedNavigation = null // Clear navigation cache too
+        
+        console.debug('[StructureService] Refreshed structure from endpoint', {
+          title: this.cachedStructure!.title,
+          itemsCount: this.cachedStructure!.items?.length || 0
+        })
+        
+        return this.cachedStructure!
+      }
+      
+      return null
+    } catch (error) {
+      console.error('[StructureService] Failed to refresh structure from endpoint', error)
+      return null
+    }
   }
 
   /**

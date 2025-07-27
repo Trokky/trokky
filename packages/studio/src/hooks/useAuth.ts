@@ -13,8 +13,8 @@ const getSessionConfig = () => {
   return {
     // Auto-refresh token 30 seconds before expiry
     REFRESH_BUFFER_MS: sessionConfig?.refreshBufferMs || 30 * 1000,
-    // Warn user 90 seconds before expiry (for testing)
-    WARNING_BUFFER_MS: sessionConfig?.warningBufferMs || 90 * 1000,
+    // Warn user 5 minutes before expiry
+    WARNING_BUFFER_MS: sessionConfig?.warningBufferMs || 5 * 60 * 1000,
     // Check session every 5 seconds
     CHECK_INTERVAL_MS: sessionConfig?.checkIntervalMs || 5 * 1000,
     // Session timeout for content management (2 hours)

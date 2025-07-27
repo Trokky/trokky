@@ -159,7 +159,7 @@ export function FieldsDemo() {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Fields Reference</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Auto-generated from field plugin registryß
+            Auto-generated from field plugin registry
           </p>
         </div>
 

@@ -93,6 +93,9 @@ export class TrokkyRoutes {
     // Schema routes
     this.addRoute('GET', `${basePath}/schemas/:schemaName`, this.getSchema.bind(this))
 
+    // Configuration routes
+    this.addRoute('GET', `${basePath}/config/structure`, this.getStructure.bind(this))
+
     // Slug validation routes
     this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
 
@@ -334,7 +337,10 @@ export class TrokkyRoutes {
 
       return {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.buildCorsHeaders()
+        },
         body: JSON.stringify({
           success: true,
           data: {
@@ -541,7 +547,10 @@ export class TrokkyRoutes {
 
       return {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.buildCorsHeaders()
+        },
         body: JSON.stringify({
           success: true,
           data: mediaFiles,
@@ -782,12 +791,12 @@ export class TrokkyRoutes {
 
         // Build variant file path - variants are stored in media/variants/parentId/variantName.format
         const variantFilename = `${variant}.${variantInfo.format || 'webp'}`
-        const variantDir = path.join(process.cwd(), 'examples/blog-integrated/media/variants', id)
+        const variantDir = path.join(process.cwd(), 'examples/demo/media/variants', id)
         const variantPath = path.join(variantDir, variantFilename)
         
         // Security check: ensure the resolved path is still within the media directory
         const resolvedPath = path.resolve(variantPath)
-        const mediaBaseDir = path.resolve(process.cwd(), 'examples/blog-integrated/media')
+        const mediaBaseDir = path.resolve(process.cwd(), 'examples/demo/media')
         if (!resolvedPath.startsWith(mediaBaseDir)) {
           return this.errorResponse(new Error('Access denied'), 403)
         }
@@ -1658,5 +1667,190 @@ export class TrokkyRoutes {
     } catch (error) {
       return this.errorResponse(error)
     }
+  }
+
+  // Configuration Routes
+  private async getStructure(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+      
+      // Get current user for context-aware structure generation
+      const user = await this.getCurrentUser(request)
+      const schemas = this.core.getAllSchemas()
+      
+      // Get custom structure function from config if available
+      const customStructure = this.getCustomStructureFunction()
+      
+      let structure: any
+      
+      if (customStructure && typeof customStructure === 'function') {
+        // Execute custom structure function with context
+        const context = {
+          user,
+          schemas,
+          core: this.core,
+          config: this.config
+        }
+        
+        this.logger.debug('Executing custom structure function', { 
+          userId: user?.id,
+          userRole: user?.role,
+          schemasCount: schemas.length 
+        })
+        
+        structure = await Promise.resolve(customStructure(context))
+      } else if (customStructure && typeof customStructure === 'object') {
+        // Use static structure
+        structure = customStructure
+      } else {
+        // Fall back to auto-generated structure
+        structure = await this.buildDefaultStructure(user, schemas)
+      }
+      
+      this.logger.debug('Generated dynamic structure', { 
+        title: structure.title,
+        itemsCount: structure.items?.length || 0,
+        userId: user?.id 
+      })
+
+      return this.successResponse({ structure })
+    } catch (error) {
+      this.logger.error('Failed to get structure', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
+  private getCustomStructureFunction(): any {
+    // In Express integration, custom structure is passed through config
+    // This will be available via the core config or a separate structure registry
+    return (global as any).__TROKKY_STRUCTURE__ || null
+  }
+
+  private async getCurrentUser(request: HttpRequest): Promise<any> {
+    try {
+      // Extract user from validated token using core.verifyAuthToken
+      const authHeader = request.headers.authorization || request.headers['Authorization']
+      const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+      
+      if (!authHeaderStr || typeof authHeaderStr !== 'string') {
+        return null
+      }
+
+      const token = authHeaderStr.startsWith('Bearer ') 
+        ? authHeaderStr.slice(7) 
+        : authHeaderStr
+      
+      // Use core.verifyAuthToken which returns session with user info
+      const session = await this.core.verifyAuthToken(token)
+      
+      if (session) {
+        // Session contains basic user information
+        return {
+          id: session.userId,
+          username: session.username,
+          role: session.role,
+          permissions: session.permissions
+        }
+      }
+      
+      return null
+    } catch (error) {
+      this.logger.warn('Failed to get current user for structure context', error)
+      return null
+    }
+  }
+
+  private async buildDefaultStructure(user: any, schemas: any[]): Promise<any> {
+    const items: any[] = []
+    
+    // Create basic structure based on schemas and user permissions
+    for (const schema of schemas) {
+      if (this.shouldIncludeSchemaInStructure(schema, user)) {
+        items.push({
+          type: 'documentList',
+          title: this.formatSchemaTitle(schema.name),
+          schemaType: schema.name,
+          icon: this.getSchemaIcon(schema),
+          defaultOrdering: [{ field: '_updatedAt', direction: 'desc' }],
+          options: {
+            pageSize: 25,
+            searchable: true,
+            searchFields: this.getSearchableFields(schema)
+          }
+        })
+      }
+    }
+    
+    // Add admin-only sections
+    if (user?.role === 'admin') {
+      items.push({
+        type: 'divider',
+        title: 'Administration'
+      })
+      
+      // Add any admin-specific structure items here
+    }
+
+    return {
+      title: 'Content Management',
+      items,
+      metadata: {
+        version: '1.0.0',
+        description: 'Dynamic structure generated from API endpoint',
+        userId: user?.id,
+        userRole: user?.role,
+        generatedAt: new Date().toISOString()
+      }
+    }
+  }
+
+  private shouldIncludeSchemaInStructure(schema: any, user: any): boolean {
+    // Basic permission check - extend as needed
+    if (!user) return false
+    
+    // Admin can see everything
+    if (user.role === 'admin') return true
+    
+    // Other users can see non-internal schemas
+    return !schema.name.startsWith('_') && !schema.internal
+  }
+
+  private formatSchemaTitle(schemaName: string): string {
+    // Convert camelCase/PascalCase to Title Case
+    return schemaName
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim()
+  }
+
+  private getSchemaIcon(schema: any): string {
+    // Basic icon mapping based on schema name
+    const name = schema.name.toLowerCase()
+    
+    if (name.includes('post') || name.includes('article')) return 'document-text'
+    if (name.includes('page')) return 'document'
+    if (name.includes('user') || name.includes('author')) return 'user'
+    if (name.includes('category') || name.includes('tag')) return 'tag'
+    if (name.includes('media') || name.includes('image')) return 'photo'
+    if (name.includes('setting') || name.includes('config')) return 'cog'
+    if (name.includes('menu') || name.includes('navigation')) return 'menu'
+    
+    return 'document-text'
+  }
+
+  private getSearchableFields(schema: any): string[] {
+    // Basic searchable fields detection
+    const searchableFields = ['title', 'name', 'slug']
+    
+    if (schema.fields) {
+      const fieldNames = Object.keys(schema.fields)
+      return fieldNames.filter(name => 
+        searchableFields.some(searchable => name.toLowerCase().includes(searchable))
+      )
+    }
+    
+    return ['title']
   }
 }

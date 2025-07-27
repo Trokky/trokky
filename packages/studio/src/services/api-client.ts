@@ -43,7 +43,16 @@ export class ApiClient {
     if (!config) {
       throw new Error('Studio configuration not found. TROKKY_CONFIG not found.');
     }
-    this.baseUrl = window.location.origin; // API is at root level, use config.apiUrl for actual API path
+    
+    // In development mode, Studio runs on Vite dev server (5173) but API is on main server (3000)
+    // In production mode, both Studio and API are served from the same origin
+    if (config.mode === 'development' || window.location.port === '5173') {
+      // Development mode: API is on different port
+      this.baseUrl = 'http://localhost:3000';
+    } else {
+      // Production mode: API is on same origin
+      this.baseUrl = window.location.origin;
+    }
     
     this.capabilities = {
       version: '2.0.0',
@@ -382,12 +391,12 @@ export class ApiClient {
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', file);
     if (metadata) {
       formData.append('metadata', JSON.stringify(metadata));
     }
 
-    return this.request<MediaFile>('/api/media', {
+    return this.request<MediaFile>('/api/media/upload', {
       method: 'POST',
       body: formData
     });
@@ -411,6 +420,16 @@ export class ApiClient {
       throw new ApiClientError('Media feature not available');
     }
     return this.delete<void>(`/api/media/${id}`);
+  }
+
+  /**
+   * Regenerate variants for media file
+   */
+  async regenerateMediaVariants(id: string): Promise<ApiResponse<{ message: string; file: MediaFile }>> {
+    if (!this.hasFeature('media')) {
+      throw new ApiClientError('Media feature not available');
+    }
+    return this.post<{ message: string; file: MediaFile }>(`/api/media/${id}/regenerate-variants`, {});
   }
 
   // ========================================
@@ -538,7 +557,7 @@ export class ApiClient {
     if (!this.hasFeature('structure')) {
       return { success: true, data: null };
     }
-    return this.get('/structure');
+    return this.get('/api/structure');
   }
 }
 

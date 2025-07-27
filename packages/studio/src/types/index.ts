@@ -137,6 +137,24 @@ export interface MediaFile {
     dimensions?: { width: number; height: number };
     duration?: number;
     format?: string;
+    path?: string;
+    extension?: string;
+    originalFilename?: string;
+    title?: string;
+    alt?: string;
+    author?: string;
+    credit?: string;
+    imageVariants?: Record<string, {
+      url: string;
+      width: number;
+      height: number;
+      format: string;
+      size: number;
+    }>;
+    originalDimensions?: {
+      width: number;
+      height: number;
+    };
   };
   variants?: Record<string, { url: string; width: number; height: number }>;
   createdAt: string;
