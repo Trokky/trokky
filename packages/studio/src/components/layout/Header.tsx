@@ -10,7 +10,8 @@ import {
   ComputerDesktopIcon,
   Bars3Icon,
   PhotoIcon,
-  UsersIcon
+  UsersIcon,
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -157,6 +158,14 @@ export function Header({
             <Link to="/settings">
               <Cog6ToothIcon className="h-4 w-4 mr-1" />
               Settings
+            </Link>
+          </Button>
+
+          {/* Fields Demo button */}
+          <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
+            <Link to="/fields-demo">
+              <BeakerIcon className="h-4 w-4 mr-1" />
+              Fields Demo
             </Link>
           </Button>
 

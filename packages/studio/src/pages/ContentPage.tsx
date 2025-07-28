@@ -6,21 +6,169 @@ import { apiClient, ApiClientError } from '@/services/api-client';
 import type { Document } from '@/types';
 import { createStudioLogger } from '@/utils/logger';
 import { EnhancedContentPage } from '@/components/content/EnhancedContentPage';
+import { DocumentEditor } from '@/components/document';
+import { useStructureItem } from '@/hooks/useStructure';
 
 const logger = createStudioLogger('ContentPage');
 
 export function ContentPage() {
   const { schemaName, documentId } = useParams();
+  const navigate = useNavigate();
+  const structureItem = useStructureItem(schemaName || '');
 
+  // Handle document editing
   if (documentId) {
-    return <DocumentEditor schemaName={schemaName} documentId={documentId} />;
+    return (
+      <DocumentEditor 
+        schemaName={schemaName!}
+        documentId={documentId}
+        onCancel={() => navigate(`/content/${schemaName}`)}
+      />
+    );
   }
 
+  // Handle schema-specific content
   if (schemaName) {
+    // Check if this is a singleton from structure configuration
+    if (structureItem.item?.type === 'singleton') {
+      const singleton = structureItem.item;
+      const singletonDocumentId = singleton.documentId || schemaName;
+      
+      // For singletons, redirect directly to edit the document
+      // The DocumentEditor will handle auto-creation if the document doesn't exist
+      return (
+        <SingletonHandler
+          schemaName={schemaName}
+          documentId={singletonDocumentId}
+          autoCreate={singleton.options?.autoCreate}
+          onCancel={() => navigate('/content')}
+        />
+      );
+    }
+
+    // Regular collection view
     return <EnhancedContentPage schemaName={schemaName} key={schemaName} />;
   }
 
   return <ContentOverview />;
+}
+
+interface SingletonHandlerProps {
+  schemaName: string;
+  documentId: string;
+  autoCreate?: boolean;
+  onCancel: () => void;
+}
+
+function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: SingletonHandlerProps) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [documentExists, setDocumentExists] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    checkSingletonDocument();
+  }, [schemaName, documentId]);
+
+  const checkSingletonDocument = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!apiClient.isInitialized) {
+        await apiClient.initialize();
+      }
+
+      // Check if the singleton document exists
+      const response = await apiClient.getDocument(schemaName, documentId);
+      
+      if (response.success && response.data) {
+        // Document exists, redirect to edit it
+        setDocumentExists(true);
+        navigate(`/content/${schemaName}/${documentId}`, { replace: true });
+      } else {
+        // Document doesn't exist
+        if (autoCreate) {
+          // Auto-create the singleton document
+          await createSingletonDocument();
+        } else {
+          setError(`Singleton document '${documentId}' not found and auto-creation is disabled.`);
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to check singleton document', err);
+      
+      if (autoCreate && err instanceof ApiClientError && err.status === 404) {
+        // Document not found, try to auto-create
+        await createSingletonDocument();
+      } else {
+        setError(err instanceof ApiClientError ? err.message : 'Failed to load singleton document');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createSingletonDocument = async () => {
+    try {
+      logger.info('Auto-creating singleton document', { schemaName, documentId });
+      
+      // Create basic singleton document
+      const response = await apiClient.createDocument(schemaName, {
+        id: documentId,
+        title: `${schemaName} Configuration`,
+        _type: schemaName
+      });
+      
+      if (response.success) {
+        logger.info('Singleton document created', { schemaName, documentId });
+        navigate(`/content/${schemaName}/${documentId}`, { replace: true });
+      } else {
+        setError('Failed to create singleton document');
+      }
+    } catch (err) {
+      logger.error('Failed to create singleton document', err);
+      setError(err instanceof ApiClientError ? err.message : 'Failed to create singleton document');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading singleton document...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <div className="text-red-500 mb-4">
+            <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
+            <h3 className="text-lg font-medium">Singleton Error</h3>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
+          <div className="flex justify-center space-x-4">
+            <Button onClick={checkSingletonDocument}>Try Again</Button>
+            <Button variant="outline" onClick={onCancel}>Back</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // This shouldn't be reached, but just in case
+  return (
+    <DocumentEditor 
+      schemaName={schemaName}
+      documentId={documentId}
+      onCancel={onCancel}
+    />
+  );
 }
 
 interface Collection {
@@ -413,332 +561,3 @@ function SchemaDocuments({ schemaName }: { schemaName?: string }) {
   );
 }
 
-function DocumentEditor({ schemaName, documentId }: { schemaName?: string; documentId?: string }) {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [schema, setSchema] = useState<any>(null);
-  const [schemaLoading, setSchemaLoading] = useState(true);
-  const isNewDocument = documentId === 'new';
-
-  useEffect(() => {
-    if (schemaName) {
-      loadSchema();
-      if (isNewDocument) {
-        // Initialize empty form for new document
-        setFormData({});
-      } else if (documentId) {
-        loadDocument();
-      }
-    }
-  }, [schemaName, documentId]);
-
-  const loadSchema = async () => {
-    if (!schemaName) return;
-    
-    try {
-      setSchemaLoading(true);
-      setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-      
-      const response = await apiClient.getSchema(schemaName);
-      
-      if (response.success && response.data) {
-        setSchema(response.data);
-        logger.info('Schema loaded', { schema: schemaName });
-      } else {
-        setError(`Schema '${schemaName}' not found`);
-      }
-    } catch (err) {
-      logger.error('Failed to load schema', err);
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load schema');
-    } finally {
-      setSchemaLoading(false);
-    }
-  };
-
-  const loadDocument = async () => {
-    if (!schemaName || !documentId || isNewDocument) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-      
-      const response = await apiClient.getDocument(schemaName, documentId);
-      
-      if (response.success && response.data) {
-        const doc = response.data;
-        setFormData({ ...doc });
-        logger.info('Document loaded', { schema: schemaName, id: documentId });
-      } else {
-        setError('Document not found');
-      }
-    } catch (err) {
-      logger.error('Failed to load document', err);
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load document');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!schemaName) return;
-    
-    try {
-      setSaving(true);
-      setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-      
-      let response;
-      if (isNewDocument) {
-        // Create new document
-        response = await apiClient.createDocument(schemaName, formData);
-      } else {
-        // Update existing document
-        response = await apiClient.updateDocument(schemaName, documentId!, formData);
-      }
-      
-      if (response.success && response.data) {
-        const savedDoc = response.data;
-        setFormData({ ...savedDoc });
-        logger.info('Document saved', { schema: schemaName, id: savedDoc.id || savedDoc._id });
-        
-        // Redirect to edit mode if it was a new document
-        if (isNewDocument) {
-          navigate(`/content/${schemaName}/${savedDoc.id || savedDoc._id}`);
-        }
-      }
-    } catch (err) {
-      logger.error('Failed to save document', err);
-      setError(err instanceof ApiClientError ? err.message : 'Failed to save document');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleFieldChange = (fieldName: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-  };
-
-  const renderField = (fieldName: string, fieldConfig: any) => {
-    const value = formData[fieldName] || '';
-    
-    switch (fieldConfig.type) {
-      case 'string':
-        if (fieldName === 'content' || fieldConfig.maxLength > 200) {
-          return (
-            <textarea
-              value={value}
-              onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-vertical min-h-[120px]"
-              placeholder={fieldConfig.description || `Enter ${fieldConfig.title || fieldName}`}
-              maxLength={fieldConfig.maxLength}
-            />
-          );
-        }
-        return (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder={fieldConfig.description || `Enter ${fieldConfig.title || fieldName}`}
-            maxLength={fieldConfig.maxLength}
-          />
-        );
-      
-      case 'boolean':
-        return (
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={!!value}
-              onChange={(e) => handleFieldChange(fieldName, e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-              {fieldConfig.description || `Enable ${fieldConfig.title || fieldName}`}
-            </span>
-          </label>
-        );
-      
-      case 'date':
-        return (
-          <input
-            type="date"
-            value={value ? new Date(value).toISOString().split('T')[0] : ''}
-            onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
-        );
-      
-      case 'array':
-        const arrayValue = Array.isArray(value) ? value : [];
-        return (
-          <div>
-            {arrayValue.map((item, index) => (
-              <div key={index} className="flex items-center space-x-2 mb-2">
-                <input
-                  type="text"
-                  value={item}
-                  onChange={(e) => {
-                    const newArray = [...arrayValue];
-                    newArray[index] = e.target.value;
-                    handleFieldChange(fieldName, newArray);
-                  }}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder={`${fieldConfig.title || fieldName} ${index + 1}`}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const newArray = arrayValue.filter((_, i) => i !== index);
-                    handleFieldChange(fieldName, newArray);
-                  }}
-                >
-                  Remove
-                </Button>
-              </div>
-            ))}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                handleFieldChange(fieldName, [...arrayValue, '']);
-              }}
-            >
-              Add {fieldConfig.title || fieldName}
-            </Button>
-          </div>
-        );
-      
-      default:
-        return (
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder={fieldConfig.description || `Enter ${fieldConfig.title || fieldName}`}
-          />
-        );
-    }
-  };
-
-  if (loading || schemaLoading) {
-    return (
-      <div className="p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">
-            {schemaLoading ? 'Loading schema...' : 'Loading document...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="text-red-500 mb-4">
-            <h3 className="text-lg font-medium">Error</h3>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-          <Button onClick={() => navigate(`/content/${schemaName}`)}>
-            Back to Documents
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Get schema fields from loaded schema
-  const getSchemaFields = () => {
-    if (!schema || !schema.fields) {
-      return {};
-    }
-    
-    // Convert schema fields to the format expected by renderField
-    const fields: Record<string, any> = {};
-    
-    for (const field of schema.fields) {
-      fields[field.name] = {
-        title: field.title || field.name,
-        type: field.type,
-        required: field.required || false,
-        description: field.description,
-        ...field.options
-      };
-    }
-    
-    return fields;
-  };
-
-  const schemaFields = getSchemaFields();
-
-  return (
-    <div className="p-6">
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isNewDocument ? `Create ${schemaName}` : `Edit ${schemaName}`}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {isNewDocument ? `Create a new ${schemaName} document` : `Editing ${documentId} in ${schemaName}`}
-          </p>
-        </div>
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline"
-            onClick={() => navigate(`/content/${schemaName}`)}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave}
-            loading={saving}
-          >
-            {isNewDocument ? 'Create' : 'Save'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="space-y-6">
-          {Object.entries(schemaFields).map(([fieldName, fieldConfig]) => (
-            <div key={fieldName}>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {fieldConfig.title || fieldName}
-                {fieldConfig.required && <span className="text-red-500 ml-1">*</span>}
-              </label>
-              {renderField(fieldName, fieldConfig)}
-              {fieldConfig.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {fieldConfig.description}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}

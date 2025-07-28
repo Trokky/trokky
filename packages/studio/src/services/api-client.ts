@@ -433,6 +433,82 @@ export class ApiClient {
   }
 
   // ========================================
+  // Document List Methods (Studio-compatible endpoints)
+  // ========================================
+
+  /**
+   * List documents using Studio-compatible endpoint
+   */
+  async listDocuments(schemaName: string, options: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    filter?: Record<string, any>;
+    sort?: string;
+  } = {}): Promise<ApiResponse<{
+    documents: Document[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }>> {
+    const queryParams = new URLSearchParams();
+    
+    if (options.page) queryParams.set('page', String(options.page));
+    if (options.limit) queryParams.set('limit', String(options.limit));
+    if (options.search) queryParams.set('search', options.search);
+    if (options.sort) queryParams.set('sort', options.sort);
+    
+    // Add filters
+    if (options.filter) {
+      Object.entries(options.filter).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.set(`filter[${key}]`, String(value));
+        }
+      });
+    }
+    
+    const url = `${this.baseUrl}/api/documents/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.get<{
+      documents: Document[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+      };
+    }>(url);
+  }
+
+  /**
+   * Get collection statistics
+   */
+  async getCollectionStats(schemaName: string): Promise<ApiResponse<{
+    stats: {
+      collection: string;
+      totalDocuments: number;
+      publishedDocuments: number;
+      draftDocuments: number;
+      recentDocuments: number;
+      lastUpdated: string;
+    };
+  }>> {
+    const url = `${this.baseUrl}/api/stats/${schemaName}`;
+    return this.get<{
+      stats: {
+        collection: string;
+        totalDocuments: number;
+        publishedDocuments: number;
+        draftDocuments: number;
+        recentDocuments: number;
+        lastUpdated: string;
+      };
+    }>(url);
+  }
+
+  // ========================================
   // Search Methods (if available)
   // ========================================
 

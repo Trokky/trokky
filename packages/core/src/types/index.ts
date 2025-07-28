@@ -71,6 +71,7 @@ export const ContentSchemaSchema = z.object({
   type: z.enum(['document', 'singleton']),
   title: z.string().optional(),
   description: z.string().optional(),
+  singleton: z.boolean().optional(), // Allow singleton property
   fields: z.record(LegacyFieldDefinitionSchema)
 })
 

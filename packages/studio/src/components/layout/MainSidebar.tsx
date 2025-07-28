@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  HomeIcon,
   DocumentTextIcon,
-  PhotoIcon,
-  UsersIcon,
-  Cog6ToothIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FolderIcon,
@@ -13,7 +9,7 @@ import {
   UserIcon,
   DocumentIcon,
   Bars3Icon,
-  BeakerIcon
+  HomeIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useNavigation } from '@/hooks/useStructure';
@@ -34,10 +30,7 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
       'home': HomeIcon,
       'document-text': DocumentTextIcon,
       'document': DocumentIcon,
-      'photo': PhotoIcon,
-      'users': UsersIcon,
       'user': UserIcon,
-      'cog': Cog6ToothIcon,
       'folder': FolderIcon,
       'tag': TagIcon,
       'menu': Bars3Icon
@@ -84,7 +77,24 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
 
   const renderNavigationItem = (item: StructureNavigationItem, depth = 0) => {
     const IconComponent = getIconComponent(item.icon || 'document-text');
-    const isActive = item.path ? isActiveRoute(item.path) : false;
+    
+    // Generate content path for document types
+    let itemPath = item.path;
+    if (!itemPath) {
+      const schemaType = (item as any).schemaType;
+      if (schemaType) {
+        if (item.type === 'documentList') {
+          // Collections: show list page
+          itemPath = `/content/${schemaType}`;
+        } else if (item.type === 'singleton') {
+          // Singletons: link directly to edit the singleton document
+          const documentId = (item as any).documentId || schemaType;
+          itemPath = `/content/${schemaType}/${documentId}`;
+        }
+      }
+    }
+    
+    const isActive = itemPath ? isActiveRoute(itemPath) : false;
 
     if (item.type === 'divider') {
       // In collapsed mode, show a subtle separator, otherwise show full divider
@@ -121,14 +131,14 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
       );
     }
 
-    if (!item.path) {
+    if (!itemPath) {
       return null;
     }
 
     return (
       <NavLink
         key={item.id}
-        to={item.path}
+        to={itemPath}
         onClick={handleItemClick}
         className={({ isActive: navIsActive }) => {
           const active = navIsActive || isActive;
@@ -221,136 +231,24 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
           </div>
         )}
         
-        {navigation && (
+        {/* Structure-driven navigation - use if available */}
+        {navigation && navigation.items.length > 0 ? (
           <>
-            {/* Dashboard always first */}
-            <NavLink
-              to="/"
-              onClick={handleItemClick}
-              className={({ isActive }) => cn(
-                'flex items-center transition-colors group relative',
-                isCollapsed 
-                  ? 'p-3 mx-2 rounded-lg justify-center' 
-                  : 'px-3 py-2 rounded-lg',
-                isActive
-                  ? isCollapsed
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
-              )}
-              title={isCollapsed ? 'Dashboard' : undefined}
-            >
-              <HomeIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
-              {!isCollapsed && (
-                <span className="font-medium">Dashboard</span>
-              )}
-              
-              {/* Tooltip for collapsed mode */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Dashboard
-                </div>
-              )}
-            </NavLink>
-
-            {/* Media Link */}
-            <NavLink
-              to="/media"
-              onClick={handleItemClick}
-              className={({ isActive }) => cn(
-                'flex items-center transition-colors group relative',
-                isCollapsed 
-                  ? 'p-3 mx-2 rounded-lg justify-center' 
-                  : 'px-3 py-2 rounded-lg',
-                isActive
-                  ? isCollapsed
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
-              )}
-              title={isCollapsed ? 'Media' : undefined}
-            >
-              <PhotoIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
-              {!isCollapsed && (
-                <span className="font-medium">Media</span>
-              )}
-              
-              {/* Tooltip for collapsed mode */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Media
-                </div>
-              )}
-            </NavLink>
-
-            {/* Users Link */}
-            <NavLink
-              to="/users"
-              onClick={handleItemClick}
-              className={({ isActive }) => cn(
-                'flex items-center transition-colors group relative',
-                isCollapsed 
-                  ? 'p-3 mx-2 rounded-lg justify-center' 
-                  : 'px-3 py-2 rounded-lg',
-                isActive
-                  ? isCollapsed
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
-              )}
-              title={isCollapsed ? 'Users & Access' : undefined}
-            >
-              <UsersIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
-              {!isCollapsed && (
-                <span className="font-medium">Users & Access</span>
-              )}
-              
-              {/* Tooltip for collapsed mode */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Users & Access
-                </div>
-              )}
-            </NavLink>
-
-            {/* Settings Link */}
-            <NavLink
-              to="/settings"
-              onClick={handleItemClick}
-              className={({ isActive }) => cn(
-                'flex items-center transition-colors group relative',
-                isCollapsed 
-                  ? 'p-3 mx-2 rounded-lg justify-center' 
-                  : 'px-3 py-2 rounded-lg',
-                isActive
-                  ? isCollapsed
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                    : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
-              )}
-              title={isCollapsed ? 'Settings' : undefined}
-            >
-              <Cog6ToothIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
-              {!isCollapsed && (
-                <span className="font-medium">Settings</span>
-              )}
-              
-              {/* Tooltip for collapsed mode */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Settings
-                </div>
-              )}
-            </NavLink>
-
-            {/* Divider before content sections */}
-            {navigation && navigation.items.length > 0 && (
-              <div className="mx-3 my-2 border-t border-gray-200 dark:border-gray-700" />
+            {/* Render user-provided structure */}
+            {navigation.items.map(item => renderNavigationItem(item))}
+          </>
+        ) : (
+          <>
+            {/* Fallback navigation when no structure is provided */}
+            {!isCollapsed && (
+              <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Content
+              </div>
             )}
 
-            {/* Fields Demo Link */}
+            {/* Basic content navigation - only shown when no structure is available */}
             <NavLink
-              to="/fields-demo"
+              to="/content"
               onClick={handleItemClick}
               className={({ isActive }) => cn(
                 'flex items-center transition-colors group relative',
@@ -363,23 +261,20 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
                     : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
               )}
-              title={isCollapsed ? 'Fields Demo' : undefined}
+              title={isCollapsed ? 'Content' : undefined}
             >
-              <BeakerIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
+              <DocumentTextIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
               {!isCollapsed && (
-                <span className="font-medium">Fields Demo</span>
+                <span className="font-medium">Content</span>
               )}
               
               {/* Tooltip for collapsed mode */}
               {isCollapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Fields Demo
+                  Content
                 </div>
               )}
             </NavLink>
-            
-            {/* Structure-driven navigation */}
-            {navigation.items.map(item => renderNavigationItem(item))}
           </>
         )}
       </nav>

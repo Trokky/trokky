@@ -11,6 +11,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { DocumentEditorPage } from '@/components/document';
 
 // Get basename from config if available
 const getBasename = () => {
@@ -45,7 +46,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'content/:schemaName/:documentId',
-        element: <ContentPage />
+        element: <DocumentEditorPage />
       },
       {
         path: 'media',
@@ -82,7 +83,10 @@ const router = createBrowserRouter([
     ]
   }
 ], {
-  basename: getBasename()
+  basename: getBasename(),
+  future: {
+    v7_startTransition: true
+  }
 });
 
 export function AppRouter() {

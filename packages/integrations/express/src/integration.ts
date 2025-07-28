@@ -235,6 +235,12 @@ export class TrokkyExpress {
       if (fullConfig.studio?.enabled) {
         (global as any).__TROKKY_STUDIO_CONFIG__ = fullConfig.studio
         logger.debug('✅ Studio configuration registered globally')
+        
+        // Also register structure separately for structure service access
+        if (fullConfig.studio.structure) {
+          (global as any).__TROKKY_STRUCTURE__ = fullConfig.studio.structure
+          logger.debug('✅ Structure configuration registered globally')
+        }
       }
       
       // 4. Create admin user if specified

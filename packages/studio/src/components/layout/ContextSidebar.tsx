@@ -247,7 +247,7 @@ function SchemaContentContext({ schemaName }: { schemaName: string }) {
         await apiClient.initialize();
       }
       
-      const response = await apiClient.get(`/stats/${schemaName}`);
+      const response = await apiClient.getCollectionStats(schemaName);
       if (response.success) {
         setStats(response.data);
       }

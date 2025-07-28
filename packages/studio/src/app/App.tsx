@@ -9,6 +9,7 @@ import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeout
 import { ToastContainer } from '@/components/ui/Toast';
 import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
+import '@/utils/debug'; // Load debug utilities
 
 // Create a client
 const queryClient = new QueryClient({

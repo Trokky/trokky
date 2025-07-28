@@ -58,6 +58,16 @@ export class TrokkyRoutes {
     this.addRoute('PUT', `${basePath}/collections/:collection/:id`, this.updateDocument.bind(this))
     this.addRoute('DELETE', `${basePath}/collections/:collection/:id`, this.deleteDocument.bind(this))
 
+    // Document routes (Studio-compatible endpoints)
+    this.addRoute('GET', `${basePath}/documents/:collection`, this.listDocuments.bind(this))
+    this.addRoute('POST', `${basePath}/documents/:collection`, this.createDocument.bind(this))
+    this.addRoute('GET', `${basePath}/documents/:collection/:id`, this.getDocument.bind(this))
+    this.addRoute('PUT', `${basePath}/documents/:collection/:id`, this.updateDocument.bind(this))
+    this.addRoute('DELETE', `${basePath}/documents/:collection/:id`, this.deleteDocument.bind(this))
+
+    // Statistics routes
+    this.addRoute('GET', `${basePath}/stats/:collection`, this.getCollectionStats.bind(this))
+
     // Media routes
     this.addRoute('GET', `${basePath}/media`, this.listMedia.bind(this))
     this.addRoute('POST', `${basePath}/media/upload`, this.uploadMedia.bind(this))
@@ -386,15 +396,26 @@ export class TrokkyRoutes {
       // SECURITY: Validate authentication before processing
       await this.validateAuthentication(request)
       const { collection } = request.params
-      const { limit, offset, filter, sort } = request.query
+      const { limit, offset, filter, sort, page } = request.query
 
       // Validate collection name
       SecurityValidator.validateCollectionName(collection)
 
-      // Build list options
+      // Build list options - handle both offset and page-based pagination
       const options: any = {}
-      if (limit) options.limit = parseInt(String(limit), 10)
-      if (offset) options.offset = parseInt(String(offset), 10)
+      
+      // Handle pagination (page-based or offset-based)
+      if (page && limit) {
+        const pageNum = parseInt(String(page), 10)
+        const limitNum = parseInt(String(limit), 10)
+        options.limit = limitNum
+        options.offset = (pageNum - 1) * limitNum
+      } else {
+        if (limit) options.limit = parseInt(String(limit), 10)
+        if (offset) options.offset = parseInt(String(offset), 10)
+      }
+      
+      // Handle filters
       if (filter) {
         try {
           options.filter = typeof filter === 'string' ? JSON.parse(filter) : filter
@@ -402,13 +423,27 @@ export class TrokkyRoutes {
           throw new InvalidInputError('Invalid filter format', 'filter')
         }
       }
+      
+      // Handle sorting
       if (sort) options.sort = sort
 
       const documents = await this.core.listDocuments(collection, options)
       const total = documents.length // Note: This is post-filter count, not total collection count
 
+      // Calculate pagination metadata
+      const currentPage = page ? parseInt(String(page), 10) : 1
+      const pageSize = options.limit || 25
+      const totalPages = Math.ceil(total / pageSize)
+
       return this.successResponse({
         documents,
+        pagination: {
+          page: currentPage,
+          limit: pageSize,
+          total,
+          pages: totalPages
+        },
+        // Legacy meta for backward compatibility
         meta: {
           total,
           limit: options.limit,
@@ -459,9 +494,16 @@ export class TrokkyRoutes {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentId(id)
 
-      const document = await this.core.getDocument(collection, id)
+      let document = await this.core.getDocument(collection, id)
+      
+      // If document not found, check if this is a singleton that should be auto-created
       if (!document) {
-        return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
+        const singletonDocument = await this.tryAutoCreateSingleton(collection, id)
+        if (singletonDocument) {
+          document = singletonDocument
+        } else {
+          return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
+        }
       }
 
       return this.successResponse({ document })
@@ -522,6 +564,49 @@ export class TrokkyRoutes {
 
       await this.core.deleteDocument(collection, id)
       return this.successResponse({ message: 'Document deleted successfully' })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async getCollectionStats(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+      const { collection } = request.params
+
+      // Validate collection name
+      SecurityValidator.validateCollectionName(collection)
+
+      // Get all documents for basic stats
+      const documents = await this.core.listDocuments(collection, {})
+      
+      // Calculate basic statistics
+      const totalDocuments = documents.length
+      const publishedDocuments = documents.filter(doc => doc.published === true).length
+      const draftDocuments = documents.filter(doc => doc.published === false || doc.published === undefined).length
+      
+      // Calculate recent activity (documents created/updated in last 7 days)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      
+      const recentDocuments = documents.filter(doc => {
+        const updatedAt = new Date(doc._updatedAt || doc._createdAt)
+        return updatedAt > sevenDaysAgo
+      }).length
+
+      const stats = {
+        collection,
+        totalDocuments,
+        publishedDocuments,
+        draftDocuments,
+        recentDocuments,
+        lastUpdated: new Date().toISOString()
+      }
+
+      this.logger.debug('Collection stats calculated', { collection, stats })
+
+      return this.successResponse({ stats })
     } catch (error) {
       return this.errorResponse(error)
     }
@@ -1882,5 +1967,105 @@ export class TrokkyRoutes {
     }
     
     return ['title']
+  }
+
+  /**
+   * Attempt to auto-create a singleton document if it matches known singleton patterns
+   */
+  private async tryAutoCreateSingleton(collection: string, documentId: string): Promise<any | null> {
+    try {
+      // Get the custom structure function to check for singletons
+      const customStructure = this.getCustomStructureFunction()
+      
+      let isSingleton = false
+      let singletonConfig: any = null
+      
+      if (customStructure && typeof customStructure === 'function') {
+        // Execute structure function to get singleton info
+        const user = null // TODO: Get current user from auth context
+        const schemas = this.core.getAllSchemas()
+        const context = { user, schemas, core: this.core, config: this.config }
+        
+        const structure = await Promise.resolve(customStructure(context))
+        
+        // Find if this collection/documentId combo is a singleton
+        const findSingleton = (items: any[]): any => {
+          for (const item of items) {
+            if (item.type === 'singleton' && 
+                item.schemaType === collection && 
+                (item.documentId === documentId || item.schemaType === documentId)) {
+              return item
+            } else if (item.items && Array.isArray(item.items)) {
+              const found = findSingleton(item.items)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        
+        singletonConfig = findSingleton(structure.items || [])
+        isSingleton = !!singletonConfig
+      } else {
+        // Fallback: check common singleton patterns
+        const singletonPatterns = [
+          { collection: 'homePage', documentId: 'home' },
+          { collection: 'settings', documentId: 'site-settings' },
+          { collection: 'config', documentId: 'main' },
+          { collection: 'siteSettings', documentId: 'main' }
+        ]
+        
+        isSingleton = singletonPatterns.some(pattern => 
+          pattern.collection === collection && pattern.documentId === documentId
+        )
+      }
+      
+      if (isSingleton) {
+        this.logger.info('Auto-creating singleton document', { 
+          collection, 
+          documentId,
+          autoCreate: singletonConfig?.options?.autoCreate !== false
+        })
+        
+        // Create the singleton document with sensible defaults
+        const singletonData = {
+          id: documentId,
+          _type: collection,
+          title: this.formatSchemaTitle(collection),
+          ...this.getDefaultSingletonData(collection, documentId)
+        }
+        
+        const document = await this.core.saveDocument(collection, singletonData)
+        this.logger.info('Singleton document auto-created', { collection, documentId })
+        
+        return document
+      }
+      
+      return null
+    } catch (error) {
+      this.logger.error('Failed to auto-create singleton', { collection, documentId, error })
+      return null
+    }
+  }
+
+  /**
+   * Get default data for specific singleton types
+   */
+  private getDefaultSingletonData(collection: string, documentId: string): Record<string, any> {
+    switch (collection) {
+      case 'homePage':
+        return {
+          title: 'Home Page',
+          description: 'Welcome to our website',
+          slug: 'home'
+        }
+      case 'settings':
+        return {
+          title: 'Site Settings',
+          siteName: 'My Website',
+          description: 'A website built with Trokky'
+        }
+      default:
+        return {}
+    }
   }
 }
