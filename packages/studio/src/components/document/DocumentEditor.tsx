@@ -59,11 +59,10 @@ export function DocumentEditor({
   const contextSidebar = useContextSidebar();
   const isNewDocument = documentId === 'new' || !documentId;
 
-  console.log('DocumentEditor - Initializing', { 
+  logger.debug('Initializing document editor', { 
     schemaName, 
     documentId, 
-    isNewDocument, 
-    mode 
+    isNewDocument 
   });
 
   // Core editor state
@@ -106,22 +105,20 @@ export function DocumentEditor({
 
   const loadEditorData = async () => {
     try {
-      console.log('DocumentEditor - Loading editor data', { schemaName, documentId });
+      logger.debug('Loading editor data', { schemaName, documentId });
       setLoading(true);
       setError(null);
       
       if (!apiClient.isInitialized) {
-        console.log('DocumentEditor - Initializing API client');
+        logger.debug('Initializing API client');
         await apiClient.initialize();
       }
 
       // Load schema
-      console.log('DocumentEditor - Loading schema', { schemaName });
       const schemaResponse = await apiClient.getSchema(schemaName);
-      console.log('DocumentEditor - Schema response', { 
+      logger.debug('Schema loaded', { 
         success: schemaResponse.success, 
-        hasData: !!schemaResponse.data,
-        schema: schemaResponse.data 
+        hasData: !!schemaResponse.data
       });
       
       if (!schemaResponse.success || !schemaResponse.data || !schemaResponse.data.schema) {
@@ -130,7 +127,7 @@ export function DocumentEditor({
       
       // Extract the actual schema from the nested structure
       const actualSchema = schemaResponse.data.schema;
-      console.log('DocumentEditor - Schema loaded:', {
+      logger.debug('Schema extracted', {
         schemaName: actualSchema?.name,
         singleton: actualSchema?.singleton
       });
@@ -138,12 +135,10 @@ export function DocumentEditor({
 
       // Load document if editing existing
       if (!isNewDocument && documentId) {
-        console.log('DocumentEditor - Loading existing document', { schemaName, documentId });
         const docResponse = await apiClient.getDocument(schemaName, documentId);
-        console.log('DocumentEditor - Document response', { 
+        logger.debug('Document response received', { 
           success: docResponse.success, 
-          hasData: !!docResponse.data,
-          document: docResponse.data 
+          hasData: !!docResponse.data
         });
         
         if (docResponse.success && docResponse.data && docResponse.data.document) {
@@ -153,15 +148,10 @@ export function DocumentEditor({
           // Set document state based on document data
           const state = determineDocumentState(actualDocument);
           setDocumentState(state);
-          console.log('DocumentEditor - Loaded existing document', { documentId, state, document: actualDocument });
+          logger.debug('Existing document loaded', { documentId, state });
         } else {
           // Document not found - check if this might be a singleton that needs auto-creation
-          console.log('DocumentEditor - Document not found, attempting auto-creation for potential singleton', { 
-            schema: schemaName, 
-            documentId 
-          });
-          
-          logger.warn('Document not found, attempting auto-creation for potential singleton', { 
+          logger.warn('Document not found, attempting auto-creation for singleton', { 
             schema: schemaName, 
             documentId 
           });
@@ -171,38 +161,26 @@ export function DocumentEditor({
           newDoc.id = documentId; // Set the specific singleton ID
           setDocument(newDoc);
           setDocumentState('draft');
-          console.log('DocumentEditor - Initialized singleton document', { documentId, newDoc });
+          logger.debug('Singleton document initialized', { documentId });
           
           // Note: This will be saved when user clicks save, effectively auto-creating the singleton
         }
       } else {
         // Initialize empty document for new documents
-        console.log('DocumentEditor - Initializing new document');
         const newDoc = initializeNewDocument(actualSchema);
         setDocument(newDoc);
         setDocumentState('draft');
-        console.log('DocumentEditor - Initialized new document', { newDoc });
+        logger.debug('New document initialized');
       }
-
-      console.log('DocumentEditor - Editor data loaded successfully', { 
-        schema: schemaName, 
-        documentId, 
-        isNew: isNewDocument,
-        hasSchema: !!schema,
-        hasDocument: !!document
-      });
       
-      logger.info('Editor data loaded', { 
+      logger.info('Editor data loaded successfully', { 
         schema: schemaName, 
-        documentId, 
         isNew: isNewDocument 
       });
     } catch (err) {
-      console.error('DocumentEditor - Failed to load editor data', err);
       logger.error('Failed to load editor data', err);
       setError(err instanceof Error ? err.message : 'Failed to load editor data');
     } finally {
-      console.log('DocumentEditor - Setting loading to false');
       setLoading(false);
     }
   };
@@ -509,14 +487,11 @@ function DocumentPreview() {
 export function DocumentEditorPage() {
   const { schemaName, documentId } = useParams();
 
-  console.log('DocumentEditorPage - Loading', { schemaName, documentId });
-
   if (!schemaName) {
-    console.log('DocumentEditorPage - No schema name provided');
+    logger.warn('DocumentEditorPage rendered without schema name');
     return <div>Schema name is required</div>;
   }
 
-  console.log('DocumentEditorPage - Rendering DocumentEditor', { schemaName, documentId });
   return (
     <DocumentEditor 
       schemaName={schemaName} 

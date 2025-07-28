@@ -25,7 +25,7 @@ function formatFieldName(fieldName: string): string {
 }
 
 export function DocumentForm() {
-  console.log('DocumentForm - Component initializing');
+  logger.debug('Component initializing');
   
   const {
     schema,
@@ -123,21 +123,14 @@ export function DocumentForm() {
         };
       });
       
-      console.log('DocumentForm - Converting fields with titles', {
-        originalFields: fields,
-        fieldsArray,
-        firstField: fieldsArray[0]
-      });
-      
-      logger.debug('DocumentForm - Converted object fields to array', { 
-        originalKeys: Object.keys(fields),
-        convertedCount: fieldsArray.length,
-        fieldsArray
+      logger.debug('Converted object fields to array', { 
+        originalFieldCount: Object.keys(fields).length,
+        convertedFieldCount: fieldsArray.length
       });
       return fieldsArray;
     }
     
-    logger.warn('DocumentForm - No valid fields found', { fields });
+    logger.warn('No valid fields found', { fieldsType: typeof fields });
     return [];
   }, []);
 
@@ -172,25 +165,11 @@ export function DocumentForm() {
     const hasErrors = Object.keys(fieldErrors).length > 0;
     onValidationChange(hasErrors);
   }, [fieldErrors, onValidationChange]);
-  
-  console.log('DocumentForm - Hook values', { 
-    hasSchema: !!schema, 
-    hasDocument: !!document,
-    schemaName: schema?.name,
-    documentKeys: document ? Object.keys(document) : null
-  });
 
   if (!schema || !document) {
-    console.log('DocumentForm - Missing schema or document', { 
+    logger.debug('Waiting for schema or document to load', { 
       hasSchema: !!schema, 
-      hasDocument: !!document,
-      schema: schema ? { name: schema.name, title: schema.title, fieldsType: typeof schema.fields } : null
-    });
-    
-    logger.debug('DocumentForm - Missing schema or document', { 
-      hasSchema: !!schema, 
-      hasDocument: !!document,
-      schema: schema ? { name: schema.name, title: schema.title, fieldsType: typeof schema.fields } : null
+      hasDocument: !!document
     });
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -201,18 +180,9 @@ export function DocumentForm() {
     );
   }
 
-  console.log('DocumentForm - Schema loaded', { 
+  logger.debug('Schema loaded successfully', { 
     schemaName: schema.name, 
-    schemaTitle: schema.title,
-    fieldsType: typeof schema.fields,
-    fields: schema.fields
-  });
-  
-  logger.debug('DocumentForm - Schema loaded', { 
-    schemaName: schema.name, 
-    schemaTitle: schema.title,
-    fieldsType: typeof schema.fields,
-    fields: schema.fields
+    fieldsType: typeof schema.fields
   });
 
   const handleFieldChange = useCallback((fieldName: string, value: any) => {
@@ -250,24 +220,6 @@ export function DocumentForm() {
     const value = document[field.name];
     const error = fieldErrors[field.name];
 
-    console.log('DocumentForm - Rendering field', { 
-      fieldName: field.name, 
-      fieldType: field.type, 
-      fieldTitle: field.title,
-      hasValue: value !== undefined,
-      hasError: !!error,
-      value,
-      field 
-    });
-
-    logger.debug('DocumentForm - Rendering field', { 
-      fieldName: field.name, 
-      fieldType: field.type, 
-      fieldTitle: field.title,
-      hasValue: value !== undefined,
-      hasError: !!error 
-    });
-
     // Use FieldRenderer for all field types (same as FieldsDemo)
     return (
       <FieldRenderer
@@ -294,12 +246,6 @@ export function DocumentForm() {
   };
 
   const fieldsArray = useMemo(() => getFieldsArray(schema.fields), [schema.fields, getFieldsArray]);
-  
-  console.log('DocumentForm - About to render', { 
-    fieldsArrayLength: fieldsArray.length,
-    fieldsArray,
-    schemaFields: schema.fields 
-  });
 
   return (
     <div className="flex-1 overflow-auto">

@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/Button';
 
 export function DashboardPage() {
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -87,6 +88,7 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

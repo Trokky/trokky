@@ -37,11 +37,12 @@ export class StudioLogger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return this.config.enabled && LOG_LEVELS[level] >= LOG_LEVELS[this.config.level]
+    // Always use the current global log level instead of the instance level
+    return this.config.enabled && LOG_LEVELS[level] >= LOG_LEVELS[GLOBAL_LOG_LEVEL]
   }
 
-  private formatMessage(_level: LogLevel, message: string): string {
-    return `${this.config.prefix} ${message}`
+  private formatMessage(level: LogLevel, message: string): string {
+    return `${this.config.prefix}[${level}] ${message}`
   }
 
   debug(message: string, data?: any): void {

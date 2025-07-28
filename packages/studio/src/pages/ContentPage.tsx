@@ -1,20 +1,50 @@
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { 
+  Bars3Icon, 
+  Squares2X2Icon, 
+  TableCellsIcon,
+  PlusIcon,
+  TrashIcon,
+  DocumentDuplicateIcon,
+  DocumentTextIcon
+} from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
-import { useState, useEffect } from 'react';
 import { apiClient, ApiClientError } from '@/services/api-client';
-import type { Document } from '@/types';
 import { createStudioLogger } from '@/utils/logger';
-import { EnhancedContentPage } from '@/components/content/EnhancedContentPage';
-import { DocumentEditor } from '@/components/document';
 import { useStructureItem } from '@/hooks/useStructure';
+import type { Document } from '@/types';
+import { DocumentEditor } from '@/components/document';
+
+// Import view components
+import { ContentViewControls, type ViewType, type ViewConfig, type FilterConfig, type SortConfig } from '@/components/content/ContentViewControls';
+import { ListView, getDefaultColumns, type ListColumn } from '@/components/content/views/ListView';
+import { GridView, type GridCardSize } from '@/components/content/views/GridView';
+import { TableView, type TableColumn } from '@/components/content/views/TableView';
+import { KanbanView, type KanbanColumn } from '@/components/content/views/KanbanView';
+import { Pagination } from '@/components/content/Pagination';
 
 const logger = createStudioLogger('ContentPage');
+
+// Helper function to get user-friendly display names
+function getSchemaDisplayName(schemaName?: string): string {
+  if (!schemaName) return 'Document';
+  
+  const displayNames: Record<string, string> = {
+    'article': 'Article',
+    'author': 'Author', 
+    'category': 'Category',
+    'homePage': 'Home Page',
+    'post': 'Post'
+  };
+  
+  return displayNames[schemaName] || schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
+}
 
 export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
-  const structureItem = useStructureItem(schemaName || '');
+  const structureItem = useStructureItem(schemaName);
 
   // Handle document editing
   if (documentId) {
@@ -35,7 +65,6 @@ export function ContentPage() {
       const singletonDocumentId = singleton.documentId || schemaName;
       
       // For singletons, redirect directly to edit the document
-      // The DocumentEditor will handle auto-creation if the document doesn't exist
       return (
         <SingletonHandler
           schemaName={schemaName}
@@ -47,10 +76,298 @@ export function ContentPage() {
     }
 
     // Regular collection view
-    return <EnhancedContentPage schemaName={schemaName} key={schemaName} />;
+    return <ContentListPage schemaName={schemaName} key={schemaName} />;
   }
 
   return <ContentOverview />;
+}
+
+// Enhanced Content List Page Component
+function ContentListPage({ schemaName }: { schemaName: string }) {
+  const navigate = useNavigate();
+  const structureItem = useStructureItem(schemaName);
+  
+  // State management
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  
+  // View state
+  const [currentView, setCurrentView] = useState<ViewType>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
+  const [currentSort, setCurrentSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Load documents on mount and when dependencies change
+  useEffect(() => {
+    loadDocuments();
+  }, [schemaName, activeFilters, currentSort, searchQuery, currentPage, pageSize]);
+  
+  // Reset page when filters/search/sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilters, currentSort, searchQuery]);
+  
+  // Load documents from API
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (!apiClient.isInitialized) {
+        await apiClient.initialize();
+      }
+      
+      // Use the API client's proper method
+      const response = await apiClient.listDocuments(schemaName, {
+        page: currentPage,
+        limit: pageSize,
+        search: searchQuery || undefined,
+        filter: Object.keys(activeFilters).length > 0 ? activeFilters : undefined,
+        sort: currentSort ? `${currentSort.direction === 'desc' ? '-' : ''}${currentSort.field}` : undefined
+      });
+      
+      if (response.success && response.data?.documents) {
+        setDocuments(response.data.documents);
+        setTotalItems(response.data.pagination?.total || response.data.documents.length);
+        logger.info('Documents loaded', { 
+          schema: schemaName, 
+          count: response.data.documents.length,
+          total: response.data.pagination?.total,
+          page: currentPage
+        });
+      } else {
+        setDocuments([]);
+        setTotalItems(0);
+      }
+    } catch (err) {
+      logger.error('Failed to load documents', err);
+      setError(err instanceof ApiClientError ? err.message : 'Failed to load documents');
+      setDocuments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle document actions
+  const handleDocumentAction = async (documentId: string, action: string) => {
+    try {
+      switch (action) {
+        case 'delete':
+          if (!confirm('Are you sure you want to delete this document?')) return;
+          await apiClient.deleteDocument(schemaName, documentId);
+          logger.info('Document deleted', { schema: schemaName, id: documentId });
+          await loadDocuments();
+          setSelectedItems(prev => prev.filter(id => id !== documentId));
+          break;
+          
+        case 'duplicate':
+          const docResponse = await apiClient.getDocument(schemaName, documentId);
+          if (docResponse.success && docResponse.data) {
+            const originalDoc = docResponse.data;
+            const duplicateData = {
+              ...originalDoc,
+              title: `${originalDoc.title || 'Document'} (Copy)`,
+              slug: undefined,
+              _id: undefined,
+              id: undefined,
+              _createdAt: undefined,
+              _updatedAt: undefined
+            };
+            
+            const createResponse = await apiClient.createDocument(schemaName, duplicateData);
+            if (createResponse.success) {
+              logger.info('Document duplicated', { schema: schemaName, originalId: documentId });
+              await loadDocuments();
+            }
+          }
+          break;
+          
+        default:
+          logger.warn('Unknown document action', { action, documentId });
+      }
+    } catch (err) {
+      logger.error('Document action failed', { action, documentId, error: err });
+      alert(`Failed to ${action} document: ${err instanceof ApiClientError ? err.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Selection handlers
+  const handleItemSelect = (id: string, selected: boolean) => {
+    setSelectedItems(prev => 
+      selected 
+        ? [...prev, id]
+        : prev.filter(item => item !== id)
+    );
+  };
+  
+  const handleSelectAll = (selected: boolean) => {
+    setSelectedItems(selected ? documents.map(doc => doc.id || doc._id) : []);
+  };
+  
+  // Filter/sort handlers
+  const handleFilterChange = (filterId: string, value: any) => {
+    setActiveFilters(prev => ({ ...prev, [filterId]: value }));
+  };
+  
+  const handleClearFilters = () => {
+    setActiveFilters({});
+    setSearchQuery('');
+  };
+  
+  const handleSort = (field: string, direction: 'asc' | 'desc') => {
+    setCurrentSort({ field, direction });
+  };
+  
+  // Get view configurations
+  const viewConfigs: ViewConfig[] = [
+    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true }
+  ];
+  
+  const filterConfigs: FilterConfig[] = [
+    {
+      id: 'published',
+      label: 'Status',
+      field: 'published',
+      type: 'select',
+      options: [
+        { label: 'Published', value: 'true' },
+        { label: 'Draft', value: 'false' }
+      ]
+    }
+  ];
+  
+  const sortConfigs: SortConfig[] = [
+    { field: 'title', direction: 'asc', label: 'Title' },
+    { field: '_createdAt', direction: 'desc', label: 'Created Date' },
+    { field: '_updatedAt', direction: 'desc', label: 'Updated Date' }
+  ];
+  
+  const bulkActions = [
+    {
+      id: 'duplicate',
+      label: 'Duplicate',
+      icon: DocumentDuplicateIcon
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: TrashIcon,
+      variant: 'destructive' as const
+    }
+  ];
+  
+  const columns = getDefaultColumns(schemaName);
+  
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+          <div className="text-red-500 mb-4">
+            <h3 className="text-lg font-medium">Error loading documents</h3>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
+          <Button onClick={loadDocuments}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="h-full flex flex-col">
+      {/* Page header */}
+      <div className="flex-shrink-0 px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {structureItem?.title || `${getSchemaDisplayName(schemaName)} Documents`}
+            </h1>
+          </div>
+          <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Create {getSchemaDisplayName(schemaName)}
+          </Button>
+        </div>
+      </div>
+      
+      {/* Content controls */}
+      <ContentViewControls
+        availableViews={viewConfigs}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={`Search ${schemaName}...`}
+        availableFilters={filterConfigs}
+        activeFilters={activeFilters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        availableSorts={sortConfigs}
+        currentSort={currentSort}
+        onSortChange={handleSort}
+        onCreateNew={() => navigate(`/content/${schemaName}/new`)}
+        createNewLabel={`Create ${getSchemaDisplayName(schemaName)}`}
+        totalItems={totalItems}
+        selectedItems={selectedItems.length}
+        bulkActions={bulkActions}
+        onBulkAction={async (actionId) => {
+          if (selectedItems.length === 0) return;
+          
+          switch (actionId) {
+            case 'delete':
+              if (!confirm(`Are you sure you want to delete ${selectedItems.length} documents?`)) return;
+              await Promise.all(selectedItems.map(id => apiClient.deleteDocument(schemaName, id)));
+              setSelectedItems([]);
+              await loadDocuments();
+              break;
+          }
+        }}
+      />
+      
+      {/* Content area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto p-6">
+          <ListView
+            documents={documents}
+            columns={columns as ListColumn[]}
+            schemaName={schemaName}
+            loading={loading}
+            selectedItems={selectedItems}
+            onItemSelect={handleItemSelect}
+            onSelectAll={handleSelectAll}
+            sortField={currentSort?.field}
+            sortDirection={currentSort?.direction}
+            onSort={handleSort}
+            onDocumentAction={handleDocumentAction}
+          />
+        </div>
+        
+        {/* Pagination */}
+        {totalItems > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalItems / pageSize)}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            showPageSizeSelector={true}
+            pageSizeOptions={[10, 25, 50, 100]}
+            showFirstLast={true}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 interface SingletonHandlerProps {
@@ -63,7 +380,6 @@ interface SingletonHandlerProps {
 function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: SingletonHandlerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [documentExists, setDocumentExists] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -79,27 +395,19 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
         await apiClient.initialize();
       }
 
-      // Check if the singleton document exists
       const response = await apiClient.getDocument(schemaName, documentId);
       
       if (response.success && response.data) {
-        // Document exists, redirect to edit it
-        setDocumentExists(true);
         navigate(`/content/${schemaName}/${documentId}`, { replace: true });
+      } else if (autoCreate) {
+        await createSingletonDocument();
       } else {
-        // Document doesn't exist
-        if (autoCreate) {
-          // Auto-create the singleton document
-          await createSingletonDocument();
-        } else {
-          setError(`Singleton document '${documentId}' not found and auto-creation is disabled.`);
-        }
+        setError(`Singleton document '${documentId}' not found and auto-creation is disabled.`);
       }
     } catch (err) {
       logger.error('Failed to check singleton document', err);
       
       if (autoCreate && err instanceof ApiClientError && err.status === 404) {
-        // Document not found, try to auto-create
         await createSingletonDocument();
       } else {
         setError(err instanceof ApiClientError ? err.message : 'Failed to load singleton document');
@@ -113,7 +421,6 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
     try {
       logger.info('Auto-creating singleton document', { schemaName, documentId });
       
-      // Create basic singleton document
       const response = await apiClient.createDocument(schemaName, {
         id: documentId,
         title: `${schemaName} Configuration`,
@@ -161,7 +468,6 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
     );
   }
 
-  // This shouldn't be reached, but just in case
   return (
     <DocumentEditor 
       schemaName={schemaName}
@@ -338,226 +644,3 @@ function ContentOverview() {
     </div>
   );
 }
-
-function SchemaDocuments({ schemaName }: { schemaName?: string }) {
-  const navigate = useNavigate();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (schemaName) {
-      loadDocuments();
-    }
-  }, [schemaName]);
-
-  const loadDocuments = async () => {
-    if (!schemaName) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-      
-      // Use the collections endpoint that matches our demo backend
-      const response = await apiClient.getDocuments(schemaName);
-      
-      if (response.success && response.data?.documents) {
-        setDocuments(response.data.documents);
-        logger.info('Documents loaded', { schema: schemaName, count: response.data.documents.length });
-      } else {
-        setDocuments([]);
-      }
-    } catch (err) {
-      logger.error('Failed to load documents', err);
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load documents');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!schemaName || !confirm('Are you sure you want to delete this document?')) return;
-    
-    try {
-      await apiClient.deleteDocument(schemaName, documentId);
-      logger.info('Document deleted', { schema: schemaName, id: documentId });
-      await loadDocuments(); // Reload the list
-    } catch (err) {
-      logger.error('Failed to delete document', err);
-      alert('Failed to delete document: ' + (err instanceof ApiClientError ? err.message : 'Unknown error'));
-    }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'No date';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const getDocumentTitle = (doc: Document) => {
-    return doc.title || doc.name || doc.slug || doc.id || doc._id;
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {schemaName} Documents
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage documents for the {schemaName} content type
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading documents...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {schemaName} Documents
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage documents for the {schemaName} content type
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="text-red-500 mb-4">
-            <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
-            <h3 className="text-lg font-medium">
-              Error loading documents
-            </h3>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {error}
-          </p>
-          <Button onClick={loadDocuments}>
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6">
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {schemaName} Documents
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage documents for the {schemaName} content type ({documents.length} items)
-          </p>
-        </div>
-        <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Create Document
-        </Button>
-      </div>
-
-      {documents.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No documents found
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Documents for {schemaName} will appear here.
-          </p>
-          <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create First Document
-          </Button>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Updated
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                {documents.map((doc) => (
-                  <tr key={doc.id || doc._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {getDocumentTitle(doc)}
-                      </div>
-                      {doc.slug && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          /{doc.slug}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        doc.published || doc._status === 'published'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
-                      }`}>
-                        {doc.published || doc._status === 'published' ? 'Published' : 'Draft'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(doc._createdAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(doc._updatedAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => navigate(`/content/${schemaName}/${doc.id || doc._id}`)}
-                        >
-                          Edit
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleDeleteDocument(doc.id || doc._id)}
-                          className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-

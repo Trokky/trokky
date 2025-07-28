@@ -3,6 +3,9 @@
  */
 
 import type { ApiClient } from './api-client'
+import { createStudioLogger } from '@/utils/logger'
+
+const logger = createStudioLogger('config-service', 'StudioConfigService')
 
 export interface StudioBranding {
   title?: string
@@ -55,15 +58,15 @@ export class StudioConfigService {
         ;(window as any).TROKKY_CONFIG = mergedConfig
         
         this.cachedConfig = apiConfig
-        console.log('[StudioConfig] Updated config with API data:', {
+        logger.debug('Config updated from API', {
           title: apiConfig.branding?.title,
-          source: 'api'
+          hasConfig: !!apiConfig
         })
         
         return apiConfig
       }
     } catch (error) {
-      console.warn('[StudioConfig] Failed to fetch from API, using window config:', error)
+      logger.warn('Failed to fetch config from API, falling back to window config', error)
     }
 
     // Fallback to window config if API fails
