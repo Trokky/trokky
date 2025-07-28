@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
 
 interface ContextSidebarState {
   isVisible: boolean;
@@ -54,30 +54,50 @@ export function ContextSidebarProvider({
     content: null
   });
 
+  // Memoize all the action functions separately so they don't change on every state update
+  const show = useCallback(() => setState(prev => ({ ...prev, isVisible: true })), []);
+  const hide = useCallback(() => setState(prev => ({ ...prev, isVisible: false })), []);
+  const toggle = useCallback(() => setState(prev => ({ ...prev, isVisible: !prev.isVisible })), []);
+  
+  const collapse = useCallback(() => setState(prev => ({ ...prev, isCollapsed: true })), []);
+  const expand = useCallback(() => setState(prev => ({ ...prev, isCollapsed: false })), []);
+  const toggleCollapse = useCallback(() => setState(prev => ({ ...prev, isCollapsed: !prev.isCollapsed })), []);
+  
+  const setWidth = useCallback((width: number) => setState(prev => ({ ...prev, width })), []);
+  
+  const setContent = useCallback((content: ReactNode) => setState(prev => ({ ...prev, content })), []);
+  const clearContent = useCallback(() => setState(prev => ({ ...prev, content: null })), []);
+
+  // Create the API object with stable function references and current state values
   const api: ContextSidebarAPI = useMemo(() => ({
-    // Visibility control
-    show: () => setState(prev => ({ ...prev, isVisible: true })),
-    hide: () => setState(prev => ({ ...prev, isVisible: false })),
-    toggle: () => setState(prev => ({ ...prev, isVisible: !prev.isVisible })),
+    // Visibility control (stable references)
+    show,
+    hide,
+    toggle,
     
-    // Collapse control
-    collapse: () => setState(prev => ({ ...prev, isCollapsed: true })),
-    expand: () => setState(prev => ({ ...prev, isCollapsed: false })),
-    toggleCollapse: () => setState(prev => ({ ...prev, isCollapsed: !prev.isCollapsed })),
+    // Collapse control (stable references)
+    collapse,
+    expand,
+    toggleCollapse,
     
-    // Width control
-    setWidth: (width: number) => setState(prev => ({ ...prev, width })),
+    // Width control (stable reference)
+    setWidth,
     
-    // Content control
-    setContent: (content: ReactNode) => setState(prev => ({ ...prev, content })),
-    clearContent: () => setState(prev => ({ ...prev, content: null })),
+    // Content control (stable references)
+    setContent,
+    clearContent,
     
-    // State accessors (these need to be updated from current state)
+    // State accessors (updated with current state)
     isVisible: state.isVisible,
     isCollapsed: state.isCollapsed,
     width: state.width,
     content: state.content
-  }), [state]); // Re-create only when state changes
+  }), [
+    show, hide, toggle,
+    collapse, expand, toggleCollapse,
+    setWidth, setContent, clearContent,
+    state.isVisible, state.isCollapsed, state.width, state.content
+  ]);
 
   return (
     <ContextSidebarContext.Provider value={api}>
