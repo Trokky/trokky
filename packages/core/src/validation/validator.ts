@@ -58,7 +58,7 @@ export class DocumentValidator {
       schemaShape[fieldName] = fieldSchema
     }
 
-    return z.object(schemaShape)
+    return z.object(schemaShape).passthrough()
   }
 
   private buildFieldSchema(fieldDef: LegacyFieldDefinition): z.ZodSchema {
@@ -104,7 +104,21 @@ export class DocumentValidator {
         return z.string() // Reference IDs are strings
       
       case 'media':
-        return z.string() // Media file IDs are strings
+        // Media fields can be either a string ID or a complex object with asset reference
+        return z.union([
+          z.string(),
+          z.object({
+            _type: z.literal('media'),
+            asset: z.object({
+              _ref: z.string(),
+              _type: z.literal('mediaAsset')
+            }),
+            alt: z.string().optional(),
+            caption: z.string().optional(),
+            title: z.string().optional(),
+            variant: z.string().optional()
+          }).passthrough()
+        ])
       
       default:
         return z.unknown()

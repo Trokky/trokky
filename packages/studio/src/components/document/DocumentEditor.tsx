@@ -323,7 +323,8 @@ export function DocumentEditor({
       }
 
       if (response.success && response.data) {
-        const savedDoc = response.data;
+        // Extract the actual document from the response
+        const savedDoc = response.data.document || response.data;
         
         logger.info('Document saved successfully', { 
           schema: schemaName, 
