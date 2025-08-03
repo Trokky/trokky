@@ -124,14 +124,9 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     studioContext.logger.debug('MediaField initialized', {
       hasStudioContext: !!studioContext,
       hasApiClient: !!studioContext?.apiClient,
-      hasGetMedia: !!(studioContext?.apiClient?.getMedia),
-      hasDocumentContext: !!documentContext,
       fieldId,
-      fieldType: definition.type,
-      options: options,
       enableUpload: options.enableUpload,
-      enableBrowse: options.enableBrowse,
-      enableDragDrop: options.enableDragDrop
+      enableBrowse: options.enableBrowse
     });
   }
   

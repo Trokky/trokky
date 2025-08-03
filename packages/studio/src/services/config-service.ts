@@ -5,7 +5,7 @@
 import type { ApiClient } from './api-client'
 import { createStudioLogger } from '@/utils/logger'
 
-const logger = createStudioLogger('config-service', 'StudioConfigService')
+const logger = createStudioLogger('config-service')
 
 export interface StudioBranding {
   title?: string

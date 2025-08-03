@@ -43,9 +43,9 @@ export const mediaFieldPlugin: FieldPlugin<MediaFieldDefinition, MediaFieldValue
       title: schemaField.title || 'Media Field',
       description: schemaField.description,
       required: schemaField.required || false,
-      validation: schemaField.validation || {},
-      options: schemaField.options || {},
-      defaultValue: schemaField.defaultValue
+      validation: { ...MEDIA_FIELD_DEFAULTS.validation, ...schemaField.validation },
+      options: { ...MEDIA_FIELD_DEFAULTS.options, ...schemaField.options },
+      defaultValue: schemaField.defaultValue || MEDIA_FIELD_DEFAULTS.defaultValue
     };
   },
   

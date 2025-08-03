@@ -11,7 +11,7 @@ import type {
 } from '../types/structure'
 import { createStudioLogger } from '@/utils/logger'
 
-const logger = createStudioLogger('structure-service', 'StructureService')
+const logger = createStudioLogger('structure-service')
 
 export class StructureService {
   private client: ApiClient

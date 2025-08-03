@@ -116,11 +116,21 @@ export function DocumentForm() {
         // Add title if missing (fallback to formatted field name)
         const title = field.title || formatFieldName(name);
         
-        return {
+        const processedField = {
           name,
           title, // Ensure title is always present
           ...field
         };
+        
+        // Debug media field processing
+        if (field.type === 'media') {
+          logger.debug('Processing media field in getFieldsArray', {
+            fieldName: name,
+            hasOptions: !!field.options
+          });
+        }
+        
+        return processedField;
       });
       
       logger.debug('Converted object fields to array', { 
@@ -220,6 +230,16 @@ export function DocumentForm() {
     const value = document[field.name];
     const error = fieldErrors[field.name];
 
+    // Debug field definition for media fields
+    if (field.type === 'media') {
+      logger.debug('Rendering media field in DocumentForm', {
+        fieldName: field.name,
+        hasOptions: !!field.options,
+        enableUpload: field.options?.enableUpload,
+        enableBrowse: field.options?.enableBrowse
+      });
+    }
+
     // Use FieldRenderer for all field types (same as FieldsDemo)
     return (
       <FieldRenderer
@@ -235,7 +255,7 @@ export function DocumentForm() {
         studioContext={studioContext || undefined}
       />
     );
-  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext]);
+  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, logger]);
 
   const renderFormSection = (fields: any[]) => {
     return (

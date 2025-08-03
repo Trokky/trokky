@@ -49,6 +49,7 @@ export interface LegacyFieldDefinition {
   required?: boolean
   description?: string
   validation?: Record<string, unknown>
+  options?: Record<string, unknown> // For field-specific options (e.g., media field upload/browse settings)
   items?: LegacyFieldDefinition // For arrays
   properties?: Record<string, LegacyFieldDefinition> // For objects
   collection?: string // For references
@@ -60,6 +61,7 @@ export const LegacyFieldDefinitionSchema: z.ZodType<LegacyFieldDefinition> = z.o
   required: z.boolean().optional().default(false),
   description: z.string().optional(),
   validation: z.record(z.unknown()).optional(),
+  options: z.record(z.unknown()).optional(), // For field-specific options
   items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
   properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
   collection: z.string().optional() // For references

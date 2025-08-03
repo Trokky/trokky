@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useStudioContext } from '@/contexts/StudioContext';
 
 // Document editor context and components
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
@@ -57,6 +58,8 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const navigate = useNavigate();
   const contextSidebar = useContextSidebar();
+  const studioContext = useStudioContext();
+  const showToast = studioContext?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const isNewDocument = documentId === 'new' || !documentId;
 
   logger.debug('Initializing document editor', { 
@@ -127,6 +130,12 @@ export function DocumentEditor({
       
       // Extract the actual schema from the nested structure
       const actualSchema = schemaResponse.data.schema;
+      
+      // Debug the actual schema and its featuredImage field
+      logger.debug('Schema loaded for editing', { 
+        schemaName,
+        hasFields: !!actualSchema.fields
+      });
       logger.debug('Schema extracted', {
         schemaName: actualSchema?.name,
         singleton: actualSchema?.singleton
@@ -315,14 +324,19 @@ export function DocumentEditor({
 
       if (response.success && response.data) {
         const savedDoc = response.data;
+        
+        logger.info('Document saved successfully', { 
+          schema: schemaName, 
+          id: savedDoc.id || savedDoc._id,
+          isNewDocument,
+          savedDocumentData: savedDoc
+        });
+        
         setDocument(savedDoc);
         setHasUnsavedChanges(false);
 
-        logger.info('Document saved', { 
-          schema: schemaName, 
-          id: savedDoc.id || savedDoc._id,
-          state: documentState
-        });
+        // Show success toast
+        showToast('Document saved successfully', 'success');
 
         // Call external save handler if provided
         onSave?.(savedDoc);
@@ -330,11 +344,24 @@ export function DocumentEditor({
         // Redirect to edit mode if it was a new document
         if (isNewDocument) {
           navigate(`/content/${schemaName}/${savedDoc.id || savedDoc._id}`);
+        } else {
+          // For existing documents, ensure the UI refreshes
+          logger.debug('Updated existing document, refreshing UI state');
         }
+      } else {
+        // Handle API error response without throwing
+        const errorMessage = response.error?.message || 'Failed to save document';
+        logger.error('Save failed with API error', { 
+          error: response.error, 
+          fullResponse: response,
+          documentData: document 
+        });
+        showToast(errorMessage, 'error');
       }
     } catch (err) {
       logger.error('Failed to save document', err);
-      setError(err instanceof ApiClientError ? err.message : 'Failed to save document');
+      const errorMessage = err instanceof ApiClientError ? err.message : 'Failed to save document';
+      showToast(errorMessage, 'error');
     } finally {
       setSaving(false);
     }

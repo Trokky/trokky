@@ -383,17 +383,30 @@ export class ApiClient {
   }
 
   /**
+   * Get single media file by ID (alias for compatibility with MediaField)
+   */
+  async getMediaById(id: string): Promise<ApiResponse<{ file: MediaFile }>> {
+    return this.getMediaFile(id);
+  }
+
+  /**
    * Upload media file
    */
-  async uploadMedia(file: File, metadata?: Record<string, any>): Promise<ApiResponse<MediaFile>> {
+  async uploadMedia(file: File, options?: any, metadata?: Record<string, any>): Promise<ApiResponse<MediaFile>> {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
 
+    // Handle different call patterns for compatibility
+    let finalMetadata = metadata;
+    if (options && typeof options === 'object' && !metadata) {
+      finalMetadata = options;
+    }
+
     const formData = new FormData();
     formData.append('files', file);
-    if (metadata) {
-      formData.append('metadata', JSON.stringify(metadata));
+    if (finalMetadata) {
+      formData.append('metadata', JSON.stringify(finalMetadata));
     }
 
     return this.request<MediaFile>('/api/media/upload', {
