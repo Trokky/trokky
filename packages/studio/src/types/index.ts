@@ -39,6 +39,7 @@ export interface BackendCapabilities {
     auth?: string;
     structure?: string;
     users?: string;
+    slugs?: string;
   };
   limits: {
     maxUploadSize: number;
@@ -96,12 +97,18 @@ export interface Schema {
   title?: string;
   description?: string;
   type: 'document' | 'singleton';
+  singleton?: boolean;
   icon?: string;
   fields: SchemaField[];
   preview?: {
     select: Record<string, string>;
     prepare: (selection: any) => PreviewValue;
   };
+}
+
+// API response wrapper for schema endpoint
+export interface SchemaApiResponse {
+  schema: Schema;
 }
 
 export interface SchemaField {
@@ -160,7 +167,7 @@ export interface MediaFile {
   createdAt: string;
   updatedAt: string;
   uploadedAt: string; // Added for compatibility
-  _createdAt?: string; // Legacy field for compatibility
+  _createdAt: string; // Legacy field for compatibility - now required
 }
 
 // Search Types

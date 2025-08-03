@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
+import type { ApiResponse, SchemaApiResponse } from '@/types';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 
@@ -59,7 +60,7 @@ export function DocumentEditor({
   const navigate = useNavigate();
   const contextSidebar = useContextSidebar();
   const studioContext = useStudioContext();
-  const showToast = studioContext?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
+  const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const isNewDocument = documentId === 'new' || !documentId;
 
   logger.debug('Initializing document editor', { 
@@ -118,7 +119,7 @@ export function DocumentEditor({
       }
 
       // Load schema
-      const schemaResponse = await apiClient.getSchema(schemaName);
+      const schemaResponse = await apiClient.getSchema(schemaName) as ApiResponse<SchemaApiResponse>;
       logger.debug('Schema loaded', { 
         success: schemaResponse.success, 
         hasData: !!schemaResponse.data
