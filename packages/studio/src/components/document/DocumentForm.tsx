@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { FieldRenderer } from '@trokky/fields';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
@@ -27,12 +28,14 @@ function formatFieldName(fieldName: string): string {
 export function DocumentForm() {
   logger.debug('Component initializing');
   
+  const { documentId } = useParams();
   const {
     schema,
     document,
     onDocumentChange,
     onValidationChange,
-    saving
+    saving,
+    isNewDocument
   } = useDocumentEditor();
   
   const studioContext = useStudioContext();
@@ -107,6 +110,20 @@ export function DocumentForm() {
     
     if (Array.isArray(fields)) {
       logger.debug('DocumentForm - Using array fields', { count: fields.length });
+      
+      // Debug each field to see what properties they have
+      fields.forEach((field, index) => {
+        if (field.type === 'slug') {
+          logger.debug('🐛 Array field slug found:', {
+            index,
+            field,
+            hasSource: 'source' in field,
+            hasAutoGenerate: 'autoGenerate' in field,
+            hasUnique: 'unique' in field
+          });
+        }
+      });
+      
       return fields;
     }
     
@@ -127,6 +144,19 @@ export function DocumentForm() {
           logger.debug('Processing media field in getFieldsArray', {
             fieldName: name,
             hasOptions: !!field.options
+          });
+        }
+        
+        // Debug slug field processing
+        if (field.type === 'slug') {
+          logger.debug('🐛 Processing slug field in getFieldsArray', {
+            fieldName: name,
+            originalField: field,
+            processedField,
+            allProperties: Object.keys(field),
+            hasSource: 'source' in field,
+            hasAutoGenerate: 'autoGenerate' in field,
+            hasUnique: 'unique' in field
           });
         }
         
@@ -226,6 +256,18 @@ export function DocumentForm() {
     }
   }, [document, validateField]);
 
+  // Create document context for field rendering
+  const documentContext = useMemo(() => {
+    if (!schema || !document) return undefined;
+    
+    return {
+      documentId: documentId || undefined,
+      schema: schema.name,
+      isNewDocument: isNewDocument || false,
+      allValues: document // Current form values for field interactions
+    };
+  }, [schema, document, documentId, isNewDocument]);
+
   const renderField = useCallback((field: any) => {
     const value = document[field.name];
     const error = fieldErrors[field.name];
@@ -237,6 +279,19 @@ export function DocumentForm() {
         hasOptions: !!field.options,
         enableUpload: field.options?.enableUpload,
         enableBrowse: field.options?.enableBrowse
+      });
+    }
+    
+    // Debug field definition for slug fields
+    if (field.type === 'slug') {
+      logger.debug('🐛 Rendering slug field in DocumentForm', {
+        fieldName: field.name,
+        fieldDefinition: field,
+        source: field.source,
+        autoGenerate: field.autoGenerate,
+        unique: field.unique,
+        documentContext: !!documentContext,
+        allValues: documentContext?.allValues
       });
     }
 
@@ -253,9 +308,10 @@ export function DocumentForm() {
         error={error}
         mode="edit"
         studioContext={studioContext || undefined}
+        documentContext={documentContext}
       />
     );
-  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, logger]);
+  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, documentContext, logger]);
 
   const renderFormSection = (fields: any[]) => {
     return (

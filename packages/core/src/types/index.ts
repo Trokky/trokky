@@ -38,7 +38,8 @@ export const LegacyFieldTypeSchema = z.enum([
   'array',
   'object',
   'reference',
-  'media'
+  'media',
+  'slug'
 ])
 
 export type LegacyFieldType = z.infer<typeof LegacyFieldTypeSchema>
@@ -53,6 +54,19 @@ export interface LegacyFieldDefinition {
   items?: LegacyFieldDefinition // For arrays
   properties?: Record<string, LegacyFieldDefinition> // For objects
   collection?: string // For references
+  
+  // Slug field specific properties
+  source?: string | string[] // Source field(s) for auto-generation
+  autoGenerate?: boolean // Enable auto-generation
+  unique?: boolean // Require uniqueness
+  maxLength?: number // Maximum length
+  minLength?: number // Minimum length
+  allowEmpty?: boolean // Allow empty values
+  readOnly?: boolean // Read-only field
+  preserveCase?: boolean // Preserve case in slugs
+  allowedChars?: string // Additional allowed characters
+  prefix?: string // Slug prefix
+  suffix?: string // Slug suffix
 }
 
 // Schema field definition Zod schema
@@ -64,8 +78,21 @@ export const LegacyFieldDefinitionSchema: z.ZodType<LegacyFieldDefinition> = z.o
   options: z.record(z.unknown()).optional(), // For field-specific options
   items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
   properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
-  collection: z.string().optional() // For references
-})
+  collection: z.string().optional(), // For references
+  
+  // Slug field specific properties
+  source: z.union([z.string(), z.array(z.string())]).optional(), // Source field(s) for auto-generation
+  autoGenerate: z.boolean().optional(), // Enable auto-generation
+  unique: z.boolean().optional(), // Require uniqueness
+  maxLength: z.number().optional(), // Maximum length
+  minLength: z.number().optional(), // Minimum length
+  allowEmpty: z.boolean().optional(), // Allow empty values
+  readOnly: z.boolean().optional(), // Read-only field
+  preserveCase: z.boolean().optional(), // Preserve case in slugs
+  allowedChars: z.string().optional(), // Additional allowed characters
+  prefix: z.string().optional(), // Slug prefix
+  suffix: z.string().optional() // Slug suffix
+}).passthrough() // Allow additional properties for extensibility
 
 // Content schema definition
 export const ContentSchemaSchema = z.object({

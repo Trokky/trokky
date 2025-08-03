@@ -120,6 +120,13 @@ export class DocumentValidator {
           }).passthrough()
         ])
       
+      case 'slug':
+        // Slug fields are URL-friendly strings
+        return z.string()
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Invalid slug format')
+          .min(1, 'Slug cannot be empty')
+          .max(200, 'Slug is too long')
+      
       default:
         return z.unknown()
     }

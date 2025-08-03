@@ -31,8 +31,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Type-safe access to slug field specific properties
   const slugDefinition = definition as SlugFieldDefinition;
+  
   const [isManuallyEdited, setIsManuallyEdited] = useState(false);
-  const [previewSlug, setPreviewSlug] = useState('');
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
   const [uniquenessStatus, setUniquenessStatus] = useState<'unknown' | 'unique' | 'taken' | 'error'>('unknown');
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,6 +44,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     }
 
     const sourceValue = getSourceValue(slugDefinition.source, documentContext.allValues);
+    
     if (!sourceValue) {
       return '';
     }
@@ -57,32 +58,28 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     });
   }, [slugDefinition, documentContext]);
 
-  // Auto-generate slug when source fields change
+  // Auto-generate slug when source fields change (real-time)
   useEffect(() => {
-    if (!slugDefinition.autoGenerate || isManuallyEdited || slugDefinition.readOnly) {
+    if (!slugDefinition.autoGenerate || slugDefinition.readOnly) {
       return;
     }
 
     const generatedSlug = generateSlug();
-    if (generatedSlug && generatedSlug !== value) {
-      onChange(generatedSlug);
+    const isNewDocument = documentContext?.isNewDocument;
+    
+    // Auto-generate if:
+    // 1. No value exists yet, OR
+    // 2. User hasn't manually edited and source changed AND it's a new document
+    if (generatedSlug && (!value || (!isManuallyEdited && isNewDocument))) {
+      if (generatedSlug !== value) {
+        onChange(generatedSlug);
+      }
     }
   }, [slugDefinition, documentContext, generateSlug, isManuallyEdited, value, onChange]);
 
   // Check slug uniqueness with debouncing
   const checkSlugUniqueness = useCallback(async (slugToCheck: string) => {
-    console.log('🔍 Checking slug uniqueness:', {
-      slugToCheck,
-      unique: slugDefinition.unique,
-      hasApiClient: !!studioContext?.apiClient
-    });
-    
     if (!slugToCheck || !slugDefinition.unique || !studioContext?.apiClient) {
-      console.log('⏹️ Skipping uniqueness check:', {
-        noSlug: !slugToCheck,
-        notUnique: !slugDefinition.unique,
-        noApiClient: !studioContext?.apiClient
-      });
       return;
     }
 
@@ -106,27 +103,26 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
           collection: collection
         });
         
-        if (excludeId) {
+        // Only add excludeId if it's a real document ID (not 'new')
+        if (excludeId && excludeId !== 'new') {
           queryParams.append('excludeId', excludeId);
         }
 
-        console.log('🌐 Making API request:', `/api/slugs/check-unique?${queryParams}`);
         const response = await studioContext.apiClient.get(`/api/slugs/check-unique?${queryParams}`);
-        console.log('📡 API response:', response);
-        console.log('🔍 Response data details:', {
-          hasSuccess: 'success' in response,
-          successValue: response.success,
-          hasData: 'data' in response,
-          dataValue: response.data,
-          dataType: typeof response.data
-        });
         
         if (response.success && response.data) {
-          setUniquenessStatus(response.data.unique ? 'unique' : 'taken');
-          console.log('✅ Uniqueness status set:', response.data.unique ? 'unique' : 'taken');
+          const isUnique = response.data.unique;
+          
+          // Special case: if this is an existing document with its own slug,
+          // don't show "taken" error even if API says it's not unique
+          if (!isUnique && !documentContext?.isNewDocument && excludeId && excludeId !== 'new') {
+            // This is likely the document's own slug, so treat it as unique
+            setUniquenessStatus('unique');
+          } else {
+            setUniquenessStatus(isUnique ? 'unique' : 'taken');
+          }
         } else {
           setUniquenessStatus('error');
-          console.log('❌ API response error - success:', response.success, 'data:', response.data);
         }
       } catch (error) {
         studioContext?.logger?.warn('Failed to check slug uniqueness:', error);
@@ -136,6 +132,18 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
       }
     }, 500); // 500ms debounce
   }, [slugDefinition, studioContext, documentContext]);
+
+  // Recheck uniqueness when document transitions from new to saved
+  useEffect(() => {
+    const currentDocId = documentContext?.documentId;
+    const isCurrentlyNew = documentContext?.isNewDocument;
+    
+    // If we have a real document ID and the uniqueness status is 'taken',
+    // recheck because the document might have been saved with this slug
+    if (currentDocId && currentDocId !== 'new' && !isCurrentlyNew && uniquenessStatus === 'taken' && value) {
+      checkSlugUniqueness(value);
+    }
+  }, [documentContext?.documentId, documentContext?.isNewDocument, uniquenessStatus, value, checkSlugUniqueness]);
 
   // Check uniqueness when slug value changes
   useEffect(() => {
@@ -155,15 +163,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     };
   }, []);
 
-  // Update preview slug for display
-  useEffect(() => {
-    if (value) {
-      setPreviewSlug(value);
-    } else {
-      const generated = generateSlug();
-      setPreviewSlug(generated);
-    }
-  }, [value, generateSlug]);
 
   // Handle manual input changes
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,7 +249,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
           <button
             type="button"
             onClick={handleRegenerate}
-            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors text-gray-700 dark:text-gray-200"
             title="Regenerate slug from source field"
           >
             ↻
@@ -258,16 +257,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
         )}
       </div>
 
-      {/* Preview URL */}
-      {previewSlug && (
-        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Preview URL</span>
-          <div className="text-sm text-gray-700 dark:text-gray-300 font-mono break-all">
-            <span className="text-gray-400">/</span>
-            {previewSlug}
-          </div>
-        </div>
-      )}
 
       {/* Note: Validation errors are handled by the field renderer system */}
       

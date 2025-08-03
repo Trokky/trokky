@@ -54,6 +54,9 @@ export class ApiClient {
       this.baseUrl = window.location.origin;
     }
     
+    // Get API base path from config (defaults to '/api' for backward compatibility)
+    const apiBasePath = config.apiBasePath || '/api';
+    
     this.capabilities = {
       version: '2.0.0',
       features: {
@@ -64,9 +67,10 @@ export class ApiClient {
         workflows: false
       },
       endpoints: {
-        documents: `${this.baseUrl}/api/collections`,
-        auth: `${this.baseUrl}/api/auth`,
-        structure: `${this.baseUrl}/api/structure`
+        documents: `${this.baseUrl}${apiBasePath}/collections`,
+        auth: `${this.baseUrl}${apiBasePath}/auth`,
+        structure: `${this.baseUrl}${apiBasePath}/structure`,
+        slugs: `${this.baseUrl}${apiBasePath}/slugs`
       },
       limits: {
         maxUploadSize: 100 * 1024 * 1024,
@@ -633,6 +637,37 @@ export class ApiClient {
     
     this.clearAuthToken();
     return { success: true };
+  }
+
+  // ========================================
+  // Slug Methods
+  // ========================================
+
+  /**
+   * Check slug uniqueness
+   */
+  async checkSlugUniqueness(slug: string, collection: string, excludeId?: string): Promise<ApiResponse<{
+    unique: boolean;
+    slug: string;
+    collection: string;
+    reason?: string;
+  }>> {
+    const queryParams = new URLSearchParams({
+      slug: slug,
+      collection: collection
+    });
+    
+    if (excludeId) {
+      queryParams.append('excludeId', excludeId);
+    }
+
+    // Use the configured slugs endpoint instead of hardcoded path
+    const endpoint = this.capabilities?.endpoints.slugs;
+    if (!endpoint) {
+      throw new ApiClientError('Slug API endpoint not configured');
+    }
+
+    return this.get(`${endpoint}/check-unique?${queryParams}`);
   }
 
   // ========================================
