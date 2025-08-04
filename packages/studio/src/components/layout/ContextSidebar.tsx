@@ -6,6 +6,7 @@ import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { fieldRegistry } from '@trokky/fields';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { StructureContextSidebar } from '@/components/context/StructureContextSidebar';
 
 interface ContextSidebarProps {
   defaultWidth?: number;
@@ -180,7 +181,7 @@ function ContentContext() {
   return (
     <div className="p-4">
       {schemaName ? (
-        <SchemaContentContext schemaName={schemaName} />
+        <StructureContextSidebar schemaName={schemaName} />
       ) : (
         <ContentOverviewContext />
       )}

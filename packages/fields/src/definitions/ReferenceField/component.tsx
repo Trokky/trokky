@@ -42,9 +42,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const [searchResults, setSearchResults] = useState<ReferenceSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
+  const [resolvedReferences, setResolvedReferences] = useState<ReferenceValue[]>([]);
   
   const isMultiple = validation.multiple || false;
-  const currentReferences = normalizedReferences;
+  const currentReferences = resolvedReferences.length > 0 ? resolvedReferences : normalizedReferences;
   
   // Get target types
   const targetTypes = useMemo(() => {
@@ -61,6 +62,74 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     }
     return [];
   }, [referenceDefinition.to]);
+  
+  // Resolve references to display names
+  useEffect(() => {
+    const resolveReferences = async () => {
+      if (!normalizedReferences.length || !props.studioContext?.apiClient) {
+        setResolvedReferences([]);
+        return;
+      }
+
+      try {
+        const resolved = await Promise.all(
+          normalizedReferences.map(async (ref) => {
+            // Skip if already cached
+            if (ref._cached) {
+              return ref;
+            }
+
+            // Determine the correct type from target types or infer from ID
+            let refType = ref._type;
+            if (refType === 'unknown' && targetTypes.length > 0) {
+              // Try to infer type from the reference ID or use target types
+              if (targetTypes.length === 1) {
+                refType = targetTypes[0].type;
+              } else {
+                // Try to infer from ID prefix (e.g., "author-xxx" -> "author")
+                const idPrefix = ref._ref.split('-')[0];
+                const matchingType = targetTypes.find(t => t.type === idPrefix);
+                if (matchingType) {
+                  refType = matchingType.type;
+                } else {
+                  // Fallback to first target type
+                  refType = targetTypes[0].type;
+                }
+              }
+            }
+
+            try {
+              const response = await props.studioContext!.apiClient.getDocument(refType, ref._ref);
+              
+              if (response.success && response.data?.document) {
+                const doc = response.data.document;
+                return {
+                  ...ref,
+                  _type: refType, // Update the type
+                  _cached: {
+                    title: doc.name || doc.title || doc.id,
+                    name: doc.name,
+                    description: doc.description || doc.bio || doc.excerpt
+                  }
+                };
+              }
+            } catch (error) {
+              console.warn(`Failed to resolve reference ${ref._ref} as ${refType}:`, error);
+            }
+
+            return ref; // Return original if resolution fails
+          })
+        );
+
+        setResolvedReferences(resolved);
+      } catch (error) {
+        console.error('Failed to resolve references:', error);
+        setResolvedReferences(normalizedReferences);
+      }
+    };
+
+    resolveReferences();
+  }, [normalizedReferences, props.studioContext?.apiClient, targetTypes]);
   
   // Reference operations
   const operations: ReferenceOperations = useMemo(() => ({
