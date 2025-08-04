@@ -65,7 +65,7 @@ export class TypeGenerator {
       if (!response.ok) {
         throw new Error(`Failed to fetch schema: ${response.status} ${response.statusText}`)
       }
-      return await response.json()
+      return await response.json() as ProjectSchema
     } catch (error) {
       throw new Error(`Failed to fetch schema from ${this.options.schemaUrl}: ${error}`)
     }
@@ -305,3 +305,6 @@ export async function generateTypesFromSchema(
   })
   await generator.generateFromSchema(schema)
 }
+
+// Document generation exports (development only)
+export { DocumentGenerator, generateDocuments } from './document-generator'

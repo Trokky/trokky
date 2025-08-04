@@ -75,6 +75,27 @@ export class TrokkyClient {
     this.http.setTokens(tokens)
   }
 
+  /**
+   * Set API token for authentication (alternative to JWT)
+   */
+  setApiToken(token: string): void {
+    this.http.setApiToken(token)
+  }
+
+  /**
+   * Get current API token
+   */
+  getApiToken(): string | null {
+    return this.http.getApiToken()
+  }
+
+  /**
+   * Clear API token
+   */
+  clearApiToken(): void {
+    this.http.clearApiToken()
+  }
+
   // Document methods (delegate to document client)
 
   /**
@@ -185,6 +206,43 @@ export class TrokkyClient {
    */
   async deleteMedia(id: string): Promise<void> {
     return this.http.delete(`/media/${id}`)
+  }
+
+  // API Token Management methods
+
+  /**
+   * List API tokens
+   */
+  async listApiTokens(): Promise<any> {
+    return this.http.listApiTokens()
+  }
+
+  /**
+   * Create API token
+   */
+  async createApiToken(data: any): Promise<any> {
+    return this.http.createApiToken(data)
+  }
+
+  /**
+   * Get API token by ID
+   */
+  async getApiTokenById(id: string): Promise<any> {
+    return this.http.getApiTokenById(id)
+  }
+
+  /**
+   * Update API token
+   */
+  async updateApiToken(id: string, data: any): Promise<any> {
+    return this.http.updateApiToken(id, data)
+  }
+
+  /**
+   * Delete API token
+   */
+  async deleteApiToken(id: string): Promise<void> {
+    return this.http.deleteApiToken(id)
   }
 
   // Utility methods

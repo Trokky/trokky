@@ -8,9 +8,10 @@ export interface ClientConfig {
   baseUrl: string
   apiVersion?: string
   
-  // Authentication
-  token?: string
-  refreshToken?: string
+  // Authentication (choose one method)
+  token?: string        // JWT token from login
+  refreshToken?: string // Refresh token
+  apiToken?: string     // Long-lived API token (alternative to JWT)
   
   // Request configuration
   timeout?: number
@@ -33,10 +34,36 @@ export interface AuthConfig {
   password: string
 }
 
+export interface ApiTokenAuth {
+  token: string
+}
+
 export interface AuthTokens {
   accessToken: string
   refreshToken?: string
   expiresAt?: number
+}
+
+export interface AppToken {
+  id: string
+  name: string
+  description?: string
+  permissions: string[]
+  createdBy: string
+  createdAt: string
+  lastUsed?: string
+  isActive: boolean
+}
+
+export interface CreateAppTokenData {
+  name: string
+  description?: string
+  permissions: string[]
+  expiresAt?: string
+}
+
+export interface AppTokenResult extends AppToken {
+  token?: string // Only returned when creating a token
 }
 
 export interface RequestOptions {
@@ -108,6 +135,52 @@ export interface TypeGeneratorOptions {
   includeValidation?: boolean
 }
 
+export interface DocumentGeneratorOptions {
+  // Schema source
+  schemaUrl?: string
+  schemas?: DocumentSchema[]
+  
+  // Generation settings
+  count?: number
+  locale?: string
+  seed?: number
+  
+  // Output options
+  format?: 'json' | 'typescript' | 'both'
+  outputDir?: string
+  
+  // Field generation overrides
+  fieldOverrides?: Record<string, (faker: any, field: FieldSchema) => any>
+  
+  // Relations
+  generateReferences?: boolean
+  existingDocuments?: Record<string, string[]> // collection -> document IDs
+}
+
+export interface DocumentSchema {
+  name: string
+  title?: string
+  description?: string
+  fields: FieldSchema[]
+}
+
+export interface FieldSchema {
+  type: string
+  name: string
+  title?: string
+  description?: string
+  required?: boolean
+  validation?: Record<string, any>
+  options?: Record<string, any>
+  
+  // Slug field specific
+  source?: string | string[]
+  autoGenerate?: boolean
+  unique?: boolean
+  prefix?: string
+  suffix?: string
+}
+
 // Generic document types that will be enhanced by generated types
 export interface BaseDocument {
   _id?: string
@@ -115,6 +188,7 @@ export interface BaseDocument {
   _createdAt?: string
   _updatedAt?: string
   _version?: number
+  [key: string]: any // Allow dynamic field access
 }
 
 // Client events for real-time capabilities

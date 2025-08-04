@@ -7,6 +7,9 @@
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "trokky-client": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -17,11 +20,16 @@
       "import": "./dist/generator/index.js",
       "require": "./dist/generator/index.js",
       "types": "./dist/generator/index.d.ts"
+    },
+    "./document-generator": {
+      "import": "./dist/generator/document-generator.js",
+      "require": "./dist/generator/document-generator.js",
+      "types": "./dist/generator/document-generator.d.ts"
     }
   },
   "files": ["dist", "README.md"],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -30,7 +38,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "0.1.0"
+    "@trokky/core": "0.1.0",
+    "@faker-js/faker": "^8.0.0",
+    "commander": "^11.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

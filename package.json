@@ -20,7 +20,11 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo build && changeset publish"
+    "release": "turbo build && changeset publish",
+    "client": "node packages/client/dist/cli/index.js",
+    "generate-types": "node packages/client/dist/cli/index.js generate-types",
+    "generate-docs": "node packages/client/dist/cli/index.js generate-documents",
+    "generate-all": "node packages/client/dist/cli/index.js generate-all"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",

@@ -11,7 +11,11 @@ export { TrokkyClient } from './client'
 export type {
   ClientConfig,
   AuthConfig,
+  ApiTokenAuth,
   AuthTokens,
+  AppToken,
+  CreateAppTokenData,
+  AppTokenResult,
   RequestOptions,
   QueryOptions,
   DocumentResult,
@@ -21,6 +25,7 @@ export type {
   ApiError,
   CacheEntry,
   TypeGeneratorOptions,
+  DocumentGeneratorOptions,
   BaseDocument,
   ClientEvents,
   ClientEventType
@@ -30,7 +35,9 @@ export type {
 export { 
   TypeGenerator, 
   generateTypes, 
-  generateTypesFromSchema 
+  generateTypesFromSchema,
+  DocumentGenerator,
+  generateDocuments
 } from './generator'
 
 export type {

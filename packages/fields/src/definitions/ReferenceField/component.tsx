@@ -107,20 +107,44 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     searchDocuments: async (query: string, types?: string[]) => {
       setIsLoading(true);
       try {
-        // Mock search implementation - replace with actual API call
-        const mockResults: ReferenceSearchResult[] = [
-          {
-            id: '1',
-            type: 'article',
-            title: `Search result for "${query}"`,
-            description: 'Mock search result',
-            isSelected: currentReferences.some(ref => ref._ref === '1')
+        if (!props.studioContext?.apiClient) {
+          console.warn('API client not available for reference search');
+          setSearchResults([]);
+          return [];
+        }
+
+        const searchResults: ReferenceSearchResult[] = [];
+        const searchTypes = types || targetTypes.map(t => t.type);
+
+        // Search each target type
+        for (const searchType of searchTypes) {
+          try {
+            const response = await props.studioContext.apiClient.getDocuments(searchType, {
+              search: query,
+              limit: 10
+            });
+
+            if (response.success && response.data?.documents) {
+              const typeResults = response.data.documents.map((doc: any) => ({
+                id: doc.id,
+                type: searchType,
+                title: doc.name || doc.title || doc.id,
+                description: doc.description || doc.bio || doc.excerpt || `${searchType} document`,
+                isSelected: currentReferences.some(ref => ref._ref === doc.id)
+              }));
+              
+              searchResults.push(...typeResults);
+            }
+          } catch (typeError) {
+            console.warn(`Failed to search ${searchType}:`, typeError);
           }
-        ];
-        setSearchResults(mockResults);
-        return mockResults;
+        }
+
+        setSearchResults(searchResults);
+        return searchResults;
       } catch (error) {
         console.error('Search failed:', error);
+        setSearchResults([]);
         return [];
       } finally {
         setIsLoading(false);
@@ -128,10 +152,33 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     },
     
     getReferencedDocument: async (documentId: string) => {
-      // Mock implementation - replace with actual API call
+      if (!props.studioContext?.apiClient) {
+        console.warn('API client not available for reference lookup');
+        return { id: documentId, title: 'Referenced Document' };
+      }
+
+      // Try to find the document in each target type
+      for (const targetType of targetTypes) {
+        try {
+          const response = await props.studioContext.apiClient.getDocument(targetType.type, documentId);
+
+          if (response.success && response.data) {
+            const doc = response.data;
+            return {
+              id: doc.id,
+              title: doc.name || doc.title || doc.id,
+              type: targetType.type
+            };
+          }
+        } catch (error) {
+          console.warn(`Failed to lookup document ${documentId} in ${targetType.type}:`, error);
+        }
+      }
+
+      // Fallback if not found
       return { id: documentId, title: 'Referenced Document' };
     }
-  }), [currentReferences, isMultiple, onChange]);
+  }), [currentReferences, isMultiple, onChange, props.studioContext, targetTypes]);
   
   // Handle search
   const handleSearch = useCallback((query: string) => {

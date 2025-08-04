@@ -1,0 +1,193 @@
+"use strict";
+/**
+ * Fallback crypto adapter for environments without proper crypto support
+ * WARNING: This adapter provides minimal security and should only be used for development
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.FallbackCryptoAdapter = void 0;
+const universal_crypto_js_1 = require("../utils/universal-crypto.js");
+class FallbackCryptoAdapter {
+    constructor(options = {}) {
+        this.hasLoggedWarning = false;
+        this.saltRounds = options.saltRounds || 12;
+        this.logSecurityWarning();
+    }
+    logSecurityWarning() {
+        if (this.hasLoggedWarning)
+            return;
+        const isProduction = process.env.NODE_ENV === 'production';
+        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+        console.log('');
+        console.log('🚨🚨🚨 CRITICAL SECURITY WARNING 🚨🚨🚨');
+        console.log('┌─────────────────────────────────────────────────────────────┐');
+        console.log('│  USING FALLBACK CRYPTO ADAPTER - NOT SECURE FOR PRODUCTION  │');
+        console.log('├─────────────────────────────────────────────────────────────┤');
+        console.log('│                                                             │');
+        console.log('│  • Passwords are NOT properly hashed                       │');
+        console.log('│  • JWT tokens are NOT cryptographically signed             │');
+        console.log('│  • Random values are NOT cryptographically secure          │');
+        console.log('│                                                             │');
+        console.log('│  This adapter should ONLY be used for:                     │');
+        console.log('│  • Development/testing purposes                             │');
+        console.log('│  • Environments where crypto APIs are unavailable          │');
+        console.log('│                                                             │');
+        if (isProduction) {
+            console.log('│  🔥 PRODUCTION ENVIRONMENT DETECTED!                       │');
+            console.log('│  🔥 THIS IS EXTREMELY DANGEROUS!                           │');
+            console.log('│  🔥 SWITCH TO PROPER CRYPTO ADAPTER IMMEDIATELY!           │');
+        }
+        else if (!isDevelopment) {
+            console.log('│  ⚠️  Unknown environment - ensure this is not production   │');
+        }
+        else {
+            console.log('│  ℹ️  Development environment detected                       │');
+        }
+        console.log('│                                                             │');
+        console.log('│  To fix this:                                               │');
+        console.log('│  • For Node.js: Install bcrypt and jsonwebtoken packages   │');
+        console.log('│  • For edge runtimes: Ensure Web Crypto API is available   │');
+        console.log('│  • Or manually specify a crypto adapter in TrokkyCore      │');
+        console.log('│                                                             │');
+        console.log('└─────────────────────────────────────────────────────────────┘');
+        console.log('');
+        if (isProduction) {
+            console.log('🔥🔥🔥 PRODUCTION DEPLOYMENT WITH INSECURE CRYPTO 🔥🔥🔥');
+            console.log('🔥🔥🔥 YOUR APPLICATION IS VULNERABLE TO ATTACKS 🔥🔥🔥');
+            console.log('');
+        }
+        this.hasLoggedWarning = true;
+    }
+    async hashPassword(password) {
+        // Log warning on first use
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('⚠️ INSECURE: Using fallback password hashing');
+        }
+        // Simple hash using built-in string methods (NOT SECURE)
+        const salt = this.generateSimpleSalt();
+        const hash = this.simpleHash(password + salt);
+        return `fallback:${salt}:${hash}`;
+    }
+    async verifyPassword(password, hash) {
+        try {
+            if (!hash.startsWith('fallback:')) {
+                return false;
+            }
+            const [, salt, storedHash] = hash.split(':');
+            const computedHash = this.simpleHash(password + salt);
+            // Simple comparison (NOT constant-time)
+            return computedHash === storedHash;
+        }
+        catch {
+            return false;
+        }
+    }
+    async generateJWT(payload, secret, options = {}) {
+        // Log warning on first use
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('⚠️ INSECURE: Using fallback JWT generation');
+        }
+        // Simple JWT-like token (NOT SECURE)
+        const header = { alg: 'HS256', typ: 'JWT' };
+        const now = Math.floor(Date.now() / 1000);
+        const jwtPayload = {
+            ...payload,
+            iat: now
+        };
+        if (options.expiresIn) {
+            if (typeof options.expiresIn === 'string') {
+                jwtPayload.exp = now + this.parseExpirationString(options.expiresIn);
+            }
+            else {
+                jwtPayload.exp = now + options.expiresIn;
+            }
+        }
+        const encodedHeader = this.base64Encode(JSON.stringify(header));
+        const encodedPayload = this.base64Encode(JSON.stringify(jwtPayload));
+        const message = `${encodedHeader}.${encodedPayload}`;
+        // Simple signature (NOT SECURE)
+        const signature = this.base64Encode(this.simpleHash(message + secret));
+        return `${message}.${signature}`;
+    }
+    async verifyJWT(token, secret) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                return null;
+            }
+            const [encodedHeader, encodedPayload, signature] = parts;
+            const message = `${encodedHeader}.${encodedPayload}`;
+            // Verify simple signature
+            const expectedSignature = this.base64Encode(this.simpleHash(message + secret));
+            if (signature !== expectedSignature) {
+                return null;
+            }
+            const payload = JSON.parse(this.base64Decode(encodedPayload));
+            // Check expiration
+            if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+                return null;
+            }
+            return payload;
+        }
+        catch {
+            return null;
+        }
+    }
+    generateSecureRandom(length = 64) {
+        // Use universal crypto which will provide the best available random source
+        return (0, universal_crypto_js_1.generateRandomHex)(length);
+    }
+    // Helper methods (NOT SECURE)
+    generateSimpleSalt() {
+        return Math.random().toString(36).substring(2, 15);
+    }
+    simpleHash(input) {
+        // Simple string hash (NOT CRYPTOGRAPHICALLY SECURE)
+        let hash = 0;
+        for (let i = 0; i < input.length; i++) {
+            const char = input.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash).toString(36);
+    }
+    base64Encode(str) {
+        if (typeof btoa !== 'undefined') {
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+        // Fallback base64 encoding
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+        let result = '';
+        let i = 0;
+        while (i < str.length) {
+            const a = str.charCodeAt(i++);
+            const b = i < str.length ? str.charCodeAt(i++) : 0;
+            const c = i < str.length ? str.charCodeAt(i++) : 0;
+            const bitmap = (a << 16) | (b << 8) | c;
+            result += chars.charAt((bitmap >> 18) & 63);
+            result += chars.charAt((bitmap >> 12) & 63);
+            result += i - 2 < str.length ? chars.charAt((bitmap >> 6) & 63) : '=';
+            result += i - 1 < str.length ? chars.charAt(bitmap & 63) : '=';
+        }
+        return result.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+    base64Decode(str) {
+        if (typeof atob !== 'undefined') {
+            const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+            return atob(padded);
+        }
+        // Fallback - minimal implementation
+        throw new Error('Base64 decoding not available in this environment');
+    }
+    parseExpirationString(expiration) {
+        const match = expiration.match(/^(\d+)([smhdw])$/);
+        if (!match) {
+            return 3600; // Default 1 hour
+        }
+        const value = parseInt(match[1]);
+        const unit = match[2];
+        const multipliers = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
+        return value * (multipliers[unit] || 3600);
+    }
+}
+exports.FallbackCryptoAdapter = FallbackCryptoAdapter;

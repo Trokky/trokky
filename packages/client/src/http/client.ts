@@ -13,7 +13,7 @@ import type {
 import { createLogger } from '@trokky/core'
 
 export class HttpClient {
-  private config: Required<ClientConfig>
+  private config: Required<ClientConfig & { apiToken: string }>
   private tokens: AuthTokens | null = null
   private logger = createLogger('client', 'HttpClient')
 
@@ -23,6 +23,7 @@ export class HttpClient {
       apiVersion: config.apiVersion || 'v1',
       token: config.token || '',
       refreshToken: config.refreshToken || '',
+      apiToken: config.apiToken || '',
       timeout: config.timeout || 30000,
       retries: config.retries || 3,
       enableCache: config.enableCache ?? true,
@@ -32,7 +33,7 @@ export class HttpClient {
       debug: config.debug ?? false
     }
 
-    // Initialize with provided tokens
+    // Initialize with provided tokens (JWT tokens)
     if (this.config.token) {
       this.tokens = {
         accessToken: this.config.token,
@@ -262,11 +263,72 @@ export class HttpClient {
     })
   }
 
+  // API Token Management Methods
+
+  /**
+   * List API tokens
+   */
+  async listApiTokens(): Promise<any> {
+    return this.get('/tokens')
+  }
+
+  /**
+   * Create API token
+   */
+  async createApiToken(data: any): Promise<any> {
+    return this.post('/tokens', data)
+  }
+
+  /**
+   * Get API token by ID from server
+   */
+  async getApiTokenById(id: string): Promise<any> {
+    return this.get(`/tokens/${id}`)
+  }
+
+  /**
+   * Update API token
+   */
+  async updateApiToken(id: string, data: any): Promise<any> {
+    return this.put(`/tokens/${id}`, data)
+  }
+
+  /**
+   * Delete API token
+   */
+  async deleteApiToken(id: string): Promise<void> {
+    return this.delete(`/tokens/${id}`)
+  }
+
+  /**
+   * Set API token for authentication (alternative to JWT)
+   */
+  setApiToken(token: string): void {
+    this.config.apiToken = token
+    // Clear JWT tokens when using API token
+    this.clearTokens()
+  }
+
+  /**
+   * Get current API token
+   */
+  getApiToken(): string | null {
+    return this.config.apiToken || null
+  }
+
+  /**
+   * Clear API token
+   */
+  clearApiToken(): void {
+    this.config.apiToken = ''
+  }
+
   // Private methods
 
   private buildUrl(endpoint: string): string {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
-    return `${this.config.baseUrl}/api/${this.config.apiVersion}/${cleanEndpoint}`
+    const apiPath = this.config.apiVersion ? `/${this.config.apiVersion}` : ''
+    return `${this.config.baseUrl}/api${apiPath}/${cleanEndpoint}`
   }
 
   private buildRequestOptions(options: RequestInit & RequestOptions): RequestInit {
@@ -283,8 +345,11 @@ export class HttpClient {
       ...additionalHeaders
     }
 
+    // Priority: JWT token > API token
     if (this.tokens?.accessToken) {
       headers.Authorization = `Bearer ${this.tokens.accessToken}`
+    } else if (this.config.apiToken) {
+      headers.Authorization = `Bearer ${this.config.apiToken}`
     }
 
     return headers
@@ -329,10 +394,10 @@ export class HttpClient {
     }
 
     if (contentType.includes('application/json')) {
-      return response.json()
+      return response.json() as T
     }
 
-    return response.text() as unknown as T
+    return response.text() as any
   }
 
   private isAuthError(error: any): boolean {
