@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -11,12 +11,14 @@ import {
   Bars3Icon,
   PhotoIcon,
   UsersIcon,
-  BeakerIcon
+  BeakerIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
+import { useDocumentTypes } from '@/hooks/useStructure';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -34,11 +36,28 @@ export function Header({
   showUserMenu = true
 }: HeaderProps) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  
+  // Get available document types for create dropdown
+  const { documentTypes, singletonTypes, loading: typesLoading } = useDocumentTypes();
 
   // Get branding from API or fallback to window config
   const { branding } = useStudioBranding();
+
+  const handleCreateDocument = (schemaName: string, isSingleton: boolean = false) => {
+    setCreateMenuOpen(false);
+    if (isSingleton) {
+      // For singletons, navigate directly to the document (they have fixed IDs)
+      navigate(`/content/${schemaName}/${schemaName}`);
+    } else {
+      // For regular documents, navigate to create new
+      navigate(`/content/${schemaName}/new`);
+    }
+  };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
@@ -127,11 +146,84 @@ export function Header({
             </button>
           )}
 
-          {/* Create button */}
-          <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Create
-          </Button>
+          {/* Create dropdown */}
+          <div className="hidden sm:block relative">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setCreateMenuOpen(!createMenuOpen)}
+              className="inline-flex items-center"
+              disabled={typesLoading}
+            >
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Create
+              <ChevronDownIcon className="h-3 w-3 ml-1" />
+            </Button>
+
+            {createMenuOpen && !typesLoading && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                {/* Regular document types */}
+                {documentTypes.length > 0 && (
+                  <div className="px-3 py-2">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      Document Types
+                    </div>
+                    {documentTypes.map((docType) => (
+                      <button
+                        key={docType.schemaType || docType.id}
+                        onClick={() => handleCreateDocument(docType.schemaType, false)}
+                        className="flex items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                      >
+                        <PlusIcon className="h-4 w-4 mr-2 text-gray-400" />
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{docType.title}</div>
+                          {docType.description && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{docType.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Singleton types */}
+                {singletonTypes.length > 0 && (
+                  <>
+                    {documentTypes.length > 0 && (
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    )}
+                    <div className="px-3 py-2">
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        Settings & Pages
+                      </div>
+                      {singletonTypes.map((singletonType) => (
+                        <button
+                          key={singletonType.schemaType || singletonType.id}
+                          onClick={() => handleCreateDocument(singletonType.schemaType, true)}
+                          className="flex items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        >
+                          <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
+                          <div className="flex-1 text-left">
+                            <div className="font-medium">{singletonType.title}</div>
+                            {singletonType.description && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{singletonType.description}</div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Empty state */}
+                {documentTypes.length === 0 && singletonTypes.length === 0 && (
+                  <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                    No document types available
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Media button */}
           {showMedia && (
@@ -143,31 +235,67 @@ export function Header({
             </Button>
           )}
 
-          {/* Users button - admin only */}
-          {user?.role === 'admin' && (
-            <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
-              <Link to="/users">
-                <UsersIcon className="h-4 w-4 mr-1" />
-                Users
-              </Link>
-            </Button>
-          )}
-
-          {/* Settings button */}
-          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-            <Link to="/settings">
+          {/* Settings dropdown */}
+          <div className="hidden sm:block relative">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+              className="inline-flex items-center"
+            >
               <Cog6ToothIcon className="h-4 w-4 mr-1" />
               Settings
-            </Link>
-          </Button>
+              <ChevronDownIcon className="h-3 w-3 ml-1" />
+            </Button>
 
-          {/* Fields Demo button */}
-          <Button variant="ghost" size="sm" asChild className="hidden lg:inline-flex">
-            <Link to="/fields-demo">
-              <BeakerIcon className="h-4 w-4 mr-1" />
-              Fields Demo
-            </Link>
-          </Button>
+            {settingsMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                {/* Settings option */}
+                <Link
+                  to="/settings"
+                  onClick={() => setSettingsMenuOpen(false)}
+                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">Settings</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
+                  </div>
+                </Link>
+
+                {/* Users option - admin only */}
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/users"
+                    onClick={() => setSettingsMenuOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <UsersIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">Users</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Manage users & permissions</div>
+                    </div>
+                  </Link>
+                )}
+
+                {/* Separator */}
+                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                {/* Fields Demo option */}
+                <Link
+                  to="/fields-demo"
+                  onClick={() => setSettingsMenuOpen(false)}
+                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">Fields Demo</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
+                  </div>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* User menu */}
           {showUserMenu && (
@@ -276,11 +404,15 @@ export function Header({
         </div>
       </div>
 
-      {/* Backdrop for mobile menu */}
-      {userMenuOpen && (
+      {/* Backdrop for menus */}
+      {(userMenuOpen || createMenuOpen || settingsMenuOpen) && (
         <div
           className="fixed inset-0 z-40"
-          onClick={() => setUserMenuOpen(false)}
+          onClick={() => {
+            setUserMenuOpen(false);
+            setCreateMenuOpen(false);
+            setSettingsMenuOpen(false);
+          }}
         />
       )}
     </header>
