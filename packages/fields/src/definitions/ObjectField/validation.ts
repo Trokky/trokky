@@ -288,7 +288,31 @@ export function getObjectMetadata(
   objectValue: Record<string, any>,
   definition: ObjectFieldDefinition
 ): ObjectFieldMetadata {
-  const allFields = definition.fields;
+  // Handle both array and object formats for fields
+  let allFields: ObjectFieldItem[] = [];
+  
+  if (Array.isArray(definition.fields)) {
+    allFields = definition.fields;
+  } else if (definition.fields && typeof definition.fields === 'object') {
+    // Convert object format to array format
+    allFields = Object.entries(definition.fields as any).map(([name, field]: [string, any]) => ({
+      name,
+      type: field.type,
+      title: field.title || name,
+      description: field.description,
+      required: field.required,
+      validation: field.validation,
+      options: field.options,
+      defaultValue: field.defaultValue || field.default,
+      fields: field.fields,
+      of: field.of,
+      to: field.to,
+      hidden: field.hidden,
+      readOnly: field.readOnly,
+      conditional: field.conditional
+    }));
+  }
+  
   const visibleFields = allFields.filter(field => evaluateConditional(field, objectValue).visible);
   const requiredFields = visibleFields.filter(field => field.required);
   

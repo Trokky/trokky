@@ -44,12 +44,39 @@ export const ObjectFieldPlugin: FieldPlugin<ObjectFieldDefinition, Record<string
   },
   
   fromSchemaField: (schemaField) => {
+    // Convert fields from object format to array format if needed
+    let fields = schemaField.fields || [];
+    
+    // If fields is an object (schema format), convert to array
+    if (fields && !Array.isArray(fields) && typeof fields === 'object') {
+      fields = Object.entries(fields).map(([name, field]: [string, any]) => ({
+        name,
+        type: field.type,
+        title: field.title || name,
+        description: field.description,
+        required: field.required,
+        validation: field.validation,
+        options: field.options,
+        defaultValue: field.defaultValue || field.default,
+        // Handle nested fields for object type
+        fields: field.fields,
+        // Handle array 'of' property
+        of: field.of,
+        // Handle reference 'to' property
+        to: field.to,
+        // Handle conditional properties
+        hidden: field.hidden,
+        readOnly: field.readOnly,
+        conditional: field.conditional
+      }));
+    }
+    
     return {
       type: 'object' as const,
       title: schemaField.title || 'Object Field',
       description: schemaField.description,
       required: schemaField.required || false,
-      fields: schemaField.fields || [],
+      fields,
       validation: schemaField.validation || {},
       options: schemaField.options || {},
       defaultValue: schemaField.defaultValue || {}

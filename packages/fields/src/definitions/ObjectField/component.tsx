@@ -97,17 +97,49 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     },
     
     getFieldNames: () => {
-      return objectDefinition.fields.map(f => f.name);
+      if (Array.isArray(objectDefinition.fields)) {
+        return objectDefinition.fields.map(f => f.name);
+      }
+      return Object.keys(objectDefinition.fields || {});
     },
     
     getFieldDefinition: (fieldName: string) => {
-      return objectDefinition.fields.find(f => f.name === fieldName);
+      if (Array.isArray(objectDefinition.fields)) {
+        return objectDefinition.fields.find(f => f.name === fieldName);
+      }
+      const field = (objectDefinition.fields as any)?.[fieldName];
+      return field ? { name: fieldName, ...field } : undefined;
     }
   }), [objectValue, objectDefinition, onChange]);
   
-  // Filter visible fields based on conditional logic
+  // Normalize fields and filter visible ones based on conditional logic
   const visibleFields = useMemo(() => {
-    return objectDefinition.fields.filter(field => {
+    // Handle both array and object formats for fields
+    let fieldsArray: ObjectFieldItem[] = [];
+    
+    if (Array.isArray(objectDefinition.fields)) {
+      fieldsArray = objectDefinition.fields;
+    } else if (objectDefinition.fields && typeof objectDefinition.fields === 'object') {
+      // Convert object format to array format
+      fieldsArray = Object.entries(objectDefinition.fields as any).map(([name, field]: [string, any]) => ({
+        name,
+        type: field.type,
+        title: field.title || name,
+        description: field.description,
+        required: field.required,
+        validation: field.validation,
+        options: field.options,
+        defaultValue: field.defaultValue || field.default,
+        fields: field.fields,
+        of: field.of,
+        to: field.to,
+        hidden: field.hidden,
+        readOnly: field.readOnly,
+        conditional: field.conditional
+      }));
+    }
+    
+    return fieldsArray.filter(field => {
       const conditionalResult = evaluateConditional(field, objectValue);
       return conditionalResult.visible;
     });
@@ -277,9 +309,26 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     const { fields: previewFields = [], template, maxLength = 150, showCount } = options.preview;
     
     if (template) {
+      const fieldsArray = Array.isArray(objectDefinition.fields) 
+        ? objectDefinition.fields 
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, type: field.type, title: field.title || name }));
+      
+      const normalizedFields = Array.isArray(objectDefinition.fields) 
+        ? objectDefinition.fields 
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ 
+            name, 
+            type: field.type,
+            title: field.title || name,
+            description: field.description,
+            required: field.required,
+            validation: field.validation,
+            options: field.options,
+            defaultValue: field.defaultValue
+          }));
+      
       const rendered = renderTemplate(template, {
         values: objectValue,
-        fields: objectDefinition.fields.reduce((acc, f) => ({ ...acc, [f.name]: f }), {}),
+        fields: normalizedFields.reduce((acc, f) => ({ ...acc, [f.name]: f }), {}),
         metadata
       });
       return (
@@ -290,9 +339,23 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     }
     
     if (previewFields.length > 0) {
+      const fieldsArray = Array.isArray(objectDefinition.fields) 
+        ? objectDefinition.fields 
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, type: field.type, title: field.title || name }));
+      
+      const previewFieldsArray = Array.isArray(objectDefinition.fields) 
+        ? objectDefinition.fields 
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ 
+            name, 
+            type: field.type,
+            title: field.title || name,
+            description: field.description,
+            required: field.required
+          }));
+      
       const previewText = previewFields
         .map(fieldName => {
-          const field = objectDefinition.fields.find(f => f.name === fieldName);
+          const field = previewFieldsArray.find(f => f.name === fieldName);
           const value = objectValue[fieldName];
           if (!field || !value) return null;
           return `${field.title}: ${String(value)}`;
@@ -342,7 +405,14 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
                         options.spacing === 'relaxed' ? 'space-y-6' : 'space-y-4';
     
     return (
-      <div className={spacingClass}>
+      <div className={`${spacingClass} ${
+        hasError 
+          ? 'border-l-4 border-red-400 pl-4' 
+          : 'border-l-2 border-blue-200 dark:border-blue-700 pl-4'
+      } ml-2 relative`}>
+        {/* Visual object indicator */}
+        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 to-blue-400 dark:from-blue-600 dark:to-blue-500 rounded-full opacity-80"></div>
+        
         {visibleFields.map(field => renderField(field))}
       </div>
     );
@@ -520,7 +590,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Main render
   return (
-    <div className={`object-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''}`}>
+    <div className="object-field">
       {/* Content */}
       <div className={options.animations?.enabled ? 'transition-all duration-200' : ''}>
         {renderContent()}
@@ -539,7 +609,10 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
               </p>
               <p className="text-sm !text-amber-700 dark:!text-amber-300 mt-1">
                 {metadata.missingRequiredFields.map(fieldName => {
-                  const field = objectDefinition.fields.find(f => f.name === fieldName);
+                  const errorFieldsArray = Array.isArray(objectDefinition.fields) 
+                    ? objectDefinition.fields 
+                    : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, ...field }));
+                  const field = errorFieldsArray.find(f => f.name === fieldName);
                   return field?.title || fieldName;
                 }).join(', ')}
               </p>

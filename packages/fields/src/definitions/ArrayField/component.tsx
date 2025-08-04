@@ -1,642 +1,452 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { ArrayFieldDefinition, ArrayOperations, ArrayOption } from './definition.js';
-import { 
-  validateArrayAdd, 
-  validateArrayRemove, 
-  validateArrayMove,
-  getDefaultItemValue,
-  sanitizeArrayItem
-} from './validation.js';
+import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
+import { fieldRegistry } from '../../registry/index.js';
 
-// Array field component props
-type ArrayFieldComponentProps = FieldComponentProps;
+// Simple SVG icons inline to avoid external dependencies
+const PlusIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+);
 
-export function ArrayFieldComponent(props: ArrayFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
-  
-  // Type guard for array field definition
-  if (definition.type !== 'array') {
-    return <div className="text-red-500 text-sm">Invalid field configuration: expected array field</div>;
-  }
-  
+const XMarkIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const ChevronDownIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
+const ChevronRightIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+const Bars3Icon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+  </svg>
+);
+
+// Generate unique key for array items
+function generateItemKey(): string {
+  return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Array field component
+export function ArrayFieldComponent({ 
+  fieldId, 
+  value, 
+  onChange, 
+  definition, 
+  hasError,
+  isDisabled = false,
+  isReadonly = false,
+  documentContext,
+  onValidationChange,
+  onFocus,
+  onBlur
+}: FieldComponentProps) {
   const arrayDefinition = definition as ArrayFieldDefinition;
-  const options = arrayDefinition.options || {};
   
+  const lastValidatedValue = useRef(value);
+  const [isCollapsed, setIsCollapsed] = useState(arrayDefinition.options?.collapsed || false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [newItemInput, setNewItemInput] = useState('');
+  const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
+
   // Ensure value is always an array
   const arrayValue = Array.isArray(value) ? value : [];
-  
-  // Local state - use fieldId to make state unique per field instance
-  const [collapseState, setCollapseState] = useState<Record<string, boolean>>({});
-  const isCollapsed = collapseState[fieldId] ?? (options.collapsed || false);
-  const setIsCollapsed = (collapsed: boolean) => {
-    setCollapseState(prev => ({ ...prev, [fieldId]: collapsed }));
-  };
-  const [searchTerm, setSearchTerm] = useState('');
-  const [newTagInput, setNewTagInput] = useState('');
-  
-  // Drag and drop state
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  
-  // Layout and mode configuration
-  const layout = options.layout || 'list';
-  const mode = options.mode || 'multiple';
-  const isSingleSelect = mode === 'single';
-  
+
+  // Get options with defaults
+  const {
+    layout = 'list',
+    sortable = true,
+    insertAppend = true,
+    showCount = true,
+    addButtonText = 'Add item',
+    disableAdd = false,
+    disableRemove = false,
+    tagOptions = {}
+  } = arrayDefinition.options || {};
+
+  // Validate on value change
+  useEffect(() => {
+    // Only validate if the value actually changed
+    if (lastValidatedValue.current !== value && onValidationChange) {
+      const validationResult = { isValid: true, errors: [] }; // Simplified validation
+      onValidationChange(validationResult);
+      lastValidatedValue.current = value;
+    }
+  }, [arrayValue, fieldId]);
+
   // Array operations
   const operations: ArrayOperations = useMemo(() => ({
     add: (item: any, index?: number) => {
-      const sanitizedItem = sanitizeArrayItem(item, arrayDefinition);
-      const validation = validateArrayAdd(arrayValue, sanitizedItem, arrayDefinition, index);
-      
-      if (!validation.isValid) {
-        console.error('Add validation failed:', validation.errors[0]);
-        return;
-      }
-      
       const newArray = [...arrayValue];
-      const insertIndex = index ?? (options.insertAppend ? newArray.length : 0);
-      newArray.splice(insertIndex, 0, sanitizedItem);
+      const targetIndex = index !== undefined ? index : (insertAppend ? newArray.length : 0);
+      newArray.splice(targetIndex, 0, item);
       onChange(newArray);
     },
-    
+
     remove: (index: number) => {
-      const validation = validateArrayRemove(arrayValue, index, arrayDefinition);
-      
-      if (!validation.isValid) {
-        console.error('Remove validation failed:', validation.errors[0]);
-        return;
-      }
-      
       const newArray = arrayValue.filter((_, i) => i !== index);
       onChange(newArray);
     },
-    
+
     move: (fromIndex: number, toIndex: number) => {
-      const validation = validateArrayMove(arrayValue, fromIndex, toIndex);
-      
-      if (!validation.isValid) {
-        console.error('Move validation failed:', validation.errors[0]);
-        return;
-      }
-      
       const newArray = [...arrayValue];
       const [moved] = newArray.splice(fromIndex, 1);
       newArray.splice(toIndex, 0, moved);
       onChange(newArray);
     },
-    
+
     update: (index: number, item: any) => {
       if (index >= 0 && index < arrayValue.length) {
-        const sanitizedItem = sanitizeArrayItem(item, arrayDefinition);
         const newArray = [...arrayValue];
-        newArray[index] = sanitizedItem;
+        newArray[index] = item;
         onChange(newArray);
       }
     },
-    
+
     clear: () => {
       onChange([]);
     },
-    
+
     toggle: (item: any) => {
-      const sanitizedItem = sanitizeArrayItem(item, arrayDefinition);
-      
-      if (isSingleSelect) {
-        // Single select: replace current selection
-        onChange([sanitizedItem]);
+      // For compatibility with ArrayOperations interface
+      const exists = arrayValue.includes(item);
+      if (exists) {
+        const newArray = arrayValue.filter(v => v !== item);
+        onChange(newArray);
       } else {
-        // Multi select: toggle item in array
-        const exists = arrayValue.includes(sanitizedItem);
-        if (exists) {
-          const newArray = arrayValue.filter(v => v !== sanitizedItem);
-          onChange(newArray);
-        } else {
-          operations.add(sanitizedItem);
-        }
+        const newArray = [...arrayValue];
+        const targetIndex = insertAppend ? newArray.length : 0;
+        newArray.splice(targetIndex, 0, item);
+        onChange(newArray);
       }
     }
-  }), [arrayValue, arrayDefinition, options, onChange, isSingleSelect]);
-  
-  // Get available options for select-based layouts
-  const availableOptions = arrayDefinition.options_list || [];
-  
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.setData('text/plain', index.toString());
-  };
-  
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(index);
-  };
-  
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
-      operations.move(draggedIndex, dropIndex);
+  }), [arrayValue, insertAppend, onChange]);
+
+  // Handle add new item
+  const handleAddItem = useCallback(() => {
+    // Access the 'of' property from the raw definition since it's not in the TypeScript interface
+    const itemDef = (arrayDefinition as any).of || { type: 'string' };
+    const defaultValue = getDefaultItemValue(itemDef);
+    operations.add(defaultValue);
+  }, [operations, arrayDefinition]);
+
+  // Handle add tag (for tags layout)
+  const handleAddTag = useCallback(() => {
+    if (newItemInput.trim() && !arrayValue.includes(newItemInput.trim())) {
+      operations.add(newItemInput.trim());
+      setNewItemInput('');
     }
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-  
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-  
-  // Filter options based on search term
-  const filteredOptions = useMemo(() => {
-    if (!searchTerm || !options.selectOptions?.searchable) {
-      return availableOptions;
+  }, [newItemInput, arrayValue, operations]);
+
+  // Handle tag input key press
+  const handleTagKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
     }
-    
-    return availableOptions.filter(option =>
-      option.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      option.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [availableOptions, searchTerm, options.selectOptions?.searchable]);
-  
-  // Render different layouts
-  const renderContent = () => {
-    switch (layout) {
-      case 'select':
-        return renderSelectLayout();
-      case 'checkboxes':
-        return renderCheckboxLayout();
-      case 'radio':
-        return renderRadioLayout();
-      case 'tags':
-        return renderTagsLayout();
-      case 'list':
-        return renderListLayout();
-      case 'grid':
-        return renderGridLayout();
-      default:
-        return renderListLayout();
-    }
-  };
-  
-  // Select dropdown layout
-  const renderSelectLayout = () => {
-    const selectOptions = options.selectOptions || {};
-    const selectedValues = isSingleSelect ? arrayValue.slice(0, 1) : arrayValue;
-    
-    return (
-      <div className="space-y-2">
-        <select
-          id={fieldId}
-          multiple={!isSingleSelect}
-          disabled={isDisabled}
-          value={isSingleSelect ? (selectedValues[0] || '') : selectedValues}
-          onChange={(e) => {
-            const selectedOptions = Array.from(e.target.selectedOptions);
-            const values = selectedOptions.map(opt => opt.value);
-            onChange(isSingleSelect ? values.slice(0, 1) : values);
-          }}
-          aria-label={definition.title || 'Select options'}
-          aria-describedby={definition.description ? `${fieldId}-description` : undefined}
-          aria-invalid={hasError}
-          aria-required={definition.required}
-          className={`
-            w-full px-3 py-2 border rounded-lg
-            ${hasError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}
-            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-            disabled:opacity-50 disabled:cursor-not-allowed
-          `}
-          style={{ maxHeight: selectOptions.maxHeight }}
+  }, [handleAddTag]);
+
+  // Render array header
+  const renderHeader = () => (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex items-center text-base sm:text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:text-gray-900 dark:hover:text-dark-text-primary min-h-[44px] py-2"
         >
-          {selectOptions.placeholder && (
-            <option value="" disabled>
-              {selectOptions.placeholder}
-            </option>
+          {isCollapsed ? (
+            <ChevronRightIcon className="h-4 w-4 mr-1" />
+          ) : (
+            <ChevronDownIcon className="h-4 w-4 mr-1" />
           )}
-          {filteredOptions.map((option) => (
-            <option 
-              key={option.value} 
-              value={option.value}
-              disabled={option.disabled}
+          {arrayDefinition.title}
+          {showCount && (
+            <span className="ml-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+              ({arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''})
+            </span>
+          )}
+        </button>
+      </div>
+
+      {!isCollapsed && !isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && (
+        <button
+          type="button"
+          onClick={handleAddItem}
+          className="inline-flex items-center px-3 py-3 sm:py-2 text-base sm:text-sm font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px]"
+        >
+          <PlusIcon className="h-3 w-3 mr-1" />
+          {addButtonText}
+        </button>
+      )}
+    </div>
+  );
+
+  // Render individual array item
+  const renderItem = (item: any, index: number) => {
+    // Access the 'of' property from the raw definition since it's not in the TypeScript interface
+    const itemDefinition = (arrayDefinition as any).of;
+    
+    if (!itemDefinition) {
+      return (
+        <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
+          <span className="text-red-700 dark:text-red-400 text-sm">Array field missing 'of' definition</span>
+        </div>
+      );
+    }
+    
+    // For reference fields in arrays, ensure they are single-reference (not multi-reference)
+    const adjustedItemDefinition = itemDefinition.type === 'reference' 
+      ? {
+          ...itemDefinition,
+          validation: {
+            ...itemDefinition.validation,
+            multiple: false  // Array items should be single references
+          }
+        }
+      : itemDefinition;
+    
+    const fieldPlugin = fieldRegistry.get(adjustedItemDefinition.type);
+    
+    if (!fieldPlugin) {
+      return (
+        <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
+          <span className="text-red-700 dark:text-red-400 text-sm">Unknown field type: {adjustedItemDefinition.type}</span>
+          <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+            Available types: {fieldRegistry.getTypes().join(', ')}
+          </div>
+        </div>
+      );
+    }
+
+    const FieldComponent = fieldPlugin.component;
+    const itemHasError = !!itemErrors[index];
+
+    return (
+      <div
+        key={index}
+        className={`group relative bg-white dark:bg-dark-bg-secondary border rounded-lg p-3 transition-colors ${
+          itemHasError ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border-hover'
+        } ${draggedIndex === index ? 'opacity-50' : ''}`}
+        draggable={sortable && !isDisabled && !isReadonly}
+        onDragStart={() => setDraggedIndex(index)}
+        onDragEnd={() => setDraggedIndex(null)}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (draggedIndex !== null && draggedIndex !== index) {
+            operations.move(draggedIndex, index);
+          }
+        }}
+      >
+        {/* Drag handle */}
+        {sortable && !isDisabled && !isReadonly && (
+          <div className="absolute left-1 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Bars3Icon className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary cursor-move" />
+          </div>
+        )}
+
+        {/* Field component */}
+        <div className={sortable ? 'ml-6' : ''}>
+          <FieldComponent
+            fieldId={`${fieldId}.${index}`}
+            value={item}
+            onChange={(newValue: any) => operations.update(index, newValue)}
+            definition={adjustedItemDefinition}
+            hasError={itemHasError}
+            isDisabled={isDisabled}
+            isReadonly={isReadonly}
+            documentContext={documentContext}
+            onValidationChange={(result) => {
+              // Handle nested field validation
+              if (!result.isValid) {
+                setItemErrors(prev => ({ ...prev, [index]: result.errors[0] || 'Validation failed' }));
+              } else {
+                setItemErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors[index];
+                  return newErrors;
+                });
+              }
+            }}
+            onFocus={() => {}}
+            onBlur={() => {}}
+          />
+        </div>
+
+        {/* Remove button */}
+        {!isDisabled && !isReadonly && !disableRemove && (
+          <button
+            type="button"
+            onClick={() => operations.remove(index)}
+            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-opacity min-h-[44px] min-w-[44px] flex items-center justify-center"
+            title="Remove item"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Render tags layout
+  const renderTagsLayout = () => (
+    <div className="space-y-3">
+      {/* Existing tags */}
+      {arrayValue.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {arrayValue.map((tag, index) => (
+            <span
+              key={index}
+              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100"
             >
-              {option.title}
-              {selectOptions.showDescriptions && option.description && ` - ${option.description}`}
-            </option>
-          ))}
-        </select>
-        
-        {/* Selected items display for multi-select */}
-        {!isSingleSelect && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {/* Count pill as first special tag */}
-            {options.showCount && selectedValues.length > 0 && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-600 text-white dark:bg-gray-700 dark:text-gray-200">
-                {selectedValues.length} selected
-              </span>
-            )}
-            
-            {/* Selected value pills with better contrast */}
-            {selectedValues.map((value, index) => {
-              const option = availableOptions.find(opt => opt.value === value);
-              return (
-                <span
-                  key={index}
-                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-600 text-white dark:bg-blue-500 dark:text-white shadow-sm"
-                >
-                  {option?.title || value}
-                  {!isDisabled && !isReadonly && (
-                    <button
-                      type="button"
-                      onClick={() => operations.remove(index)}
-                      className="ml-1 text-blue-200 hover:text-white dark:text-blue-200 dark:hover:text-white"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  // Checkbox group layout
-  const renderCheckboxLayout = () => {
-    return (
-      <div className="space-y-2">
-        {filteredOptions.map((option) => {
-          const isChecked = arrayValue.includes(option.value);
-          
-          return (
-            <label key={option.value} className="flex items-center space-x-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isChecked}
-                disabled={isDisabled || isReadonly || option.disabled}
-                onChange={() => operations.toggle(option.value)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <div className="flex-1">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {option.title}
-                </div>
-                {option.description && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {option.description}
-                  </div>
-                )}
-              </div>
-            </label>
-          );
-        })}
-      </div>
-    );
-  };
-  
-  // Radio button layout (single select only)
-  const renderRadioLayout = () => {
-    const selectedValue = arrayValue[0];
-    
-    return (
-      <div className="space-y-2">
-        {filteredOptions.map((option) => (
-          <label key={option.value} className="flex items-center space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name={fieldId}
-              value={option.value}
-              checked={selectedValue === option.value}
-              disabled={isDisabled || isReadonly || option.disabled}
-              onChange={() => operations.toggle(option.value)}
-              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-            />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {option.title}
-              </div>
-              {option.description && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {option.description}
-                </div>
-              )}
-            </div>
-          </label>
-        ))}
-      </div>
-    );
-  };
-  
-  // Tags layout
-  const renderTagsLayout = () => {
-    const tagOptions = options.tagOptions || {};
-    const maxTags = tagOptions.maxTags;
-    const canAddMore = !maxTags || arrayValue.length < maxTags;
-    
-    const handleAddTag = () => {
-      if (newTagInput.trim() && !arrayValue.includes(newTagInput.trim()) && canAddMore) {
-        operations.add(newTagInput.trim());
-        setNewTagInput('');
-      }
-    };
-    
-    const handleTagKeyPress = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleAddTag();
-      }
-    };
-    
-    return (
-      <div className="space-y-3">
-        {/* Existing tags */}
-        {arrayValue.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {arrayValue.map((tag, index) => (
-              <span
-                key={index}
-                className={`
-                  inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shadow-sm
-                  ${tagOptions.colorScheme === 'green' ? '!bg-green-700 !text-white dark:!bg-green-600 dark:!text-white' :
-                    tagOptions.colorScheme === 'red' ? '!bg-red-700 !text-white dark:!bg-red-600 dark:!text-white' :
-                    tagOptions.colorScheme === 'purple' ? '!bg-purple-700 !text-white dark:!bg-purple-600 dark:!text-white' :
-                    tagOptions.colorScheme === 'gray' ? '!bg-gray-700 !text-white dark:!bg-gray-600 dark:!text-white' :
-                    '!bg-blue-700 !text-white dark:!bg-blue-600 dark:!text-white'}
-                `}
-              >
-                {tag}
-                {!isDisabled && !isReadonly && (
-                  <button
-                    type="button"
-                    onClick={() => operations.remove(index)}
-                    className="ml-1 text-white/70 hover:text-white"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-        
-        {/* Tag input */}
-        {!isDisabled && !isReadonly && canAddMore && (
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={newTagInput}
-              onChange={(e) => setNewTagInput(e.target.value)}
-              onKeyPress={handleTagKeyPress}
-              placeholder={tagOptions.placeholder}
-              className={`
-                flex-1 px-3 py-2 border rounded-lg
-                ${hasError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}
-                bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-              `}
-            />
-            <button
-              type="button"
-              onClick={handleAddTag}
-              disabled={!newTagInput.trim() || arrayValue.includes(newTagInput.trim())}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add
-            </button>
-          </div>
-        )}
-        
-        {/* Suggestions */}
-        {tagOptions.suggestions && tagOptions.suggestions.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            <span className="text-xs text-gray-500 mr-2">Suggestions:</span>
-            {tagOptions.suggestions
-              .filter(suggestion => !arrayValue.includes(suggestion))
-              .slice(0, 5)
-              .map((suggestion) => (
+              {tag}
+              {!isDisabled && !isReadonly && !disableRemove && (
                 <button
-                  key={suggestion}
                   type="button"
-                  onClick={() => canAddMore && operations.add(suggestion)}
-                  disabled={!canAddMore}
-                  className="text-xs px-2 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded disabled:opacity-50"
+                  onClick={() => {
+                    if (tagOptions.confirmDelete) {
+                      if (window.confirm(`Remove tag "${tag}"?`)) {
+                        operations.remove(index);
+                      }
+                    } else {
+                      operations.remove(index);
+                    }
+                  }}
+                  className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
-                  {suggestion}
+                  <XMarkIcon className="h-3 w-3" />
                 </button>
-              ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  // List layout (basic implementation)
-  const renderListLayout = () => {
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Add new tag input */}
+      {!isDisabled && !isReadonly && !disableAdd && (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItemInput}
+            onChange={(e) => setNewItemInput(e.target.value)}
+            onKeyPress={handleTagKeyPress}
+            placeholder={tagOptions.placeholder || 'Add tag...'}
+            className="flex-1 px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm min-h-[44px]"
+          />
+          <button
+            type="button"
+            onClick={handleAddTag}
+            disabled={!newItemInput.trim()}
+            className="px-3 py-3 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-base sm:text-sm min-h-[44px]"
+          >
+            Add
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // Render list/grid layout
+  const renderItemsLayout = () => {
     if (arrayValue.length === 0) {
       return (
         <div className="text-center py-8 text-gray-500">
           <p className="text-sm">No items added yet</p>
-          {!isDisabled && !isReadonly && !options.disableAdd && (
+          {!isDisabled && !isReadonly && !disableAdd && (
             <button
               type="button"
-              onClick={() => operations.add(getDefaultItemValue(arrayDefinition))}
-              className="mt-2 inline-flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800"
+              onClick={handleAddItem}
+              className="mt-2 inline-flex items-center px-3 py-3 sm:py-2 text-base sm:text-sm text-blue-600 hover:text-blue-800 min-h-[44px]"
             >
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              {options.addButtonText || 'Add first item'}
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Add first item
             </button>
           )}
         </div>
       );
     }
-    
+
+    const containerClass = layout === 'grid' 
+      ? 'grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+      : 'space-y-3';
+
     return (
-      <div className="space-y-2">
-        {arrayValue.map((item, index) => (
-          <div 
-            key={index} 
-            className={`
-              flex items-center space-x-2 p-3 border rounded-lg group transition-colors
-              ${draggedIndex === index ? 'opacity-50 bg-blue-50 border-blue-300' : 'hover:border-blue-300'}
-              ${dragOverIndex === index ? 'border-blue-500 bg-blue-50' : ''}
-            `}
-            draggable={options.sortable && !isDisabled && !isReadonly}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragEnd={handleDragEnd}
-          >
-            {/* Drag handle */}
-            {options.sortable && !isDisabled && !isReadonly && (
-              <div
-                className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Drag to reorder"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                </svg>
-              </div>
-            )}
-            
-            <div className="flex-1">
-              <span className="text-sm text-gray-900 dark:text-white">
-                {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-              </span>
-            </div>
-            
-            {!isDisabled && !isReadonly && !options.disableRemove && (
-              <button
-                type="button"
-                onClick={() => operations.remove(index)}
-                className="text-red-600 hover:text-red-800 p-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            )}
-          </div>
-        ))}
-        
-        {!isDisabled && !isReadonly && !options.disableAdd && (
-          <button
-            type="button"
-            onClick={() => operations.add(getDefaultItemValue(arrayDefinition))}
-            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-600"
-          >
-            <svg className="w-4 h-4 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            {options.addButtonText || 'Add item'}
-          </button>
-        )}
+      <div className={containerClass}>
+        {arrayValue.map(renderItem)}
       </div>
     );
   };
-  
-  // Grid layout (simplified)
-  const renderGridLayout = () => {
-    const gridCols = options.gridColumns || {};
-    const gridClass = `grid gap-4 grid-cols-${gridCols.sm || 1} md:grid-cols-${gridCols.md || 2} lg:grid-cols-${gridCols.lg || 3}`;
-    
-    return (
-      <div>
-        <div className={gridClass}>
-          {arrayValue.map((item, index) => (
-            <div key={index} className="relative aspect-square border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800 hover:border-blue-300 transition-colors">
-              {/* Placeholder image representation */}
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900">
-                <div className="text-center">
-                  <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">
-                    {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Remove button */}
-              {!isDisabled && !isReadonly && !options.disableRemove && (
-                <button
-                  type="button"
-                  onClick={() => operations.remove(index)}
-                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          ))}
-          
-          {/* Add new item button */}
-          {!isDisabled && !isReadonly && !options.disableAdd && (
-            <div 
-              onClick={() => operations.add(getDefaultItemValue(arrayDefinition))}
-              className="aspect-square border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-            >
-              <div className="text-center">
-                <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {options.addButtonText || 'Add item'}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-  
+
+  // Main render
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          {options.showCount && layout !== 'select' && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              ({arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''})
-            </span>
-          )}
-        </div>
-        
-        {(['checkboxes', 'radio', 'list', 'grid', 'tags'].includes(layout)) && (
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <svg 
-              className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        )}
-      </div>
+    <div className="array-field">
+      {renderHeader()}
       
-      {/* Content */}
       {!isCollapsed && (
-        <div className={hasError ? 'border-l-4 border-red-400 pl-4' : ''}>
-          {renderContent()}
+        <div className={`space-y-4 ${hasError ? 'border-l-4 border-red-400 pl-4' : ''}`}>
+          {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
         </div>
       )}
-      
+
       {/* Validation info */}
-      {arrayDefinition.validation && layout !== 'select' && (
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {typeof arrayDefinition.validation.minItems === 'number' && typeof arrayDefinition.validation.maxItems === 'number' && (
+      {arrayDefinition.validation && (
+        <div className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+          {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
             <span>
-              {arrayValue.length} / {arrayDefinition.validation.maxItems} items ({arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} allowed)
+              {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
             </span>
           )}
-          {typeof arrayDefinition.validation.minItems === 'number' && typeof arrayDefinition.validation.maxItems !== 'number' && (
+          {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
             <span>
-              {arrayValue.length} items (minimum {arrayDefinition.validation.minItems})
+              Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
             </span>
           )}
-          {typeof arrayDefinition.validation.minItems !== 'number' && typeof arrayDefinition.validation.maxItems === 'number' && (
+          {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
             <span>
-              {arrayValue.length} / {arrayDefinition.validation.maxItems} items
+              Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
             </span>
           )}
         </div>
       )}
     </div>
   );
+}
+
+// Helper function to get default value for new items
+function getDefaultItemValue(itemDefinition: any): any {
+  if (itemDefinition?.default !== undefined) {
+    return itemDefinition.default;
+  }
+
+  switch (itemDefinition?.type) {
+    case 'string':
+      return '';
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'date':
+      return new Date().toISOString();
+    case 'array':
+      return [];
+    case 'object':
+      return {};
+    case 'reference':
+      return undefined; // ReferenceField expects undefined for empty state
+    default:
+      return null;
+  }
 }

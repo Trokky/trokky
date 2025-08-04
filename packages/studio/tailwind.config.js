@@ -4,6 +4,20 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    // Tag colors - ensure these are always included
+    'bg-blue-100', 'text-blue-800', 'dark:bg-blue-800', 'dark:text-blue-100',
+    'bg-green-100', 'text-green-800', 'dark:bg-green-800', 'dark:text-green-100',
+    'bg-red-100', 'text-red-800', 'dark:bg-red-800', 'dark:text-red-100',
+    'bg-purple-100', 'text-purple-800', 'dark:bg-purple-800', 'dark:text-purple-100',
+    'bg-gray-100', 'text-gray-800', 'dark:bg-gray-700', 'dark:text-gray-100',
+    // Remove button colors
+    'text-blue-600', 'hover:text-blue-800', 'dark:text-blue-300', 'dark:hover:text-blue-100',
+    'text-green-600', 'hover:text-green-800', 'dark:text-green-300', 'dark:hover:text-green-100',
+    'text-red-600', 'hover:text-red-800', 'dark:text-red-300', 'dark:hover:text-red-100',
+    'text-purple-600', 'hover:text-purple-800', 'dark:text-purple-300', 'dark:hover:text-purple-100',
+    'text-gray-600', 'hover:text-gray-800', 'dark:text-gray-300', 'dark:hover:text-gray-100',
+  ],
   darkMode: 'class',
   theme: {
     extend: {

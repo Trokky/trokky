@@ -94,6 +94,8 @@ export interface ArrayFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     maxTags?: number;
     /** Tag color scheme */
     colorScheme?: 'blue' | 'green' | 'red' | 'purple' | 'gray';
+    /** Confirm before deleting tags */
+    confirmDelete?: boolean;
   };
   
   /** Preview mode configuration */
