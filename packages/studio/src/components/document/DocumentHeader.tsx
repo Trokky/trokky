@@ -60,30 +60,38 @@ export function DocumentHeader() {
 
   return (
     <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          {/* Left side - Document info and state */}
-          <div className="flex items-center space-x-4">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {getDocumentTitle()}
-              </h1>
-              <div className="flex items-center space-x-2 mt-1">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {schema?.title || schema?.name} {isNewDocument ? '(New)' : ''}
+      <div className="px-6 py-3">
+        {/* First line - Document title only */}
+        <div className="mb-2">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {getDocumentTitle()}
+          </h1>
+          {(hasUnsavedChanges || hasValidationErrors) && (
+            <div className="flex items-center space-x-2 mt-0.5">
+              {hasUnsavedChanges && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  • Unsaved changes
                 </span>
-                {hasUnsavedChanges && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    • Unsaved changes
-                  </span>
-                )}
-                {hasValidationErrors && (
-                  <span className="text-xs text-red-600 dark:text-red-400">
-                    • Validation errors
-                  </span>
-                )}
-              </div>
+              )}
+              {hasValidationErrors && (
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  • Validation errors
+                </span>
+              )}
             </div>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-gray-200 dark:border-gray-700 mb-2"></div>
+
+        {/* Second line - Type and actions */}
+        <div className="flex items-center justify-between">
+          {/* Left side - Document type and state */}
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {schema?.title || schema?.name} {isNewDocument ? '(New)' : ''}
+            </span>
 
             {/* Document State Dropdown */}
             <div className="relative">
@@ -115,52 +123,55 @@ export function DocumentHeader() {
             </div>
           </div>
 
-          {/* Center - Mode switching */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <button
-              onClick={() => onModeChange('form')}
-              className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                currentMode === 'form'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <PencilIcon className="h-4 w-4 mr-1.5" />
-              Edit
-            </button>
-            <button
-              onClick={() => onModeChange('preview')}
-              className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                currentMode === 'preview'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <EyeIcon className="h-4 w-4 mr-1.5" />
-              Preview
-            </button>
-          </div>
-
-          {/* Right side - Actions */}
-          <div className="flex items-center space-x-3">
-            {shouldShowCancelButton && (
-              <Button
-                variant="outline"
-                onClick={onCancel}
+          {/* Right side - Mode switching and actions */}
+          <div className="flex items-center space-x-4">
+            {/* Mode switching */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => onModeChange('form')}
+                className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  currentMode === 'form'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
               >
-                <XMarkIcon className="h-4 w-4 mr-1.5" />
-                Cancel
+                <PencilIcon className="h-4 w-4 mr-1.5" />
+                Edit
+              </button>
+              <button
+                onClick={() => onModeChange('preview')}
+                className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  currentMode === 'preview'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <EyeIcon className="h-4 w-4 mr-1.5" />
+                Preview
+              </button>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center space-x-3">
+              {shouldShowCancelButton && (
+                <Button
+                  variant="outline"
+                  onClick={onCancel}
+                >
+                  <XMarkIcon className="h-4 w-4 mr-1.5" />
+                  Cancel
+                </Button>
+              )}
+              
+              <Button
+                onClick={onSave}
+                loading={saving}
+                disabled={saving || !hasUnsavedChanges || hasValidationErrors}
+              >
+                <CloudArrowUpIcon className="h-4 w-4 mr-1.5" />
+                {isNewDocument ? 'Create' : 'Save'}
               </Button>
-            )}
-            
-            <Button
-              onClick={onSave}
-              loading={saving}
-              disabled={saving || !hasUnsavedChanges || hasValidationErrors}
-            >
-              <CloudArrowUpIcon className="h-4 w-4 mr-1.5" />
-              {isNewDocument ? 'Create' : 'Save'}
-            </Button>
+            </div>
           </div>
         </div>
       </div>
