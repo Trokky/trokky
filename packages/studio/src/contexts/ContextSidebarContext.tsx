@@ -45,25 +45,81 @@ export function ContextSidebarProvider({
   children,
   defaultVisible = true,
   defaultCollapsed = false,
-  defaultWidth = 320
+  defaultWidth = 256
 }: ContextSidebarProviderProps) {
-  const [state, setState] = useState<ContextSidebarState>({
-    isVisible: defaultVisible,
-    isCollapsed: defaultCollapsed,
-    width: defaultWidth,
-    content: null
+  // Load persisted state from localStorage
+  const [state, setState] = useState<ContextSidebarState>(() => {
+    try {
+      const savedCollapsed = localStorage.getItem('trokky_context_sidebar_collapsed');
+      const savedWidth = localStorage.getItem('trokky_context_sidebar_width');
+      const savedVisible = localStorage.getItem('trokky_context_sidebar_visible');
+      
+      return {
+        isVisible: savedVisible !== null ? savedVisible === 'true' : defaultVisible,
+        isCollapsed: savedCollapsed !== null ? savedCollapsed === 'true' : defaultCollapsed,
+        width: savedWidth ? parseInt(savedWidth, 10) : defaultWidth,
+        content: null
+      };
+    } catch {
+      return {
+        isVisible: defaultVisible,
+        isCollapsed: defaultCollapsed,
+        width: defaultWidth,
+        content: null
+      };
+    }
   });
 
-  // Memoize all the action functions separately so they don't change on every state update
-  const show = useCallback(() => setState(prev => ({ ...prev, isVisible: true })), []);
-  const hide = useCallback(() => setState(prev => ({ ...prev, isVisible: false })), []);
-  const toggle = useCallback(() => setState(prev => ({ ...prev, isVisible: !prev.isVisible })), []);
+  // Helper function to save to localStorage
+  const saveToStorage = useCallback((key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('Failed to save context sidebar state:', error);
+    }
+  }, []);
+
+  // Memoize all the action functions with localStorage persistence
+  const show = useCallback(() => {
+    setState(prev => ({ ...prev, isVisible: true }));
+    saveToStorage('trokky_context_sidebar_visible', 'true');
+  }, [saveToStorage]);
   
-  const collapse = useCallback(() => setState(prev => ({ ...prev, isCollapsed: true })), []);
-  const expand = useCallback(() => setState(prev => ({ ...prev, isCollapsed: false })), []);
-  const toggleCollapse = useCallback(() => setState(prev => ({ ...prev, isCollapsed: !prev.isCollapsed })), []);
+  const hide = useCallback(() => {
+    setState(prev => ({ ...prev, isVisible: false }));
+    saveToStorage('trokky_context_sidebar_visible', 'false');
+  }, [saveToStorage]);
   
-  const setWidth = useCallback((width: number) => setState(prev => ({ ...prev, width })), []);
+  const toggle = useCallback(() => {
+    setState(prev => {
+      const newVisible = !prev.isVisible;
+      saveToStorage('trokky_context_sidebar_visible', String(newVisible));
+      return { ...prev, isVisible: newVisible };
+    });
+  }, [saveToStorage]);
+  
+  const collapse = useCallback(() => {
+    setState(prev => ({ ...prev, isCollapsed: true }));
+    saveToStorage('trokky_context_sidebar_collapsed', 'true');
+  }, [saveToStorage]);
+  
+  const expand = useCallback(() => {
+    setState(prev => ({ ...prev, isCollapsed: false }));
+    saveToStorage('trokky_context_sidebar_collapsed', 'false');
+  }, [saveToStorage]);
+  
+  const toggleCollapse = useCallback(() => {
+    setState(prev => {
+      const newCollapsed = !prev.isCollapsed;
+      saveToStorage('trokky_context_sidebar_collapsed', String(newCollapsed));
+      return { ...prev, isCollapsed: newCollapsed };
+    });
+  }, [saveToStorage]);
+  
+  const setWidth = useCallback((width: number) => {
+    setState(prev => ({ ...prev, width }));
+    saveToStorage('trokky_context_sidebar_width', String(width));
+  }, [saveToStorage]);
   
   const setContent = useCallback((content: ReactNode) => setState(prev => ({ ...prev, content })), []);
   const clearContent = useCallback(() => setState(prev => ({ ...prev, content: null })), []);

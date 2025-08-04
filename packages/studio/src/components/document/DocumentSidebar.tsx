@@ -29,16 +29,35 @@ export function DocumentSidebar() {
 
   // DocumentSidebar is always shown - contains useful document info for all document types
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Load collapsed state from localStorage, default to false (expanded)
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      const saved = localStorage.getItem('trokky_document_sidebar_collapsed');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+  
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
+
+  // Save collapsed state to localStorage whenever it changes
+  const toggleCollapsed = (collapsed: boolean) => {
+    setIsCollapsed(collapsed);
+    try {
+      localStorage.setItem('trokky_document_sidebar_collapsed', String(collapsed));
+    } catch (error) {
+      logger.warn('Failed to save sidebar state', error);
+    }
+  };
 
   // Load document relationships
   useEffect(() => {
     if (!isNewDocument && document?.id) {
       loadRelationships();
     }
-  }, [document?.id, isNewDocument]);
+  }, [document?.id, document?.author, document?.category, isNewDocument]);
 
   const loadRelationships = async () => {
     if (!document?.id) return;
@@ -46,16 +65,104 @@ export function DocumentSidebar() {
     try {
       setLoadingRelationships(true);
       
-      // This would be implemented to find related documents
-      // For now, using a placeholder
-      const mockRelationships = {
-        references: [],
-        referencedBy: [],
+      // Extract actual references from the document
+      const references: any[] = [];
+      
+      logger.debug('Loading relationships for document', { 
+        documentId: document.id, 
+        author: document.author, 
+        category: document.category 
+      });
+      
+      // Check for author reference - handle multiple formats
+      if (document.author) {
+        if (typeof document.author === 'string') {
+          // String reference - try to resolve it
+          try {
+            const authorResponse = await apiClient.getDocument('author', document.author);
+            if (authorResponse.success && authorResponse.data?.document) {
+              references.push({
+                id: document.author,
+                title: authorResponse.data.document.name || authorResponse.data.document.title || 'Author',
+                type: 'author'
+              });
+            }
+          } catch (error) {
+            logger.warn('Failed to resolve author reference', error);
+            references.push({
+              id: document.author,
+              title: document.author,
+              type: 'author'
+            });
+          }
+        } else if (typeof document.author === 'object') {
+          // Object reference
+          const authorTitle = document.author._cached?.name || 
+                             document.author._cached?.title || 
+                             document.author.name || 
+                             document.author.title ||
+                             document.author._ref ||
+                             'Author';
+          references.push({
+            id: document.author.id || document.author._ref,
+            title: authorTitle,
+            type: 'author'
+          });
+        }
+      }
+      
+      // Check for category reference - handle multiple formats
+      if (document.category) {
+        if (typeof document.category === 'string') {
+          // String reference - try to resolve it
+          try {
+            const categoryResponse = await apiClient.getDocument('category', document.category);
+            if (categoryResponse.success && categoryResponse.data?.document) {
+              references.push({
+                id: document.category,
+                title: categoryResponse.data.document.name || categoryResponse.data.document.title || 'Category',
+                type: 'category'
+              });
+            }
+          } catch (error) {
+            logger.warn('Failed to resolve category reference', error);
+            references.push({
+              id: document.category,
+              title: document.category,
+              type: 'category'
+            });
+          }
+        } else if (typeof document.category === 'object') {
+          // Object reference
+          const categoryTitle = document.category._cached?.name || 
+                               document.category._cached?.title || 
+                               document.category.name || 
+                               document.category.title ||
+                               document.category._ref ||
+                               'Category';
+          references.push({
+            id: document.category.id || document.category._ref,
+            title: categoryTitle,
+            type: 'category'
+          });
+        }
+      }
+      
+      // TODO: Find documents that reference this document (referencedBy)
+      // This would require a reverse lookup in the API
+      
+      const actualRelationships = {
+        references,
+        referencedBy: [], // Would be populated by API call
         similar: []
       };
       
-      setRelationships(mockRelationships);
-      logger.info('Relationships loaded', { documentId: document.id });
+      setRelationships(actualRelationships);
+      logger.info('Relationships loaded', { 
+        documentId: document.id, 
+        relationshipCount: references.length,
+        relationships: references 
+      });
     } catch (err) {
       logger.error('Failed to load relationships', err);
     } finally {
@@ -87,7 +194,7 @@ export function DocumentSidebar() {
     return (
       <div className="w-12 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
         <button
-          onClick={() => setIsCollapsed(false)}
+          onClick={() => toggleCollapsed(false)}
           className="w-full p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           title="Expand sidebar"
         >
@@ -98,14 +205,14 @@ export function DocumentSidebar() {
   }
 
   return (
-    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-64 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
       {/* Sidebar header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white">
           Document Info
         </h3>
         <button
-          onClick={() => setIsCollapsed(true)}
+          onClick={() => toggleCollapsed(true)}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           title="Collapse sidebar"
         >
@@ -210,6 +317,50 @@ export function DocumentSidebar() {
               </div>
             </div>
           )}
+
+          {/* Contributors */}
+          {!isNewDocument && (
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Contributors
+              </h4>
+              <div className="space-y-2">
+                {/* Document author (from reference field) */}
+                {document?.author && typeof document.author === 'object' && document.author._cached && (
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                    <UserIcon className="h-4 w-4 mr-2" />
+                    <span className="font-medium">{document.author._cached.name}</span>
+                    <span className="ml-1 text-xs text-gray-400">(Author)</span>
+                  </div>
+                )}
+                
+                {/* Creator (if different from author) */}
+                {document?._createdBy && (!document.author || document._createdBy !== document.author._cached?.name) && (
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                    <UserIcon className="h-4 w-4 mr-2" />
+                    <span>{document._createdBy}</span>
+                    <span className="ml-1 text-xs text-gray-400">(Creator)</span>
+                  </div>
+                )}
+                
+                {/* Last editor (if different from others) */}
+                {document?._updatedBy && document._updatedBy !== document._createdBy && (!document.author || document._updatedBy !== document.author._cached?.name) && (
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                    <UserIcon className="h-4 w-4 mr-2" />
+                    <span>{document._updatedBy}</span>
+                    <span className="ml-1 text-xs text-gray-400">(Last edited)</span>
+                  </div>
+                )}
+                
+                {/* TODO: Add more contributors from document history when available */}
+                {!document?.author && !document?._createdBy && !document?._updatedBy && (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    No contributor information available
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Document relationships */}
@@ -292,7 +443,7 @@ export function DocumentSidebar() {
               <div className="text-xs mt-1">{schema.description}</div>
             )}
             <div className="text-xs mt-1">
-              {schema?.fields?.length || 0} fields
+              {getSchemaFieldCount(schema)} fields
             </div>
           </div>
         </div>
@@ -310,4 +461,19 @@ function getStatusBadgeClasses(state: string): string {
     default:
       return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100';
   }
+}
+
+function getSchemaFieldCount(schema: any): number {
+  if (!schema?.fields) return 0;
+  
+  // Handle both object format (schema.fields as object) and array format
+  if (Array.isArray(schema.fields)) {
+    return schema.fields.length;
+  }
+  
+  if (typeof schema.fields === 'object') {
+    return Object.keys(schema.fields).length;
+  }
+  
+  return 0;
 }

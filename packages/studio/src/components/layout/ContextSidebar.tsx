@@ -15,9 +15,9 @@ interface ContextSidebarProps {
 }
 
 export function ContextSidebar({
-  defaultWidth = 320,
-  minWidth = 250,
-  maxWidth = 600
+  defaultWidth = 256,
+  minWidth = 200,
+  maxWidth = 500
 }: ContextSidebarProps) {
   const location = useLocation();
   const contextAPI = useContextSidebar();
@@ -28,11 +28,17 @@ export function ContextSidebar({
   const width = contextAPI.width || defaultWidth;
   const isVisible = contextAPI.isVisible;
 
-  const handleMouseDown = () => {
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     setIsResizing(true);
     
+    const startX = e.clientX;
+    const startWidth = width;
+    
     const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = e.clientX;
+      const deltaX = e.clientX - startX;
+      const newWidth = startWidth + deltaX;
+      
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         contextAPI.setWidth(newWidth);
       }
@@ -42,8 +48,14 @@ export function ContextSidebar({
       setIsResizing(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
 
+    // Prevent text selection and set cursor
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
@@ -138,8 +150,9 @@ export function ContextSidebar({
 
       {/* Resize handle */}
       <div
-        className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary-500 transition-colors"
+        className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 hover:w-1.5 transition-all duration-150"
         onMouseDown={handleMouseDown}
+        title="Drag to resize sidebar"
       />
     </div>
   );
