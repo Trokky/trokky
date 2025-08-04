@@ -405,14 +405,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
                         options.spacing === 'relaxed' ? 'space-y-6' : 'space-y-4';
     
     return (
-      <div className={`${spacingClass} ${
-        hasError 
-          ? 'border-l-4 border-red-400 pl-4' 
-          : 'border-l-2 border-blue-200 dark:border-blue-700 pl-4'
-      } ml-2 relative`}>
-        {/* Visual object indicator */}
-        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 to-blue-400 dark:from-blue-600 dark:to-blue-500 rounded-full opacity-80"></div>
-        
+      <div className={spacingClass}>
         {visibleFields.map(field => renderField(field))}
       </div>
     );
