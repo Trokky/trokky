@@ -19,10 +19,11 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
+import { useGlobalSearch } from '@/hooks/useSearch';
+import { GlobalSearchModal } from '@/components/search';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
-  onOpenSearch?: () => void;
   showSearch?: boolean;
   showMedia?: boolean;
   showUserMenu?: boolean;
@@ -30,7 +31,6 @@ interface HeaderProps {
 
 export function Header({
   onOpenMobileMenu,
-  onOpenSearch,
   showSearch = true,
   showMedia = true,
   showUserMenu = true
@@ -47,6 +47,9 @@ export function Header({
 
   // Get branding from API or fallback to window config
   const { branding } = useStudioBranding();
+
+  // Global search functionality
+  const { isOpen: searchOpen, openSearch, closeSearch } = useGlobalSearch();
 
   const handleCreateDocument = (schemaName: string, isSingleton: boolean = false) => {
     setCreateMenuOpen(false);
@@ -117,8 +120,8 @@ export function Header({
         {showSearch && (
           <div className="hidden md:block flex-1 max-w-lg mx-8">
             <button
-              onClick={onOpenSearch}
-              className="w-full flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onClick={openSearch}
+              className="w-full flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
               <span className="flex-1">Search everything...</span>
@@ -139,7 +142,7 @@ export function Header({
           {/* Mobile search button */}
           {showSearch && (
             <button
-              onClick={onOpenSearch}
+              onClick={openSearch}
               className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 md:hidden"
             >
               <MagnifyingGlassIcon className="h-5 w-5" />
@@ -415,6 +418,12 @@ export function Header({
           }}
         />
       )}
+
+      {/* Global Search Modal */}
+      <GlobalSearchModal 
+        isOpen={searchOpen} 
+        onClose={closeSearch} 
+      />
     </header>
   );
 }
