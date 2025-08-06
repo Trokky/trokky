@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { TrokkyRoutes } from '@trokky/routes'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
-import { createLogger, TrokkyCore, type TrokkyConfig } from '@trokky/core'
+import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters } from '@trokky/core'
 import type { ExpressIntegrationConfig, ExpressIntegration, UltimateExpressConfig } from './types.js'
 import type { TrokkyConfig as NewTrokkyConfig, StorageConfig } from './config.js'
 import { withDefaults } from './config.js'
@@ -207,14 +207,14 @@ export class TrokkyExpress {
       // Apply smart defaults based on environment
       const fullConfig = withDefaults(config)
       
-      // 1. Create storage adapter
-      const storageAdapter = await this.createStorageAdapterFromNewConfig(fullConfig.storage)
+      // 1. Create split storage adapters
+      const storageAdapters = await this.createStorageAdaptersFromConfig(fullConfig.storage)
       
-      // 2. Create TrokkyCore config (legacy format)
+      // 2. Create TrokkyCore config (legacy format) - simplified since adapters are handled separately
       const coreConfig: TrokkyConfig = {
         storage: {
-          adapter: fullConfig.storage.adapter,
-          options: fullConfig.storage.options || {}
+          adapter: 'split',
+          options: {}
         },
         schemas: fullConfig.schemas,
         media: {
@@ -227,13 +227,13 @@ export class TrokkyExpress {
         }
       }
       
-      // 3. Create and initialize TrokkyCore
+      // 3. Create and initialize TrokkyCore with split adapters
       const coreOptions = {
         enableSecurity: fullConfig.security.enabled,
         jwtSecret: fullConfig.security.jwtSecret
       }
       
-      const core = new TrokkyCore(coreConfig, storageAdapter, coreOptions)
+      const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
       await core.init()
       logger.info('✅ TrokkyCore initialized with professional config')
       
@@ -362,30 +362,88 @@ export class TrokkyExpress {
 
 
   /**
-   * Create storage adapter based on new professional config
+   * Create split storage adapters from configuration
+   * Split-first architecture: always creates separate data and media adapters
    */
-  private static async createStorageAdapterFromNewConfig(config: StorageConfig) {
+  private static async createStorageAdaptersFromConfig(config: StorageConfig): Promise<TrokkyStorageAdapters> {
+    const logger = createLogger('express', 'StorageAdapter')
+    
+    logger.info('🔄 Creating split storage adapters', {
+      dataAdapter: config.data.adapter,
+      mediaAdapter: config.media.adapter
+    })
+    
+    // Create data adapter
+    const dataAdapter = await this.createDataAdapter(config.data)
+    
+    // Create media adapter  
+    const mediaAdapter = await this.createMediaAdapter(config.media)
+    
+    // Return split adapters object
+    const splitAdapters: TrokkyStorageAdapters = {
+      data: dataAdapter,
+      media: mediaAdapter
+    }
+    
+    logger.info('✅ Split storage adapters created successfully')
+    return splitAdapters
+  }
+
+  /**
+   * Create data storage adapter
+   */
+  private static async createDataAdapter(config: StorageConfig['data']) {
     switch (config.adapter) {
-      case 'filesystem': {
-        const { FilesystemAdapter } = await import('@trokky/adapter-filesystem')
-        return new FilesystemAdapter({
-          contentDir: config.contentDir || './content',
-          mediaDir: config.mediaDir || './media',
-          createDirs: config.createDirs ?? true,
-          mediaBaseUrl: config.mediaBaseUrl || '/media',
-          ...config.options
+      case 'filesystem-data': {
+        const { FilesystemDataAdapter } = await import('@trokky/adapter-filesystem-data')
+        return new FilesystemDataAdapter({
+          contentDir: config.options?.contentDir || './content',
+          usersDir: config.options?.usersDir || './users', 
+          tokensDir: config.options?.tokensDir || './tokens',
+          createDirs: config.options?.createDirs ?? true,
+          prettyJson: config.options?.prettyJson ?? true,
+          jsonSpaces: config.options?.jsonSpaces ?? 2,
+          silent: config.options?.silent ?? false
         })
       }
-      case 'cloudflare': {
-        throw new Error(`Cloudflare adapter not available. Install @trokky/adapter-cloudflare package.`)
+      case 'cloudflare-d1': {
+        throw new Error(`Cloudflare D1 adapter not available. Install @trokky/adapter-cloudflare-d1 package.`)
       }
-      case 's3': {
-        throw new Error(`S3 adapter not available. Install @trokky/adapter-s3 package.`)
+      case 'dynamodb': {
+        throw new Error(`DynamoDB adapter not available. Install @trokky/adapter-dynamodb package.`)
       }
       default:
-        throw new Error(`Unsupported storage adapter: ${config.adapter}`)
+        throw new Error(`Unsupported data adapter: ${(config as any).adapter}`)
     }
   }
+  
+  /**
+   * Create media storage adapter
+   */
+  private static async createMediaAdapter(config: StorageConfig['media']) {
+    switch (config.adapter) {
+      case 'filesystem-media': {
+        const { FilesystemMediaAdapter } = await import('@trokky/adapter-filesystem-media')
+        return new FilesystemMediaAdapter({
+          mediaDir: config.options?.mediaDir || './media',
+          createDirs: config.options?.createDirs ?? true,
+          prettyJson: config.options?.prettyJson ?? true,
+          jsonSpaces: config.options?.jsonSpaces ?? 2,
+          mediaBaseUrl: config.options?.mediaBaseUrl || '/media',
+          silent: config.options?.silent ?? false
+        })
+      }
+      case 'cloudflare-r2': {
+        throw new Error(`Cloudflare R2 adapter not available. Install @trokky/adapter-cloudflare-r2 package.`)
+      }
+      case 's3': {
+        throw new Error(`S3 media adapter not available. Install @trokky/adapter-s3 package.`)
+      }
+      default:
+        throw new Error(`Unsupported media adapter: ${(config as any).adapter}`)
+    }
+  }
+
 
   /**
    * Generate a secure JWT secret if none provided

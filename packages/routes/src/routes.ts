@@ -838,13 +838,13 @@ export class TrokkyRoutes {
 
       const variantInfo = variants[variant]
       
-      // Use storage adapter to get variant file content
-      const storage = this.core.getStorageAdapter()
+      // Use media storage adapter to get variant file content
+      const mediaStorage = this.core.getMediaStorageAdapter()
       
-      if (storage.getVariantContent) {
+      if (mediaStorage.getVariantContent) {
         // If storage adapter supports variant content retrieval
         try {
-          const variantContent = await storage.getVariantContent(id, variant)
+          const variantContent = await mediaStorage.getVariantContent(id, variant)
           if (!variantContent) {
             return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
           }
@@ -868,49 +868,10 @@ export class TrokkyRoutes {
         }
       }
 
-      // Fallback: try filesystem approach for FilesystemAdapter
-      try {
-        const { createRequire } = await import('module')
-        const require = createRequire(import.meta.url)
-        const fs = require('fs')
-        const path = require('path')
-
-        // Build variant file path - variants are stored in media/variants/parentId/variantName.format
-        const variantFilename = `${variant}.${variantInfo.format || 'webp'}`
-        const variantDir = path.join(process.cwd(), 'examples/demo/media/variants', id)
-        const variantPath = path.join(variantDir, variantFilename)
-        
-        // Security check: ensure the resolved path is still within the media directory
-        const resolvedPath = path.resolve(variantPath)
-        const mediaBaseDir = path.resolve(process.cwd(), 'examples/demo/media')
-        if (!resolvedPath.startsWith(mediaBaseDir)) {
-          return this.errorResponse(new Error('Access denied'), 403)
-        }
-
-        // Check if variant file exists
-        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-          return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
-        }
-
-        // Read variant file
-        const variantBuffer = fs.readFileSync(resolvedPath)
-
-        return {
-          status: 200,
-          headers: {
-            'Content-Type': `image/${variantInfo.format || 'webp'}`,
-            'Content-Length': variantBuffer.length.toString(),
-            'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'webp'}"`,
-            'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
-            'ETag': `"${id}-${variant}"`,
-            ...this.buildCorsHeaders()
-          },
-          body: variantBuffer
-        }
-      } catch (fsError) {
-        this.logger.error('Failed to read variant file from filesystem', { id, variant, error: fsError })
-        return this.errorResponse(new Error(`Variant file ${variant} not accessible for media ${id}`), 404)
-      }
+      // No filesystem fallback for edge compatibility
+      // Edge platforms (Cloudflare Workers, Vercel Edge, etc.) use object storage instead
+      this.logger.error('Media storage adapter does not support variant content retrieval', { id, variant })
+      return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
     } catch (error) {
       return this.errorResponse(error)
     }
@@ -1026,52 +987,13 @@ export class TrokkyRoutes {
           }
         }
 
-        // Node.js specific implementation for file serving
-        const { createRequire } = await import('module')
-        const require = createRequire(import.meta.url)
-        const fs = require('fs')
-        const path = require('path')
-
-        const fullPath = path.join(config.directory, filePath)
-        
-        // Security check: ensure the resolved path is still within the directory
-        const resolvedPath = path.resolve(fullPath)
-        const resolvedDir = path.resolve(config.directory)
-        if (!resolvedPath.startsWith(resolvedDir)) {
-          return {
-            status: 403,
-            headers: { 'Content-Type': 'text/plain' },
-            body: 'Access denied'
-          }
-        }
-
-        // Check if file exists
-        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-          return {
-            status: 404,
-            headers: { 'Content-Type': 'text/plain' },
-            body: 'File not found'
-          }
-        }
-
-        // Read file and determine content type
-        const fileContent = fs.readFileSync(resolvedPath)
-        const contentType = this.getContentType(path.extname(resolvedPath))
-        
-        // Set cache headers if maxAge is configured
-        const headers: Record<string, string> = {
-          'Content-Type': contentType,
-          'Content-Length': fileContent.length.toString()
-        }
-        
-        if (config.maxAge) {
-          headers['Cache-Control'] = `public, max-age=${config.maxAge}`
-        }
-
+        // Edge-compatible static file serving not implemented
+        // For edge platforms, static assets should be served by the platform itself
+        // (e.g., Cloudflare Workers with R2, Vercel with CDN)
         return {
-          status: 200,
-          headers,
-          body: fileContent
+          status: 501,
+          headers: { 'Content-Type': 'text/plain' },
+          body: 'Static file serving not available in edge environment. Use platform-native CDN.'
         }
       } catch (error) {
         this.logger.error('Static file serving error', error)

@@ -50,3 +50,6 @@ coverage/
 # Test-generated files
 content/
 media/
+
+# Archived files from refactoring
+examples/demo/archived-files/
