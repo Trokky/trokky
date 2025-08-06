@@ -124,12 +124,12 @@ export function DocumentEditor({
         hasData: !!schemaResponse.data
       });
       
-      if (!schemaResponse.success || !schemaResponse.data) {
+      if (!schemaResponse.success || !schemaResponse.data || !schemaResponse.data.schema) {
         throw new Error(`Schema '${schemaName}' not found`);
       }
       
-      // Use the schema directly from the response
-      const actualSchema = schemaResponse.data;
+      // Extract the schema from the nested response structure
+      const actualSchema = schemaResponse.data.schema;
       
       // Debug the actual schema and its featuredImage field
       logger.debug('Schema loaded for editing', { 
