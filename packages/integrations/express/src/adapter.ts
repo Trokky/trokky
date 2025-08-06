@@ -155,7 +155,7 @@ export class ExpressAdapter {
         
         const chunks: Buffer[] = []
         let totalSize = 0
-        const maxSize = 100 * 1024 * 1024 // 100MB limit
+        const maxSize = 50 * 1024 * 1024 // 50MB limit - aligned with config
         
         file.on('data', (chunk: Buffer) => {
           totalSize += chunk.length

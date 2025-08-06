@@ -86,6 +86,12 @@ export class TrokkyExpress {
   public createRouter(): Router {
     const router = Router()
 
+    // Apply middleware to router first
+    const middleware = this.middleware.getMiddleware()
+    for (const middlewareFn of middleware) {
+      router.use(middlewareFn)
+    }
+
     // Get only API routes from TrokkyRoutes (not static routes)
     const routeDefinitions = this.routes.getApiRoutes()
     this.logger.info('Creating Express router', { routeCount: routeDefinitions.length })
