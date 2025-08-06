@@ -3,7 +3,7 @@ import { TrokkyRoutes } from '@trokky/routes'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
 import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters } from '@trokky/core'
-import type { ExpressIntegrationConfig, ExpressIntegration, UltimateExpressConfig } from './types.js'
+import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
 import type { TrokkyConfig as NewTrokkyConfig, StorageConfig } from './config.js'
 import { withDefaults } from './config.js'
 
@@ -192,7 +192,10 @@ export class TrokkyExpress {
    * ```typescript
    * const trokky = await TrokkyExpress.create({
    *   schemas: blogSchemas,
-   *   storage: { adapter: 'filesystem', contentDir: './content' },
+   *   storage: {
+   *     data: { adapter: 'filesystem-data', options: { contentDir: './content' } },
+   *     media: { adapter: 'filesystem-media', options: { mediaDir: './media' } }
+   *   },
    *   security: { adminUser: { username: 'admin', email: 'admin@demo.com', password: 'demo123' } }
    * })
    * 

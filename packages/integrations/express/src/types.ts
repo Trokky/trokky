@@ -12,17 +12,6 @@ export interface AutoAdminUser {
   role?: UserRole
 }
 
-// Unified storage configuration (eliminates separate adapter creation)
-export interface UnifiedStorageConfig {
-  adapter: 'filesystem' | 'cloudflare' | 's3'
-  contentDir?: string
-  mediaDir?: string
-  createDirs?: boolean
-  mediaBaseUrl?: string
-  // Add other adapter-specific options as needed
-  options?: Record<string, any>
-}
-
 // Studio configuration (matches Studio's StudioConfig interface)
 export interface StudioIntegrationConfig {
   /** Enable Studio integration */
@@ -71,99 +60,7 @@ export interface StudioIntegrationConfig {
   }
 }
 
-// 🔥 ULTIMATE UNIFIED CONFIG - Everything in one place!
-export interface UltimateExpressConfig {
-  // Core CMS Configuration (eliminates TrokkyCore setup)
-  schemas: ContentSchema[]
-  storage: UnifiedStorageConfig
-  
-  // Media processing
-  media?: {
-    imageProcessor?: 'none' | 'sharp' | 'cloudflare-images' | 'imagekit' | 'imgix' | 'custom'
-    imageVariants?: Array<{
-      name: string
-      width?: number
-      height?: number
-      format?: 'jpeg' | 'png' | 'webp' | 'avif'
-      quality?: number
-      fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'
-    }>
-  }
-  
-  // Security & Auth (eliminates separate options)
-  enableSecurity?: boolean
-  jwtSecret?: string
-  
-  // Auto admin user creation (eliminates manual createUser)
-  adminUser?: AutoAdminUser
-  
-  // Validation
-  validation?: {
-    validateInput?: boolean
-  }
-  
-  // Express routing configuration
-  basePath?: string
-  corsOptions?: {
-    origin?: boolean | string | string[]
-    methods?: string[]
-    allowedHeaders?: string[]
-    credentials?: boolean
-  }
-  authentication?: {
-    enabled?: boolean
-    publicPaths?: string[]
-  }
-  rateLimiting?: {
-    enabled?: boolean
-    windowMs?: number
-    maxRequests?: number
-  }
-  staticRoutes?: {
-    media?: {
-      mountPath: string
-      directory: string
-      maxAge?: number
-    }
-    assets?: {
-      mountPath: string
-      directory: string
-      maxAge?: number
-    }
-    [key: string]: { mountPath: string; directory: string; maxAge?: number } | undefined
-  }
-  
-  // File upload configuration
-  fileUpload?: {
-    maxFileSize?: number
-    maxFiles?: number
-    allowedMimeTypes?: string[]
-    uploadPath?: string
-  }
-  
-  // Request parsing configuration
-  bodyParser?: {
-    json?: {
-      limit?: string
-      strict?: boolean
-    }
-    urlencoded?: {
-      limit?: string
-      extended?: boolean
-    }
-  }
-  
-  // Security headers
-  security?: {
-    enableHelmet?: boolean
-    customHeaders?: Record<string, string>
-  }
-  
-  // Studio integration
-  studio?: StudioIntegrationConfig
-}
-
-// Legacy Express configuration (for backward compatibility)
+// Express integration configuration
 export interface ExpressIntegrationConfig extends RoutesConfig {
   // File upload configuration
   fileUpload?: {
