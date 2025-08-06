@@ -1,9 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Bars3Icon, 
-  Squares2X2Icon, 
-  TableCellsIcon,
   PlusIcon,
   TrashIcon,
   DocumentDuplicateIcon,
@@ -19,9 +17,6 @@ import { DocumentEditor } from '@/components/document';
 // Import view components
 import { ContentViewControls, type ViewType, type ViewConfig, type FilterConfig, type SortConfig } from '@/components/content/ContentViewControls';
 import { ListView, getDefaultColumns, type ListColumn } from '@/components/content/views/ListView';
-import { GridView, type GridCardSize } from '@/components/content/views/GridView';
-import { TableView, type TableColumn } from '@/components/content/views/TableView';
-import { KanbanView, type KanbanColumn } from '@/components/content/views/KanbanView';
 import { Pagination } from '@/components/content/Pagination';
 
 const logger = createStudioLogger('ContentPage');
@@ -44,7 +39,7 @@ function getSchemaDisplayName(schemaName?: string): string {
 export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
-  const structureItem = useStructureItem(schemaName);
+  const structureItem = useStructureItem(schemaName || '');
 
   // Handle document editing
   if (documentId) {
@@ -263,7 +258,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     }
   ];
   
-  const columns = getDefaultColumns(schemaName);
+  const columns = getDefaultColumns();
   
   if (error) {
     return (
@@ -286,7 +281,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {structureItem?.title || `${getSchemaDisplayName(schemaName)} Documents`}
+              {structureItem?.item?.title || `${getSchemaDisplayName(schemaName)} Documents`}
             </h1>
           </div>
           <Button onClick={() => navigate(`/content/${schemaName}/new`)}>

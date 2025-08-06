@@ -89,8 +89,7 @@ export function MediaPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
-  const [hasPermission, setHasPermission] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [hasPermission] = useState(true);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
@@ -182,7 +181,7 @@ export function MediaPage() {
     if (loadingRef.current) return; // Prevent multiple simultaneous requests
     
     loadingRef.current = true;
-    setIsLoading(true);
+    setIsUploading(true);
     try {
       // Check if media feature is available
       if (!apiClient.hasFeature('media')) {
@@ -199,7 +198,7 @@ export function MediaPage() {
       setMediaFiles([]);
     } finally {
       loadingRef.current = false;
-      setIsLoading(false);
+      setIsUploading(false);
     }
   }, [apiClient]); // Stable dependencies only
 
@@ -463,20 +462,20 @@ export function MediaPage() {
         credit: editingFile.metadata?.credit || ''
       });
       
-      logger.info('Media metadata updated successfully:', response.data.file);
+      logger.info('Media metadata updated successfully:', response.data?.file);
       
       // Update the local state to reflect the changes
       setMediaFiles(prevFiles => 
         prevFiles.map(file => 
           file.id === editingFile.id 
-            ? { ...file, metadata: response.data.file.metadata }
+            ? { ...file, metadata: response.data?.file?.metadata || file.metadata }
             : file
         )
       );
       
       // Update selectedFile if it's the same one
       if (selectedFile?.id === editingFile.id) {
-        setSelectedFile({ ...selectedFile, metadata: response.data.file.metadata });
+        setSelectedFile({ ...selectedFile, metadata: response.data?.file?.metadata || selectedFile.metadata });
       }
       
       setIsEditModalOpen(false);
@@ -510,13 +509,15 @@ export function MediaPage() {
         // Update the file in the media files list
         setMediaFiles(prevFiles => 
           prevFiles.map(f => 
-            f.id === file.id ? response.data.file : f
+            f.id === file.id ? (response.data?.file || f) : f
           )
         );
         
         // Update selectedFile if it's the same one
         if (selectedFile?.id === file.id) {
-          setSelectedFile(response.data.file);
+          if (response.data?.file) {
+            setSelectedFile(response.data.file);
+          }
         }
         
         logger.info('Variants regenerated successfully');
@@ -1241,13 +1242,13 @@ export function MediaPage() {
                       </dd>
                     </div>
                   )}
-                  {selectedFile.metadata?.originalDimensions && (
+                  {selectedFile.metadata?.width && selectedFile.metadata?.height && (
                     <div>
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Original Dimensions
+                        Dimensions
                       </dt>
                       <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.originalDimensions.width} × {selectedFile.metadata.originalDimensions.height}px
+                        {selectedFile.metadata.width} × {selectedFile.metadata.height}px
                       </dd>
                     </div>
                   )}

@@ -75,9 +75,9 @@ export class SearchService {
       // Search across different content types
       // @TODO: Add schema search back when schema editor is implemented in Studio
       const [documents, media, users] = await Promise.allSettled([
-        this.searchDocuments(query, options),
-        this.searchMedia(query, options),
-        this.searchUsers(query, options),
+        this.searchDocuments(query),
+        this.searchMedia(query),
+        this.searchUsers(),
         // this.searchSchemas(query, options), // Disabled until schema editor is available
       ]);
 
@@ -146,7 +146,7 @@ export class SearchService {
     }
   }
 
-  async searchDocuments(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  async searchDocuments(query: string): Promise<SearchResult[]> {
     try {
       // Get all schemas to search across them
       const schemasResponse = await this.client.getSchemas();
@@ -237,14 +237,14 @@ export class SearchService {
         limit: 100, // Get more files to search through
       });
 
-      if (!response.success || !response.data?.files) {
+      if (!response.success || !response.data) {
         return [];
       }
 
       const queryLower = query.toLowerCase();
       
       // Filter media files that match the search query
-      const filteredFiles = response.data.files.filter((file: any) => {
+      const filteredFiles = (response.data as any[]).filter((file: any) => {
         const searchableFields = [
           file.filename,
           file.title,
@@ -276,52 +276,12 @@ export class SearchService {
     }
   }
 
-  async searchUsers(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
-    try {
-      const response = await this.client.get('/api/users', {
-        limit: 100, // Get more users to search through
-      });
-
-      if (!response.success || !response.data?.users) {
-        return [];
-      }
-
-      const queryLower = query.toLowerCase();
-      
-      // Filter users that match the search query
-      const filteredUsers = response.data.users.filter((user: any) => {
-        const userName = user.name || `${user.firstName} ${user.lastName}`.trim() || user.username || '';
-        const searchableFields = [
-          userName,
-          user.email,
-          user.username,
-          user.role,
-        ];
-        
-        return searchableFields.some(field =>
-          field && typeof field === 'string' &&
-          field.toLowerCase().includes(queryLower)
-        );
-      });
-
-      return filteredUsers.slice(0, options.limit || 10).map((user: any) => ({
-        id: user.id,
-        type: 'user' as const,
-        title: user.name || `${user.firstName} ${user.lastName}`.trim() || user.username || user.email,
-        excerpt: user.email || user.role,
-        url: `/users/${user.id}`,
-        metadata: {
-          createdAt: user.createdAt,
-          status: user.active ? 'Active' : 'Inactive',
-        },
-      }));
-    } catch (error) {
-      logger.error('User search failed', error);
-      return [];
-    }
+  async searchUsers(): Promise<SearchResult[]> {
+    // Users API not yet implemented
+    return [];
   }
 
-  async searchSchemas(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+  async searchSchemas(query: string): Promise<SearchResult[]> {
     try {
       const response = await this.client.getSchemas();
       if (!response.success || !response.data) {

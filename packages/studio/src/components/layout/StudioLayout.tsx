@@ -27,9 +27,9 @@ export function StudioLayout({
     setMobileMenuOpen(false);
   };
 
-  const handleOpenSearch = () => {
-    setSearchOpen(true);
-  };
+  // const handleOpenSearch = () => {
+  //   setSearchOpen(true);
+  // };
 
   const handleCloseSearch = () => {
     setSearchOpen(false);
@@ -41,7 +41,6 @@ export function StudioLayout({
       {/* Header */}
       <Header
         onOpenMobileMenu={handleOpenMobileMenu}
-        onOpenSearch={handleOpenSearch}
         showSearch={showSearch}
         showMedia={showMedia}
         showUserMenu={showUserMenu}

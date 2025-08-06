@@ -281,8 +281,7 @@ export function FieldsDemo() {
                         error={validationResults[currentField.id]?.errors?.[0]}
                         validationState={validationResults[currentField.id] ? {
                           isValidating: false,
-                          errors: validationResults[currentField.id].errors || [],
-                          warnings: validationResults[currentField.id].warnings || []
+                          lastValidatedValue: fieldValues[currentField.id]
                         } : undefined}
                         mode="edit"
                         studioContext={studioContext || undefined}

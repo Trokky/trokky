@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
-import { useStructureItem, useDocumentTypes } from '@/hooks/useStructure';
+import { useDocumentTypes } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { fieldRegistry } from '@trokky/fields';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
@@ -247,119 +247,6 @@ function ContentOverviewContext() {
   );
 }
 
-function SchemaContentContext({ schemaName }: { schemaName: string }) {
-  const structureItem = useStructureItem(schemaName);
-  const [stats, setStats] = useState<any>(null);
-  
-  useEffect(() => {
-    loadSchemaStats();
-  }, [schemaName]);
-  
-  const loadSchemaStats = async () => {
-    try {
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-      
-      const response = await apiClient.getCollectionStats(schemaName);
-      if (response.success) {
-        setStats(response.data);
-      }
-    } catch (error) {
-      // Stats are optional, don't show error
-    }
-  };
-  
-  return (
-    <>
-      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        {structureItem?.title || schemaName}
-      </h3>
-      
-      {/* Schema stats */}
-      {stats && (
-        <div className="mb-6">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {stats.total || 0}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Total
-              </div>
-            </div>
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {stats.published || 0}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Published
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Available views */}
-      {structureItem?.views && (
-        <div className="mb-6">
-          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Available Views
-          </h4>
-          <div className="space-y-1">
-            {structureItem.views.map((view) => (
-              <div
-                key={view.type}
-                className="flex items-center space-x-2 p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-              >
-                <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                <span>{view.title || view.type}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Available filters */}
-      {structureItem?.options?.filters && (
-        <div className="mb-6">
-          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Available Filters
-          </h4>
-          <div className="space-y-1">
-            {structureItem.options.filters.map((filter) => (
-              <div
-                key={filter.id}
-                className="text-sm text-gray-600 dark:text-gray-400"
-              >
-                {filter.label}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Bulk actions */}
-      {structureItem?.bulkActions && (
-        <div>
-          <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Bulk Actions
-          </h4>
-          <div className="space-y-1">
-            {structureItem.bulkActions.map((action) => (
-              <div
-                key={action.action}
-                className="text-sm text-gray-600 dark:text-gray-400"
-              >
-                {action.title}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 function MediaContext() {
   return (
@@ -388,8 +275,8 @@ function UsersContext() {
   const loadUserStats = async () => {
     try {
       const response = await apiClient.get('/api/users');
-      if (response.success && response.data && response.data.users) {
-        const users = response.data.users;
+      if (response.success && response.data && (response.data as any).users) {
+        const users = (response.data as any).users;
         
         // Calculate recent logins more accurately
         const now = new Date();

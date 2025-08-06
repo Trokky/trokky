@@ -181,7 +181,7 @@ function serveStudioHTML(config: StudioConfig) {
       // Safe JSON serialization that handles functions and circular references
       const safeStringify = (obj: any): string => {
         try {
-          return JSON.stringify(obj, (key, value) => {
+          return JSON.stringify(obj, (_, value) => {
             if (typeof value === 'function') {
               return undefined; // Remove functions
             }

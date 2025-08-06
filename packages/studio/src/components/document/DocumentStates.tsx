@@ -129,7 +129,6 @@ export const DocumentStates = {
    * Get transition validation requirements
    */
   getTransitionValidation(from: DocumentState, to: DocumentState): string[] {
-    const transitionKey = `${from}_to_${to}`;
     const transition = Object.values(this.transitions).find(t => t.from === from && t.to === to);
     return transition?.validation || [];
   },

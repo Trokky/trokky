@@ -10,7 +10,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
-import type { ApiResponse, SchemaApiResponse } from '@/types';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 
@@ -119,18 +118,18 @@ export function DocumentEditor({
       }
 
       // Load schema
-      const schemaResponse = await apiClient.getSchema(schemaName) as ApiResponse<SchemaApiResponse>;
+      const schemaResponse = await apiClient.getSchema(schemaName);
       logger.debug('Schema loaded', { 
         success: schemaResponse.success, 
         hasData: !!schemaResponse.data
       });
       
-      if (!schemaResponse.success || !schemaResponse.data || !schemaResponse.data.schema) {
+      if (!schemaResponse.success || !schemaResponse.data) {
         throw new Error(`Schema '${schemaName}' not found`);
       }
       
-      // Extract the actual schema from the nested structure
-      const actualSchema = schemaResponse.data.schema;
+      // Use the schema directly from the response
+      const actualSchema = schemaResponse.data;
       
       // Debug the actual schema and its featuredImage field
       logger.debug('Schema loaded for editing', { 
@@ -246,7 +245,7 @@ export function DocumentEditor({
   };
 
   const handleDocumentChange = useCallback((updates: any) => {
-    setDocument(prev => ({
+    setDocument((prev: any) => ({
       ...prev,
       ...updates,
       _updatedAt: new Date().toISOString()

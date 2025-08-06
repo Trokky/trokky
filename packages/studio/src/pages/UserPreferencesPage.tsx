@@ -18,7 +18,7 @@ interface UserPreferences {
 }
 
 export function UserPreferencesPage() {
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const contextSidebar = useContextSidebar();
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',

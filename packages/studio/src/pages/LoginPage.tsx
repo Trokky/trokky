@@ -32,7 +32,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       
       if (response.success && response.data) {
         // Handle nested response structure from API
-        const actualData = response.data.data || response.data;
+        const actualData = (response.data as any).data || response.data;
         
         if (typeof actualData === 'object' && 
             'token' in actualData && 

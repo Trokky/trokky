@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStructureItem } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { cn } from '@/utils/cn';
@@ -15,7 +15,6 @@ interface StructureContextSidebarProps {
 }
 
 export function StructureContextSidebar({ schemaName }: StructureContextSidebarProps) {
-  const location = useLocation();
   const { item: structureItem, loading: structureLoading } = useStructureItem(schemaName || '');
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(false);
@@ -41,7 +40,7 @@ export function StructureContextSidebar({ schemaName }: StructureContextSidebarP
       // Load basic stats for the schema
       const statsResponse = await apiClient.getCollectionStats(schemaName);
       if (statsResponse.success) {
-        setData(prev => ({ ...prev, stats: statsResponse.data }));
+        setData((prev: any) => ({ ...prev, stats: statsResponse.data }));
       }
 
       // Load documents for additional context
@@ -73,7 +72,7 @@ export function StructureContextSidebar({ schemaName }: StructureContextSidebarP
           })
         );
         
-        setData(prev => ({ ...prev, documents: documentsWithResolvedAuthors }));
+        setData((prev: any) => ({ ...prev, documents: documentsWithResolvedAuthors }));
       }
 
     } catch (error) {
@@ -202,7 +201,7 @@ function QuickFiltersWidget({ widget }: { widget: ContextWidget }) {
 }
 
 // Content Stats Widget
-function ContentStatsWidget({ widget, data, loading }: ContextWidgetProps) {
+function ContentStatsWidget({ widget, loading }: ContextWidgetProps) {
   if (loading) {
     return (
       <div>
@@ -383,7 +382,7 @@ function AuthorStatsWidget({ widget, data, loading }: ContextWidgetProps) {
   return <ContentStatsWidget widget={widget} data={data} loading={loading} />;
 }
 
-function QuickStatsWidget({ widget, data, loading }: ContextWidgetProps) {
+function QuickStatsWidget({ widget, loading }: ContextWidgetProps) {
   if (loading) {
     return (
       <div>

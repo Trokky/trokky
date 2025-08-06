@@ -138,7 +138,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         // Media operations
         getMedia: apiClient.getMedia.bind(apiClient),
         getMediaById: apiClient.getMediaFile.bind(apiClient),
-        uploadMedia: (file: File, collection?: string, metadata?: any) => 
+        uploadMedia: (file: File, metadata?: any) => 
           apiClient.uploadMedia(file, metadata),
         deleteMedia: apiClient.deleteMedia.bind(apiClient),
         updateMedia: apiClient.updateMedia.bind(apiClient),
@@ -158,7 +158,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
           const user = localStorage.getItem('currentUser');
           return user ? JSON.parse(user) : null;
         },
-        hasPermission: (resource: string, action: string) => {
+        hasPermission: () => {
           // Simple permission check - in production you'd integrate with auth system
           return true; // For demo, allow all permissions
         },

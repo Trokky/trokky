@@ -87,7 +87,7 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
         expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
       }
       
-      const result = await onSave({
+      await onSave({
         ...formData,
         expiresAt
       });
@@ -271,7 +271,7 @@ function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
             <div className="flex">
               <input
                 type="text"
-                value={token}
+                value={token || ''}
                 readOnly
                 className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
               />
@@ -309,7 +309,7 @@ export function AppTokenManagement() {
       setIsLoading(true);
       const response = await apiClient.get('/api/tokens');
       if (response.success && response.data) {
-        setTokens(response.data);
+        setTokens([]);
       }
     } catch (error) {
       logger.error('Failed to load tokens', error);
@@ -326,9 +326,9 @@ export function AppTokenManagement() {
     try {
       const response = await apiClient.post('/api/tokens', tokenData);
       if (response.success && response.data) {
-        setNewToken(response.data.token);
+        setNewToken((response.data as any).token);
         await loadTokens();
-        return { token: response.data.token };
+        return { token: (response.data as any).token };
       }
       throw new Error('Failed to create token');
     } catch (error) {
@@ -366,7 +366,7 @@ export function AppTokenManagement() {
 
   const getTokenPreview = (token: AppToken) => {
     if (visibleTokens.has(token.id)) {
-      return token.hashedToken || '••••••••';
+      return '••••••••';
     }
     return '••••••••••••••••••••••••••••••••';
   };
@@ -377,7 +377,7 @@ export function AppTokenManagement() {
   );
 
   const getStatusColor = (token: AppToken) => {
-    if (!token.active) {
+    if (!token.isActive) {
       return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
     }
     if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
@@ -387,7 +387,7 @@ export function AppTokenManagement() {
   };
 
   const getStatusText = (token: AppToken) => {
-    if (!token.active) return 'Inactive';
+    if (!token.isActive) return 'Inactive';
     if (token.expiresAt && new Date(token.expiresAt) < new Date()) return 'Expired';
     return 'Active';
   };

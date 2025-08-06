@@ -83,10 +83,7 @@ const router = createBrowserRouter([
     ]
   }
 ], {
-  basename: getBasename(),
-  future: {
-    v7_startTransition: true
-  }
+  basename: getBasename()
 });
 
 export function AppRouter() {

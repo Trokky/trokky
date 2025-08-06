@@ -215,8 +215,6 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-2xl"
-      showCloseButton={false}
     >
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* Search Input */}
