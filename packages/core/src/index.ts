@@ -125,7 +125,15 @@ export type {
   UpdateAppTokenData,
   AuthContext,
   AuthenticatedUser,
-  AuthenticatedAppToken
+  AuthenticatedAppToken,
+  // Split storage adapter types
+  DataStorageAdapter,
+  MediaStorageAdapter,
+  DataTransaction,
+  MediaListOptions,
+  MediaVariant,
+  SplitStorageConfig,
+  TrokkyStorageAdapters
 } from './types/index.js'
 
 export { ROLE_PERMISSIONS } from './types/index.js'

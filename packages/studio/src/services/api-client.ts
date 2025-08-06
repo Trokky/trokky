@@ -3,6 +3,7 @@ import type {
   BackendCapabilities, 
   Document, 
   Schema, 
+  SchemaApiResponse,
   MediaFile, 
   User, 
   QueryOptions,
@@ -323,8 +324,8 @@ export class ApiClient {
   /**
    * Get schema by name
    */
-  async getSchema(name: string): Promise<ApiResponse<Schema>> {
-    return this.get<Schema>(`/api/schemas/${name}`);
+  async getSchema(name: string): Promise<ApiResponse<SchemaApiResponse>> {
+    return this.get<SchemaApiResponse>(`/api/schemas/${name}`);
   }
 
   /**

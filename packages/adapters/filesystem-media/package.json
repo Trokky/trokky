@@ -1,0 +1,48 @@
+{
+  "name": "@trokky/adapter-filesystem-media",
+  "version": "0.1.0",
+  "description": "Filesystem-based media storage adapter for Trokky CMS (files, variants, media)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "trokky",
+    "cms",
+    "storage",
+    "filesystem",
+    "media",
+    "adapter"
+  ],
+  "author": "Trokky Team",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
+  "dependencies": {
+    "@trokky/core": "file:../../core",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.19",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "@trokky/core": "^0.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

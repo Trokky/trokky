@@ -50,3 +50,9 @@ coverage/
 # Test-generated files
 content/
 media/
+
+# Archived files from refactoring
+examples/demo/archived-files/
+
+# Migration scripts (one-time utilities)
+examples/demo/migrate-media-metadata.js

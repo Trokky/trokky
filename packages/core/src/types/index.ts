@@ -255,3 +255,14 @@ export type {
 } from './user.js'
 
 export { ROLE_PERMISSIONS } from './user.js'
+
+// Split storage adapter types
+export type {
+  DataStorageAdapter,
+  MediaStorageAdapter,
+  DataTransaction,
+  MediaListOptions,
+  MediaVariant,
+  SplitStorageConfig,
+  TrokkyStorageAdapters
+} from './storage-adapters.js'

@@ -5,38 +5,56 @@
  * both directly in TrokkyExpress.setup() and via trokky.config.ts files.
  */
 
-import type { ContentSchema, UserRole } from '@trokky/core'
+import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter } from '@trokky/core'
 
 // Environment-aware configuration
 export type TrokkyEnvironment = 'development' | 'production' | 'test'
 
-// Storage configuration with strict typing
+// Storage configuration (SPLIT-FIRST ARCHITECTURE)
 export interface StorageConfig {
-  /** Storage adapter type */
-  adapter: 'filesystem' | 'cloudflare' | 's3'
-  /** Content directory path (filesystem adapter) */
-  contentDir?: string
-  /** Media directory path (filesystem adapter) */
-  mediaDir?: string
-  /** Auto-create directories if they don't exist */
-  createDirs?: boolean
-  /** Base URL for serving media files */
-  mediaBaseUrl?: string
-  /** Adapter-specific configuration */
-  options?: {
-    // Filesystem options
-    encoding?: 'utf8' | 'utf16le'
-    filePermissions?: string
-    // Cloudflare options
-    accountId?: string
-    databaseId?: string
-    // S3 and Cloudflare options (both use buckets)
-    bucketName?: string
-    region?: string
-    accessKeyId?: string
-    secretAccessKey?: string
+  /** Data storage adapter configuration */
+  data: {
+    adapter: 'filesystem-data' | 'cloudflare-d1' | 'dynamodb'
+    options?: {
+      // Filesystem data options
+      contentDir?: string
+      usersDir?: string
+      tokensDir?: string
+      createDirs?: boolean
+      prettyJson?: boolean
+      jsonSpaces?: number
+      silent?: boolean
+      // Cloudflare D1 options  
+      accountId?: string
+      databaseId?: string
+      // DynamoDB options
+      region?: string
+      accessKeyId?: string
+      secretAccessKey?: string
+      tablePrefix?: string
+    }
+  }
+  /** Media storage adapter configuration */
+  media: {
+    adapter: 'filesystem-media' | 'cloudflare-r2' | 's3'
+    options?: {
+      // Filesystem media options
+      mediaDir?: string
+      createDirs?: boolean
+      prettyJson?: boolean
+      jsonSpaces?: number
+      mediaBaseUrl?: string
+      silent?: boolean
+      // Cloudflare R2 / S3 options
+      bucketName?: string
+      region?: string
+      accessKeyId?: string
+      secretAccessKey?: string
+      accountId?: string // R2 specific
+    }
   }
 }
+
 
 // Media processing configuration
 export interface MediaConfig {
@@ -315,6 +333,7 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
   }
 }
 
+
 /**
  * Define configuration with type safety and validation
  */
@@ -324,8 +343,16 @@ export function defineConfig(config: TrokkyConfig): TrokkyConfig {
     throw new Error('At least one schema must be defined')
   }
   
-  if (!config.storage?.adapter) {
-    throw new Error('Storage adapter must be specified')
+  if (!config.storage) {
+    throw new Error('Storage configuration must be specified')
+  }
+  
+  // Validate split storage configuration
+  if (!config.storage.data?.adapter) {
+    throw new Error('Data adapter must be specified')
+  }
+  if (!config.storage.media?.adapter) {
+    throw new Error('Media adapter must be specified')
   }
   
   const env = config.env || process.env.NODE_ENV || 'development'

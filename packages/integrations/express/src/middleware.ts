@@ -65,27 +65,43 @@ export class TrokkyExpressMiddleware {
   }
 
   /**
-   * Create body parsing middleware
+   * Create body parsing middleware with conditional parsing optimization
    */
   private createBodyParsers(): ExpressMiddleware[] {
     const middleware: ExpressMiddleware[] = []
     
-    // JSON body parser
+    // Get limits from config, with reasonable defaults
     const jsonConfig = this.config.bodyParser?.json || {}
-    middleware.push(express.json({
-      limit: jsonConfig.limit || '10mb',
-      strict: jsonConfig.strict !== false,
-      ...jsonConfig
-    }))
-
-    // URL-encoded body parser
     const urlencodedConfig = this.config.bodyParser?.urlencoded || {}
-    middleware.push(express.urlencoded({
-      limit: urlencodedConfig.limit || '10mb',
-      extended: urlencodedConfig.extended !== false,
-      ...urlencodedConfig
-    }))
-
+    const jsonLimit = jsonConfig.limit || '10mb'
+    const urlencodedLimit = urlencodedConfig.limit || '10mb'
+    
+    // Conditional body parsing middleware - skip multipart requests for efficiency
+    const conditionalBodyParser: ExpressMiddleware = (req, res, next) => {
+      // Skip body parsing for multipart/form-data requests - they're handled by busboy in the adapter
+      const contentType = req.get('content-type') || '';
+      if (contentType.includes('multipart/form-data')) {
+        return next();
+      }
+      
+      // Apply JSON parsing first
+      express.json({
+        limit: jsonLimit,
+        strict: jsonConfig.strict !== false,
+        ...jsonConfig
+      })(req, res, (err) => {
+        if (err) return next(err);
+        
+        // Then apply URL-encoded parsing
+        express.urlencoded({
+          limit: urlencodedLimit,
+          extended: urlencodedConfig.extended !== false,
+          ...urlencodedConfig
+        })(req, res, next);
+      });
+    }
+    
+    middleware.push(conditionalBodyParser)
     return middleware
   }
 

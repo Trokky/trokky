@@ -15,6 +15,9 @@ import {
 import { 
   TrokkyConfig, 
   StorageAdapter, 
+  DataStorageAdapter,
+  MediaStorageAdapter,
+  TrokkyStorageAdapters,
   Document, 
   DocumentData, 
   ListOptions,
@@ -47,6 +50,10 @@ export interface TrokkyCoreOptions {
   cryptoOptions?: CryptoAdapterOptions // Options for crypto adapter
   imageProcessor?: ImageProcessor // Custom image processor (auto-created if not provided)
   imageProcessorConfig?: ImageProcessorConfig // Image processor configuration
+  
+  // Storage adapter validation options
+  validateAdapters?: boolean // Validate that adapters have required methods (default: true)
+  allowPartialAdapters?: boolean // Allow adapters with optional methods missing (default: false)
 }
 
 export interface AuditEvent {
@@ -65,7 +72,13 @@ export interface AuditEvent {
 }
 
 export class TrokkyCore {
-  private storage: StorageAdapter
+  // Split storage adapters (new architecture)
+  private dataStorage: DataStorageAdapter
+  private mediaStorage: MediaStorageAdapter
+  
+  // Legacy unified storage adapter (for backward compatibility)
+  private storage?: StorageAdapter
+  
   private schemas: SchemaRegistry
   private validator: DocumentValidator
   private idGenerator: IdGenerator
@@ -79,12 +92,45 @@ export class TrokkyCore {
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
 
+  // Constructor overloads for both unified and split adapters
   constructor(
     config: TrokkyConfig, 
     storageAdapter: StorageAdapter,
+    options?: TrokkyCoreOptions
+  )
+  constructor(
+    config: TrokkyConfig, 
+    storageAdapters: TrokkyStorageAdapters,
+    options?: TrokkyCoreOptions
+  )
+  constructor(
+    config: TrokkyConfig, 
+    storageAdapterOrAdapters: StorageAdapter | TrokkyStorageAdapters,
     options: TrokkyCoreOptions = {}
   ) {
-    this.storage = storageAdapter
+    // Determine if we're using unified or split adapters
+    if (this.isTrokkyStorageAdapters(storageAdapterOrAdapters)) {
+      // Split adapters (new architecture)
+      this.dataStorage = storageAdapterOrAdapters.data
+      this.mediaStorage = storageAdapterOrAdapters.media
+      this.storage = undefined
+      this.logger.info('TrokkyCore initialized with split storage adapters', {
+        dataAdapter: this.dataStorage.constructor?.name || 'DataStorageAdapter',
+        mediaAdapter: this.mediaStorage.constructor?.name || 'MediaStorageAdapter'
+      })
+      
+      // Validate split adapters have required methods
+      this.validateStorageAdapters()
+    } else {
+      // Unified adapter (legacy support)
+      this.storage = storageAdapterOrAdapters
+      // Create adapter wrappers for backward compatibility
+      this.dataStorage = this.createDataAdapterWrapper(storageAdapterOrAdapters)
+      this.mediaStorage = this.createMediaAdapterWrapper(storageAdapterOrAdapters)
+      this.logger.warn('TrokkyCore using legacy unified storage adapter - consider migrating to split adapters', {
+        adapter: storageAdapterOrAdapters.constructor?.name || 'StorageAdapter'
+      })
+    }
     this.options = options
     this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas)
     this.validator = options.validator || new DocumentValidator(this.schemas)
@@ -122,6 +168,98 @@ export class TrokkyCore {
     }
   }
 
+  // Helper methods for adapter management
+  private isTrokkyStorageAdapters(adapter: any): adapter is TrokkyStorageAdapters {
+    return adapter && 
+           typeof adapter === 'object' && 
+           'data' in adapter && 
+           'media' in adapter &&
+           typeof adapter.data === 'object' &&
+           typeof adapter.media === 'object'
+  }
+
+  private createDataAdapterWrapper(storage: StorageAdapter): DataStorageAdapter {
+    return {
+      // Document operations
+      getDocument: storage.getDocument.bind(storage),
+      saveDocument: storage.saveDocument.bind(storage),
+      listDocuments: storage.listDocuments.bind(storage),
+      deleteDocument: storage.deleteDocument.bind(storage),
+      
+      // User operations (with fallback if not implemented)
+      getUser: storage.getUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      saveUser: storage.saveUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      listUsers: storage.listUsers?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      deleteUser: storage.deleteUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      getUserByUsername: storage.getUserByUsername?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      getUserByEmail: storage.getUserByEmail?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      
+      // App token operations (with fallback if not implemented)
+      getAppToken: storage.getAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter') }),
+      saveAppToken: storage.saveAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter') }),
+      listAppTokens: storage.listAppTokens?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter') }),
+      deleteAppToken: storage.deleteAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter') }),
+      getAppTokenByHash: storage.getAppTokenByHash?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter') }),
+      
+      // Utility operations
+      healthCheck: storage.healthCheck.bind(storage),
+      migrate: storage.migrate?.bind(storage)
+    }
+  }
+
+  private createMediaAdapterWrapper(storage: StorageAdapter): MediaStorageAdapter {
+    return {
+      // File operations
+      uploadFile: storage.uploadFile.bind(storage),
+      getFile: storage.getFile.bind(storage),
+      updateFile: storage.updateFile?.bind(storage) || (() => { throw new Error('File update not supported by unified adapter') }),
+      getFileContent: storage.getFileContent.bind(storage),
+      listMedia: storage.listMedia?.bind(storage) || (() => { throw new Error('Media listing not supported by unified adapter') }),
+      deleteFile: storage.deleteFile.bind(storage),
+      
+      // Variant operations (with fallback if not implemented)
+      saveVariantFile: storage.saveVariantFile?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter') }),
+      getVariantContent: storage.getVariantContent?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter') }),
+      deleteVariantFiles: storage.deleteVariantFiles?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter') }),
+      
+      // Utility operations
+      healthCheck: storage.healthCheck.bind(storage)
+    }
+  }
+
+  // Adapter validation
+  private validateStorageAdapters(): void {
+    // Validate DataStorageAdapter has required methods
+    const requiredDataMethods = [
+      'getDocument', 'saveDocument', 'listDocuments', 'deleteDocument',
+      'getUser', 'saveUser', 'listUsers', 'deleteUser', 'getUserByUsername', 'getUserByEmail',
+      'getAppToken', 'saveAppToken', 'listAppTokens', 'deleteAppToken', 'getAppTokenByHash',
+      'healthCheck'
+    ]
+    
+    for (const method of requiredDataMethods) {
+      if (typeof (this.dataStorage as any)[method] !== 'function') {
+        throw new Error(`DataStorageAdapter missing required method: ${method}`)
+      }
+    }
+
+    // Validate MediaStorageAdapter has required methods
+    const requiredMediaMethods = [
+      'uploadFile', 'getFile', 'getFileContent', 'deleteFile', 'healthCheck'
+    ]
+    
+    for (const method of requiredMediaMethods) {
+      if (typeof (this.mediaStorage as any)[method] !== 'function') {
+        throw new Error(`MediaStorageAdapter missing required method: ${method}`)
+      }
+    }
+
+    this.logger.debug('Storage adapters validation passed', {
+      dataMethodCount: requiredDataMethods.length,
+      mediaMethodCount: requiredMediaMethods.length
+    })
+  }
+
   // Initialization
   public async init(): Promise<void> {
     // Setup admin user from environment variables if configured
@@ -148,7 +286,7 @@ export class TrokkyCore {
       throw new SchemaNotFoundError(collection)
     }
 
-    const document = await this.storage.getDocument(collection, id)
+    const document = await this.dataStorage.getDocument(collection, id)
     return document as (Document & T) | null
   }
 
@@ -183,7 +321,7 @@ export class TrokkyCore {
     const id = data.id || this.idGenerator.generate({ prefix: collection })
     const { id: _, ...documentData } = data
 
-    const savedDocument = await this.storage.saveDocument(collection, id, documentData)
+    const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData)
     return savedDocument as Document & T
   }
 
@@ -207,7 +345,7 @@ export class TrokkyCore {
       ? SecurityValidator.sanitizeListOptions(options)
       : options
 
-    const documents = await this.storage.listDocuments(collection, sanitizedOptions)
+    const documents = await this.dataStorage.listDocuments(collection, sanitizedOptions)
     return documents as (Document & T)[]
   }
 
@@ -226,12 +364,12 @@ export class TrokkyCore {
     }
 
     // Check if document exists
-    const existingDocument = await this.storage.getDocument(collection, id)
+    const existingDocument = await this.dataStorage.getDocument(collection, id)
     if (!existingDocument) {
       throw new DocumentNotFoundError(collection, id)
     }
 
-    return await this.storage.deleteDocument(collection, id)
+    return await this.dataStorage.deleteDocument(collection, id)
   }
 
   // Media operations
@@ -253,7 +391,7 @@ export class TrokkyCore {
     }
 
     // Upload to storage first
-    const mediaFile = await this.storage.uploadFile(file, metadata)
+    const mediaFile = await this.mediaStorage.uploadFile(file, metadata)
 
     // Process image if it's an image file
     if (file.type.startsWith('image/')) {
@@ -270,8 +408,8 @@ export class TrokkyCore {
           if (variantData.buffer) {
             try {
               // Save variant file directly using storage adapter's variant support
-              if (this.storage.saveVariantFile) {
-                const variantPath = await this.storage.saveVariantFile(
+              if (this.mediaStorage.saveVariantFile) {
+                const variantPath = await this.mediaStorage.saveVariantFile(
                   metadata.id, 
                   variantName, 
                   variantData.buffer, 
@@ -280,7 +418,7 @@ export class TrokkyCore {
                 
                 // Store variant info with the correct URL
                 savedVariants[variantName] = {
-                  url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(metadata.id, variantName) : variantPath}`,
+                  url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(metadata.id, variantName) : variantPath}`,
                   width: variantData.width,
                   height: variantData.height,
                   format: variantData.format,
@@ -328,8 +466,8 @@ export class TrokkyCore {
 
         // Save the updated metadata back to storage
         try {
-          if (this.storage.updateFile) {
-            await this.storage.updateFile(mediaFile.id, mediaFile.metadata)
+          if (this.mediaStorage.updateFile) {
+            await this.mediaStorage.updateFile(mediaFile.id, mediaFile.metadata)
           }
           this.logger.info('Image variants metadata saved', { 
             fileId: metadata.id, 
@@ -362,7 +500,7 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    return await this.storage.getFile(id)
+    return await this.mediaStorage.getFile(id)
   }
 
   public async updateMedia(id: string, metadata: Record<string, any>): Promise<MediaFile> {
@@ -375,17 +513,17 @@ export class TrokkyCore {
     }
 
     // Check if media exists first
-    const existingMedia = await this.storage.getFile(id)
+    const existingMedia = await this.mediaStorage.getFile(id)
     if (!existingMedia) {
       throw new DocumentNotFoundError('media', id)
     }
 
     // Use the storage adapter's updateFile method if available
-    if (!this.storage.updateFile) {
+    if (!this.mediaStorage.updateFile) {
       throw new Error('Media update not supported by storage adapter')
     }
     
-    return await this.storage.updateFile(id, metadata)
+    return await this.mediaStorage.updateFile(id, metadata)
   }
 
   public async getMediaContent(id: string): Promise<ArrayBuffer | null> {
@@ -397,7 +535,7 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    return await this.storage.getFileContent(id)
+    return await this.mediaStorage.getFileContent(id)
   }
 
   public async listMedia(options?: { limit?: number; offset?: number }): Promise<MediaFile[]> {
@@ -406,11 +544,11 @@ export class TrokkyCore {
     }
 
     // Use the storage adapter's listMedia method if available
-    if (!this.storage.listMedia) {
+    if (!this.mediaStorage.listMedia) {
       throw new Error('Media listing not supported by storage adapter')
     }
     
-    return await this.storage.listMedia(options || {})
+    return await this.mediaStorage.listMedia(options || {})
   }
 
   public async deleteMedia(id: string): Promise<void> {
@@ -423,7 +561,7 @@ export class TrokkyCore {
     }
 
     // Check if media exists
-    const existingMedia = await this.storage.getFile(id)
+    const existingMedia = await this.mediaStorage.getFile(id)
     if (!existingMedia) {
       throw new DocumentNotFoundError('media', id)
     }
@@ -441,7 +579,7 @@ export class TrokkyCore {
       }
     }
 
-    return await this.storage.deleteFile(id)
+    return await this.mediaStorage.deleteFile(id)
   }
 
   public async regenerateMediaVariants(id: string): Promise<MediaFile> {
@@ -449,7 +587,7 @@ export class TrokkyCore {
       await this.rateLimiter?.checkRateLimit('regenerateMediaVariants')
 
       // Get the existing media file
-      const mediaFile = await this.storage.getFile(id)
+      const mediaFile = await this.mediaStorage.getFile(id)
       if (!mediaFile) {
         throw new Error(`Media file with id ${id} not found`)
       }
@@ -462,7 +600,7 @@ export class TrokkyCore {
       this.logger.info('Starting variant regeneration', { id, filename: mediaFile.filename })
 
       // Get the original file content
-      const fileContent = await this.storage.getFileContent(id)
+      const fileContent = await this.mediaStorage.getFileContent(id)
       if (!fileContent) {
         throw new Error('Unable to read original file content')
       }
@@ -480,9 +618,9 @@ export class TrokkyCore {
       })
 
       // Delete existing variants first
-      if (this.storage.deleteVariantFiles) {
+      if (this.mediaStorage.deleteVariantFiles) {
         try {
-          await this.storage.deleteVariantFiles(id)
+          await this.mediaStorage.deleteVariantFiles(id)
           this.logger.info('Existing variants deleted', { id })
         } catch (deleteError) {
           this.logger.warn('Failed to delete existing variants', { id, error: deleteError })
@@ -494,8 +632,8 @@ export class TrokkyCore {
       for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
         if (variantData.buffer) {
           try {
-            if (this.storage.saveVariantFile) {
-              const variantPath = await this.storage.saveVariantFile(
+            if (this.mediaStorage.saveVariantFile) {
+              const variantPath = await this.mediaStorage.saveVariantFile(
                 id, 
                 variantName, 
                 variantData.buffer, 
@@ -503,7 +641,7 @@ export class TrokkyCore {
               )
               
               savedVariants[variantName] = {
-                url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(id, variantName) : variantPath}`,
+                url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(id, variantName) : variantPath}`,
                 width: variantData.width,
                 height: variantData.height,
                 format: variantData.format,
@@ -537,7 +675,7 @@ export class TrokkyCore {
       }
 
       // Save updated metadata
-      const updatedMediaFile = await this.storage.updateFile?.(id, updatedMetadata)
+      const updatedMediaFile = await this.mediaStorage.updateFile?.(id, updatedMetadata)
       if (!updatedMediaFile) {
         throw new Error('Failed to update media file metadata')
       }
@@ -580,16 +718,44 @@ export class TrokkyCore {
   }
 
   /**
-   * Get storage adapter
+   * Get storage adapter (legacy unified adapter)
+   * @deprecated Use getDataStorageAdapter() and getMediaStorageAdapter() instead
    */
-  public getStorageAdapter(): StorageAdapter {
-    return this.storage
+  public getStorageAdapter(): StorageAdapter | null {
+    return this.storage || null
+  }
+
+  /**
+   * Get data storage adapter
+   */
+  public getDataStorageAdapter(): DataStorageAdapter {
+    return this.dataStorage
+  }
+
+  /**
+   * Get media storage adapter
+   */
+  public getMediaStorageAdapter(): MediaStorageAdapter {
+    return this.mediaStorage
+  }
+
+  /**
+   * Get both storage adapters
+   */
+  public getStorageAdapters(): TrokkyStorageAdapters {
+    return {
+      data: this.dataStorage,
+      media: this.mediaStorage
+    }
   }
 
   // Health check
   public async healthCheck(): Promise<boolean> {
     try {
-      const storageHealthy = await this.storage.healthCheck()
+      // Check health of both storage adapters
+      const dataStorageHealthy = await this.dataStorage.healthCheck()
+      const mediaStorageHealthy = await this.mediaStorage.healthCheck()
+      const storageHealthy = dataStorageHealthy && mediaStorageHealthy
       const schemasLoaded = this.schemas.getAllSchemas().length > 0
       const imageProcessorHealthy = await this.imageProcessor.healthCheck()
       
@@ -639,19 +805,17 @@ export class TrokkyCore {
       SecurityValidator.validateUsername(userData.username)
     }
 
-    if (!this.storage.saveUser) {
-      throw new Error('User operations not supported by storage adapter')
-    }
+    // User operations are handled by data storage adapter
 
-    // Check if user already exists
+    // Check if user already exists (use generic error message to prevent enumeration)
     const existingUserByEmail = await this.getUserByEmail(userData.email)
     if (existingUserByEmail) {
-      throw new Error(`User with email ${userData.email} already exists`)
+      throw new Error('User registration failed. Please check your details.')
     }
 
     const existingUserByUsername = await this.getUserByUsername(userData.username)
     if (existingUserByUsername) {
-      throw new Error(`User with username ${userData.username} already exists`)
+      throw new Error('User registration failed. Please check your details.')
     }
 
     // Hash password before saving
@@ -675,7 +839,7 @@ export class TrokkyCore {
       updatedAt: now
     }
 
-    const createdUser = await this.storage.saveUser(userId, userToSave)
+    const createdUser = await this.dataStorage.saveUser(userId, userToSave)
     
     // Log audit event
     this.logAuditEvent({
@@ -704,11 +868,8 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    if (!this.storage.getUser) {
-      throw new Error('User operations not supported by storage adapter')
-    }
-
-    return await this.storage.getUser(id)
+    // User operations are handled by data storage adapter
+    return await this.dataStorage.getUser(id)
   }
 
   public async getUserByUsername(username: string): Promise<User | null> {
@@ -720,11 +881,8 @@ export class TrokkyCore {
       SecurityValidator.validateUsername(username)
     }
 
-    if (!this.storage.getUserByUsername) {
-      throw new Error('User operations not supported by storage adapter')
-    }
-
-    return await this.storage.getUserByUsername(username)
+    // User operations are handled by data storage adapter
+    return await this.dataStorage.getUserByUsername(username)
   }
 
   public async getUserByEmail(email: string): Promise<User | null> {
@@ -736,11 +894,8 @@ export class TrokkyCore {
       SecurityValidator.validateEmail(email)
     }
 
-    if (!this.storage.getUserByEmail) {
-      throw new Error('User operations not supported by storage adapter')
-    }
-
-    return await this.storage.getUserByEmail(email)
+    // User operations are handled by data storage adapter
+    return await this.dataStorage.getUserByEmail(email)
   }
 
   public async updateUser(id: string, userData: UpdateUserData): Promise<User> {
@@ -754,9 +909,7 @@ export class TrokkyCore {
       if (userData.username) SecurityValidator.validateUsername(userData.username)
     }
 
-    if (!this.storage.saveUser) {
-      throw new Error('User operations not supported by storage adapter')
-    }
+    // User operations are handled by data storage adapter
 
     const existingUser = await this.getUser(id)
     if (!existingUser) {
@@ -768,7 +921,7 @@ export class TrokkyCore {
       updatedAt: new Date().toISOString()
     }
 
-    const updatedUser = await this.storage.saveUser(id, updatedUserData)
+    const updatedUser = await this.dataStorage.saveUser(id, updatedUserData)
     
     // Log audit event
     this.logAuditEvent({
@@ -793,11 +946,8 @@ export class TrokkyCore {
       await this.rateLimiter.checkRateLimit('listUsers')
     }
 
-    if (!this.storage.listUsers) {
-      throw new Error('User operations not supported by storage adapter')
-    }
-
-    return await this.storage.listUsers(options)
+    // User operations are handled by data storage adapter
+    return await this.dataStorage.listUsers(options)
   }
 
   public async deleteUser(id: string): Promise<void> {
@@ -809,16 +959,14 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    if (!this.storage.deleteUser) {
-      throw new Error('User operations not supported by storage adapter')
-    }
+    // User operations are handled by data storage adapter
 
     const existingUser = await this.getUser(id)
     if (!existingUser) {
       throw new DocumentNotFoundError('users', id)
     }
 
-    await this.storage.deleteUser(id)
+    await this.dataStorage.deleteUser(id)
     
     // Log audit event
     this.logAuditEvent({
@@ -841,11 +989,8 @@ export class TrokkyCore {
       await this.rateLimiter.checkRateLimit('listAppTokens')
     }
 
-    if (!this.storage.listAppTokens) {
-      throw new Error('App token operations not supported by storage adapter')
-    }
-
-    return await this.storage.listAppTokens(options)
+    // App token operations are handled by data storage adapter
+    return await this.dataStorage.listAppTokens(options)
   }
 
   public async createAppToken(tokenData: CreateAppTokenData, createdBy: string): Promise<AppTokenCreationResult> {
@@ -853,9 +998,7 @@ export class TrokkyCore {
       await this.rateLimiter.checkRateLimit('createAppToken')
     }
 
-    if (!this.storage.saveAppToken) {
-      throw new Error('App token operations not supported by storage adapter')
-    }
+    // App token operations are handled by data storage adapter
 
     try {
       // Generate token and hash using crypto adapter
@@ -879,7 +1022,7 @@ export class TrokkyCore {
         expiresAt: tokenData.expiresAt
       }
 
-      const savedToken = await this.storage.saveAppToken(tokenId, appToken)
+      const savedToken = await this.dataStorage.saveAppToken(tokenId, appToken)
       
       return {
         success: true,
@@ -903,11 +1046,8 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    if (!this.storage.getAppToken) {
-      throw new Error('App token operations not supported by storage adapter')
-    }
-
-    return await this.storage.getAppToken(id)
+    // App token operations are handled by data storage adapter
+    return await this.dataStorage.getAppToken(id)
   }
 
   public async deleteAppToken(id: string): Promise<void> {
@@ -919,16 +1059,14 @@ export class TrokkyCore {
       SecurityValidator.validateDocumentId(id)
     }
 
-    if (!this.storage.deleteAppToken) {
-      throw new Error('App token operations not supported by storage adapter')
-    }
+    // App token operations are handled by data storage adapter
 
     const existingToken = await this.getAppToken(id)
     if (!existingToken) {
       throw new DocumentNotFoundError('tokens', id)
     }
 
-    await this.storage.deleteAppToken(id)
+    await this.dataStorage.deleteAppToken(id)
     
     // Log audit event
     this.logAuditEvent({

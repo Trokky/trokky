@@ -1,7 +1,8 @@
 import express from 'express'
 import request from 'supertest'
 import { TrokkyCore } from '@trokky/core'
-import { FilesystemAdapter } from '@trokky/adapter-filesystem'
+import { FilesystemDataAdapter } from '@trokky/adapter-filesystem-data'
+import { FilesystemMediaAdapter } from '@trokky/adapter-filesystem-media'
 import { TrokkyExpress } from '../integration.js'
 import type { ExpressIntegrationConfig } from '../types.js'
 import path from 'path'
@@ -17,10 +18,17 @@ describe('TrokkyExpress Integration', () => {
     // Create unique temporary directory for each test
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `trokky-express-test-${Date.now()}-`))
     
-    // Setup TrokkyCore with filesystem adapter
-    const adapter = new FilesystemAdapter({
-      contentPath: path.join(tempDir, 'content'),
-      mediaPath: path.join(tempDir, 'media')
+    // Setup TrokkyCore with split filesystem adapters
+    const dataAdapter = new FilesystemDataAdapter({
+      contentDir: path.join(tempDir, 'content'),
+      usersDir: path.join(tempDir, 'users'),
+      tokensDir: path.join(tempDir, 'tokens'),
+      createDirs: true
+    })
+
+    const mediaAdapter = new FilesystemMediaAdapter({
+      mediaDir: path.join(tempDir, 'media'),
+      createDirs: true
     })
 
     trokkyCore = new TrokkyCore(
@@ -36,10 +44,9 @@ describe('TrokkyExpress Integration', () => {
             content: { type: 'string' },
             status: { type: 'string' }
           }
-        }],
-        storage: { adapter: 'filesystem' }
+        }]
       },
-      adapter
+      { data: dataAdapter, media: mediaAdapter }
     )
 
     // Setup Express app with Trokky integration
