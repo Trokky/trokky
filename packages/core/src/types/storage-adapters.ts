@@ -328,9 +328,10 @@ export interface MediaStorageAdapter {
   /**
    * Get a streaming URL for the file (if supported)
    * @param id - The file ID
+   * @param options - Optional URL generation options (expiration time, etc.)
    * @returns Public URL for the file or null if not available
    */
-  getFileUrl?(id: string): Promise<string | null>
+  getFileUrl?(id: string, options?: { expiresIn?: number }): Promise<string | null>
   
   /**
    * List media files with filtering and pagination
@@ -389,9 +390,10 @@ export interface MediaStorageAdapter {
    * Get a public URL for a variant (if supported)
    * @param parentId - The original file ID
    * @param variantName - The variant name
+   * @param options - Optional URL generation options (expiration time, etc.)
    * @returns Public URL for the variant or null if not available
    */
-  getVariantUrl?(parentId: string, variantName: string): Promise<string | null>
+  getVariantUrl?(parentId: string, variantName: string, options?: { expiresIn?: number }): Promise<string | null>
   
   /**
    * List all variants for a media file
