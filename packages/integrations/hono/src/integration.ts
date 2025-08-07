@@ -1,25 +1,26 @@
-import { Router } from 'express'
+import { Hono } from 'hono'
 import { TrokkyRoutes } from '@trokky/routes'
-import { ExpressAdapter } from './adapter.js'
-import { TrokkyExpressMiddleware } from './middleware.js'
+import { HonoAdapter } from './adapter.js'
+import { TrokkyHonoMiddleware } from './middleware.js'
 import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters } from '@trokky/core'
-import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
+import type { HonoIntegrationConfig, HonoIntegration, CloudflareEnv } from './types.js'
 import type { TrokkyConfig as NewTrokkyConfig, StorageConfig } from './config.js'
 import { withDefaults } from './config.js'
 
 /**
- * Main Express integration class for Trokky CMS
+ * Main Hono integration class for Trokky CMS
  * 
- * Creates an Express router with all Trokky routes and middleware
+ * Creates a Hono app with all Trokky routes and middleware
+ * Follows the same pattern as TrokkyExpress
  */
-export class TrokkyExpress {
+export class TrokkyHono {
   public routes: TrokkyRoutes  // Make public for debugging
-  private adapter: ExpressAdapter
-  private middleware: TrokkyExpressMiddleware
-  private config: ExpressIntegrationConfig
-  private logger = createLogger('express', 'TrokkyExpress')
+  private adapter: HonoAdapter
+  private middleware: TrokkyHonoMiddleware
+  private config: HonoIntegrationConfig
+  private logger = createLogger('hono', 'TrokkyHono')
 
-  constructor(config: ExpressIntegrationConfig) {
+  constructor(config: HonoIntegrationConfig) {
     this.config = config
     
     // Validate configuration to prevent common mounting issues
@@ -27,134 +28,162 @@ export class TrokkyExpress {
       this.logger.warn(
         'basePath starts with "/api" but routes will be mounted on a path. ' +
         'This may cause double paths like "/api/api/v1/*". ' +
-        'Consider using basePath: "" and mounting the router on your desired path.',
+        'Consider using basePath: "" and mounting the app on your desired path.',
         { basePath: config.basePath }
       )
     }
     
-    this.routes = new TrokkyRoutes(config)
-    this.adapter = new ExpressAdapter()
-    this.middleware = new TrokkyExpressMiddleware(config)
+    this.routes = new TrokkyRoutes({ 
+      core: config.core,
+      basePath: config.basePath
+    })
+    this.adapter = new HonoAdapter()
+    this.middleware = new TrokkyHonoMiddleware(config)
   }
 
   /**
-   * Create complete Express integration with router and middleware
+   * Create complete Hono integration with app and middleware
    */
-  public async createIntegration(): Promise<ExpressIntegration> {
-    const router = this.createRouter()
-    const staticRouter = this.createStaticRouter()
-    const middleware = this.middleware.getMiddleware()
+  public async createIntegration(env?: CloudflareEnv): Promise<HonoIntegration> {
+    const app = this.createApp(env)
+    const staticApp = this.createStaticApp(env)
+    const middleware = this.middleware.getMiddleware(env)
     
-    // Create Studio router if enabled
-    let studioRouter: Router | undefined
+    // Create Studio app if enabled
+    let studioApp: Hono<{ Bindings: CloudflareEnv }> | undefined
     if (this.config.studio?.enabled !== false) {
-      studioRouter = await this.createStudioRouter()
+      studioApp = await this.createStudioApp(env)
     }
 
     // Create auto-mount function
-    const mount = (app: any, options?: { apiPath?: string; studioPath?: string }) => {
+    const mount = (baseApp: Hono, options?: { apiPath?: string; studioPath?: string }) => {
       const apiPath = options?.apiPath ?? '/api'
       const studioPath = options?.studioPath ?? '/studio'
       
-      this.logger.info('Auto-mounting Trokky routers', { apiPath, studioPath, hasStudio: !!studioRouter })
+      this.logger.info('Auto-mounting Trokky apps', { apiPath, studioPath, hasStudio: !!studioApp })
       
       // Mount API routes
-      app.use(apiPath, router)
+      baseApp.route(apiPath, app)
       
       // Mount static routes at root level (no authentication)
-      app.use('/', staticRouter)
+      baseApp.route('/', staticApp)
       
       // Mount Studio if enabled
-      if (studioRouter) {
-        app.use(studioPath, studioRouter)
+      if (studioApp) {
+        baseApp.route(studioPath, studioApp)
+      }
+    }
+
+    // Create fetch handler for Cloudflare Workers
+    const fetch = async (request: Request, env: CloudflareEnv, ctx: ExecutionContext) => {
+      try {
+        // Initialize storage adapters with Cloudflare bindings
+        if (this.config.dataAdapter && this.config.mediaAdapter) {
+          const dataAdapter = await this.config.dataAdapter(env)
+          const mediaAdapter = await this.config.mediaAdapter(env)
+          // Note: Routes don't support dynamic adapter setting in this architecture
+          // Storage is handled at the core level during initialization
+        }
+
+        // Create and return app with env context
+        const currentApp = this.createApp(env)
+        return currentApp.fetch(request, env, ctx)
+
+      } catch (error) {
+        this.logger.error('Worker fetch handler error', error)
+        return new Response(`Worker Error: ${error instanceof Error ? error.message : String(error)}`, { 
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' }
+        })
       }
     }
 
     return {
-      router,
-      staticRouter,
-      studioRouter,
+      app,
+      staticApp,
+      studioApp,
       middleware,
       config: this.config,
-      mount
+      mount,
+      fetch
     }
   }
 
   /**
-   * Create Express router with API routes only (excludes static routes)
+   * Create Hono app with API routes only (excludes static routes)
    */
-  public createRouter(): Router {
-    const router = Router()
+  public createApp(env?: CloudflareEnv): Hono<{ Bindings: CloudflareEnv }> {
+    const app = new Hono<{ Bindings: CloudflareEnv }>()
 
-    // Apply middleware to router first
-    const middleware = this.middleware.getMiddleware()
+    // Apply middleware to app first
+    const middleware = this.middleware.getMiddleware(env)
     for (const middlewareFn of middleware) {
-      router.use(middlewareFn)
+      app.use('*', middlewareFn)
     }
 
     // Get only API routes from TrokkyRoutes (not static routes)
     const routeDefinitions = this.routes.getApiRoutes()
-    this.logger.info('Creating Express router', { routeCount: routeDefinitions.length })
+    this.logger.info('Creating Hono app', { routeCount: routeDefinitions.length })
     
-    // Add each route to Express router
+    // Add each route to Hono app
     for (const routeDef of routeDefinitions) {
       this.logger.debug('Registering route', { method: routeDef.method, path: routeDef.path })
-      const expressHandler = this.adapter.handleRoute(routeDef.handler)
+      const honoHandler = this.adapter.handleRoute(routeDef.handler)
       
-      // Map HTTP methods to Express router methods - cast to any to handle type compatibility
+      // Map HTTP methods to Hono app methods
       switch (routeDef.method) {
         case 'GET':
-          router.get(routeDef.path, expressHandler as any)
+          app.get(routeDef.path, honoHandler)
           break
         case 'POST':
-          router.post(routeDef.path, expressHandler as any)
+          app.post(routeDef.path, honoHandler)
           break
         case 'PUT':
-          router.put(routeDef.path, expressHandler as any)
+          app.put(routeDef.path, honoHandler)
           break
         case 'DELETE':
-          router.delete(routeDef.path, expressHandler as any)
+          app.delete(routeDef.path, honoHandler)
           break
         case 'PATCH':
-          router.patch(routeDef.path, expressHandler as any)
+          app.patch(routeDef.path, honoHandler)
           break
         case 'OPTIONS':
-          router.options(routeDef.path, expressHandler as any)
+          app.options(routeDef.path, honoHandler)
           break
         default:
           this.logger.warn('Unsupported HTTP method', { method: routeDef.method })
       }
     }
 
-    return router
+    return app
   }
 
   /**
-   * Create Express router with static routes only (excludes API routes)
+   * Create Hono app with static routes only (excludes API routes)
    */
-  public createStaticRouter(): Router {
-    const router = Router()
+  public createStaticApp(env?: CloudflareEnv): Hono<{ Bindings: CloudflareEnv }> {
+    const app = new Hono<{ Bindings: CloudflareEnv }>()
 
     // Get only static routes from TrokkyRoutes
     const staticRoutes = this.routes.getStaticRoutes()
-    this.logger.info('Creating static router', { routeCount: staticRoutes.length })
+    this.logger.info('Creating static app', { routeCount: staticRoutes.length })
     
-    // Add each static route to Express router
+    // Add each static route to Hono app
     for (const routeDef of staticRoutes) {
       this.logger.debug('Registering static route', { method: routeDef.method, path: routeDef.path })
-      const expressHandler = this.adapter.handleRoute(routeDef.handler)
+      const honoHandler = this.adapter.handleRoute(routeDef.handler)
       
       // Static routes are typically GET only
-      router.get(routeDef.path, expressHandler as any)
+      app.get(routeDef.path, honoHandler)
     }
 
-    return router
+    return app
   }
 
   /**
-   * Create Studio router if Studio integration is enabled
+   * Create Studio app if Studio integration is enabled
    */
-  public async createStudioRouter(): Promise<Router | undefined> {
+  public async createStudioApp(env?: CloudflareEnv): Promise<Hono<{ Bindings: CloudflareEnv }> | undefined> {
     if (!this.config.studio) {
       return undefined
     }
@@ -167,17 +196,9 @@ export class TrokkyExpress {
   /**
    * Get just the middleware array
    */
-  public getMiddleware() {
-    return this.middleware.getMiddleware()
+  public getMiddleware(env?: CloudflareEnv) {
+    return this.middleware.getMiddleware(env)
   }
-
-  /**
-   * Get the error handler middleware
-   */
-  public static getErrorHandler() {
-    return TrokkyExpressMiddleware.createErrorHandler()
-  }
-
 
   /**
    * 🎯 PROFESSIONAL SETUP - Clean, type-safe configuration
@@ -187,24 +208,10 @@ export class TrokkyExpress {
    * - Environment-aware defaults
    * - Better TypeScript auto-completion
    * - Integration with trokky.config.ts
-   * 
-   * @example
-   * ```typescript
-   * const trokky = await TrokkyExpress.create({
-   *   schemas: blogSchemas,
-   *   storage: {
-   *     data: { adapter: 'filesystem-data', options: { contentDir: './content' } },
-   *     media: { adapter: 'filesystem-media', options: { mediaDir: './media' } }
-   *   },
-   *   security: { adminUser: { username: 'admin', email: 'admin@demo.com', password: 'demo123' } }
-   * })
-   * 
-   * trokky.mount(app)
-   * ```
    */
-  public static async create(config: NewTrokkyConfig): Promise<ExpressIntegration> {
-    const logger = createLogger('express', 'ProfessionalSetup')
-    logger.info('🎯 Starting professional Trokky setup')
+  public static async create(config: NewTrokkyConfig): Promise<HonoIntegration> {
+    const logger = createLogger('hono', 'ProfessionalSetup')
+    logger.info('🎯 Starting professional Trokky Hono setup')
 
     try {
       // Apply smart defaults based on environment
@@ -213,7 +220,7 @@ export class TrokkyExpress {
       // 1. Create split storage adapters
       const storageAdapters = await this.createStorageAdaptersFromConfig(fullConfig.storage)
       
-      // 2. Create TrokkyCore config (legacy format) - simplified since adapters are handled separately
+      // 2. Create TrokkyCore config (legacy format)
       const coreConfig: TrokkyConfig = {
         storage: {
           adapter: 'split',
@@ -274,17 +281,17 @@ export class TrokkyExpress {
         }
       }
       
-      // 5. Map professional config to Express integration config
-      const expressConfig: ExpressIntegrationConfig = {
+      // 5. Map professional config to Hono integration config
+      const honoConfig: HonoIntegrationConfig = {
         core,
         basePath: fullConfig.server.basePath,
         corsOptions: fullConfig.server.cors ? {
           origin: typeof fullConfig.server.cors.origin === 'function' 
-            ? 'http://localhost:5173' // Fallback for function origins
+            ? ['https://localhost:5173', 'http://localhost:5173'] // Fallback for function origins
             : fullConfig.server.cors.origin,
           credentials: fullConfig.server.cors.credentials,
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+          allowMethods: fullConfig.server.cors.methods || ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+          allowHeaders: fullConfig.server.cors.allowedHeaders || ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
         } : undefined,
         staticRoutes: fullConfig.server.static.media || fullConfig.server.static.assets ? {
           ...(fullConfig.server.static.media && {
@@ -312,7 +319,12 @@ export class TrokkyExpress {
           enabled: fullConfig.security.enabled,
           publicPaths: []
         } : undefined,
-        rateLimiting: fullConfig.security.rateLimit?.enabled ? fullConfig.security.rateLimit : undefined,
+        rateLimiting: fullConfig.security.rateLimit?.enabled ? {
+          enabled: fullConfig.security.rateLimit.enabled,
+          windowMs: fullConfig.security.rateLimit.windowMs,
+          maxRequests: fullConfig.security.rateLimit.maxRequests,
+          skipSuccessfulRequests: fullConfig.security.rateLimit.skipSuccessfulRequests
+        } : undefined,
         studio: fullConfig.studio.enabled ? {
           enabled: fullConfig.studio.enabled,
           mount: fullConfig.studio.path,
@@ -335,18 +347,17 @@ export class TrokkyExpress {
       }
       
       // 6. Create final integration
-      const integration = new TrokkyExpress(expressConfig)
+      const integration = new TrokkyHono(honoConfig)
       const result = await integration.createIntegration()
       
-      logger.info('🎉 Professional setup complete!')
+      logger.info('🎉 Professional Hono setup complete!')
       return result
       
     } catch (error) {
-      logger.error('❌ Professional setup failed', error)
+      logger.error('❌ Professional Hono setup failed', error)
       throw new Error(`Professional setup failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-
 
   /**
    * Helper method to extract route parameters for dynamic routing
@@ -362,14 +373,12 @@ export class TrokkyExpress {
     return this.routes.extractParams(routePattern, actualPath)
   }
 
-
-
   /**
    * Create split storage adapters from configuration
    * Split-first architecture: always creates separate data and media adapters
    */
   private static async createStorageAdaptersFromConfig(config: StorageConfig): Promise<TrokkyStorageAdapters> {
-    const logger = createLogger('express', 'StorageAdapter')
+    const logger = createLogger('hono', 'StorageAdapter')
     
     logger.info('🔄 Creating split storage adapters', {
       dataAdapter: config.data.adapter,
@@ -473,7 +482,6 @@ export class TrokkyExpress {
         throw new Error(`Unsupported media adapter: ${(config as any).adapter}`)
     }
   }
-
 
   /**
    * Generate a secure JWT secret if none provided

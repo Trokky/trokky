@@ -1,8 +1,8 @@
 /**
- * Professional Trokky Express Configuration System
+ * Professional Trokky Hono Configuration System
  * 
  * This provides a clean, type-safe configuration interface that can be used
- * both directly in TrokkyExpress.setup() and via trokky.config.ts files.
+ * both directly in TrokkyHono.create() and via trokky.config.ts files.
  */
 
 import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter } from '@trokky/core'
@@ -309,9 +309,9 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
     
     server: {
       basePath: '',
-      port: isDev ? 3000 : undefined,
+      port: isDev ? 8787 : undefined, // Cloudflare Workers default port
       cors: {
-        origin: isDev ? ['http://localhost:5173', 'http://localhost:3000'] : false,
+        origin: isDev ? ['http://localhost:5173', 'https://localhost:5173'] : false,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
         credentials: true
@@ -404,4 +404,3 @@ export async function loadConfig(configPath: string): Promise<TrokkyConfig> {
     throw new Error(`Failed to load config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
-

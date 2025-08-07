@@ -1264,8 +1264,8 @@ export class CloudflareR2Adapter implements MediaStorageAdapter {
       const bytes = new Uint8Array(buffer)
       
       // Convert chunks to text to search for patterns
-      const firstChunk = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(0, chunkSize))
-      const lastChunk = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(-chunkSize))
+      const firstChunk = new TextDecoder('utf-8', { fatal: false, ignoreBOM: false }).decode(bytes.slice(0, chunkSize))
+      const lastChunk = new TextDecoder('utf-8', { fatal: false, ignoreBOM: false }).decode(bytes.slice(-chunkSize))
       
       const binaryDangerousPatterns = [
         /<script/i,
