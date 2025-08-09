@@ -160,29 +160,21 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
 
     // Create FTS table if enabled
     if (this.config.enableFTS) {
-      const createFTS = `
-        CREATE VIRTUAL TABLE IF NOT EXISTS ${this.tableName('documents_fts')} USING fts5(
-          collection, data, content=${this.tableName('documents')}, content_rowid=rowid
-        );
-
-        -- Trigger to keep FTS in sync
-        CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_insert')} AFTER INSERT ON ${this.tableName('documents')} BEGIN
-          INSERT INTO ${this.tableName('documents_fts')} (rowid, collection, data) 
-          VALUES (new.rowid, new.collection, new.data);
-        END;
-
-        CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_delete')} AFTER DELETE ON ${this.tableName('documents')} BEGIN
-          DELETE FROM ${this.tableName('documents_fts')} WHERE rowid = old.rowid;
-        END;
-
-        CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_update')} AFTER UPDATE ON ${this.tableName('documents')} BEGIN
-          DELETE FROM ${this.tableName('documents_fts')} WHERE rowid = old.rowid;
-          INSERT INTO ${this.tableName('documents_fts')} (rowid, collection, data) 
-          VALUES (new.rowid, new.collection, new.data);
-        END;
-      `
+      // Execute FTS statements separately to avoid D1 parsing issues
+      const ftsStatements = [
+        `CREATE VIRTUAL TABLE IF NOT EXISTS ${this.tableName('documents_fts')} USING fts5(collection, data, content=${this.tableName('documents')}, content_rowid=rowid)`,
+        
+        `CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_insert')} AFTER INSERT ON ${this.tableName('documents')} BEGIN INSERT INTO ${this.tableName('documents_fts')} (rowid, collection, data) VALUES (new.rowid, new.collection, new.data); END`,
+        
+        `CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_delete')} AFTER DELETE ON ${this.tableName('documents')} BEGIN DELETE FROM ${this.tableName('documents_fts')} WHERE rowid = old.rowid; END`,
+        
+        `CREATE TRIGGER IF NOT EXISTS ${this.tableName('documents_fts_update')} AFTER UPDATE ON ${this.tableName('documents')} BEGIN DELETE FROM ${this.tableName('documents_fts')} WHERE rowid = old.rowid; INSERT INTO ${this.tableName('documents_fts')} (rowid, collection, data) VALUES (new.rowid, new.collection, new.data); END`
+      ]
       
-      await this.db.exec(createFTS)
+      for (const statement of ftsStatements) {
+        await this.db.exec(statement)
+      }
+      
       this.logger.info('FTS tables and triggers created')
     }
 

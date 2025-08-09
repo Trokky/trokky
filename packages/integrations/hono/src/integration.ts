@@ -127,7 +127,8 @@ export class TrokkyHono {
     
     // Add each route to Hono app
     for (const routeDef of routeDefinitions) {
-      this.logger.debug('Registering route', { method: routeDef.method, path: routeDef.path })
+      // Only log route registration in very verbose mode (not in normal debug)
+      // this.logger.debug('Registering route', { method: routeDef.method, path: routeDef.path })
       const honoHandler = this.adapter.handleRoute(routeDef.handler)
       
       // Map HTTP methods to Hono app methods
@@ -170,7 +171,8 @@ export class TrokkyHono {
     
     // Add each static route to Hono app
     for (const routeDef of staticRoutes) {
-      this.logger.debug('Registering static route', { method: routeDef.method, path: routeDef.path })
+      // Only log route registration in very verbose mode (not in normal debug)
+      // this.logger.debug('Registering static route', { method: routeDef.method, path: routeDef.path })
       const honoHandler = this.adapter.handleRoute(routeDef.handler)
       
       // Static routes are typically GET only

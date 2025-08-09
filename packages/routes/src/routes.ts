@@ -124,7 +124,8 @@ export class TrokkyRoutes {
 
   private addRoute(method: string, path: string, handler: RouteHandler): void {
     const key = `${method}:${path}`
-    this.logger.debug('Adding route', { method, path })
+    // Only log route registration in very verbose mode (not in normal debug)
+    // this.logger.debug('Adding route', { method, path })
     this.routes.set(key, {
       method: method as any,
       path,
