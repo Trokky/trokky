@@ -12,19 +12,19 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     },
     "./generator": {
+      "types": "./dist/generator/index.d.ts",
       "import": "./dist/generator/index.js",
-      "require": "./dist/generator/index.js",
-      "types": "./dist/generator/index.d.ts"
+      "require": "./dist/generator/index.js"
     },
     "./document-generator": {
+      "types": "./dist/generator/document-generator.d.ts",
       "import": "./dist/generator/document-generator.js",
-      "require": "./dist/generator/document-generator.js",
-      "types": "./dist/generator/document-generator.d.ts"
+      "require": "./dist/generator/document-generator.js"
     }
   },
   "files": ["dist", "README.md"],

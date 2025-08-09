@@ -9,24 +9,24 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     },
     "./types": {
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js",
-      "require": "./dist/types/index.js",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/types/index.js"
     },
     "./builder": {
+      "types": "./dist/builder/index.d.ts",
       "import": "./dist/builder/index.js",
-      "require": "./dist/builder/index.js",
-      "types": "./dist/builder/index.d.ts"
+      "require": "./dist/builder/index.js"
     },
     "./views": {
+      "types": "./dist/views/index.d.ts",
       "import": "./dist/views/index.js",
-      "require": "./dist/views/index.js",
-      "types": "./dist/views/index.d.ts"
+      "require": "./dist/views/index.js"
     }
   },
   "files": ["dist", "README.md"],
