@@ -21,8 +21,12 @@ export function getUniversalCrypto() {
         return {
             getRandomBytes(length) {
                 try {
-                    // Use eval to prevent bundlers from trying to resolve this
-                    const crypto = eval('require')('crypto');
+                    // Use dynamic require to avoid bundler warnings
+                    const requireFunc = typeof require !== 'undefined' ? require : null;
+                    if (!requireFunc) {
+                        return getFallbackRandomBytes(length);
+                    }
+                    const crypto = requireFunc('crypto');
                     return new Uint8Array(crypto.randomBytes(length));
                 }
                 catch (error) {
