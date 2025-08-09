@@ -73,12 +73,13 @@ export default defineConfig({
     proxy: {
       // Auto-proxy API calls to demo backend during development
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_API_URL || 'http://localhost:3000',
         changeOrigin: true,
         configure: (proxy, options) => {
           // Log proxy requests for debugging
+          const targetUrl = process.env.VITE_API_URL || 'http://localhost:3000';
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log(`Proxying ${req.method} ${req.url} to backend on port 3000`);
+            console.log(`Proxying ${req.method} ${req.url} to backend at ${targetUrl}`);
           });
           proxy.on('error', (err, req, res) => {
             console.log('Proxy error:', err.message);

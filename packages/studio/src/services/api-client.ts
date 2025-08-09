@@ -45,11 +45,11 @@ export class ApiClient {
       throw new Error('Studio configuration not found. TROKKY_CONFIG not found.');
     }
     
-    // In development mode, Studio runs on Vite dev server (5173) but API is on main server (3000)
+    // In development mode, Studio runs on Vite dev server (5173) but API is on main server
     // In production mode, both Studio and API are served from the same origin
     if (config.mode === 'development' || window.location.port === '5173') {
-      // Development mode: API is on different port
-      this.baseUrl = 'http://localhost:3000';
+      // Development mode: Use VITE_API_URL environment variable or default
+      this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     } else {
       // Production mode: API is on same origin
       this.baseUrl = window.location.origin;
