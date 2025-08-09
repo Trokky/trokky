@@ -172,7 +172,14 @@ const integration = new TrokkyHono({
 - Check admin user exists in database
 - Verify JWT secret is set
 
-#### 4. Build Warnings
+#### 4. Common Warnings
+
+**Warning**: `Admin password must be at least 8 characters long`
+**Warning**: `basePath starts with "/api" but routes will be mounted on a path`
+
+**Solutions**: See [Troubleshooting Guide](../../examples/demo-cloudflare/TROUBLESHOOTING.md) for detailed fixes.
+
+#### 5. Build Warnings
 
 **Warning**: `Using direct eval with a bundler is not recommended`
 
