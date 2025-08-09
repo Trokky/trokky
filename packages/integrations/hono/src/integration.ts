@@ -36,6 +36,7 @@ export class TrokkyHono {
     this.routes = new TrokkyRoutes({ 
       core: config.core,
       basePath: config.basePath
+      // Remove corsOptions - let Hono middleware handle CORS
     })
     this.adapter = new HonoAdapter()
     this.middleware = new TrokkyHonoMiddleware(config)

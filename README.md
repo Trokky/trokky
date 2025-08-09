@@ -65,6 +65,25 @@ npm install @trokky/nextjs
 npm install @trokky/cloudflare-workers
 ```
 
+### Cloudflare Workers Development
+
+For Cloudflare Workers with concurrent Studio development:
+
+```bash
+# Clone and setup
+git clone https://github.com/your-org/trokky-v2.git
+cd trokky-v2
+
+# Start Cloudflare Worker + Studio concurrently
+npm run dev:worker
+```
+
+**Runs:**
+- Cloudflare Worker on `http://localhost:8787`
+- Trokky Studio on `http://localhost:5173`
+
+See [Cloudflare Development Guide](./docs/guides/CLOUDFLARE_DEVELOPMENT.md) for detailed setup and troubleshooting.
+
 ## 🔐 Authentication & User Management
 
 Trokky v2 includes built-in user management with enterprise-grade security:
