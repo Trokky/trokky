@@ -22,13 +22,15 @@ export function getUniversalCrypto(): UniversalCrypto {
     }
   }
 
-  // Node.js environment - use dynamic import to avoid bundling
+  // Node.js environment - use dynamic require detection to avoid bundling
   if (typeof process !== 'undefined' && process.versions && process.versions.node) {
     return {
       getRandomBytes(length: number): Uint8Array {
         try {
-          // Use eval to prevent bundlers from trying to resolve this
-          const crypto = eval('require')('crypto')
+          // Use dynamic require detection to prevent bundlers from trying to resolve this
+          const requireFunc = typeof require !== 'undefined' ? require : null
+          if (!requireFunc) throw new Error('require not available')
+          const crypto = requireFunc('crypto')
           return new Uint8Array(crypto.randomBytes(length))
         } catch (error) {
           // Fallback if crypto is not available
