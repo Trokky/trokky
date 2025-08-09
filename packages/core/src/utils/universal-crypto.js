@@ -1,20 +1,11 @@
-"use strict";
 /**
  * Universal crypto utilities that work across all JavaScript environments
  * Supports: Browser, Node.js, Cloudflare Workers, Deno, Bun, etc.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUniversalCrypto = getUniversalCrypto;
-exports.bytesToHex = bytesToHex;
-exports.generateRandomHex = generateRandomHex;
-exports.generateUUID = generateUUID;
-exports.getSecureRandomInt = getSecureRandomInt;
-exports.secureShuffleArray = secureShuffleArray;
-exports.generateSecurePassword = generateSecurePassword;
 /**
  * Detect and return the best crypto implementation for the current environment
  */
-function getUniversalCrypto() {
+export function getUniversalCrypto() {
     // Web Crypto API (browser, Cloudflare Workers, Deno)
     if (typeof globalThis !== 'undefined' && globalThis.crypto && 'getRandomValues' in globalThis.crypto) {
         return {
@@ -61,13 +52,13 @@ function getFallbackRandomBytes(length) {
 /**
  * Convert byte array to hex string
  */
-function bytesToHex(bytes) {
+export function bytesToHex(bytes) {
     return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 /**
  * Generate a cryptographically secure random hex string
  */
-function generateRandomHex(length) {
+export function generateRandomHex(length) {
     const crypto = getUniversalCrypto();
     const bytes = crypto.getRandomBytes(Math.ceil(length / 2));
     return bytesToHex(bytes).slice(0, length);
@@ -75,7 +66,7 @@ function generateRandomHex(length) {
 /**
  * Generate a UUID v4
  */
-function generateUUID() {
+export function generateUUID() {
     const crypto = getUniversalCrypto();
     const bytes = crypto.getRandomBytes(16);
     // Set version (4) and variant bits
@@ -94,7 +85,7 @@ function generateUUID() {
  * Generate a cryptographically secure random integer between 0 and max (exclusive)
  * Uses rejection sampling to avoid modulo bias
  */
-function getSecureRandomInt(max) {
+export function getSecureRandomInt(max) {
     if (max <= 0)
         throw new Error('Max must be positive');
     if (max > 256)
@@ -113,7 +104,7 @@ function getSecureRandomInt(max) {
 /**
  * Cryptographically secure array shuffling using Fisher-Yates algorithm
  */
-function secureShuffleArray(array) {
+export function secureShuffleArray(array) {
     const result = [...array];
     for (let i = result.length - 1; i > 0; i--) {
         // For large arrays, we need to handle max > 256
@@ -132,7 +123,7 @@ function secureShuffleArray(array) {
     }
     return result;
 }
-function generateSecurePassword(options = {}) {
+export function generateSecurePassword(options = {}) {
     const { length = 16, includeUppercase = true, includeLowercase = true, includeNumbers = true, includeSpecialChars = true, customChars = '', excludeSimilar = false } = options;
     if (length < 1)
         throw new Error('Password length must be at least 1');

@@ -186,6 +186,14 @@ window.TrokkyLogger.getLevel()
 - **Production**: `error` level (errors only)
 - Settings persist across page reloads in development
 
+## 🌐 Edge Runtime Notes (Cloudflare Workers)
+
+- Crypto: Core auto-detects Web Crypto and uses an edge-safe adapter. No need to install `bcrypt` or `jsonwebtoken` on Workers.
+- Image processing: Set `media.processor` to `'none'` (or a cloud image service) on Workers; `sharp` is Node-only and optional.
+- Storage: Use split adapters for Cloudflare — D1 for data (`@trokky/adapter-cloudflare-d1`) and R2 for media (`@trokky/adapter-cloudflare-r2`).
+- Responses: Media endpoints return `Uint8Array` bodies, compatible with Workers and Node.
+- Env access: Avoid direct unguarded `process.env` usage in edge code; core guards its env reads for secrets and mode.
+
 ## 📚 Documentation
 
 - [**Project Specification**](./docs/specs/PROJECT_SPEC.md) - Detailed project overview

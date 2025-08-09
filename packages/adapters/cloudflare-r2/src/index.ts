@@ -12,3 +12,17 @@ export type {
   R2UploadOptions,
   R2FileMetadata
 } from './types.js'
+
+// Auto-register adapter in global registry when imported
+import { registerAdapter } from '@trokky/core'
+import { CloudflareR2Adapter } from './cloudflare-r2-adapter.js'
+import type { CloudflareR2AdapterConfig } from './types.js'
+
+registerAdapter({
+  name: 'cloudflare-r2',
+  type: 'media',
+  environments: ['edge', 'cloudflare'],
+  factory: (config: CloudflareR2AdapterConfig) => {
+    return new CloudflareR2Adapter(config)
+  }
+})

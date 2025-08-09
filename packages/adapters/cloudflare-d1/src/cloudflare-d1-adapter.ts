@@ -34,9 +34,14 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
   private config: CloudflareD1AdapterConfig
   private logger = createLogger('adapter', 'CloudflareD1')
   private tablePrefix: string
+  private initialized = false
 
   constructor(config: CloudflareD1AdapterConfig = {}) {
-    this.config = config
+    this.config = {
+      autoInitialize: config.autoInitialize ?? false,
+      skipIfExists: config.skipIfExists ?? true,
+      ...config
+    }
     this.tablePrefix = config.tablePrefix || ''
     
     if (config.database) {
@@ -45,6 +50,13 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
 
     if (!this.db && !config.databaseName) {
       this.logger.warn('No D1 database provided. Call setDatabase() before use.')
+    }
+
+    // Auto-initialize if enabled and database is available
+    if (this.config.autoInitialize && this.db) {
+      this.initialize().catch(error => {
+        this.logger.warn('Auto-initialization failed:', error)
+      })
     }
   }
 
@@ -57,6 +69,25 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
   }
 
   /**
+   * Check if database schema exists
+   */
+  private async schemaExists(): Promise<boolean> {
+    if (!this.db) return false
+
+    try {
+      const result = await this.db
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+        .bind(this.tableName('documents'))
+        .first()
+      
+      return result !== null
+    } catch (error) {
+      this.logger.debug('Error checking schema existence:', error)
+      return false
+    }
+  }
+
+  /**
    * Initialize database schema
    */
   public async initialize(): Promise<void> {
@@ -64,9 +95,19 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
       throw new Error('D1 database not configured')
     }
 
+    if (this.initialized) {
+      this.logger.debug('Already initialized, skipping')
+      return
+    }
+
     try {
-      // Create base schema tables if they don't exist
-      await this.createSchema()
+      // Check if schema exists and skip if configured to do so
+      if (this.config.skipIfExists && await this.schemaExists()) {
+        this.logger.info('Schema already exists, skipping creation')
+      } else {
+        // Create base schema tables if they don't exist
+        await this.createSchema()
+      }
       
       // Run custom migrations if provided
       if (this.config.migrations && this.config.migrations.length > 0) {
@@ -76,6 +117,7 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
         this.logger.info('Custom migrations executed')
       }
 
+      this.initialized = true
       this.logger.info('CloudflareD1Adapter initialized')
     } catch (error) {
       this.logger.error('Failed to initialize D1 adapter', error)
@@ -89,76 +131,32 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
   private async createSchema(): Promise<void> {
     if (!this.db) return
 
-    const createTables = `
-      -- Documents table
-      CREATE TABLE IF NOT EXISTS ${this.tableName('documents')} (
-        id TEXT PRIMARY KEY,
-        collection TEXT NOT NULL,
-        data TEXT NOT NULL,
-        slug TEXT,
-        published INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'draft',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        created_by TEXT,
-        updated_by TEXT,
-        revision INTEGER DEFAULT 1
-      );
+    // Execute each statement individually to avoid SQL parsing issues with comments  
+    const statements = [
+      // Documents table - using single line to avoid template string issues
+      `CREATE TABLE IF NOT EXISTS ${this.tableName('documents')} (id TEXT PRIMARY KEY, collection TEXT NOT NULL, data TEXT NOT NULL, slug TEXT, published INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, created_by TEXT, updated_by TEXT, revision INTEGER DEFAULT 1)`,
+      
+      // Document indexes
+      `CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_collection ON ${this.tableName('documents')} (collection)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_published ON ${this.tableName('documents')} (published)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_status ON ${this.tableName('documents')} (status)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_slug ON ${this.tableName('documents')} (slug)`,
+      `CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_updated ON ${this.tableName('documents')} (updated_at)`,
 
-      -- Indexes for documents
-      CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_collection ON ${this.tableName('documents')} (collection);
-      CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_published ON ${this.tableName('documents')} (published);
-      CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_status ON ${this.tableName('documents')} (status);
-      CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_slug ON ${this.tableName('documents')} (slug);
-      CREATE INDEX IF NOT EXISTS idx_${this.tablePrefix}docs_updated ON ${this.tableName('documents')} (updated_at);
+      // Users table - single line
+      `CREATE TABLE IF NOT EXISTS ${this.tableName('users')} (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, first_name TEXT, last_name TEXT, role TEXT DEFAULT 'user', permissions TEXT DEFAULT '[]', is_active INTEGER DEFAULT 1, preferences TEXT DEFAULT '{}', last_login_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 
-      -- Users table
-      CREATE TABLE IF NOT EXISTS ${this.tableName('users')} (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        first_name TEXT,
-        last_name TEXT,
-        role TEXT DEFAULT 'user',
-        permissions TEXT DEFAULT '[]',
-        is_active INTEGER DEFAULT 1,
-        preferences TEXT DEFAULT '{}',
-        last_login_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
+      // App tokens table - single line
+      `CREATE TABLE IF NOT EXISTS ${this.tableName('app_tokens')} (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT UNIQUE NOT NULL, permissions TEXT NOT NULL, description TEXT, is_active INTEGER DEFAULT 1, last_used_at TEXT, expires_at TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 
-      -- App tokens table
-      CREATE TABLE IF NOT EXISTS ${this.tableName('app_tokens')} (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        token_hash TEXT UNIQUE NOT NULL,
-        permissions TEXT NOT NULL,
-        description TEXT,
-        is_active INTEGER DEFAULT 1,
-        last_used_at TEXT,
-        expires_at TEXT,
-        created_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
+      // Audit logs table - single line
+      `CREATE TABLE IF NOT EXISTS ${this.tableName('audit_logs')} (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, user_id TEXT, resource_type TEXT, resource_id TEXT, details TEXT, ip_address TEXT, user_agent TEXT, created_at TEXT NOT NULL)`
+    ]
 
-      -- Audit logs table
-      CREATE TABLE IF NOT EXISTS ${this.tableName('audit_logs')} (
-        id TEXT PRIMARY KEY,
-        event_type TEXT NOT NULL,
-        user_id TEXT,
-        resource_type TEXT,
-        resource_id TEXT,
-        details TEXT,
-        ip_address TEXT,
-        user_agent TEXT,
-        created_at TEXT NOT NULL
-      );
-    `
-
-    await this.db.exec(createTables)
+    // Execute each statement individually
+    for (const statement of statements) {
+      await this.db.exec(statement)
+    }
 
     // Create FTS table if enabled
     if (this.config.enableFTS) {

@@ -35,7 +35,7 @@ import {
   AppTokenListOptions,
   CreateAppTokenData
 } from '../types/index.js'
-import { AppTokenCreationResult } from '../security/auth.js'
+import type { AppTokenCreationResult } from '../security/auth.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -88,7 +88,8 @@ export class TrokkyCore {
   private jwtSecret: string
   private auditLogger?: (event: AuditEvent) => void
   private cryptoAdapter: CryptoAdapter
-  private imageProcessor: ImageProcessor
+  private imageProcessor!: ImageProcessor // Initialized in init() method
+  private imageProcessorConfig: ImageProcessorConfig
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
 
@@ -137,10 +138,11 @@ export class TrokkyCore {
     this.idGenerator = options.idGenerator || new IdGenerator()
     this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true
     
-    // Initialize JWT secret (use provided secret, environment variable, or generate one)
-    this.jwtSecret = options.jwtSecret || 
-                     process.env.TROKKY_JWT_SECRET || 
-                     this.generateSecureSecret()
+    // Initialize JWT secret (use provided secret, environment variable if available, or generate one)
+    const envJwt = (typeof process !== 'undefined' && process.env?.TROKKY_JWT_SECRET)
+      ? process.env.TROKKY_JWT_SECRET
+      : undefined
+    this.jwtSecret = options.jwtSecret || envJwt || this.generateSecureSecret()
     
     // Initialize audit logger
     this.auditLogger = options.auditLogger
@@ -151,13 +153,13 @@ export class TrokkyCore {
       adapterType: options.cryptoOptions?.adapterType || 'auto'
     })
     
-    // Initialize image processor from config or options
-    const imageProcessorConfig = options.imageProcessorConfig || {
+    // Image processor will be initialized in init() method
+    // Store config for async initialization
+    this.imageProcessorConfig = options.imageProcessorConfig || {
       type: config.media?.imageProcessor || 'none',
       variants: config.media?.imageVariants || [],
       options: config.media?.imageProcessorOptions || {}
     }
-    this.imageProcessor = options.imageProcessor || createImageProcessor(imageProcessorConfig)
     
     if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
       const rateLimitConfig: RateLimitConfig = {
@@ -262,6 +264,13 @@ export class TrokkyCore {
 
   // Initialization
   public async init(): Promise<void> {
+    // Initialize image processor asynchronously 
+    if (!this.options.imageProcessor) {
+      this.imageProcessor = await createImageProcessor(this.imageProcessorConfig)
+    } else {
+      this.imageProcessor = this.options.imageProcessor
+    }
+
     // Setup admin user from environment variables if configured
     if (this.options.setupAdminFromEnv) {
       await this.setupAdminFromEnv()
@@ -1274,7 +1283,8 @@ export class TrokkyCore {
     const secret = tempAdapter.generateSecureRandom(64)
     
     // Warn if using generated secret (should use environment variable in production)
-    if (process.env.NODE_ENV !== 'test') {
+    const isTestEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
+    if (!isTestEnv) {
       console.warn('⚠️  Using auto-generated JWT secret. Set TROKKY_JWT_SECRET environment variable for production.')
     }
     
@@ -1306,8 +1316,8 @@ export class TrokkyCore {
 
   // Development utility: Setup admin user from environment variables
   public async setupAdminFromEnv(): Promise<User | null> {
-    const adminEmail = process.env.TROKKY_ADMIN_EMAIL
-    const adminPassword = process.env.TROKKY_ADMIN_PASSWORD
+    const adminEmail = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_EMAIL : undefined)
+    const adminPassword = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_PASSWORD : undefined)
     
     // Only proceed if environment variables are set
     if (!adminEmail || !adminPassword) {
@@ -1346,7 +1356,8 @@ export class TrokkyCore {
     })
 
     // Log admin creation with security warning
-    if (process.env.NODE_ENV !== 'test') {
+    const envName = (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined)
+    if (envName !== 'test') {
       console.log('🔧 Admin user created from environment variables')
       console.log(`   Email: ${adminEmail}`)
       console.log('   Username: admin')
@@ -1363,7 +1374,7 @@ export class TrokkyCore {
         console.warn('   • Numbers (0-9)')
         console.warn('   • Special characters (!@#$%^&*)')
         console.warn('   • No common words or patterns')
-        if (process.env.NODE_ENV === 'production') {
+        if (envName === 'production') {
           console.warn('🔥 CRITICAL: Change this password immediately in production!')
         }
       } else {

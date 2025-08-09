@@ -1,14 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.IdGenerator = void 0;
-const universal_crypto_js_1 = require("./universal-crypto.js");
-class IdGenerator {
+import { getUniversalCrypto, bytesToHex } from './universal-crypto.js';
+export class IdGenerator {
+    counter = 0;
+    instanceId;
+    crypto = getUniversalCrypto();
     constructor() {
-        this.counter = 0;
-        this.crypto = (0, universal_crypto_js_1.getUniversalCrypto)();
         // Generate a unique instance ID for this generator
         const bytes = this.crypto.getRandomBytes(4);
-        this.instanceId = (0, universal_crypto_js_1.bytesToHex)(bytes);
+        this.instanceId = bytesToHex(bytes);
     }
     generate(options = {}) {
         const { prefix = '', length = 12, includeTimestamp = true } = options;
@@ -30,7 +28,7 @@ class IdGenerator {
         const remainingLength = Math.max(4, length - id.length);
         const randomBytesNeeded = Math.ceil(remainingLength / 2);
         const randomBytesArray = this.crypto.getRandomBytes(randomBytesNeeded);
-        const randomPart = (0, universal_crypto_js_1.bytesToHex)(randomBytesArray).slice(0, remainingLength);
+        const randomPart = bytesToHex(randomBytesArray).slice(0, remainingLength);
         id += randomPart;
         return id;
     }
@@ -40,7 +38,7 @@ class IdGenerator {
         // Set version (4) and variant bits
         bytes[6] = (bytes[6] & 0x0f) | 0x40;
         bytes[8] = (bytes[8] & 0x3f) | 0x80;
-        const hex = (0, universal_crypto_js_1.bytesToHex)(bytes);
+        const hex = bytesToHex(bytes);
         return [
             hex.slice(0, 8),
             hex.slice(8, 12),
@@ -60,4 +58,3 @@ class IdGenerator {
         this.counter = 0;
     }
 }
-exports.IdGenerator = IdGenerator;

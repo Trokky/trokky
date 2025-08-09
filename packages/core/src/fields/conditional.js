@@ -1,21 +1,18 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ConditionalUtils = exports.ConditionalEvaluator = exports.ConditionalEvaluationError = void 0;
 /**
  * Conditional logic evaluation error
  */
-class ConditionalEvaluationError extends Error {
+export class ConditionalEvaluationError extends Error {
+    expression;
     constructor(message, expression) {
         super(message);
         this.expression = expression;
         this.name = 'ConditionalEvaluationError';
     }
 }
-exports.ConditionalEvaluationError = ConditionalEvaluationError;
 /**
  * Evaluates conditional expressions for field logic
  */
-class ConditionalEvaluator {
+export class ConditionalEvaluator {
     /**
      * Evaluate a conditional expression against a field context
      */
@@ -166,11 +163,10 @@ class ConditionalEvaluator {
         return null;
     }
 }
-exports.ConditionalEvaluator = ConditionalEvaluator;
 /**
  * Utility functions for working with conditional expressions
  */
-class ConditionalUtils {
+export class ConditionalUtils {
     /**
      * Create a simple equals condition
      */
@@ -297,4 +293,3 @@ class ConditionalUtils {
         return errors;
     }
 }
-exports.ConditionalUtils = ConditionalUtils;

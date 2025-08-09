@@ -1,10 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SchemaRegistry = void 0;
-const index_js_1 = require("../types/index.js");
-class SchemaRegistry {
+import { ContentSchemaSchema } from '../types/index.js';
+export class SchemaRegistry {
+    schemas = new Map();
     constructor(schemas) {
-        this.schemas = new Map();
         if (Array.isArray(schemas)) {
             this.loadSchemas(schemas);
         }
@@ -20,7 +17,7 @@ class SchemaRegistry {
     }
     validateAndRegisterSchema(schema) {
         try {
-            const validatedSchema = index_js_1.ContentSchemaSchema.parse(schema);
+            const validatedSchema = ContentSchemaSchema.parse(schema);
             this.schemas.set(validatedSchema.name, validatedSchema);
         }
         catch (error) {
@@ -46,4 +43,3 @@ class SchemaRegistry {
         return this.schemas.delete(name);
     }
 }
-exports.SchemaRegistry = SchemaRegistry;

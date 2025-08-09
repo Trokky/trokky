@@ -1,11 +1,9 @@
-"use strict";
 /**
  * Web Crypto API adapter for edge environments
  * Compatible with Cloudflare Workers, Deno, Vercel Edge, etc.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.WebCryptoAdapter = void 0;
-class WebCryptoAdapter {
+export class WebCryptoAdapter {
+    saltRounds;
     constructor(options = {}) {
         this.saltRounds = options.saltRounds || 12;
         if (!crypto || !crypto.subtle) {
@@ -154,7 +152,8 @@ class WebCryptoAdapter {
             const encoder = new TextEncoder();
             const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
             const signatureBuffer = this.base64UrlDecodeToBuffer(signature);
-            return await crypto.subtle.verify('HMAC', key, signatureBuffer, encoder.encode(message));
+            const messageBuffer = encoder.encode(message);
+            return await crypto.subtle.verify('HMAC', key, signatureBuffer.buffer, messageBuffer.buffer);
         }
         catch {
             return false;
@@ -199,4 +198,3 @@ class WebCryptoAdapter {
         return value * multipliers[unit];
     }
 }
-exports.WebCryptoAdapter = WebCryptoAdapter;

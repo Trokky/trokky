@@ -103,6 +103,14 @@ export class ExpressAdapter {
       res.end()
     } else if (typeof httpResponse.body === 'string') {
       res.send(httpResponse.body)
+    } else if (httpResponse.body instanceof Uint8Array) {
+      // Support edge-style binary bodies
+      res.end(Buffer.from(httpResponse.body))
+    } else if (typeof ArrayBuffer !== 'undefined' && httpResponse.body instanceof ArrayBuffer) {
+      res.end(Buffer.from(new Uint8Array(httpResponse.body)))
+    } else if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView && ArrayBuffer.isView(httpResponse.body as any)) {
+      const view = httpResponse.body as ArrayBufferView
+      res.end(Buffer.from(new Uint8Array(view.buffer)))
     } else if (Buffer.isBuffer(httpResponse.body)) {
       // Handle binary data (like images, videos, etc.) without charset
       res.end(httpResponse.body)

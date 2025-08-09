@@ -24,6 +24,12 @@ export interface CloudflareD1AdapterConfig {
   
   /** Custom SQL migration queries to run on init */
   migrations?: string[]
+  
+  /** Auto-initialize schema on construction (default: false) */
+  autoInitialize?: boolean
+  
+  /** Skip schema creation if tables already exist (default: true) */
+  skipIfExists?: boolean
 }
 
 /**

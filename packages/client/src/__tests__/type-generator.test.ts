@@ -72,9 +72,7 @@ describe('TypeGenerator', () => {
               type: 'array',
               name: 'tags',
               title: 'Tags',
-              options: {
-                of: { type: 'string' }
-              }
+              items: { type: 'string' }
             },
             {
               type: 'reference',

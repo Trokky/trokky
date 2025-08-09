@@ -1,12 +1,9 @@
-"use strict";
 /**
  * System user types for CMS authentication and authorization
  * These are internal system entities, separate from user-defined content schemas
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ROLE_PERMISSIONS = void 0;
 // Default permissions for each role
-exports.ROLE_PERMISSIONS = {
+export const ROLE_PERMISSIONS = {
     admin: [
         'content:read', 'content:write', 'content:delete', 'content:publish',
         'media:read', 'media:upload', 'media:edit', 'media:delete',

@@ -1,22 +1,21 @@
-"use strict";
 /**
  * Fallback crypto adapter for environments without proper crypto support
  * WARNING: This adapter provides minimal security and should only be used for development
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FallbackCryptoAdapter = void 0;
-const universal_crypto_js_1 = require("../utils/universal-crypto.js");
-class FallbackCryptoAdapter {
+import { generateRandomHex } from '../utils/universal-crypto.js';
+export class FallbackCryptoAdapter {
+    saltRounds;
+    hasLoggedWarning = false;
     constructor(options = {}) {
-        this.hasLoggedWarning = false;
         this.saltRounds = options.saltRounds || 12;
         this.logSecurityWarning();
     }
     logSecurityWarning() {
         if (this.hasLoggedWarning)
             return;
-        const isProduction = process.env.NODE_ENV === 'production';
-        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+        const nodeEnv = (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined);
+        const isProduction = nodeEnv === 'production';
+        const isDevelopment = nodeEnv === 'development' || nodeEnv === 'test';
         console.log('');
         console.log('🚨🚨🚨 CRITICAL SECURITY WARNING 🚨🚨🚨');
         console.log('┌─────────────────────────────────────────────────────────────┐');
@@ -59,7 +58,7 @@ class FallbackCryptoAdapter {
     }
     async hashPassword(password) {
         // Log warning on first use
-        if (process.env.NODE_ENV !== 'test') {
+        if ((typeof process === 'undefined') || process.env?.NODE_ENV !== 'test') {
             console.warn('⚠️ INSECURE: Using fallback password hashing');
         }
         // Simple hash using built-in string methods (NOT SECURE)
@@ -83,7 +82,7 @@ class FallbackCryptoAdapter {
     }
     async generateJWT(payload, secret, options = {}) {
         // Log warning on first use
-        if (process.env.NODE_ENV !== 'test') {
+        if ((typeof process === 'undefined') || process.env?.NODE_ENV !== 'test') {
             console.warn('⚠️ INSECURE: Using fallback JWT generation');
         }
         // Simple JWT-like token (NOT SECURE)
@@ -134,7 +133,7 @@ class FallbackCryptoAdapter {
     }
     generateSecureRandom(length = 64) {
         // Use universal crypto which will provide the best available random source
-        return (0, universal_crypto_js_1.generateRandomHex)(length);
+        return generateRandomHex(length);
     }
     // Helper methods (NOT SECURE)
     generateSimpleSalt() {
@@ -190,4 +189,3 @@ class FallbackCryptoAdapter {
         return value * (multipliers[unit] || 3600);
     }
 }
-exports.FallbackCryptoAdapter = FallbackCryptoAdapter;

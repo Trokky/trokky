@@ -1,16 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.RateLimiter = void 0;
-const index_js_1 = require("../errors/index.js");
-class RateLimiter {
+import { RateLimitError } from '../errors/index.js';
+export class RateLimiter {
+    operationCounts = new Map();
+    defaultConfig = {
+        windowMs: 60 * 1000, // 1 minute
+        maxRequests: 1000
+    };
     constructor(config = {}) {
-        this.operationCounts = new Map();
-        this.defaultConfig = {
-            windowMs: 60 * 1000, // 1 minute
-            maxRequests: 1000
-        };
         this.config = { ...this.defaultConfig, ...config };
     }
+    config;
     async checkRateLimit(operation, context) {
         const key = this.config.keyGenerator
             ? this.config.keyGenerator(operation, context)
@@ -24,7 +22,7 @@ class RateLimiter {
             return;
         }
         if (current.count >= this.config.maxRequests) {
-            throw new index_js_1.RateLimitError(operation);
+            throw new RateLimitError(operation);
         }
         current.count++;
     }
@@ -47,4 +45,3 @@ class RateLimiter {
         return Math.max(0, this.config.maxRequests - current.count);
     }
 }
-exports.RateLimiter = RateLimiter;

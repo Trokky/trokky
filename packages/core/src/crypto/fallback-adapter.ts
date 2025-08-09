@@ -18,8 +18,9 @@ export class FallbackCryptoAdapter implements CryptoAdapter {
   private logSecurityWarning(): void {
     if (this.hasLoggedWarning) return
     
-    const isProduction = process.env.NODE_ENV === 'production'
-    const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
+    const nodeEnv = (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined)
+    const isProduction = nodeEnv === 'production'
+    const isDevelopment = nodeEnv === 'development' || nodeEnv === 'test'
     
     console.log('')
     console.log('🚨🚨🚨 CRITICAL SECURITY WARNING 🚨🚨🚨')
@@ -66,7 +67,7 @@ export class FallbackCryptoAdapter implements CryptoAdapter {
 
   async hashPassword(password: string): Promise<string> {
     // Log warning on first use
-    if (process.env.NODE_ENV !== 'test') {
+    if ((typeof process === 'undefined') || process.env?.NODE_ENV !== 'test') {
       console.warn('⚠️ INSECURE: Using fallback password hashing')
     }
     
@@ -94,7 +95,7 @@ export class FallbackCryptoAdapter implements CryptoAdapter {
 
   async generateJWT(payload: Record<string, any>, secret: string, options: JWTOptions = {}): Promise<string> {
     // Log warning on first use
-    if (process.env.NODE_ENV !== 'test') {
+    if ((typeof process === 'undefined') || process.env?.NODE_ENV !== 'test') {
       console.warn('⚠️ INSECURE: Using fallback JWT generation')
     }
     

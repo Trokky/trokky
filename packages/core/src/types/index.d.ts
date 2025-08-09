@@ -165,4 +165,5 @@ export interface TrokkyConfig {
 }
 export type { User, UserRole, Permission, UserPreferences, CreateUserData, UpdateUserData, UserListOptions, LoginCredentials, UserSession, AppToken, AppTokenListOptions, CreateAppTokenData, UpdateAppTokenData, AuthContext, AuthenticatedUser, AuthenticatedAppToken } from './user.js';
 export { ROLE_PERMISSIONS } from './user.js';
+export type { DataStorageAdapter, MediaStorageAdapter, DataTransaction, MediaListOptions, MediaVariant, SplitStorageConfig, TrokkyStorageAdapters } from './storage-adapters.js';
 //# sourceMappingURL=index.d.ts.map

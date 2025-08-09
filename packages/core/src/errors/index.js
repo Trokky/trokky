@@ -1,7 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.RateLimitError = exports.InvalidInputError = exports.DocumentNotFoundError = exports.SchemaNotFoundError = exports.ValidationError = exports.TrokkyError = void 0;
-class TrokkyError extends Error {
+export class TrokkyError extends Error {
+    code;
+    details;
     constructor(message, code, details) {
         super(message);
         this.code = code;
@@ -19,8 +18,8 @@ class TrokkyError extends Error {
         };
     }
 }
-exports.TrokkyError = TrokkyError;
-class ValidationError extends TrokkyError {
+export class ValidationError extends TrokkyError {
+    validationErrors;
     constructor(message, validationErrors) {
         super(message, 'VALIDATION_FAILED', { errors: validationErrors });
         this.validationErrors = validationErrors;
@@ -33,32 +32,27 @@ class ValidationError extends TrokkyError {
         };
     }
 }
-exports.ValidationError = ValidationError;
-class SchemaNotFoundError extends TrokkyError {
+export class SchemaNotFoundError extends TrokkyError {
     constructor(collection) {
         super(`Schema not found for collection: ${collection}`, 'SCHEMA_NOT_FOUND', { collection });
         this.name = 'SchemaNotFoundError';
     }
 }
-exports.SchemaNotFoundError = SchemaNotFoundError;
-class DocumentNotFoundError extends TrokkyError {
+export class DocumentNotFoundError extends TrokkyError {
     constructor(collection, id) {
         super(`Document not found: ${collection}/${id}`, 'DOCUMENT_NOT_FOUND', { collection, id });
         this.name = 'DocumentNotFoundError';
     }
 }
-exports.DocumentNotFoundError = DocumentNotFoundError;
-class InvalidInputError extends TrokkyError {
+export class InvalidInputError extends TrokkyError {
     constructor(message, field) {
         super(message, 'INVALID_INPUT', { field });
         this.name = 'InvalidInputError';
     }
 }
-exports.InvalidInputError = InvalidInputError;
-class RateLimitError extends TrokkyError {
+export class RateLimitError extends TrokkyError {
     constructor(operation) {
         super(`Rate limit exceeded for operation: ${operation}`, 'RATE_LIMIT_EXCEEDED', { operation });
         this.name = 'RateLimitError';
     }
 }
-exports.RateLimitError = RateLimitError;

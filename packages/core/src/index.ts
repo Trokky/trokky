@@ -60,6 +60,17 @@ export {
   type ImageProcessorConfig 
 } from './media/image-processor.js'
 
+// Adapter registry system
+export {
+  getAdapterRegistry,
+  registerAdapter,
+  createAdapter,
+  adapterRegistry,
+  type AdapterRegistryConfig,
+  type DataAdapterFactory,
+  type MediaAdapterFactory
+} from './adapters/registry.js'
+
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
 export { 

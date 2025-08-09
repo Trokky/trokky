@@ -1,33 +1,68 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TrokkyCore = void 0;
-const adapter_js_1 = require("../crypto/adapter.js");
-const registry_js_1 = require("../schema/registry.js");
-const validator_js_1 = require("../validation/validator.js");
-const validation_js_1 = require("../security/validation.js");
-const rate_limiter_js_1 = require("../security/rate-limiter.js");
-const id_generator_js_1 = require("../utils/id-generator.js");
-const logger_js_1 = require("../utils/logger.js");
-const image_processor_js_1 = require("../media/image-processor.js");
-const index_js_1 = require("../errors/index.js");
-class TrokkyCore {
-    constructor(config, storageAdapter, options = {}) {
-        this.logger = (0, logger_js_1.createLogger)('core', 'TrokkyCore');
-        this.auditLog = (0, logger_js_1.createLogger)('core', 'Audit');
-        this.storage = storageAdapter;
+import { detectCryptoAdapter } from '../crypto/adapter.js';
+import { SchemaRegistry } from '../schema/registry.js';
+import { DocumentValidator } from '../validation/validator.js';
+import { SecurityValidator } from '../security/validation.js';
+import { RateLimiter } from '../security/rate-limiter.js';
+import { IdGenerator } from '../utils/id-generator.js';
+import { createLogger } from '../utils/logger.js';
+import { createImageProcessor } from '../media/image-processor.js';
+import { SchemaNotFoundError, DocumentNotFoundError, ValidationError, InvalidInputError } from '../errors/index.js';
+export class TrokkyCore {
+    // Split storage adapters (new architecture)
+    dataStorage;
+    mediaStorage;
+    // Legacy unified storage adapter (for backward compatibility)
+    storage;
+    schemas;
+    validator;
+    idGenerator;
+    rateLimiter;
+    securityEnabled;
+    options;
+    jwtSecret;
+    auditLogger;
+    cryptoAdapter;
+    imageProcessor;
+    logger = createLogger('core', 'TrokkyCore');
+    auditLog = createLogger('core', 'Audit');
+    constructor(config, storageAdapterOrAdapters, options = {}) {
+        // Determine if we're using unified or split adapters
+        if (this.isTrokkyStorageAdapters(storageAdapterOrAdapters)) {
+            // Split adapters (new architecture)
+            this.dataStorage = storageAdapterOrAdapters.data;
+            this.mediaStorage = storageAdapterOrAdapters.media;
+            this.storage = undefined;
+            this.logger.info('TrokkyCore initialized with split storage adapters', {
+                dataAdapter: this.dataStorage.constructor?.name || 'DataStorageAdapter',
+                mediaAdapter: this.mediaStorage.constructor?.name || 'MediaStorageAdapter'
+            });
+            // Validate split adapters have required methods
+            this.validateStorageAdapters();
+        }
+        else {
+            // Unified adapter (legacy support)
+            this.storage = storageAdapterOrAdapters;
+            // Create adapter wrappers for backward compatibility
+            this.dataStorage = this.createDataAdapterWrapper(storageAdapterOrAdapters);
+            this.mediaStorage = this.createMediaAdapterWrapper(storageAdapterOrAdapters);
+            this.logger.warn('TrokkyCore using legacy unified storage adapter - consider migrating to split adapters', {
+                adapter: storageAdapterOrAdapters.constructor?.name || 'StorageAdapter'
+            });
+        }
         this.options = options;
-        this.schemas = options.schemaRegistry || new registry_js_1.SchemaRegistry(config.schemas);
-        this.validator = options.validator || new validator_js_1.DocumentValidator(this.schemas);
-        this.idGenerator = options.idGenerator || new id_generator_js_1.IdGenerator();
+        this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas);
+        this.validator = options.validator || new DocumentValidator(this.schemas);
+        this.idGenerator = options.idGenerator || new IdGenerator();
         this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true;
-        // Initialize JWT secret (use provided secret, environment variable, or generate one)
-        this.jwtSecret = options.jwtSecret ||
-            process.env.TROKKY_JWT_SECRET ||
-            this.generateSecureSecret();
+        // Initialize JWT secret (use provided secret, environment variable if available, or generate one)
+        const envJwt = (typeof process !== 'undefined' && process.env?.TROKKY_JWT_SECRET)
+            ? process.env.TROKKY_JWT_SECRET
+            : undefined;
+        this.jwtSecret = options.jwtSecret || envJwt || this.generateSecureSecret();
         // Initialize audit logger
         this.auditLogger = options.auditLogger;
         // Initialize crypto adapter
-        this.cryptoAdapter = options.cryptoAdapter || (0, adapter_js_1.detectCryptoAdapter)({
+        this.cryptoAdapter = options.cryptoAdapter || detectCryptoAdapter({
             ...options.cryptoOptions,
             adapterType: options.cryptoOptions?.adapterType || 'auto'
         });
@@ -37,14 +72,93 @@ class TrokkyCore {
             variants: config.media?.imageVariants || [],
             options: config.media?.imageProcessorOptions || {}
         };
-        this.imageProcessor = options.imageProcessor || (0, image_processor_js_1.createImageProcessor)(imageProcessorConfig);
+        this.imageProcessor = options.imageProcessor || createImageProcessor(imageProcessorConfig);
         if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
             const rateLimitConfig = {
                 windowMs: config.api?.rateLimit?.windowMs || 60 * 1000,
                 maxRequests: config.api?.rateLimit?.maxRequests || 1000
             };
-            this.rateLimiter = options.rateLimiter || new rate_limiter_js_1.RateLimiter(rateLimitConfig);
+            this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig);
         }
+    }
+    // Helper methods for adapter management
+    isTrokkyStorageAdapters(adapter) {
+        return adapter &&
+            typeof adapter === 'object' &&
+            'data' in adapter &&
+            'media' in adapter &&
+            typeof adapter.data === 'object' &&
+            typeof adapter.media === 'object';
+    }
+    createDataAdapterWrapper(storage) {
+        return {
+            // Document operations
+            getDocument: storage.getDocument.bind(storage),
+            saveDocument: storage.saveDocument.bind(storage),
+            listDocuments: storage.listDocuments.bind(storage),
+            deleteDocument: storage.deleteDocument.bind(storage),
+            // User operations (with fallback if not implemented)
+            getUser: storage.getUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            saveUser: storage.saveUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            listUsers: storage.listUsers?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            deleteUser: storage.deleteUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            getUserByUsername: storage.getUserByUsername?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            getUserByEmail: storage.getUserByEmail?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter'); }),
+            // App token operations (with fallback if not implemented)
+            getAppToken: storage.getAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter'); }),
+            saveAppToken: storage.saveAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter'); }),
+            listAppTokens: storage.listAppTokens?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter'); }),
+            deleteAppToken: storage.deleteAppToken?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter'); }),
+            getAppTokenByHash: storage.getAppTokenByHash?.bind(storage) || (() => { throw new Error('App token operations not supported by unified adapter'); }),
+            // Utility operations
+            healthCheck: storage.healthCheck.bind(storage),
+            migrate: storage.migrate?.bind(storage)
+        };
+    }
+    createMediaAdapterWrapper(storage) {
+        return {
+            // File operations
+            uploadFile: storage.uploadFile.bind(storage),
+            getFile: storage.getFile.bind(storage),
+            updateFile: storage.updateFile?.bind(storage) || (() => { throw new Error('File update not supported by unified adapter'); }),
+            getFileContent: storage.getFileContent.bind(storage),
+            listMedia: storage.listMedia?.bind(storage) || (() => { throw new Error('Media listing not supported by unified adapter'); }),
+            deleteFile: storage.deleteFile.bind(storage),
+            // Variant operations (with fallback if not implemented)
+            saveVariantFile: storage.saveVariantFile?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter'); }),
+            getVariantContent: storage.getVariantContent?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter'); }),
+            deleteVariantFiles: storage.deleteVariantFiles?.bind(storage) || (() => { throw new Error('Variant operations not supported by unified adapter'); }),
+            // Utility operations
+            healthCheck: storage.healthCheck.bind(storage)
+        };
+    }
+    // Adapter validation
+    validateStorageAdapters() {
+        // Validate DataStorageAdapter has required methods
+        const requiredDataMethods = [
+            'getDocument', 'saveDocument', 'listDocuments', 'deleteDocument',
+            'getUser', 'saveUser', 'listUsers', 'deleteUser', 'getUserByUsername', 'getUserByEmail',
+            'getAppToken', 'saveAppToken', 'listAppTokens', 'deleteAppToken', 'getAppTokenByHash',
+            'healthCheck'
+        ];
+        for (const method of requiredDataMethods) {
+            if (typeof this.dataStorage[method] !== 'function') {
+                throw new Error(`DataStorageAdapter missing required method: ${method}`);
+            }
+        }
+        // Validate MediaStorageAdapter has required methods
+        const requiredMediaMethods = [
+            'uploadFile', 'getFile', 'getFileContent', 'deleteFile', 'healthCheck'
+        ];
+        for (const method of requiredMediaMethods) {
+            if (typeof this.mediaStorage[method] !== 'function') {
+                throw new Error(`MediaStorageAdapter missing required method: ${method}`);
+            }
+        }
+        this.logger.debug('Storage adapters validation passed', {
+            dataMethodCount: requiredDataMethods.length,
+            mediaMethodCount: requiredMediaMethods.length
+        });
     }
     // Initialization
     async init() {
@@ -59,13 +173,13 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('getDocument');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateCollectionName(collection);
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateCollectionName(collection);
+            SecurityValidator.validateDocumentId(id);
         }
         if (!this.schemas.hasSchema(collection)) {
-            throw new index_js_1.SchemaNotFoundError(collection);
+            throw new SchemaNotFoundError(collection);
         }
-        const document = await this.storage.getDocument(collection, id);
+        const document = await this.dataStorage.getDocument(collection, id);
         return document;
     }
     async saveDocument(collection, data) {
@@ -73,24 +187,24 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('saveDocument');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateCollectionName(collection);
-            validation_js_1.SecurityValidator.validateDocumentData(data);
+            SecurityValidator.validateCollectionName(collection);
+            SecurityValidator.validateDocumentData(data);
             if (data.id) {
-                validation_js_1.SecurityValidator.validateDocumentId(data.id);
+                SecurityValidator.validateDocumentId(data.id);
             }
         }
         if (!this.schemas.hasSchema(collection)) {
-            throw new index_js_1.SchemaNotFoundError(collection);
+            throw new SchemaNotFoundError(collection);
         }
         // Validate document against schema
         const validation = this.validateDocument(collection, data);
         if (!validation.valid) {
-            throw new index_js_1.ValidationError('Document validation failed', validation.errors);
+            throw new ValidationError('Document validation failed', validation.errors);
         }
         // Generate ID if not provided
         const id = data.id || this.idGenerator.generate({ prefix: collection });
         const { id: _, ...documentData } = data;
-        const savedDocument = await this.storage.saveDocument(collection, id, documentData);
+        const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData);
         return savedDocument;
     }
     async listDocuments(collection, options) {
@@ -98,15 +212,15 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('listDocuments');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateCollectionName(collection);
+            SecurityValidator.validateCollectionName(collection);
         }
         if (!this.schemas.hasSchema(collection)) {
-            throw new index_js_1.SchemaNotFoundError(collection);
+            throw new SchemaNotFoundError(collection);
         }
         const sanitizedOptions = this.securityEnabled
-            ? validation_js_1.SecurityValidator.sanitizeListOptions(options)
+            ? SecurityValidator.sanitizeListOptions(options)
             : options;
-        const documents = await this.storage.listDocuments(collection, sanitizedOptions);
+        const documents = await this.dataStorage.listDocuments(collection, sanitizedOptions);
         return documents;
     }
     async deleteDocument(collection, id) {
@@ -114,18 +228,18 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('deleteDocument');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateCollectionName(collection);
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateCollectionName(collection);
+            SecurityValidator.validateDocumentId(id);
         }
         if (!this.schemas.hasSchema(collection)) {
-            throw new index_js_1.SchemaNotFoundError(collection);
+            throw new SchemaNotFoundError(collection);
         }
         // Check if document exists
-        const existingDocument = await this.storage.getDocument(collection, id);
+        const existingDocument = await this.dataStorage.getDocument(collection, id);
         if (!existingDocument) {
-            throw new index_js_1.DocumentNotFoundError(collection, id);
+            throw new DocumentNotFoundError(collection, id);
         }
-        return await this.storage.deleteDocument(collection, id);
+        return await this.dataStorage.deleteDocument(collection, id);
     }
     // Media operations
     async uploadMedia(file) {
@@ -143,7 +257,7 @@ class TrokkyCore {
             extension: this.getFileExtension(file.name)
         };
         // Upload to storage first
-        const mediaFile = await this.storage.uploadFile(file, metadata);
+        const mediaFile = await this.mediaStorage.uploadFile(file, metadata);
         // Process image if it's an image file
         if (file.type.startsWith('image/')) {
             try {
@@ -158,11 +272,11 @@ class TrokkyCore {
                     if (variantData.buffer) {
                         try {
                             // Save variant file directly using storage adapter's variant support
-                            if (this.storage.saveVariantFile) {
-                                const variantPath = await this.storage.saveVariantFile(metadata.id, variantName, variantData.buffer, variantData.format);
+                            if (this.mediaStorage.saveVariantFile) {
+                                const variantPath = await this.mediaStorage.saveVariantFile(metadata.id, variantName, variantData.buffer, variantData.format);
                                 // Store variant info with the correct URL
                                 savedVariants[variantName] = {
-                                    url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(metadata.id, variantName) : variantPath}`,
+                                    url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(metadata.id, variantName) : variantPath}`,
                                     width: variantData.width,
                                     height: variantData.height,
                                     format: variantData.format,
@@ -209,8 +323,8 @@ class TrokkyCore {
                 };
                 // Save the updated metadata back to storage
                 try {
-                    if (this.storage.updateFile) {
-                        await this.storage.updateFile(mediaFile.id, mediaFile.metadata);
+                    if (this.mediaStorage.updateFile) {
+                        await this.mediaStorage.updateFile(mediaFile.id, mediaFile.metadata);
                     }
                     this.logger.info('Image variants metadata saved', {
                         fileId: metadata.id,
@@ -239,58 +353,58 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('getMedia');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        return await this.storage.getFile(id);
+        return await this.mediaStorage.getFile(id);
     }
     async updateMedia(id, metadata) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('updateMedia');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
         // Check if media exists first
-        const existingMedia = await this.storage.getFile(id);
+        const existingMedia = await this.mediaStorage.getFile(id);
         if (!existingMedia) {
-            throw new index_js_1.DocumentNotFoundError('media', id);
+            throw new DocumentNotFoundError('media', id);
         }
         // Use the storage adapter's updateFile method if available
-        if (!this.storage.updateFile) {
+        if (!this.mediaStorage.updateFile) {
             throw new Error('Media update not supported by storage adapter');
         }
-        return await this.storage.updateFile(id, metadata);
+        return await this.mediaStorage.updateFile(id, metadata);
     }
     async getMediaContent(id) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('getMediaContent');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        return await this.storage.getFileContent(id);
+        return await this.mediaStorage.getFileContent(id);
     }
     async listMedia(options) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('listMedia');
         }
         // Use the storage adapter's listMedia method if available
-        if (!this.storage.listMedia) {
+        if (!this.mediaStorage.listMedia) {
             throw new Error('Media listing not supported by storage adapter');
         }
-        return await this.storage.listMedia(options || {});
+        return await this.mediaStorage.listMedia(options || {});
     }
     async deleteMedia(id) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('deleteMedia');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
         // Check if media exists
-        const existingMedia = await this.storage.getFile(id);
+        const existingMedia = await this.mediaStorage.getFile(id);
         if (!existingMedia) {
-            throw new index_js_1.DocumentNotFoundError('media', id);
+            throw new DocumentNotFoundError('media', id);
         }
         // Delete image variants if it's an image
         if (existingMedia.contentType.startsWith('image/')) {
@@ -305,23 +419,23 @@ class TrokkyCore {
                 });
             }
         }
-        return await this.storage.deleteFile(id);
+        return await this.mediaStorage.deleteFile(id);
     }
     async regenerateMediaVariants(id) {
         try {
             await this.rateLimiter?.checkRateLimit('regenerateMediaVariants');
             // Get the existing media file
-            const mediaFile = await this.storage.getFile(id);
+            const mediaFile = await this.mediaStorage.getFile(id);
             if (!mediaFile) {
                 throw new Error(`Media file with id ${id} not found`);
             }
             // Check if it's an image file
             if (!mediaFile.contentType.startsWith('image/')) {
-                throw new index_js_1.InvalidInputError('Variant regeneration is only supported for image files', 'contentType');
+                throw new InvalidInputError('Variant regeneration is only supported for image files', 'contentType');
             }
             this.logger.info('Starting variant regeneration', { id, filename: mediaFile.filename });
             // Get the original file content
-            const fileContent = await this.storage.getFileContent(id);
+            const fileContent = await this.mediaStorage.getFileContent(id);
             if (!fileContent) {
                 throw new Error('Unable to read original file content');
             }
@@ -336,9 +450,9 @@ class TrokkyCore {
                 path: mediaFile.url
             });
             // Delete existing variants first
-            if (this.storage.deleteVariantFiles) {
+            if (this.mediaStorage.deleteVariantFiles) {
                 try {
-                    await this.storage.deleteVariantFiles(id);
+                    await this.mediaStorage.deleteVariantFiles(id);
                     this.logger.info('Existing variants deleted', { id });
                 }
                 catch (deleteError) {
@@ -350,10 +464,10 @@ class TrokkyCore {
             for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
                 if (variantData.buffer) {
                     try {
-                        if (this.storage.saveVariantFile) {
-                            const variantPath = await this.storage.saveVariantFile(id, variantName, variantData.buffer, variantData.format);
+                        if (this.mediaStorage.saveVariantFile) {
+                            const variantPath = await this.mediaStorage.saveVariantFile(id, variantName, variantData.buffer, variantData.format);
                             savedVariants[variantName] = {
-                                url: `${this.storage.getVariantUrl ? this.storage.getVariantUrl(id, variantName) : variantPath}`,
+                                url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(id, variantName) : variantPath}`,
                                 width: variantData.width,
                                 height: variantData.height,
                                 format: variantData.format,
@@ -385,7 +499,7 @@ class TrokkyCore {
                 }
             };
             // Save updated metadata
-            const updatedMediaFile = await this.storage.updateFile?.(id, updatedMetadata);
+            const updatedMediaFile = await this.mediaStorage.updateFile?.(id, updatedMetadata);
             if (!updatedMediaFile) {
                 throw new Error('Failed to update media file metadata');
             }
@@ -421,15 +535,40 @@ class TrokkyCore {
         return this.imageProcessor;
     }
     /**
-     * Get storage adapter
+     * Get storage adapter (legacy unified adapter)
+     * @deprecated Use getDataStorageAdapter() and getMediaStorageAdapter() instead
      */
     getStorageAdapter() {
-        return this.storage;
+        return this.storage || null;
+    }
+    /**
+     * Get data storage adapter
+     */
+    getDataStorageAdapter() {
+        return this.dataStorage;
+    }
+    /**
+     * Get media storage adapter
+     */
+    getMediaStorageAdapter() {
+        return this.mediaStorage;
+    }
+    /**
+     * Get both storage adapters
+     */
+    getStorageAdapters() {
+        return {
+            data: this.dataStorage,
+            media: this.mediaStorage
+        };
     }
     // Health check
     async healthCheck() {
         try {
-            const storageHealthy = await this.storage.healthCheck();
+            // Check health of both storage adapters
+            const dataStorageHealthy = await this.dataStorage.healthCheck();
+            const mediaStorageHealthy = await this.mediaStorage.healthCheck();
+            const storageHealthy = dataStorageHealthy && mediaStorageHealthy;
             const schemasLoaded = this.schemas.getAllSchemas().length > 0;
             const imageProcessorHealthy = await this.imageProcessor.healthCheck();
             return storageHealthy && schemasLoaded && imageProcessorHealthy;
@@ -448,14 +587,14 @@ class TrokkyCore {
             'application/pdf', 'text/plain'
         ];
         if (file.size > maxSize) {
-            throw new index_js_1.InvalidInputError(`File too large (max ${maxSize / 1024 / 1024}MB)`, 'file');
+            throw new InvalidInputError(`File too large (max ${maxSize / 1024 / 1024}MB)`, 'file');
         }
         if (!allowedTypes.includes(file.type)) {
-            throw new index_js_1.InvalidInputError(`File type not allowed: ${file.type}`, 'file');
+            throw new InvalidInputError(`File type not allowed: ${file.type}`, 'file');
         }
         // Validate filename
         if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-            throw new index_js_1.InvalidInputError('Invalid filename characters', 'file');
+            throw new InvalidInputError('Invalid filename characters', 'file');
         }
     }
     getFileExtension(filename) {
@@ -468,20 +607,18 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('createUser');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateEmail(userData.email);
-            validation_js_1.SecurityValidator.validateUsername(userData.username);
+            SecurityValidator.validateEmail(userData.email);
+            SecurityValidator.validateUsername(userData.username);
         }
-        if (!this.storage.saveUser) {
-            throw new Error('User operations not supported by storage adapter');
-        }
-        // Check if user already exists
+        // User operations are handled by data storage adapter
+        // Check if user already exists (use generic error message to prevent enumeration)
         const existingUserByEmail = await this.getUserByEmail(userData.email);
         if (existingUserByEmail) {
-            throw new Error(`User with email ${userData.email} already exists`);
+            throw new Error('User registration failed. Please check your details.');
         }
         const existingUserByUsername = await this.getUserByUsername(userData.username);
         if (existingUserByUsername) {
-            throw new Error(`User with username ${userData.username} already exists`);
+            throw new Error('User registration failed. Please check your details.');
         }
         // Hash password before saving
         const passwordHash = await this.hashPassword(userData.password);
@@ -501,7 +638,7 @@ class TrokkyCore {
             createdAt: now,
             updatedAt: now
         };
-        const createdUser = await this.storage.saveUser(userId, userToSave);
+        const createdUser = await this.dataStorage.saveUser(userId, userToSave);
         // Log audit event
         this.logAuditEvent({
             type: 'user_created',
@@ -523,60 +660,52 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('getUser');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        if (!this.storage.getUser) {
-            throw new Error('User operations not supported by storage adapter');
-        }
-        return await this.storage.getUser(id);
+        // User operations are handled by data storage adapter
+        return await this.dataStorage.getUser(id);
     }
     async getUserByUsername(username) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('getUserByUsername');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateUsername(username);
+            SecurityValidator.validateUsername(username);
         }
-        if (!this.storage.getUserByUsername) {
-            throw new Error('User operations not supported by storage adapter');
-        }
-        return await this.storage.getUserByUsername(username);
+        // User operations are handled by data storage adapter
+        return await this.dataStorage.getUserByUsername(username);
     }
     async getUserByEmail(email) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('getUserByEmail');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateEmail(email);
+            SecurityValidator.validateEmail(email);
         }
-        if (!this.storage.getUserByEmail) {
-            throw new Error('User operations not supported by storage adapter');
-        }
-        return await this.storage.getUserByEmail(email);
+        // User operations are handled by data storage adapter
+        return await this.dataStorage.getUserByEmail(email);
     }
     async updateUser(id, userData) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('updateUser');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
             if (userData.email)
-                validation_js_1.SecurityValidator.validateEmail(userData.email);
+                SecurityValidator.validateEmail(userData.email);
             if (userData.username)
-                validation_js_1.SecurityValidator.validateUsername(userData.username);
+                SecurityValidator.validateUsername(userData.username);
         }
-        if (!this.storage.saveUser) {
-            throw new Error('User operations not supported by storage adapter');
-        }
+        // User operations are handled by data storage adapter
         const existingUser = await this.getUser(id);
         if (!existingUser) {
-            throw new index_js_1.DocumentNotFoundError('users', id);
+            throw new DocumentNotFoundError('users', id);
         }
         const updatedUserData = {
             ...userData,
             updatedAt: new Date().toISOString()
         };
-        const updatedUser = await this.storage.saveUser(id, updatedUserData);
+        const updatedUser = await this.dataStorage.saveUser(id, updatedUserData);
         // Log audit event
         this.logAuditEvent({
             type: 'user_updated',
@@ -597,26 +726,22 @@ class TrokkyCore {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('listUsers');
         }
-        if (!this.storage.listUsers) {
-            throw new Error('User operations not supported by storage adapter');
-        }
-        return await this.storage.listUsers(options);
+        // User operations are handled by data storage adapter
+        return await this.dataStorage.listUsers(options);
     }
     async deleteUser(id) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('deleteUser');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        if (!this.storage.deleteUser) {
-            throw new Error('User operations not supported by storage adapter');
-        }
+        // User operations are handled by data storage adapter
         const existingUser = await this.getUser(id);
         if (!existingUser) {
-            throw new index_js_1.DocumentNotFoundError('users', id);
+            throw new DocumentNotFoundError('users', id);
         }
-        await this.storage.deleteUser(id);
+        await this.dataStorage.deleteUser(id);
         // Log audit event
         this.logAuditEvent({
             type: 'user_deleted',
@@ -636,18 +761,14 @@ class TrokkyCore {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('listAppTokens');
         }
-        if (!this.storage.listAppTokens) {
-            throw new Error('App token operations not supported by storage adapter');
-        }
-        return await this.storage.listAppTokens(options);
+        // App token operations are handled by data storage adapter
+        return await this.dataStorage.listAppTokens(options);
     }
     async createAppToken(tokenData, createdBy) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('createAppToken');
         }
-        if (!this.storage.saveAppToken) {
-            throw new Error('App token operations not supported by storage adapter');
-        }
+        // App token operations are handled by data storage adapter
         try {
             // Generate token and hash using crypto adapter
             const token = this.cryptoAdapter.generateSecureRandom(32);
@@ -667,7 +788,7 @@ class TrokkyCore {
                 lastUsedAt: undefined,
                 expiresAt: tokenData.expiresAt
             };
-            const savedToken = await this.storage.saveAppToken(tokenId, appToken);
+            const savedToken = await this.dataStorage.saveAppToken(tokenId, appToken);
             return {
                 success: true,
                 token, // Plain text token (only returned once)
@@ -686,28 +807,24 @@ class TrokkyCore {
             await this.rateLimiter.checkRateLimit('getAppToken');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        if (!this.storage.getAppToken) {
-            throw new Error('App token operations not supported by storage adapter');
-        }
-        return await this.storage.getAppToken(id);
+        // App token operations are handled by data storage adapter
+        return await this.dataStorage.getAppToken(id);
     }
     async deleteAppToken(id) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('deleteAppToken');
         }
         if (this.securityEnabled) {
-            validation_js_1.SecurityValidator.validateDocumentId(id);
+            SecurityValidator.validateDocumentId(id);
         }
-        if (!this.storage.deleteAppToken) {
-            throw new Error('App token operations not supported by storage adapter');
-        }
+        // App token operations are handled by data storage adapter
         const existingToken = await this.getAppToken(id);
         if (!existingToken) {
-            throw new index_js_1.DocumentNotFoundError('tokens', id);
+            throw new DocumentNotFoundError('tokens', id);
         }
-        await this.storage.deleteAppToken(id);
+        await this.dataStorage.deleteAppToken(id);
         // Log audit event
         this.logAuditEvent({
             type: 'app_token_deleted',
@@ -881,10 +998,11 @@ class TrokkyCore {
     generateSecureSecret() {
         // Generate a cryptographically secure random secret using crypto adapter
         // This will be called during initialization, but we need to create a temporary adapter
-        const tempAdapter = (0, adapter_js_1.detectCryptoAdapter)();
+        const tempAdapter = detectCryptoAdapter();
         const secret = tempAdapter.generateSecureRandom(64);
         // Warn if using generated secret (should use environment variable in production)
-        if (process.env.NODE_ENV !== 'test') {
+        const isTestEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test');
+        if (!isTestEnv) {
             console.warn('⚠️  Using auto-generated JWT secret. Set TROKKY_JWT_SECRET environment variable for production.');
         }
         return secret;
@@ -912,8 +1030,8 @@ class TrokkyCore {
     }
     // Development utility: Setup admin user from environment variables
     async setupAdminFromEnv() {
-        const adminEmail = process.env.TROKKY_ADMIN_EMAIL;
-        const adminPassword = process.env.TROKKY_ADMIN_PASSWORD;
+        const adminEmail = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_EMAIL : undefined);
+        const adminPassword = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_PASSWORD : undefined);
         // Only proceed if environment variables are set
         if (!adminEmail || !adminPassword) {
             return null;
@@ -949,7 +1067,8 @@ class TrokkyCore {
             }
         });
         // Log admin creation with security warning
-        if (process.env.NODE_ENV !== 'test') {
+        const envName = (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined);
+        if (envName !== 'test') {
             console.log('🔧 Admin user created from environment variables');
             console.log(`   Email: ${adminEmail}`);
             console.log('   Username: admin');
@@ -965,7 +1084,7 @@ class TrokkyCore {
                 console.warn('   • Numbers (0-9)');
                 console.warn('   • Special characters (!@#$%^&*)');
                 console.warn('   • No common words or patterns');
-                if (process.env.NODE_ENV === 'production') {
+                if (envName === 'production') {
                     console.warn('🔥 CRITICAL: Change this password immediately in production!');
                 }
             }
@@ -983,4 +1102,3 @@ class TrokkyCore {
         }
     }
 }
-exports.TrokkyCore = TrokkyCore;

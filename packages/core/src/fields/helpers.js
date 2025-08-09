@@ -1,14 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Rule = exports.FieldUtils = void 0;
-exports.defineField = defineField;
-exports.defineType = defineType;
-exports.rule = rule;
-const conditional_js_1 = require("./conditional.js");
+import { ConditionalEvaluator } from './conditional.js';
 /**
  * Helper function to define a field with TypeScript support
  */
-function defineField(definition) {
+export function defineField(definition) {
     return {
         ...definition,
         // Normalize conditional functions
@@ -21,7 +15,7 @@ function defineField(definition) {
 /**
  * Helper function to define a document type with fields
  */
-function defineType(definition) {
+export function defineType(definition) {
     return {
         ...definition,
         fields: Object.fromEntries(Object.entries(definition.fields).map(([name, field]) => [
@@ -43,7 +37,7 @@ function normalizeConditional(value) {
 /**
  * Utility class for field configuration helpers
  */
-class FieldUtils {
+export class FieldUtils {
     /**
      * Evaluate if a field should be hidden based on conditional logic
      */
@@ -58,10 +52,10 @@ class FieldUtils {
         }
         // Check conditional expressions
         if (field.hideIf) {
-            return conditional_js_1.ConditionalEvaluator.evaluate(field.hideIf, context);
+            return ConditionalEvaluator.evaluate(field.hideIf, context);
         }
         if (field.showIf) {
-            return !conditional_js_1.ConditionalEvaluator.evaluate(field.showIf, context);
+            return !ConditionalEvaluator.evaluate(field.showIf, context);
         }
         return false;
     }
@@ -103,7 +97,7 @@ class FieldUtils {
         }
         // Check conditional requirement
         if (field.requiredIf) {
-            return conditional_js_1.ConditionalEvaluator.evaluate(field.requiredIf, context);
+            return ConditionalEvaluator.evaluate(field.requiredIf, context);
         }
         return false;
     }
@@ -212,14 +206,11 @@ class FieldUtils {
         };
     }
 }
-exports.FieldUtils = FieldUtils;
 /**
  * Validation rule builder (Sanity-style)
  */
-class Rule {
-    constructor() {
-        this.rules = [];
-    }
+export class Rule {
+    rules = [];
     required(message) {
         this.rules.push({ rule: 'required', message });
         return this;
@@ -260,10 +251,9 @@ class Rule {
         return this.rules;
     }
 }
-exports.Rule = Rule;
 /**
  * Create a validation rule builder instance
  */
-function rule() {
+export function rule() {
     return new Rule();
 }

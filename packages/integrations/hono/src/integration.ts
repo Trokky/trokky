@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { TrokkyRoutes } from '@trokky/routes'
 import { HonoAdapter } from './adapter.js'
 import { TrokkyHonoMiddleware } from './middleware.js'
-import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters } from '@trokky/core'
+import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters, type DataStorageAdapter as StorageAdapter, type MediaStorageAdapter as MediaAdapter } from '@trokky/core'
 import type { HonoIntegrationConfig, HonoIntegration, CloudflareEnv } from './types.js'
 import type { TrokkyConfig as NewTrokkyConfig, StorageConfig } from './config.js'
 import { withDefaults } from './config.js'
@@ -188,9 +188,16 @@ export class TrokkyHono {
       return undefined
     }
 
-    // Studio temporarily disabled during build issues
-    this.logger.warn('Studio integration temporarily disabled')
-    return undefined
+    const studioApp = new Hono<{ Bindings: CloudflareEnv }>()
+    
+    // Studio routes are typically static/spa routes, use static routes or implement studio-specific handler
+    studioApp.get('/*', (c) => {
+      // Basic Studio SPA handler - serve Studio files
+      return c.text('Studio app placeholder - integrate with @trokky/studio when available')
+    })
+
+    this.logger.info('Studio app created successfully')
+    return studioApp
   }
 
   /**
@@ -386,10 +393,10 @@ export class TrokkyHono {
     })
     
     // Create data adapter
-    const dataAdapter = await this.createDataAdapter(config.data)
+    const dataAdapter = await this.createDataAdapter(config.data) as StorageAdapter
     
     // Create media adapter  
-    const mediaAdapter = await this.createMediaAdapter(config.media)
+    const mediaAdapter = await this.createMediaAdapter(config.media) as MediaAdapter
     
     // Return split adapters object
     const splitAdapters: TrokkyStorageAdapters = {
@@ -402,13 +409,15 @@ export class TrokkyHono {
   }
 
   /**
-   * Create data storage adapter
+   * Create data storage adapter using the registry system
    */
   private static async createDataAdapter(config: StorageConfig['data']) {
-    switch (config.adapter) {
-      case 'filesystem-data': {
-        const { FilesystemDataAdapter } = await import('@trokky/adapter-filesystem-data')
-        return new FilesystemDataAdapter({
+    const { createAdapter } = await import('@trokky/core')
+    
+    try {
+      return await createAdapter(config.adapter, 'data', {
+        // Filesystem data adapter options
+        ...(config.adapter === 'filesystem-data' && {
           contentDir: config.options?.contentDir || './content',
           usersDir: config.options?.usersDir || './users', 
           tokensDir: config.options?.tokensDir || './tokens',
@@ -416,11 +425,9 @@ export class TrokkyHono {
           prettyJson: config.options?.prettyJson ?? true,
           jsonSpaces: config.options?.jsonSpaces ?? 2,
           silent: config.options?.silent ?? false
-        })
-      }
-      case 'cloudflare-d1': {
-        const { CloudflareD1Adapter } = await import('@trokky/adapter-cloudflare-d1')
-        return new CloudflareD1Adapter({
+        }),
+        // Cloudflare D1 adapter options
+        ...(config.adapter === 'cloudflare-d1' && {
           database: config.options?.database,
           databaseName: config.options?.databaseName,
           tablePrefix: config.options?.tablePrefix,
@@ -428,35 +435,41 @@ export class TrokkyHono {
           enableFTS: config.options?.enableFTS ?? false,
           enableAuditLog: config.options?.enableAuditLog ?? false,
           migrations: config.options?.migrations
-        })
-      }
-      case 'dynamodb': {
-        throw new Error(`DynamoDB adapter not available. Install @trokky/adapter-dynamodb package.`)
-      }
-      default:
-        throw new Error(`Unsupported data adapter: ${(config as any).adapter}`)
+        }),
+        // Pass through any other options
+        ...config.options
+      })
+    } catch (error) {
+      throw new Error(
+        `Failed to create data adapter "${config.adapter}": ${error instanceof Error ? error.message : String(error)}\n\n` +
+        `Available data adapters depend on imported packages:\n` +
+        `- 'filesystem-data': Requires @trokky/adapter-filesystem-data (Node.js only)\n` +
+        `- 'cloudflare-d1': Requires @trokky/adapter-cloudflare-d1 (Edge runtime)\n` +
+        `- 'dynamodb': Requires @trokky/adapter-dynamodb\n\n` +
+        `Make sure the required adapter package is installed and imported.`
+      )
     }
   }
   
   /**
-   * Create media storage adapter
+   * Create media storage adapter using the registry system
    */
   private static async createMediaAdapter(config: StorageConfig['media']) {
-    switch (config.adapter) {
-      case 'filesystem-media': {
-        const { FilesystemMediaAdapter } = await import('@trokky/adapter-filesystem-media')
-        return new FilesystemMediaAdapter({
+    const { createAdapter } = await import('@trokky/core')
+    
+    try {
+      return await createAdapter(config.adapter, 'media', {
+        // Filesystem media adapter options
+        ...(config.adapter === 'filesystem-media' && {
           mediaDir: config.options?.mediaDir || './media',
           createDirs: config.options?.createDirs ?? true,
           prettyJson: config.options?.prettyJson ?? true,
           jsonSpaces: config.options?.jsonSpaces ?? 2,
           mediaBaseUrl: config.options?.mediaBaseUrl || '/media',
           silent: config.options?.silent ?? false
-        })
-      }
-      case 'cloudflare-r2': {
-        const { CloudflareR2Adapter } = await import('@trokky/adapter-cloudflare-r2')
-        return new CloudflareR2Adapter({
+        }),
+        // Cloudflare R2 adapter options
+        ...(config.adapter === 'cloudflare-r2' && {
           bucket: config.options?.bucket,
           bucketName: config.options?.bucketName,
           keyPrefix: config.options?.keyPrefix,
@@ -473,13 +486,19 @@ export class TrokkyHono {
           accessKeyId: config.options?.accessKeyId,
           secretAccessKey: config.options?.secretAccessKey,
           cspConfig: config.options?.cspConfig
-        })
-      }
-      case 's3': {
-        throw new Error(`S3 media adapter not available. Install @trokky/adapter-s3 package.`)
-      }
-      default:
-        throw new Error(`Unsupported media adapter: ${(config as any).adapter}`)
+        }),
+        // Pass through any other options
+        ...config.options
+      })
+    } catch (error) {
+      throw new Error(
+        `Failed to create media adapter "${config.adapter}": ${error instanceof Error ? error.message : String(error)}\n\n` +
+        `Available media adapters depend on imported packages:\n` +
+        `- 'filesystem-media': Requires @trokky/adapter-filesystem-media (Node.js only)\n` +
+        `- 'cloudflare-r2': Requires @trokky/adapter-cloudflare-r2 (Edge runtime)\n` +
+        `- 's3': Requires @trokky/adapter-s3\n\n` +
+        `Make sure the required adapter package is installed and imported.`
+      )
     }
   }
 

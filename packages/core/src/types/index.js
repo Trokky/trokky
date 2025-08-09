@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ROLE_PERMISSIONS = exports.ContentSchemaSchema = exports.LegacyFieldDefinitionSchema = exports.LegacyFieldTypeSchema = void 0;
-const zod_1 = require("zod");
+import { z } from 'zod';
 // Schema field types
-exports.LegacyFieldTypeSchema = zod_1.z.enum([
+export const LegacyFieldTypeSchema = z.enum([
     'string',
     'number',
     'boolean',
@@ -15,36 +12,35 @@ exports.LegacyFieldTypeSchema = zod_1.z.enum([
     'slug'
 ]);
 // Schema field definition Zod schema
-exports.LegacyFieldDefinitionSchema = zod_1.z.object({
-    type: exports.LegacyFieldTypeSchema,
-    required: zod_1.z.boolean().optional().default(false),
-    description: zod_1.z.string().optional(),
-    validation: zod_1.z.record(zod_1.z.unknown()).optional(),
-    options: zod_1.z.record(zod_1.z.unknown()).optional(), // For field-specific options
-    items: zod_1.z.lazy(() => exports.LegacyFieldDefinitionSchema).optional(), // For arrays
-    properties: zod_1.z.record(zod_1.z.lazy(() => exports.LegacyFieldDefinitionSchema)).optional(), // For objects
-    collection: zod_1.z.string().optional(), // For references
+export const LegacyFieldDefinitionSchema = z.object({
+    type: LegacyFieldTypeSchema,
+    required: z.boolean().optional().default(false),
+    description: z.string().optional(),
+    validation: z.record(z.unknown()).optional(),
+    options: z.record(z.unknown()).optional(), // For field-specific options
+    items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
+    properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
+    collection: z.string().optional(), // For references
     // Slug field specific properties
-    source: zod_1.z.union([zod_1.z.string(), zod_1.z.array(zod_1.z.string())]).optional(), // Source field(s) for auto-generation
-    autoGenerate: zod_1.z.boolean().optional(), // Enable auto-generation
-    unique: zod_1.z.boolean().optional(), // Require uniqueness
-    maxLength: zod_1.z.number().optional(), // Maximum length
-    minLength: zod_1.z.number().optional(), // Minimum length
-    allowEmpty: zod_1.z.boolean().optional(), // Allow empty values
-    readOnly: zod_1.z.boolean().optional(), // Read-only field
-    preserveCase: zod_1.z.boolean().optional(), // Preserve case in slugs
-    allowedChars: zod_1.z.string().optional(), // Additional allowed characters
-    prefix: zod_1.z.string().optional(), // Slug prefix
-    suffix: zod_1.z.string().optional() // Slug suffix
+    source: z.union([z.string(), z.array(z.string())]).optional(), // Source field(s) for auto-generation
+    autoGenerate: z.boolean().optional(), // Enable auto-generation
+    unique: z.boolean().optional(), // Require uniqueness
+    maxLength: z.number().optional(), // Maximum length
+    minLength: z.number().optional(), // Minimum length
+    allowEmpty: z.boolean().optional(), // Allow empty values
+    readOnly: z.boolean().optional(), // Read-only field
+    preserveCase: z.boolean().optional(), // Preserve case in slugs
+    allowedChars: z.string().optional(), // Additional allowed characters
+    prefix: z.string().optional(), // Slug prefix
+    suffix: z.string().optional() // Slug suffix
 }).passthrough(); // Allow additional properties for extensibility
 // Content schema definition
-exports.ContentSchemaSchema = zod_1.z.object({
-    name: zod_1.z.string(),
-    type: zod_1.z.enum(['document', 'singleton']),
-    title: zod_1.z.string().optional(),
-    description: zod_1.z.string().optional(),
-    singleton: zod_1.z.boolean().optional(), // Allow singleton property
-    fields: zod_1.z.record(exports.LegacyFieldDefinitionSchema)
+export const ContentSchemaSchema = z.object({
+    name: z.string(),
+    type: z.enum(['document', 'singleton']),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    singleton: z.boolean().optional(), // Allow singleton property
+    fields: z.record(LegacyFieldDefinitionSchema)
 });
-var user_js_1 = require("./user.js");
-Object.defineProperty(exports, "ROLE_PERMISSIONS", { enumerable: true, get: function () { return user_js_1.ROLE_PERMISSIONS; } });
+export { ROLE_PERMISSIONS } from './user.js';

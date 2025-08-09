@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Authentication and Authorization Service
  *
@@ -8,52 +7,18 @@
  * - App tokens (for API integrations)
  * - Service tokens (for internal communication)
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_AUTH_CONFIG = exports.AuthenticationService = void 0;
-const node_crypto_1 = require("node:crypto");
-class AuthenticationService {
+import { randomBytes, createHash } from 'node:crypto';
+export class AuthenticationService {
+    config;
+    failedAttempts = new Map();
     constructor(config) {
-        this.failedAttempts = new Map();
         this.config = config;
     }
     /**
      * Hash a password using bcrypt-compatible algorithm
      */
     async hashPassword(password) {
-        const bcrypt = await Promise.resolve().then(() => __importStar(require('bcrypt')));
+        const bcrypt = await import('bcrypt');
         return bcrypt.hash(password, this.config.bcryptRounds);
     }
     /**
@@ -61,7 +26,7 @@ class AuthenticationService {
      */
     async verifyPassword(password, hash) {
         try {
-            const bcrypt = await Promise.resolve().then(() => __importStar(require('bcrypt')));
+            const bcrypt = await import('bcrypt');
             return bcrypt.compare(password, hash);
         }
         catch (error) {
@@ -72,7 +37,7 @@ class AuthenticationService {
      * Generate a secure JWT token for user authentication
      */
     async generateUserToken(user) {
-        const jwt = await Promise.resolve().then(() => __importStar(require('jsonwebtoken')));
+        const jwt = await import('jsonwebtoken');
         const payload = {
             type: 'user',
             userId: user.id,
@@ -97,10 +62,10 @@ class AuthenticationService {
      */
     async generateAppToken() {
         // Generate a secure random token (32 bytes = 256 bits)
-        const tokenBytes = (0, node_crypto_1.randomBytes)(32);
+        const tokenBytes = randomBytes(32);
         const token = tokenBytes.toString('base64url'); // URL-safe base64
         // Hash the token for secure storage
-        const hash = (0, node_crypto_1.createHash)('sha256').update(token).digest('hex');
+        const hash = createHash('sha256').update(token).digest('hex');
         return { token, hash };
     }
     /**
@@ -142,7 +107,7 @@ class AuthenticationService {
      */
     async validateToken(token) {
         try {
-            const jwt = await Promise.resolve().then(() => __importStar(require('jsonwebtoken')));
+            const jwt = await import('jsonwebtoken');
             const decoded = jwt.verify(token, this.config.jwtSecret);
             if (decoded.type === 'user') {
                 return {
@@ -192,7 +157,7 @@ class AuthenticationService {
     async validateAppToken(token) {
         try {
             // Hash the provided token to compare with stored hash
-            const hash = (0, node_crypto_1.createHash)('sha256').update(token).digest('hex');
+            const hash = createHash('sha256').update(token).digest('hex');
             return { valid: true, hash };
         }
         catch (error) {
@@ -273,7 +238,7 @@ class AuthenticationService {
      * Generate a unique ID for entities
      */
     generateId() {
-        return (0, node_crypto_1.randomBytes)(16).toString('hex');
+        return randomBytes(16).toString('hex');
     }
     /**
      * Parse time string to seconds (e.g., '1h' -> 3600)
@@ -294,11 +259,10 @@ class AuthenticationService {
         return parseInt(value, 10) * units[unit];
     }
 }
-exports.AuthenticationService = AuthenticationService;
 /**
  * Default authentication configuration
  */
-exports.DEFAULT_AUTH_CONFIG = {
+export const DEFAULT_AUTH_CONFIG = {
     jwtSecret: process.env.TROKKY_JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
     jwtExpiresIn: '2h', // 2 hours for access tokens
     refreshTokenExpiresIn: '7d', // 7 days for refresh tokens

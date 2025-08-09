@@ -23,6 +23,12 @@
     "@trokky/routes": "file:../../routes",
     "hono": "^4.0.0"
   },
+  "optionalDependencies": {
+    "@trokky/adapter-filesystem-data": "file:../../adapters/filesystem-data",
+    "@trokky/adapter-filesystem-media": "file:../../adapters/filesystem-media",
+    "@trokky/adapter-cloudflare-d1": "file:../../adapters/cloudflare-d1",
+    "@trokky/adapter-cloudflare-r2": "file:../../adapters/cloudflare-r2"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.1",
     "@types/jest": "^29.5.11",

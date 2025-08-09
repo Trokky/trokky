@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Trokky Logging System
  *
@@ -15,9 +14,6 @@
  * - Environment-based configuration
  * - Color support where available
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.LoggerPresets = exports.LoggerFactory = exports.TrokkyLogger = void 0;
-exports.createLogger = createLogger;
 /**
  * Environment detection
  */
@@ -58,7 +54,9 @@ const COLORS = {
 /**
  * Platform-agnostic logger
  */
-class TrokkyLogger {
+export class TrokkyLogger {
+    config;
+    context;
     constructor(context, config = {}) {
         this.context = context;
         this.config = { ...DEFAULT_CONFIG, ...config };
@@ -175,11 +173,11 @@ class TrokkyLogger {
         this.config = { ...this.config, ...config };
     }
 }
-exports.TrokkyLogger = TrokkyLogger;
 /**
  * Global logger factory
  */
-class LoggerFactory {
+export class LoggerFactory {
+    static globalConfig = {};
     static configure(config) {
         LoggerFactory.globalConfig = { ...LoggerFactory.globalConfig, ...config };
     }
@@ -196,18 +194,16 @@ class LoggerFactory {
         LoggerFactory.configure({ level: 'error' });
     }
 }
-exports.LoggerFactory = LoggerFactory;
-LoggerFactory.globalConfig = {};
 /**
  * Convenience function to create package loggers
  */
-function createLogger(package_name, component) {
+export function createLogger(package_name, component) {
     return LoggerFactory.create({ package: package_name, component });
 }
 /**
  * Environment-specific configuration helpers
  */
-exports.LoggerPresets = {
+export const LoggerPresets = {
     development: { level: 'debug', format: 'human', colors: true },
     production: { level: 'info', format: 'json', colors: false },
     testing: { level: 'warn', format: 'human', colors: false },

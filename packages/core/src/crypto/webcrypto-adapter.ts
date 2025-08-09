@@ -215,7 +215,8 @@ export class WebCryptoAdapter implements CryptoAdapter {
       )
       
       const signatureBuffer = this.base64UrlDecodeToBuffer(signature)
-      return await crypto.subtle.verify('HMAC', key, signatureBuffer, encoder.encode(message))
+      const messageBuffer = encoder.encode(message)
+      return await crypto.subtle.verify('HMAC', key, signatureBuffer.buffer as ArrayBuffer, messageBuffer.buffer as ArrayBuffer)
     } catch {
       return false
     }

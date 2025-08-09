@@ -61,7 +61,7 @@ export class HonoAdapter {
       try {
         const formData = await c.req.formData()
         const formFields: Record<string, any> = {}
-        for (const [key, value] of formData.entries()) {
+        for (const [key, value] of Array.from((formData as any).entries()) as [string, FormDataEntryValue][]) {
           formFields[key] = value
         }
         body = formFields
@@ -141,8 +141,18 @@ export class HonoAdapter {
         status: httpResponse.status,
         headers
       })
-    } else if (httpResponse.body instanceof ArrayBuffer || httpResponse.body instanceof Uint8Array) {
+    } else if (httpResponse.body instanceof ArrayBuffer) {
       return new Response(httpResponse.body, {
+        status: httpResponse.status,
+        headers
+      })
+    } else if (httpResponse.body instanceof Uint8Array) {
+      // Create a proper ArrayBuffer from Uint8Array to avoid SharedArrayBuffer issues
+      const arrayBuffer = new ArrayBuffer(httpResponse.body.length)
+      const uint8View = new Uint8Array(arrayBuffer)
+      uint8View.set(httpResponse.body)
+      
+      return new Response(arrayBuffer, {
         status: httpResponse.status,
         headers
       })
@@ -168,7 +178,7 @@ export class HonoAdapter {
     try {
       const formData = await c.req.formData()
       
-      for (const [name, value] of formData.entries()) {
+      for (const [name, value] of Array.from((formData as any).entries()) as [string, FormDataEntryValue][]) {
         if (typeof value === 'object' && value && 'name' in value && 'size' in value && 'type' in value) {
           // This is a file
           // Security: Check for dangerous file extensions

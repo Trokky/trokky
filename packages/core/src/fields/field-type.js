@@ -1,10 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FieldCategory = void 0;
 /**
  * Field categories for organizing field types in the Studio
  */
-var FieldCategory;
+export var FieldCategory;
 (function (FieldCategory) {
     FieldCategory["TEXT"] = "text";
     FieldCategory["NUMBER"] = "number";
@@ -16,4 +13,4 @@ var FieldCategory;
     FieldCategory["SPECIALIZED"] = "specialized";
     FieldCategory["EXTERNAL"] = "external";
     FieldCategory["CUSTOM"] = "custom";
-})(FieldCategory || (exports.FieldCategory = FieldCategory = {}));
+})(FieldCategory || (FieldCategory = {}));

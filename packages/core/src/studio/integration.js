@@ -1,17 +1,16 @@
-"use strict";
 /**
  * Studio Integration for TrokkyCore
  *
  * Provides integrated Studio functionality directly in the CMS core,
  * eliminating the need for separate Studio setup and HTTP discovery.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.StudioIntegration = void 0;
-const logger_js_1 = require("../utils/logger.js");
-class StudioIntegration {
+import { createLogger } from '../utils/logger.js';
+export class StudioIntegration {
+    core;
+    config;
+    routes = new Map();
+    logger = createLogger('core', 'StudioIntegration');
     constructor(core, config = {}) {
-        this.routes = new Map();
-        this.logger = (0, logger_js_1.createLogger)('core', 'StudioIntegration');
         this.core = core;
         this.config = {
             enabled: true,
@@ -302,4 +301,3 @@ class StudioIntegration {
         };
     }
 }
-exports.StudioIntegration = StudioIntegration;

@@ -1,23 +1,23 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FieldTypeRegistry = exports.FieldTypeRegistrationError = void 0;
-const field_type_js_1 = require("./field-type.js");
+import { FieldCategory } from './field-type.js';
 /**
  * Field type registration error
  */
-class FieldTypeRegistrationError extends Error {
+export class FieldTypeRegistrationError extends Error {
+    fieldType;
     constructor(message, fieldType) {
         super(message);
         this.fieldType = fieldType;
         this.name = 'FieldTypeRegistrationError';
     }
 }
-exports.FieldTypeRegistrationError = FieldTypeRegistrationError;
 /**
  * Central registry for all field types in the system
  * Supports registration, lookup, categorization, and extensibility
  */
-class FieldTypeRegistry {
+export class FieldTypeRegistry {
+    static types = new Map();
+    static categories = new Map();
+    static metadata = new Map();
     /**
      * Register a field type in the registry
      */
@@ -32,7 +32,7 @@ class FieldTypeRegistry {
         // Register the field type
         this.types.set(fieldType.name, fieldType);
         // Add to category
-        const category = fieldType.category || field_type_js_1.FieldCategory.CUSTOM;
+        const category = fieldType.category || FieldCategory.CUSTOM;
         if (!this.categories.has(category)) {
             this.categories.set(category, []);
         }
@@ -182,7 +182,3 @@ class FieldTypeRegistry {
         };
     }
 }
-exports.FieldTypeRegistry = FieldTypeRegistry;
-FieldTypeRegistry.types = new Map();
-FieldTypeRegistry.categories = new Map();
-FieldTypeRegistry.metadata = new Map();

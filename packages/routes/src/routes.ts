@@ -794,14 +794,14 @@ export class TrokkyRoutes {
         return this.errorResponse(new Error(`Media file content ${id} not found`), 404)
       }
 
-      // Convert ArrayBuffer to Buffer for HTTP response
-      const buffer = Buffer.from(content)
+      // Use Uint8Array for edge compatibility (Workers, etc.)
+      const buffer = content instanceof Uint8Array ? content : new Uint8Array(content)
 
       return {
         status: 200,
         headers: {
           'Content-Type': mediaFile.contentType,
-          'Content-Length': buffer.length.toString(),
+          'Content-Length': buffer.byteLength.toString(),
           'Content-Disposition': `inline; filename="${mediaFile.filename}"`,
           'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
           'ETag': `"${id}"`,
@@ -849,13 +849,14 @@ export class TrokkyRoutes {
             return this.errorResponse(new Error(`Variant file ${variant} not found for media ${id}`), 404)
           }
 
-          const buffer = Buffer.from(variantContent)
+          // Ensure Uint8Array body for edge runtimes
+          const buffer = variantContent instanceof Uint8Array ? variantContent : new Uint8Array(variantContent)
 
           return {
             status: 200,
             headers: {
               'Content-Type': `image/${variantInfo.format || 'webp'}`,
-              'Content-Length': buffer.length.toString(),
+              'Content-Length': buffer.byteLength.toString(),
               'Content-Disposition': `inline; filename="${id}-${variant}.${variantInfo.format || 'webp'}"`,
               'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
               'ETag': `"${id}-${variant}"`,
