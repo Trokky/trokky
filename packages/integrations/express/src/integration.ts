@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { TrokkyRoutes } from '@trokky/routes'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
-import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters } from '@trokky/core'
+import { createLogger, TrokkyCore, type TrokkyConfig, type TrokkyStorageAdapters, type DataStorageAdapter, type MediaStorageAdapter } from '@trokky/core'
 import type { ExpressIntegrationConfig, ExpressIntegration } from './types.js'
 import type { TrokkyConfig as NewTrokkyConfig, StorageConfig } from './config.js'
 import { withDefaults } from './config.js'
@@ -395,11 +395,11 @@ export class TrokkyExpress {
   /**
    * Create data storage adapter using the registry system
    */
-  private static async createDataAdapter(config: StorageConfig['data']) {
+  private static async createDataAdapter(config: StorageConfig['data']): Promise<DataStorageAdapter> {
     const { createAdapter } = await import('@trokky/core')
     
     try {
-      return await createAdapter(config.adapter, 'data', {
+      return await createAdapter<DataStorageAdapter>(config.adapter, 'data', {
         // Filesystem data adapter options
         ...(config.adapter === 'filesystem-data' && {
           contentDir: config.options?.contentDir || './content',
@@ -438,11 +438,11 @@ export class TrokkyExpress {
   /**
    * Create media storage adapter using the registry system
    */
-  private static async createMediaAdapter(config: StorageConfig['media']) {
+  private static async createMediaAdapter(config: StorageConfig['media']): Promise<MediaStorageAdapter> {
     const { createAdapter } = await import('@trokky/core')
     
     try {
-      return await createAdapter(config.adapter, 'media', {
+      return await createAdapter<MediaStorageAdapter>(config.adapter, 'media', {
         // Filesystem media adapter options
         ...(config.adapter === 'filesystem-media' && {
           mediaDir: config.options?.mediaDir || './media',
