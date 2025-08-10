@@ -138,12 +138,22 @@ if (session) {
 - **Audit logging** for compliance and security monitoring
 - **Environment-based admin setup** for development workflows
 
+### 🔔 **Events & Webhooks** (NEW)
+- **Event-driven architecture** with EventBus for all CMS operations
+- **Webhook management** with persistent storage (survives restarts)
+- **HMAC signature verification** for secure webhook delivery
+- **Automatic retry logic** with exponential backoff
+- **Studio UI** for creating and managing webhooks
+- **Wildcard event patterns** for flexible subscriptions
+- **Event history tracking** with configurable retention
+
 ### 🎨 **Modern Studio Interface**
 - Clean, intuitive admin UI built with React 18+
 - User authentication and session management
 - Real-time collaborative editing
 - Media management with drag & drop
 - Custom field types and layouts
+- **Webhook management UI** for easy integration setup
 
 ### 🔧 **Framework Freedom**
 - Use with any HTTP framework or serverless platform
