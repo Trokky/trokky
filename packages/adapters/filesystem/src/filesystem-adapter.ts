@@ -14,14 +14,17 @@ import {
   User,
   UserListOptions,
   AppToken,
-  AppTokenListOptions
+  AppTokenListOptions,
+  WebhookConfig,
+  WebhookListOptions
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
 export class FilesystemAdapter implements StorageAdapter {
-  private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl' | 'tokensDir'>> & { 
+  private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl' | 'tokensDir' | 'webhooksDir'>> & { 
     mediaBaseUrl?: string; 
     tokensDir: string;
+    webhooksDir: string;
   }
   
   // Security limits
@@ -34,6 +37,7 @@ export class FilesystemAdapter implements StorageAdapter {
       mediaDir: config.mediaDir || './media',
       usersDir: config.usersDir || './users',
       tokensDir: config.tokensDir || './tokens',
+      webhooksDir: config.webhooksDir || './webhooks',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -55,6 +59,7 @@ export class FilesystemAdapter implements StorageAdapter {
       await fsExtra.ensureDir(this.config.contentDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.mediaDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
       
       // Create metadata directory for media files
       const mediaMetadataDir = path.join(this.config.mediaDir, '.metadata')
@@ -877,10 +882,189 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
+  // Webhook operations (system entities, stored separately from content)
+  public async getWebhook(id: string): Promise<WebhookConfig | null> {
+    try {
+      const filePath = this.getWebhookPath(id)
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      const webhook: WebhookConfig = this.safeParseJSON<WebhookConfig>(content, this.dateReviver)
+
+      return webhook
+    } catch (error) {
+      throw new Error(`Failed to read webhook ${id}: ${error}`)
+    }
+  }
+
+  public async saveWebhook(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig> {
+    try {
+      SecurityValidator.validateDocumentId(id)
+      
+      const filePath = this.getWebhookPath(id)
+      const webhookDir = path.dirname(filePath)
+
+      // Ensure webhook directory exists
+      await fsExtra.ensureDir(webhookDir, { mode: this.config.dirMode })
+
+      // Check if webhook already exists
+      let existingWebhook: WebhookConfig | null = null
+      try {
+        existingWebhook = await this.getWebhook(id)
+      } catch {
+        // Webhook doesn't exist, this is a new webhook
+      }
+
+      const now = new Date()
+      const isUpdate = existingWebhook !== null
+
+      const webhook: WebhookConfig = {
+        id,
+        name: webhookData.name || existingWebhook?.name || 'Untitled Webhook',
+        url: webhookData.url || existingWebhook?.url || '',
+        events: webhookData.events || existingWebhook?.events || [],
+        active: webhookData.active !== undefined ? webhookData.active : (existingWebhook?.active ?? true),
+        secret: webhookData.secret || existingWebhook?.secret || '',
+        headers: webhookData.headers || existingWebhook?.headers || {},
+        retryPolicy: webhookData.retryPolicy || existingWebhook?.retryPolicy || {
+          maxRetries: 3,
+          backoffType: 'exponential',
+          baseDelay: 1000,
+          maxDelay: 30000,
+          retryOnStatus: [500, 502, 503, 504, 408, 429]
+        },
+        createdBy: (webhookData.createdBy || existingWebhook?.createdBy) as string | undefined,
+        createdAt: isUpdate ? existingWebhook!.createdAt : now,
+        updatedAt: now
+      }
+
+      // Write to file with Date serialization
+      const jsonContent = this.config.prettyJson
+        ? JSON.stringify(webhook, this.dateReplacer, this.config.jsonSpaces)
+        : JSON.stringify(webhook, this.dateReplacer)
+
+      await fs.writeFile(filePath, jsonContent, { mode: this.config.fileMode })
+
+      if (this.config.syncWrites) {
+        const fd = await fs.open(filePath, 'r+')
+        await fd.sync()
+        await fd.close()
+      }
+
+      return webhook
+    } catch (error) {
+      throw new Error(`Failed to save webhook ${id}: ${error}`)
+    }
+  }
+
+  public async listWebhooks(options: WebhookListOptions = {}): Promise<WebhookConfig[]> {
+    try {
+      // Ensure webhooks directory exists
+      await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
+
+      const files = await fs.readdir(this.config.webhooksDir)
+      const webhookFiles = files.filter(file => file.endsWith('.json'))
+
+      const webhooks: WebhookConfig[] = []
+      for (const file of webhookFiles) {
+        try {
+          const id = path.basename(file, '.json')
+          const webhook = await this.getWebhook(id)
+          if (webhook) {
+            webhooks.push(webhook)
+          }
+        } catch (error) {
+          // Skip invalid webhook files but log the issue
+          if (!this.config.silent) {
+            console.warn(`Warning: Could not read webhook file ${file}: ${error}`)
+          }
+        }
+      }
+
+      // Apply filters
+      let filteredWebhooks = webhooks
+
+      if (options.active !== undefined) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => webhook.active === options.active)
+      }
+
+      if (options.events && options.events.length > 0) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => 
+          options.events!.some((eventPattern: string) => 
+            webhook.events.some(webhookEvent => 
+              this.matchesEventPattern(webhookEvent, eventPattern)
+            )
+          )
+        )
+      }
+
+      if (options.createdBy) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => webhook.createdBy === options.createdBy)
+      }
+
+      // Sort by creation date (newest first)
+      filteredWebhooks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+      // Apply pagination
+      if (options.offset) {
+        filteredWebhooks = filteredWebhooks.slice(options.offset)
+      }
+
+      if (options.limit) {
+        filteredWebhooks = filteredWebhooks.slice(0, options.limit)
+      }
+
+      return filteredWebhooks
+    } catch (error) {
+      throw new Error(`Failed to list webhooks: ${error}`)
+    }
+  }
+
+  public async deleteWebhook(id: string): Promise<void> {
+    try {
+      const filePath = this.getWebhookPath(id)
+      
+      // Check if webhook exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        // Webhook doesn't exist, nothing to delete
+        return
+      }
+
+      await fs.unlink(filePath)
+    } catch (error) {
+      throw new Error(`Failed to delete webhook ${id}: ${error}`)
+    }
+  }
+
   // Path helpers for app tokens
   private getTokenPath(id: string): string {
     SecurityValidator.validateDocumentId(id)
     return path.join(this.config.tokensDir, `${id}.json`)
+  }
+
+  // Path helpers for webhooks
+  private getWebhookPath(id: string): string {
+    SecurityValidator.validateDocumentId(id)
+    const webhookPath = path.join(this.config.webhooksDir, `${id}.json`)
+    this.validateSecurePath(webhookPath, this.config.webhooksDir)
+    return webhookPath
+  }
+
+  // Helper method for event pattern matching
+  private matchesEventPattern(webhookEvent: string, pattern: string): boolean {
+    if (pattern === '*') return true
+    if (pattern.endsWith('*')) {
+      return webhookEvent.startsWith(pattern.slice(0, -1))
+    }
+    return webhookEvent === pattern
   }
 
   // Utility operations

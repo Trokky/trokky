@@ -24,6 +24,12 @@ export interface FilesystemAdapterConfig {
   tokensDir?: string
 
   /**
+   * Base directory for webhook storage (system entities)
+   * @default './webhooks'
+   */
+  webhooksDir?: string
+
+  /**
    * Whether to create directories if they don't exist
    * @default true
    */

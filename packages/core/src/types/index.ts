@@ -264,5 +264,6 @@ export type {
   MediaListOptions,
   MediaVariant,
   SplitStorageConfig,
-  TrokkyStorageAdapters
+  TrokkyStorageAdapters,
+  WebhookListOptions
 } from './storage-adapters.js'

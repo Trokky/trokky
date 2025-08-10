@@ -8,7 +8,9 @@ import type {
   CreateUserData,
   UpdateUserData,
   UserListOptions,
-  LoginCredentials
+  LoginCredentials,
+  WebhookConfig,
+  WebhookDeliveryResult
 } from '@trokky/core'
 
 // HTTP Method types
@@ -237,4 +239,39 @@ export interface FrameworkAdapter<TFrameworkRequest = unknown, TFrameworkRespons
   convertRequest: (frameworkRequest: TFrameworkRequest) => HttpRequest
   convertResponse: (response: HttpResponse) => TFrameworkResponse
   handleRoute: (routeHandler: RouteHandler) => (frameworkRequest: TFrameworkRequest) => Promise<TFrameworkResponse>
+}
+
+// Webhook endpoints request/response types
+export interface ListWebhooksRequest {
+  active?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface CreateWebhookRequest {
+  webhookData: Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt'>
+}
+
+export interface UpdateWebhookRequest {
+  id: string
+  webhookData: Partial<Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt'>>
+}
+
+export interface GetWebhookRequest {
+  id: string
+}
+
+export interface DeleteWebhookRequest {
+  id: string
+}
+
+export interface GetWebhookDeliveriesRequest {
+  id: string
+  limit?: number
+  offset?: number
+}
+
+export interface TestWebhookRequest {
+  id: string
+  eventType?: string
 }

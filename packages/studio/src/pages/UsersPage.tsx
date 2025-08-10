@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { UserManagement } from '@/components/users/UserManagement';
 import { AppTokenManagement } from '@/components/users/AppTokenManagement';
+import { WebhookManagement } from '@/components/users/WebhookManagement';
 
 export function UsersPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'tokens'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'tokens' | 'webhooks'>('users');
 
   return (
     <div className="p-6">
@@ -12,7 +13,7 @@ export function UsersPage() {
           Users & Access
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Manage users, permissions, and API tokens
+          Manage users, permissions, API tokens, and webhooks
         </p>
       </div>
 
@@ -39,11 +40,27 @@ export function UsersPage() {
             >
               API Tokens
             </button>
+            <button
+              onClick={() => setActiveTab('webhooks')}
+              className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'webhooks'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              Webhooks
+            </button>
           </nav>
         </div>
 
         <div className="p-6">
-          {activeTab === 'users' ? <UserManagement /> : <AppTokenManagement />}
+          {activeTab === 'users' ? (
+            <UserManagement />
+          ) : activeTab === 'tokens' ? (
+            <AppTokenManagement />
+          ) : (
+            <WebhookManagement />
+          )}
         </div>
       </div>
     </div>

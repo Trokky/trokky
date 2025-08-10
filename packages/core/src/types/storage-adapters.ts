@@ -27,6 +27,7 @@ import type {
   CreateAppTokenData,
   UpdateAppTokenData
 } from './index.js'
+import type { WebhookConfig } from '../events/types.js'
 
 // =============================================================================
 // DATA STORAGE ADAPTER - Structured Data (Documents, Users, App Tokens)
@@ -210,6 +211,42 @@ export interface DataStorageAdapter {
    * @throws Error if storage fails
    */
   getAppTokenByHash(hash: string): Promise<AppToken | null>
+  
+  // ==========================================================================
+  // WEBHOOK OPERATIONS
+  // ==========================================================================
+  
+  /**
+   * Retrieve a webhook by ID
+   * @param id - The webhook ID
+   * @returns The webhook configuration or null if not found
+   * @throws Error if storage fails
+   */
+  getWebhook?(id: string): Promise<WebhookConfig | null>
+  
+  /**
+   * Create or update a webhook
+   * @param id - The webhook ID
+   * @param webhookData - The webhook data (partial for updates)
+   * @returns The saved webhook configuration
+   * @throws Error if validation fails or storage fails
+   */
+  saveWebhook?(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig>
+  
+  /**
+   * List webhooks with filtering and pagination
+   * @param options - Query options (active, limit, offset)
+   * @returns Array of matching webhooks
+   * @throws Error if query is invalid or storage fails
+   */
+  listWebhooks?(options?: WebhookListOptions): Promise<WebhookConfig[]>
+  
+  /**
+   * Delete a webhook permanently
+   * @param id - The webhook ID
+   * @throws Error if webhook doesn't exist or storage fails
+   */
+  deleteWebhook?(id: string): Promise<void>
   
   // ==========================================================================
   // UTILITY OPERATIONS
@@ -514,6 +551,22 @@ export interface SplitStorageConfig {
     adapter: string
     options?: Record<string, unknown>
   }
+}
+
+/**
+ * Webhook list options for filtering and pagination
+ */
+export interface WebhookListOptions {
+  /** Filter by active status */
+  active?: boolean
+  /** Maximum number of results */
+  limit?: number
+  /** Skip this many results (for pagination) */
+  offset?: number
+  /** Filter by event patterns */
+  events?: string[]
+  /** Filter by creator user ID */
+  createdBy?: string
 }
 
 /**

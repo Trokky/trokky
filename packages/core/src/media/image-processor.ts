@@ -61,7 +61,7 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
       // Cloudflare Images processor - future implementation
       try {
         const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images.js')
-        return new CloudflareImagesProcessor(config)
+        return new CloudflareImagesProcessor(config as any)
       } catch (error) {
         throw new Error(
           `Failed to load Cloudflare Images processor: ${error instanceof Error ? error.message : String(error)}\n\n` +

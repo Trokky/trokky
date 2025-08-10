@@ -144,7 +144,8 @@ export type {
   MediaListOptions,
   MediaVariant,
   SplitStorageConfig,
-  TrokkyStorageAdapters
+  TrokkyStorageAdapters,
+  WebhookListOptions
 } from './types/index.js'
 
 export { ROLE_PERMISSIONS } from './types/index.js'
@@ -155,3 +156,73 @@ export {
   LegacyFieldDefinitionSchema,
   ContentSchemaSchema
 } from './types/index.js'
+
+// Event system
+export {
+  TrokkyEventBus,
+  MemoryEventStorage,
+  // Event creation utilities
+  createDocumentEvent,
+  createMediaEvent,
+  createUserEvent,
+  createAppTokenEvent,
+  createSystemEvent,
+  // Specific event builders
+  documentCreated,
+  documentUpdated,
+  documentDeleted,
+  documentPublished,
+  documentUnpublished,
+  mediaUploaded,
+  mediaUpdated,
+  mediaDeleted,
+  mediaVariantGenerated,
+  userCreated,
+  userUpdated,
+  userDeleted,
+  userLogin,
+  userLogout,
+  userRoleChanged,
+  appTokenCreated,
+  appTokenUsed,
+  systemStartup,
+  systemShutdown,
+  systemError,
+  // Utility functions
+  eventMatches,
+  extractDocumentChanges,
+  actorFromUser,
+  actorFromAppToken,
+  systemActor
+} from './events/index.js'
+
+export type {
+  // Core event types
+  TrokkyEvent,
+  EventActor,
+  EventMetadata,
+  AnyTrokkyEvent,
+  // Specific event types
+  DocumentEvent,
+  MediaEvent,
+  UserEvent,
+  AppTokenEvent,
+  SystemEvent,
+  CacheEvent,
+  WebhookEvent,
+  // Event handling
+  EventListener,
+  EventListenerConfig,
+  EventFilter,
+  EventQueryResult,
+  EventStorage,
+  EventStats,
+  // Webhook types
+  WebhookConfig,
+  WebhookPayload,
+  WebhookDeliveryResult,
+  WebhookRetryPolicy,
+  // Configuration types
+  EventBusConfig,
+  MemoryEventStorageConfig
+} from './events/index.js'

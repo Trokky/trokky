@@ -6,6 +6,27 @@ import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
 import { createLogger } from '../utils/logger.js'
 import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig } from '../media/image-processor.js'
+import { TrokkyEventBus, type EventBusConfig, MemoryEventStorage } from '../events/index.js'
+import { 
+  documentCreated,
+  documentUpdated, 
+  documentDeleted,
+  mediaUploaded,
+  mediaUpdated,
+  mediaDeleted,
+  userCreated,
+  userUpdated,
+  userDeleted,
+  userLogin,
+  userLogout,
+  appTokenCreated,
+  systemStartup,
+  systemShutdown,
+  systemError,
+  actorFromUser,
+  actorFromAppToken,
+  extractDocumentChanges
+} from '../events/index.js'
 import { 
   SchemaNotFoundError, 
   DocumentNotFoundError, 
@@ -54,6 +75,11 @@ export interface TrokkyCoreOptions {
   // Storage adapter validation options
   validateAdapters?: boolean // Validate that adapters have required methods (default: true)
   allowPartialAdapters?: boolean // Allow adapters with optional methods missing (default: false)
+  
+  // Event system configuration
+  eventBus?: TrokkyEventBus // Custom event bus instance
+  eventBusConfig?: EventBusConfig // Event bus configuration (used if eventBus is not provided)
+  enableEvents?: boolean // Enable event emission (default: true)
 }
 
 export interface AuditEvent {
@@ -92,6 +118,10 @@ export class TrokkyCore {
   private imageProcessorConfig: ImageProcessorConfig
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
+  
+  // Event system
+  private eventBus: TrokkyEventBus
+  private eventsEnabled: boolean
 
   // Constructor overloads for both unified and split adapters
   constructor(
@@ -167,6 +197,37 @@ export class TrokkyCore {
         maxRequests: config.api?.rateLimit?.maxRequests || 1000
       }
       this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig)
+    }
+
+    // Initialize event system
+    this.eventsEnabled = options.enableEvents ?? true
+    if (options.eventBus) {
+      this.eventBus = options.eventBus
+    } else {
+      // Create default event bus with memory storage
+      const eventStorage = new MemoryEventStorage({
+        maxEvents: 1000,
+        autoCleanup: true
+      })
+      
+      const eventBusConfig: EventBusConfig = {
+        maxHistorySize: 1000,
+        enablePersistence: true,
+        storage: eventStorage,
+        enableWebhooks: true,
+        maxConcurrentWebhooks: 5,
+        dataStorage: this.dataStorage, // Pass data storage adapter for webhook persistence
+        ...options.eventBusConfig
+      }
+      
+      this.eventBus = new TrokkyEventBus(eventBusConfig)
+    }
+    
+    // Emit system startup event
+    if (this.eventsEnabled) {
+      this.eventBus.emitEvent(systemStartup('TrokkyCore')).catch(error => {
+        this.logger.warn('Failed to emit system startup event', error)
+      })
     }
   }
 
@@ -262,6 +323,11 @@ export class TrokkyCore {
     })
   }
 
+  // Public getters
+  public getEventBus(): TrokkyEventBus {
+    return this.eventBus
+  }
+
   // Initialization
   public async init(): Promise<void> {
     // Initialize image processor asynchronously 
@@ -330,7 +396,40 @@ export class TrokkyCore {
     const id = data.id || this.idGenerator.generate({ prefix: collection })
     const { id: _, ...documentData } = data
 
+    // Check if document already exists (for event emission)
+    const existingDocument = await this.dataStorage.getDocument(collection, id).catch(() => null)
+    
     const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData)
+    
+    // Emit document event
+    if (this.eventsEnabled) {
+      try {
+        if (existingDocument) {
+          // Document updated
+          const changes = extractDocumentChanges(savedDocument, existingDocument)
+          await this.eventBus.emitEvent(documentUpdated(
+            collection,
+            savedDocument,
+            existingDocument,
+            changes
+          ))
+        } else {
+          // Document created
+          await this.eventBus.emitEvent(documentCreated(
+            collection,
+            savedDocument
+          ))
+        }
+      } catch (error) {
+        this.logger.warn('Failed to emit document event', { 
+          error, 
+          collection,
+          documentId: id,
+          operation: existingDocument ? 'update' : 'create'
+        })
+      }
+    }
+    
     return savedDocument as Document & T
   }
 
@@ -378,7 +477,24 @@ export class TrokkyCore {
       throw new DocumentNotFoundError(collection, id)
     }
 
-    return await this.dataStorage.deleteDocument(collection, id)
+    await this.dataStorage.deleteDocument(collection, id)
+    
+    // Emit document deleted event
+    if (this.eventsEnabled) {
+      try {
+        await this.eventBus.emitEvent(documentDeleted(
+          collection,
+          id,
+          existingDocument
+        ))
+      } catch (error) {
+        this.logger.warn('Failed to emit document deleted event', { 
+          error, 
+          collection,
+          documentId: id
+        })
+      }
+    }
   }
 
   // Media operations
@@ -497,6 +613,18 @@ export class TrokkyCore {
       }
     }
 
+    // Emit media uploaded event
+    if (this.eventsEnabled) {
+      try {
+        await this.eventBus.emitEvent(mediaUploaded(mediaFile))
+      } catch (error) {
+        this.logger.warn('Failed to emit media uploaded event', { 
+          error, 
+          fileId: mediaFile.id
+        })
+      }
+    }
+
     return mediaFile
   }
 
@@ -588,7 +716,19 @@ export class TrokkyCore {
       }
     }
 
-    return await this.mediaStorage.deleteFile(id)
+    await this.mediaStorage.deleteFile(id)
+    
+    // Emit media deleted event
+    if (this.eventsEnabled) {
+      try {
+        await this.eventBus.emitEvent(mediaDeleted(id, existingMedia))
+      } catch (error) {
+        this.logger.warn('Failed to emit media deleted event', { 
+          error, 
+          fileId: id
+        })
+      }
+    }
   }
 
   public async regenerateMediaVariants(id: string): Promise<MediaFile> {

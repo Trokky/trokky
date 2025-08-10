@@ -17,12 +17,14 @@ import {
   AppTokenListOptions,
   CreateAppTokenData,
   UpdateAppTokenData,
+  WebhookConfig,
+  WebhookListOptions,
   createLogger
 } from '@trokky/core'
 import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile } from './types.js'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
-  private config: Required<FilesystemDataAdapterConfig>
+  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir'>> & { webhooksDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
   // Security limits
@@ -33,6 +35,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       contentDir: config.contentDir || './content',
       usersDir: config.usersDir || './users',
       tokensDir: config.tokensDir || './tokens',
+      webhooksDir: config.webhooksDir || './webhooks',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -61,6 +64,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       await fsExtra.ensureDir(this.config.contentDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.tokensDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
     } catch (error) {
       if (!this.config.silent) {
         this.logger.error('Failed to initialize directories', error)
@@ -637,6 +641,199 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   }
 
   // ==========================================================================
+  // WEBHOOK OPERATIONS
+  // ==========================================================================
+
+  public async getWebhook(id: string): Promise<WebhookConfig | null> {
+    try {
+      const filePath = this.getWebhookPath(id)
+      
+      // Check if file exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        return null
+      }
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      const webhook: WebhookConfig = this.safeParseJSON<WebhookConfig>(content, this.dateReviver)
+
+      this.logger.debug(`Webhook retrieved: ${id}`)
+      return webhook
+    } catch (error) {
+      this.logger.error(`Failed to get webhook ${id}`, error)
+      throw new Error(`Failed to get webhook ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  public async saveWebhook(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig> {
+    try {
+      SecurityValidator.validateDocumentId(id)
+      
+      const filePath = this.getWebhookPath(id)
+      const webhookDir = path.dirname(filePath)
+
+      // Ensure webhook directory exists
+      await fsExtra.ensureDir(webhookDir, { mode: this.config.dirMode })
+
+      // Check if webhook already exists
+      let existingWebhook: WebhookConfig | null = null
+      try {
+        existingWebhook = await this.getWebhook(id)
+      } catch {
+        // Webhook doesn't exist, this is a new webhook
+      }
+
+      const now = new Date()
+      const isUpdate = existingWebhook !== null
+
+      const webhook: WebhookConfig = {
+        id,
+        name: webhookData.name || existingWebhook?.name || 'Untitled Webhook',
+        url: webhookData.url || existingWebhook?.url || '',
+        events: webhookData.events || existingWebhook?.events || [],
+        active: webhookData.active !== undefined ? webhookData.active : (existingWebhook?.active ?? true),
+        secret: webhookData.secret || existingWebhook?.secret || '',
+        headers: webhookData.headers || existingWebhook?.headers || {},
+        retryPolicy: webhookData.retryPolicy || existingWebhook?.retryPolicy || {
+          maxRetries: 3,
+          backoffType: 'exponential',
+          baseDelay: 1000,
+          maxDelay: 30000,
+          retryOnStatus: [500, 502, 503, 504, 408, 429]
+        },
+        createdBy: webhookData.createdBy || existingWebhook?.createdBy || 'system',
+        createdAt: isUpdate ? existingWebhook!.createdAt : now,
+        updatedAt: now
+      }
+
+      // Write to file with Date serialization
+      const jsonContent = this.config.prettyJson
+        ? JSON.stringify(webhook, this.dateReplacer, this.config.jsonSpaces)
+        : JSON.stringify(webhook, this.dateReplacer)
+
+      await fs.writeFile(filePath, jsonContent, { mode: this.config.fileMode })
+
+      if (this.config.syncWrites) {
+        const fd = await fs.open(filePath, 'r+')
+        await fd.sync()
+        await fd.close()
+      }
+
+      this.logger.info(`Webhook saved: ${id} (${isUpdate ? 'updated' : 'created'})`)
+      return webhook
+    } catch (error) {
+      this.logger.error(`Failed to save webhook ${id}`, error)
+      throw new Error(`Failed to save webhook ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  public async listWebhooks(options: WebhookListOptions = {}): Promise<WebhookConfig[]> {
+    try {
+      // Ensure webhooks directory exists
+      await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
+
+      const files = await fs.readdir(this.config.webhooksDir)
+      const webhookFiles = files.filter(file => file.endsWith('.json'))
+
+      const webhooks: WebhookConfig[] = []
+      for (const file of webhookFiles) {
+        try {
+          const id = path.basename(file, '.json')
+          const webhook = await this.getWebhook(id)
+          if (webhook) {
+            webhooks.push(webhook)
+          }
+        } catch (error) {
+          // Skip invalid webhook files but log the issue
+          if (!this.config.silent) {
+            this.logger.warn(`Could not read webhook file ${file}`, error)
+          }
+        }
+      }
+
+      // Apply filters
+      let filteredWebhooks = webhooks
+
+      if (options.active !== undefined) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => webhook.active === options.active)
+      }
+
+      if (options.events && options.events.length > 0) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => 
+          options.events!.some((eventPattern: string) => 
+            webhook.events.some(webhookEvent => 
+              this.matchesEventPattern(webhookEvent, eventPattern)
+            )
+          )
+        )
+      }
+
+      if (options.createdBy) {
+        filteredWebhooks = filteredWebhooks.filter(webhook => webhook.createdBy === options.createdBy)
+      }
+
+      // Sort by creation date (newest first)
+      filteredWebhooks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+      // Apply pagination
+      if (options.offset) {
+        filteredWebhooks = filteredWebhooks.slice(options.offset)
+      }
+
+      if (options.limit) {
+        filteredWebhooks = filteredWebhooks.slice(0, options.limit)
+      }
+
+      this.logger.debug(`Listed webhooks: ${filteredWebhooks.length} results`)
+      return filteredWebhooks
+    } catch (error) {
+      this.logger.error('Failed to list webhooks', error)
+      throw new Error(`Failed to list webhooks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  public async deleteWebhook(id: string): Promise<void> {
+    try {
+      const filePath = this.getWebhookPath(id)
+      
+      // Check if webhook exists
+      try {
+        await fs.access(filePath, constants.F_OK)
+      } catch {
+        // Webhook doesn't exist, nothing to delete
+        this.logger.debug(`Webhook ${id} does not exist, nothing to delete`)
+        return
+      }
+
+      await fs.unlink(filePath)
+      this.logger.info(`Webhook deleted: ${id}`)
+    } catch (error) {
+      this.logger.error(`Failed to delete webhook ${id}`, error)
+      throw new Error(`Failed to delete webhook ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // ==========================================================================
+  // PRIVATE HELPER METHODS FOR WEBHOOKS
+  // ==========================================================================
+
+  private getWebhookPath(id: string): string {
+    SecurityValidator.validateDocumentId(id)
+    const webhookPath = path.join(this.config.webhooksDir, `${id}.json`)
+    this.validateSecurePath(webhookPath, this.config.webhooksDir)
+    return webhookPath
+  }
+
+  private matchesEventPattern(webhookEvent: string, pattern: string): boolean {
+    if (pattern === '*') return true
+    if (pattern.endsWith('*')) {
+      return webhookEvent.startsWith(pattern.slice(0, -1))
+    }
+    return webhookEvent === pattern
+  }
+
+  // ==========================================================================
   // UTILITY OPERATIONS
   // ==========================================================================
 
@@ -744,6 +941,45 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       expiresAt: tokenFile.expiresAt,
       createdAt: tokenFile.createdAt,
       updatedAt: tokenFile.updatedAt
+    }
+  }
+
+  // JSON parsing and serialization helpers
+  private safeParseJSON<T>(content: string, reviver?: (key: string, value: any) => any): T {
+    // Check content size to prevent DoS attacks
+    if (content.length > this.MAX_DOCUMENT_SIZE) {
+      throw new InvalidInputError(`JSON content size ${content.length} exceeds maximum allowed size of ${this.MAX_DOCUMENT_SIZE} bytes`, 'size')
+    }
+
+    try {
+      return JSON.parse(content, reviver)
+    } catch (error) {
+      throw new InvalidInputError(`Invalid JSON format: ${error}`, 'json')
+    }
+  }
+
+  private dateReplacer = (key: string, value: any): any => {
+    // Convert Date objects to ISO strings
+    if (value instanceof Date) {
+      return value.toISOString()
+    }
+    return value
+  }
+
+  private dateReviver = (key: string, value: any): any => {
+    // Convert ISO date strings back to Date objects
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(value)) {
+      return new Date(value)
+    }
+    return value
+  }
+
+  private validateSecurePath(targetPath: string, basePath: string): void {
+    const resolvedTarget = path.resolve(targetPath)
+    const resolvedBase = path.resolve(basePath)
+    
+    if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
+      throw new InvalidInputError('Path traversal attempt detected', 'path')
     }
   }
 }
