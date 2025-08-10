@@ -65,12 +65,7 @@ export class TrokkyRoutes {
     this.addRoute('PUT', `${basePath}/collections/:collection/:id`, this.updateDocument.bind(this))
     this.addRoute('DELETE', `${basePath}/collections/:collection/:id`, this.deleteDocument.bind(this))
 
-    // Document routes (Studio-compatible endpoints)
-    this.addRoute('GET', `${basePath}/documents/:collection`, this.listDocuments.bind(this))
-    this.addRoute('POST', `${basePath}/documents/:collection`, this.createDocument.bind(this))
-    this.addRoute('GET', `${basePath}/documents/:collection/:id`, this.getDocument.bind(this))
-    this.addRoute('PUT', `${basePath}/documents/:collection/:id`, this.updateDocument.bind(this))
-    this.addRoute('DELETE', `${basePath}/documents/:collection/:id`, this.deleteDocument.bind(this))
+    // Removed duplicate document routes - use /collections endpoints instead
 
     // Statistics routes
     this.addRoute('GET', `${basePath}/stats/:collection`, this.getCollectionStats.bind(this))

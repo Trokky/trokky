@@ -283,7 +283,7 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
     },
     
     security: {
-      enabled: isProd, // Auto-enable in production
+      enabled: config.security?.enabled ?? true, // Secure by default - explicit opt-out required
       jwtSecret: config.security?.jwtSecret || (isDev ? 'dev-secret-change-in-production' : undefined),
       tokens: {
         accessTokenTtl: '2h',
@@ -294,13 +294,13 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       validation: {
         input: true,
         schemas: true,
-        permissions: isProd,
+        permissions: true, // Secure by default - enable permissions everywhere
         ...config.security?.validation
       },
       rateLimit: {
-        enabled: isProd,
+        enabled: config.security?.rateLimit?.enabled ?? true, // Rate limiting on by default
         windowMs: 15 * 60 * 1000, // 15 minutes
-        maxRequests: isProd ? 100 : 1000,
+        maxRequests: isDev ? 1000 : 100, // More lenient in dev, but still protected
         skipSuccessfulRequests: false,
         ...config.security?.rateLimit
       },

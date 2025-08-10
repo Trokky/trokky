@@ -310,7 +310,25 @@ export class TrokkyExpress {
         bodyParser: fullConfig.server.parsing,
         authentication: fullConfig.security.enabled ? {
           enabled: fullConfig.security.enabled,
-          publicPaths: []
+          publicPaths: [],
+          validateToken: async (token: string) => {
+            // Basic JWT format validation (3 parts separated by dots)
+            const parts = token.split('.')
+            if (parts.length !== 3) {
+              return false // Invalid JWT format
+            }
+            
+            try {
+              // Try to decode the header and payload to ensure they're valid base64
+              JSON.parse(Buffer.from(parts[0], 'base64url').toString())
+              JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+              // For now, we'll accept any properly formatted JWT
+              // TODO: Implement proper signature validation with JWT secret
+              return true
+            } catch (error) {
+              return false // Invalid JWT structure
+            }
+          }
         } : undefined,
         rateLimiting: fullConfig.security.rateLimit?.enabled ? fullConfig.security.rateLimit : undefined,
         studio: fullConfig.studio.enabled ? {
