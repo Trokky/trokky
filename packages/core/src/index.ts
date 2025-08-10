@@ -152,8 +152,8 @@ export { ROLE_PERMISSIONS } from './types/index.js'
 
 // Zod schemas for validation
 export {
-  LegacyFieldTypeSchema,
-  LegacyFieldDefinitionSchema,
+  FieldTypeSchema,
+  FieldDefinitionSchema,
   ContentSchemaSchema
 } from './types/index.js'
 

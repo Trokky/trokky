@@ -22,6 +22,7 @@ import { DocumentFieldPlugin } from './definitions/DocumentField/index.js';
 import { referenceFieldPlugin } from './definitions/ReferenceField/index.js';
 import { richtextFieldPlugin } from './definitions/RichTextField/index.js';
 import { portableTextFieldPlugin } from './definitions/PortableTextField/index.js';
+import { dateFieldPlugin } from './definitions/DateField/index.js';
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -59,8 +60,8 @@ export function registerBuiltinFields(): void {
   // Reference fields
   fieldRegistry.register(referenceFieldPlugin, 'builtin');
   
-  // TODO: Register other built-in fields
-  // fieldRegistry.register(dateFieldPlugin, 'builtin');
+  // Date fields
+  fieldRegistry.register(dateFieldPlugin, 'builtin');
   
   // Mark registry as initialized
   fieldRegistry.markInitialized();

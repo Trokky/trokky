@@ -192,7 +192,9 @@ export class TypeGenerator {
         return 'string | Date'
       
       case 'array':
-        const itemType = field.options?.of ? this.mapFieldType(field.options.of, documentName) : 'any'
+        // Support both legacy format (items) and new format (of)
+        const arrayItemDef = (field as any).of || (field as any).items
+        const itemType = arrayItemDef ? this.mapFieldType(arrayItemDef, documentName) : 'any'
         return `${itemType}[]`
       
       case 'object':

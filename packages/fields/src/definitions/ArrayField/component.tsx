@@ -73,7 +73,7 @@ export function ArrayFieldComponent({
     addButtonText = 'Add item',
     disableAdd = false,
     disableRemove = false,
-    tagOptions = {}
+    tagField = {}
   } = arrayDefinition.options || {};
 
   // Validate on value change
@@ -317,7 +317,7 @@ export function ArrayFieldComponent({
                 <button
                   type="button"
                   onClick={() => {
-                    if (tagOptions.confirmDelete) {
+                    if (tagField.confirmDelete) {
                       if (window.confirm(`Remove tag "${tag}"?`)) {
                         operations.remove(index);
                       }
@@ -343,7 +343,7 @@ export function ArrayFieldComponent({
             value={newItemInput}
             onChange={(e) => setNewItemInput(e.target.value)}
             onKeyPress={handleTagKeyPress}
-            placeholder={tagOptions.placeholder || 'Add tag...'}
+            placeholder={tagField.placeholder || 'Add tag...'}
             className="flex-1 px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm min-h-[44px]"
           />
           <button

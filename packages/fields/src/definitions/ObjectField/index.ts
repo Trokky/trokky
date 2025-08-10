@@ -39,7 +39,7 @@ export const ObjectFieldPlugin: FieldPlugin<ObjectFieldDefinition, Record<string
       fields: definition.fields,
       validation: definition.validation,
       options: definition.options,
-      defaultValue: definition.defaultValue
+      default: definition.default
     };
   },
   

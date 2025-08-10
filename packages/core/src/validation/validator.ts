@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SchemaRegistry } from '../schema/registry.js'
-import { LegacyFieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index.js'
+import { FieldDefinition, ValidationResult, ValidationErrorDetail } from '../types/index.js'
 
 export class DocumentValidator {
   constructor(private schemaRegistry: SchemaRegistry) {}
@@ -45,7 +45,7 @@ export class DocumentValidator {
     }
   }
 
-  private buildZodSchema(fields: Record<string, LegacyFieldDefinition>): z.ZodSchema {
+  private buildZodSchema(fields: Record<string, FieldDefinition>): z.ZodSchema {
     const schemaShape: Record<string, z.ZodSchema> = {}
 
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
@@ -61,7 +61,7 @@ export class DocumentValidator {
     return z.object(schemaShape).passthrough()
   }
 
-  private buildFieldSchema(fieldDef: LegacyFieldDefinition): z.ZodSchema {
+  private buildFieldSchema(fieldDef: FieldDefinition): z.ZodSchema {
     switch (fieldDef.type) {
       case 'string':
         return z.string()
@@ -79,25 +79,54 @@ export class DocumentValidator {
         }, { message: 'Invalid date string' }).transform(str => new Date(str)))
       
       case 'array':
-        if (!fieldDef.items) {
+        // Handle both legacy (items) and modern (of) formats
+        const arrayItemDef = fieldDef.of || (fieldDef as any).items
+        if (!arrayItemDef) {
           return z.array(z.unknown())
         }
-        const itemSchema = this.buildFieldSchema(fieldDef.items)
+        const itemSchema = this.buildFieldSchema(arrayItemDef)
         return z.array(itemSchema)
       
       case 'object':
-        if (!fieldDef.properties) {
+        if (!fieldDef.fields) {
           return z.record(z.unknown())
         }
+        
         const objectShape: Record<string, z.ZodSchema> = {}
-        for (const [propName, propDef] of Object.entries(fieldDef.properties)) {
-          const typedPropDef = propDef as LegacyFieldDefinition
-          let propSchema = this.buildFieldSchema(typedPropDef)
-          if (!typedPropDef.required) {
-            propSchema = propSchema.optional()
+        
+        // Handle legacy v1 format: fields is an array of ObjectFieldItem
+        if (Array.isArray(fieldDef.fields)) {
+          for (const fieldItem of fieldDef.fields) {
+            // Convert ObjectFieldItem to FieldDefinition
+            const propDef: FieldDefinition = {
+              type: fieldItem.type as any,
+              required: fieldItem.required,
+              description: fieldItem.description,
+              validation: fieldItem.validation,
+              options: fieldItem.options,
+              of: fieldItem.of as any,
+              fields: fieldItem.fields as any,
+              to: fieldItem.to as any
+            }
+            
+            let propSchema = this.buildFieldSchema(propDef)
+            if (!fieldItem.required) {
+              propSchema = propSchema.optional()
+            }
+            objectShape[fieldItem.name] = propSchema
           }
-          objectShape[propName] = propSchema
+        } else {
+          // Handle modern format: fields is a Record<string, FieldDefinition>
+          for (const [propName, propDef] of Object.entries(fieldDef.fields)) {
+            const typedPropDef = propDef as FieldDefinition
+            let propSchema = this.buildFieldSchema(typedPropDef)
+            if (!typedPropDef.required) {
+              propSchema = propSchema.optional()
+            }
+            objectShape[propName] = propSchema
+          }
         }
+        
         return z.object(objectShape)
       
       case 'reference':

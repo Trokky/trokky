@@ -136,8 +136,7 @@ export type {
   ArrayValidation,
   ArrayFieldOptions,
   ArrayLayout,
-  ArrayItemType,
-  ArrayOption,
+  ArrayItemDefinition,
   ArrayOperations,
   ArrayFieldContext
 } from './definitions/ArrayField/index.js';
@@ -164,9 +163,7 @@ export type {
   ObjectFieldItem,
   ObjectOperations,
   ObjectFieldContext,
-  ObjectFieldMetadata,
-  ConditionalResult,
-  TemplateContext
+  ObjectFieldMetadata
 } from './definitions/ObjectField/index.js';
 
 export {
@@ -239,6 +236,23 @@ export type {
   SlugFieldValue,
   SlugifyOptions
 } from './definitions/SlugField/index.js';
+
+export {
+  dateFieldPlugin,
+  DateFieldComponent,
+  DateFieldPreview,
+  validateDateField,
+  getDefaultDateValue,
+  formatDateForDisplay,
+  DATE_FIELD_DEFAULTS
+} from './definitions/DateField/index.js';
+
+export type {
+  DateFieldDefinition,
+  DateFieldValue,
+  DateValidation,
+  DateFieldOptions
+} from './definitions/DateField/index.js';
 
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';

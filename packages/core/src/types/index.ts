@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { fieldRegistry } from '@trokky/fields'
 import type { 
   User, 
   UserListOptions, 
@@ -29,30 +30,40 @@ export interface DocumentWithContent extends Document {
 // Document data without metadata
 export type DocumentData = Omit<Document, 'id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>
 
-// Schema field types
-export const LegacyFieldTypeSchema = z.enum([
-  'string',
-  'number',
-  'boolean',
-  'date',
-  'array',
-  'object',
-  'reference',
-  'media',
-  'slug'
-])
+// Dynamic field types from @trokky/fields registry
+function getFieldTypeSchema() {
+  const registeredTypes = fieldRegistry.getTypes();
+  if (registeredTypes.length === 0) {
+    throw new Error('No field types registered in @trokky/fields registry. Ensure field registration runs before schema validation.');
+  }
+  return z.enum(registeredTypes as [string, ...string[]]);
+}
 
-export type LegacyFieldType = z.infer<typeof LegacyFieldTypeSchema>
+export const FieldTypeSchema = getFieldTypeSchema();
+export type FieldType = z.infer<typeof FieldTypeSchema>
 
 // Schema field definition interfaces
-export interface LegacyFieldDefinition {
-  type: LegacyFieldType
+export interface FieldDefinition {
+  type: FieldType
   required?: boolean
   description?: string
   validation?: Record<string, unknown>
   options?: Record<string, unknown> // For field-specific options (e.g., media field upload/browse settings)
-  items?: LegacyFieldDefinition // For arrays
-  properties?: Record<string, LegacyFieldDefinition> // For objects
+  of?: FieldDefinition // For arrays  
+  fields?: Record<string, FieldDefinition> | Array<{
+    name: string
+    type: string
+    title: string
+    description?: string
+    required?: boolean
+    validation?: any
+    options?: any
+    default?: any
+    fields?: any
+    to?: any
+    of?: any
+  }> // For objects - support both Record and Array formats
+  to?: string // For references
   collection?: string // For references
   
   // Slug field specific properties
@@ -70,14 +81,30 @@ export interface LegacyFieldDefinition {
 }
 
 // Schema field definition Zod schema
-export const LegacyFieldDefinitionSchema: z.ZodType<LegacyFieldDefinition> = z.object({
-  type: LegacyFieldTypeSchema,
+export const FieldDefinitionSchema: z.ZodType<FieldDefinition> = z.object({
+  type: FieldTypeSchema,
   required: z.boolean().optional().default(false),
   description: z.string().optional(),
   validation: z.record(z.unknown()).optional(),
   options: z.record(z.unknown()).optional(), // For field-specific options
-  items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
-  properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
+  of: z.lazy(() => FieldDefinitionSchema).optional(), // For arrays
+  fields: z.union([
+    z.record(z.lazy(() => FieldDefinitionSchema)),
+    z.array(z.object({
+      name: z.string(),
+      type: z.string(),
+      title: z.string(),
+      description: z.string().optional(),
+      required: z.boolean().optional(),
+      validation: z.any().optional(),
+      options: z.any().optional(),
+      default: z.any().optional(),
+      fields: z.any().optional(),
+      to: z.any().optional(),
+      of: z.any().optional()
+    }))
+  ]).optional(), // For objects - support both Record and Array formats
+  to: z.string().optional(), // For references
   collection: z.string().optional(), // For references
   
   // Slug field specific properties
@@ -101,7 +128,7 @@ export const ContentSchemaSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
   singleton: z.boolean().optional(), // Allow singleton property
-  fields: z.record(LegacyFieldDefinitionSchema)
+  fields: z.record(FieldDefinitionSchema)
 })
 
 export type ContentSchema = z.infer<typeof ContentSchemaSchema>
