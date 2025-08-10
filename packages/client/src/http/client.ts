@@ -394,10 +394,43 @@ export class HttpClient {
     }
 
     if (contentType.includes('application/json')) {
-      return response.json() as T
+      const json = await response.json()
+      return this.transformResponse<T>(json)
     }
 
     return response.text() as any
+  }
+
+  /**
+   * Transform Trokky API response format to client expected format
+   */
+  private transformResponse<T>(apiResponse: any): T {
+    // If response has success and data fields (Trokky API format)
+    if (typeof apiResponse === 'object' && apiResponse.success && apiResponse.data) {
+      const data = apiResponse.data
+      
+      // Transform collection responses
+      if (data.documents && data.pagination) {
+        return {
+          data: data.documents,
+          total: data.pagination.total,
+          offset: (data.pagination.page - 1) * data.pagination.limit,
+          limit: data.pagination.limit,
+          hasMore: data.pagination.page < data.pagination.pages
+        } as T
+      }
+      
+      // Transform single document responses
+      if (data.id || data._id) {
+        return data as T
+      }
+      
+      // Return unwrapped data for other cases
+      return data as T
+    }
+    
+    // Return as-is if not in Trokky API format
+    return apiResponse as T
   }
 
   private isAuthError(error: any): boolean {
@@ -417,6 +450,8 @@ export class HttpClient {
   private log(message: string, data?: any): void {
     if (this.config.debug) {
       this.logger.debug(message, data)
+      // Also log to console for browser debugging
+      console.log(`[TrokkyClient] ${message}:`, data)
     }
   }
 }
