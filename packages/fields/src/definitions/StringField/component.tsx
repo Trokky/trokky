@@ -26,7 +26,6 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     ...restProps
   } = props;
 
-  
   // Type-safe access to string field specific properties
   const stringDefinition = definition as StringFieldDefinition;
   const options = stringDefinition.options || {};
