@@ -226,6 +226,13 @@ export class TypeGenerator {
    */
   private generateDocumentType(document: DocumentSchema): string {
     const imports = ['BaseDocument']
+    
+    // Check if we need MediaAsset import
+    const hasMediaFields = this.hasMediaFields(document.fields)
+    if (hasMediaFields) {
+      imports.push('MediaAsset')
+    }
+    
     const interfaceName = `${document.name}Document`
     
     let content = `/**\n * ${document.title || document.name}\n`
@@ -267,6 +274,41 @@ export class TypeGenerator {
     }
 
     return content
+  }
+
+  /**
+   * Check if document has media fields (recursively)
+   */
+  private hasMediaFields(fields: FieldSchema[]): boolean {
+    for (const field of fields) {
+      if (field.type === 'media') {
+        return true
+      }
+      
+      // Check nested fields in objects
+      if (field.type === 'object') {
+        const objectFields = (field as any).fields || field.options?.fields
+        if (objectFields && this.hasMediaFields(objectFields)) {
+          return true
+        }
+      }
+      
+      // Check array item types
+      if (field.type === 'array') {
+        const arrayItemDef = (field as any).of || (field as any).items
+        if (arrayItemDef && arrayItemDef.type === 'media') {
+          return true
+        }
+        // Check if array contains objects with media fields
+        if (arrayItemDef && arrayItemDef.type === 'object') {
+          const arrayObjectFields = arrayItemDef.fields || arrayItemDef.options?.fields
+          if (arrayObjectFields && this.hasMediaFields(arrayObjectFields)) {
+            return true
+          }
+        }
+      }
+    }
+    return false
   }
 
   /**
@@ -333,6 +375,9 @@ export class TypeGenerator {
         // Updated to handle new reference format: field.to instead of field.options?.to
         const refType = (field as any).to || field.options?.to || 'any'
         return `string | ${refType}Document`
+      
+      case 'media':
+        return 'MediaAsset | null'
       
       case 'image':
       case 'file':

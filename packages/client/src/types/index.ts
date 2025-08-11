@@ -107,6 +107,16 @@ export interface MediaResult {
   metadata?: Record<string, any>
 }
 
+export interface MediaAsset {
+  _type: 'media'
+  asset: {
+    _ref: string
+    _type: 'mediaAsset'
+  }
+  alt?: string
+  caption?: string
+}
+
 export interface ValidationError {
   field: string
   message: string
