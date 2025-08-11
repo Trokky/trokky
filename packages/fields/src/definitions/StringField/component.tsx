@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { StringFieldDefinition } from './definition.js';
+import type { StringFieldDefinition, StringListOption } from './definition.js';
 
 // Use generic FieldComponentProps to match plugin interface
 type StringFieldComponentProps = FieldComponentProps;
@@ -33,7 +33,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
   const validation = stringDefinition.validation || {};
 
   // Handle value transformation
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     let newValue = event.target.value;
     
     // Apply transformations
@@ -88,6 +88,34 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
       boxShadow: '0 0 0 1px rgba(248, 113, 113, 0.3)' // subtle ring
     } : undefined
   };
+
+  // Render select/dropdown if list options are provided (Sanity-style)
+  if (options.list && options.list.length > 0) {
+    // Normalize list options to always have title and value
+    const normalizedOptions = options.list.map(item => {
+      if (typeof item === 'string') {
+        return { title: item, value: item };
+      }
+      return item as StringListOption;
+    });
+
+    return (
+      <select
+        {...inputProps}
+        className={inputProps.className}
+        style={inputProps.style}
+      >
+        {!stringDefinition.required && (
+          <option value="">{options.placeholder || 'Select an option...'}</option>
+        )}
+        {normalizedOptions.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.title}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
   // Render multiline textarea
   if (options.multiline) {

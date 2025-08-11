@@ -14,6 +14,12 @@ export interface StringValidation extends BaseValidation {
   url?: boolean;
 }
 
+// List option for dropdown/select
+export interface StringListOption {
+  title: string;
+  value: string;
+}
+
 // String field specific options
 export interface StringFieldOptions extends BaseFieldOptions {
   inputType?: 'text' | 'email' | 'url' | 'tel' | 'password';
@@ -23,6 +29,7 @@ export interface StringFieldOptions extends BaseFieldOptions {
   spellCheck?: boolean;
   transform?: 'lowercase' | 'uppercase' | 'capitalize';
   size?: 'sm' | 'md' | 'lg';
+  list?: StringListOption[] | string[];  // Sanity-style list for dropdown
 }
 
 // String field definition
