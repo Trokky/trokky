@@ -133,6 +133,10 @@ export interface TypeGeneratorOptions {
   namespace?: string
   fileExtension?: 'ts' | 'd.ts'
   includeValidation?: boolean
+  // Authentication options
+  authToken?: string
+  username?: string
+  password?: string
 }
 
 export interface DocumentGeneratorOptions {

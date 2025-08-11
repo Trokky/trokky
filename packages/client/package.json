@@ -5,6 +5,7 @@
   "keywords": ["cms", "client", "sdk", "typescript", "type-generation"],
   "author": "Trokky Team",
   "license": "MIT",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {

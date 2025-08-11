@@ -3,7 +3,7 @@
  * Generates TypeScript types from Trokky schema definitions
  */
 
-import type { TypeGeneratorOptions } from '../types'
+import type { TypeGeneratorOptions } from '../types/index.js'
 
 export interface FieldSchema {
   type: string
@@ -13,6 +13,10 @@ export interface FieldSchema {
   required?: boolean
   validation?: Record<string, any>
   options?: Record<string, any>
+  // New field format properties
+  fields?: FieldSchema[] // for object fields
+  of?: FieldSchema // for array fields
+  to?: string // for reference fields
 }
 
 export interface DocumentSchema {
@@ -29,7 +33,7 @@ export interface ProjectSchema {
 }
 
 export class TypeGenerator {
-  private options: Required<TypeGeneratorOptions>
+  private options: Required<Omit<TypeGeneratorOptions, 'authToken' | 'username' | 'password'>> & Pick<TypeGeneratorOptions, 'authToken' | 'username' | 'password'>
 
   constructor(options: TypeGeneratorOptions) {
     this.options = {
@@ -37,7 +41,10 @@ export class TypeGenerator {
       schemaUrl: options.schemaUrl,
       namespace: options.namespace || 'Trokky',
       fileExtension: options.fileExtension || 'ts',
-      includeValidation: options.includeValidation ?? true
+      includeValidation: options.includeValidation ?? true,
+      authToken: options.authToken,
+      username: options.username,
+      password: options.password
     }
   }
 
@@ -61,13 +68,129 @@ export class TypeGenerator {
    */
   private async fetchSchema(): Promise<ProjectSchema> {
     try {
-      const response = await fetch(this.options.schemaUrl)
+      // For Trokky API, we need to fetch from /api/collections and transform the response
+      const apiUrl = this.options.schemaUrl.replace('/api/schemas', '/api/collections')
+      
+      // Handle authentication
+      let authToken = this.options.authToken
+      
+      // If no token but username/password provided, login first
+      if (!authToken && this.options.username && this.options.password) {
+        const loginUrl = apiUrl.replace('/api/collections', '/api/auth/login')
+        const loginResponse = await fetch(loginUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            credentials: {
+              username: this.options.username,
+              password: this.options.password
+            }
+          })
+        })
+        
+        if (!loginResponse.ok) {
+          throw new Error(`Authentication failed: ${loginResponse.status} ${loginResponse.statusText}`)
+        }
+        
+        const loginData = await loginResponse.json() as any
+        if (loginData.success && loginData.data?.token) {
+          authToken = loginData.data.token
+        } else {
+          throw new Error('Authentication failed: No token received')
+        }
+      }
+      
+      // Prepare headers
+      const headers: Record<string, string> = {}
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+      
+      const response = await fetch(apiUrl, { headers })
       if (!response.ok) {
         throw new Error(`Failed to fetch schema: ${response.status} ${response.statusText}`)
       }
-      return await response.json() as ProjectSchema
+      
+      const data = await response.json() as any
+      
+      // Transform Trokky API response to ProjectSchema format
+      if (data.success && data.data && data.data.collections) {
+        const collections = data.data.collections
+        
+        return {
+          name: 'TrokkyProject',
+          version: '1.0.0',
+          documents: collections.map((collection: any) => ({
+            name: collection.name,
+            title: collection.title || collection.name,
+            description: collection.description,
+            fields: this.transformFields(collection.fields || {})
+          }))
+        }
+      }
+      
+      // Fallback: try to parse as direct ProjectSchema format
+      return data as ProjectSchema
     } catch (error) {
       throw new Error(`Failed to fetch schema from ${this.options.schemaUrl}: ${error}`)
+    }
+  }
+
+  /**
+   * Transform Trokky field format to generator field format
+   */
+  private transformFields(fields: Record<string, any> | any[]): FieldSchema[] {
+    // Handle array format (nested fields in objects/arrays)
+    if (Array.isArray(fields)) {
+      return fields.map(field => ({
+        name: field.name,
+        type: field.type,
+        title: field.title,
+        description: field.description,
+        required: field.required,
+        validation: field.validation,
+        options: field.options,
+        // Handle new field formats
+        fields: field.fields ? this.transformFields(field.fields) : undefined,
+        of: field.of ? this.transformSingleField(field.of) : undefined,
+        to: field.to
+      }))
+    }
+    
+    // Handle object format (top-level fields)
+    return Object.entries(fields).map(([name, field]) => ({
+      name,
+      type: field.type,
+      title: field.title,
+      description: field.description,
+      required: field.required,
+      validation: field.validation,
+      options: field.options,
+      // Handle new field formats
+      fields: field.fields ? this.transformFields(field.fields) : undefined,
+      of: field.of ? this.transformSingleField(field.of) : undefined,
+      to: field.to
+    }))
+  }
+
+  /**
+   * Transform a single field (used for array 'of' property)
+   */
+  private transformSingleField(field: any): FieldSchema {
+    return {
+      name: field.name || 'item', // fallback name for array items
+      type: field.type,
+      title: field.title,
+      description: field.description,
+      required: field.required,
+      validation: field.validation,
+      options: field.options,
+      // Handle new field formats
+      fields: field.fields ? this.transformFields(field.fields) : undefined,
+      of: field.of ? this.transformSingleField(field.of) : undefined,
+      to: field.to
     }
   }
 
@@ -154,15 +277,21 @@ export class TypeGenerator {
     
     let content = `export interface ${interfaceName} {\n`
     
-    if (field.type === 'object' && field.options?.fields) {
-      for (const subField of field.options.fields) {
-        const fieldType = this.mapFieldType(subField, documentName)
-        const optional = subField.required ? '' : '?'
-        content += `  ${subField.name}${optional}: ${fieldType}\n`
+    if (field.type === 'object') {
+      // Updated to handle new object format: field.fields instead of field.options?.fields
+      const objectFields = (field as any).fields || field.options?.fields
+      if (objectFields) {
+        for (const subField of objectFields) {
+          const fieldType = this.mapFieldType(subField, documentName)
+          const optional = subField.required ? '' : '?'
+          content += `  ${subField.name}${optional}: ${fieldType}\n`
+        }
       }
     } else if (field.type === 'reference') {
       content += `  _ref: string\n`
-      content += `  _type: '${field.options?.to || 'reference'}'\n`
+      // Updated to handle new reference format: field.to instead of field.options?.to
+      const refType = (field as any).to || field.options?.to || 'reference'
+      content += `  _type: '${refType}'\n`
     }
     
     content += '}'
@@ -201,7 +330,8 @@ export class TypeGenerator {
         return `${documentName}${this.capitalize(field.name)}`
       
       case 'reference':
-        const refType = field.options?.to || 'any'
+        // Updated to handle new reference format: field.to instead of field.options?.to
+        const refType = (field as any).to || field.options?.to || 'any'
         return `string | ${refType}Document`
       
       case 'image':
@@ -210,6 +340,9 @@ export class TypeGenerator {
       
       case 'portableText':
         return 'any[] // Portable Text blocks'
+      
+      case 'richText':
+        return 'any[] // Rich text blocks'
       
       default:
         return 'any'
@@ -309,4 +442,4 @@ export async function generateTypesFromSchema(
 }
 
 // Document generation exports (development only)
-export { DocumentGenerator, generateDocuments } from './document-generator'
+export { DocumentGenerator, generateDocuments } from './document-generator.js'

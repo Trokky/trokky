@@ -6,9 +6,9 @@
  */
 
 import { program } from 'commander'
-import { TypeGenerator } from '../generator'
-import { DocumentGenerator } from '../generator/document-generator'
-import type { TypeGeneratorOptions, DocumentGeneratorOptions } from '../types'
+import { TypeGenerator } from '../generator/index.js'
+import { DocumentGenerator } from '../generator/document-generator.js'
+import type { TypeGeneratorOptions, DocumentGeneratorOptions } from '../types/index.js'
 
 // Types command
 program
@@ -19,6 +19,9 @@ program
   .option('-n, --namespace <name>', 'TypeScript namespace', 'Trokky')
   .option('-e, --extension <ext>', 'File extension (ts|d.ts)', 'ts')
   .option('--no-validation', 'Skip validation schema generation')
+  .option('-t, --auth-token <token>', 'Authentication token')
+  .option('--username <username>', 'Username for authentication')
+  .option('--password <password>', 'Password for authentication')
   .action(async (options: any) => {
     try {
       const generatorOptions: TypeGeneratorOptions = {
@@ -26,7 +29,10 @@ program
         outputDir: options.outputDir,
         namespace: options.namespace,
         fileExtension: options.extension,
-        includeValidation: options.validation
+        includeValidation: options.validation,
+        authToken: options.authToken,
+        username: options.username,
+        password: options.password
       }
 
       const generator = new TypeGenerator(generatorOptions)
