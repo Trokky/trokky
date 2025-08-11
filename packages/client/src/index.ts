@@ -7,6 +7,7 @@ export { HttpClient } from './http/client'
 export { CacheManager } from './cache/manager'
 export { DocumentClient } from './document/client'
 export { TrokkyClient } from './client'
+export { MediaHelper } from './media/helper'
 
 export type {
   ClientConfig,
@@ -45,3 +46,10 @@ export type {
   DocumentSchema,
   ProjectSchema
 } from './generator'
+
+// Media types
+export type {
+  MediaVariant,
+  MediaFile,
+  MediaResponse
+} from './media/helper'

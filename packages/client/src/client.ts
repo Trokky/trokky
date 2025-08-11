@@ -6,6 +6,7 @@
 import { HttpClient } from './http/client'
 import { CacheManager } from './cache/manager'
 import { DocumentClient } from './document/client'
+import { MediaHelper } from './media/helper'
 
 import type { 
   ClientConfig, 
@@ -22,12 +23,14 @@ export class TrokkyClient {
   public readonly http: HttpClient
   public readonly cache: CacheManager
   public readonly documents: DocumentClient
+  public readonly media: MediaHelper
 
   constructor(config: ClientConfig) {
     // Initialize core components
     this.http = new HttpClient(config)
     this.cache = new CacheManager(config.cacheMaxAge)
     this.documents = new DocumentClient(this.http, this.cache)
+    this.media = new MediaHelper(this.http)
   }
 
   // Authentication methods (delegate to http client)

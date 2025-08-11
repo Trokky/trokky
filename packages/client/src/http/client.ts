@@ -75,6 +75,13 @@ export class HttpClient {
   }
 
   /**
+   * Get the base URL of the API
+   */
+  getBaseUrl(): string {
+    return this.config.baseUrl
+  }
+
+  /**
    * Authenticate with username and password
    */
   async authenticate(credentials: AuthConfig): Promise<AuthTokens> {
@@ -335,7 +342,7 @@ export class HttpClient {
   private buildUrl(endpoint: string): string {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
     const apiPath = this.config.apiVersion ? `/${this.config.apiVersion}` : ''
-    return `${this.config.baseUrl}/api${apiPath}/${cleanEndpoint}`
+    return `${this.config.baseUrl}${apiPath}/${cleanEndpoint}`
   }
 
   private buildRequestOptions(options: RequestInit & RequestOptions): RequestInit {
