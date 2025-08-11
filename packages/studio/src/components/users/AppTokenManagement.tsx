@@ -309,7 +309,7 @@ export function AppTokenManagement() {
       setIsLoading(true);
       const response = await apiClient.get('/api/tokens');
       if (response.success && response.data) {
-        setTokens([]);
+        setTokens(response.data as AppToken[]);
       }
     } catch (error) {
       logger.error('Failed to load tokens', error);
