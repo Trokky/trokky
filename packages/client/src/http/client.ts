@@ -20,7 +20,7 @@ export class HttpClient {
   constructor(config: ClientConfig) {
     this.config = {
       baseUrl: config.baseUrl,
-      apiVersion: config.apiVersion || 'v1',
+      apiVersion: config.apiVersion ?? 'v1', // Only default to v1 if undefined, not empty string
       token: config.token || '',
       refreshToken: config.refreshToken || '',
       apiToken: config.apiToken || '',
@@ -78,16 +78,23 @@ export class HttpClient {
    * Authenticate with username and password
    */
   async authenticate(credentials: AuthConfig): Promise<AuthTokens> {
-    const response = await this.request<AuthTokens>('/auth/login', {
+    const response = await this.request<any>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({ credentials }), // Wrap credentials in object
       headers: {
         'Content-Type': 'application/json'
       }
     })
 
-    this.setTokens(response)
-    return response
+    // Extract tokens from response (transformResponse already extracted the data field)
+    const tokens = {
+      accessToken: response.token,
+      refreshToken: response.refreshToken,
+      expiresAt: new Date(response.expiresAt).getTime()
+    }
+
+    this.setTokens(tokens)
+    return tokens
   }
 
   /**

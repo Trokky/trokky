@@ -63,7 +63,16 @@ export class DocumentClient {
       queryParams.set('filter', JSON.stringify(options.filter))
     }
     if (options.sort) {
-      queryParams.set('sort', JSON.stringify(options.sort))
+      // Convert sort object to server expected format
+      if (typeof options.sort === 'object') {
+        Object.entries(options.sort).forEach(([field, direction]) => {
+          const dir = direction === -1 || direction === 'desc' ? 'desc' : 'asc'
+          queryParams.append('sort', `${field}.${dir}`)
+        })
+      } else {
+        // If it's already a string, use as-is
+        queryParams.set('sort', options.sort.toString())
+      }
     }
     if (options.limit) {
       queryParams.set('limit', options.limit.toString())

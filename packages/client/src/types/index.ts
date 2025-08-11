@@ -74,7 +74,7 @@ export interface RequestOptions {
 
 export interface QueryOptions {
   filter?: Record<string, any>
-  sort?: Record<string, 1 | -1>
+  sort?: Record<string, 1 | -1 | 'asc' | 'desc'> | string
   limit?: number
   offset?: number
   select?: string[]
