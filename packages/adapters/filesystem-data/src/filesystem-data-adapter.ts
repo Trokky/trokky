@@ -496,7 +496,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     }
   }
 
-  public async saveAppToken(id: string, tokenData: CreateAppTokenData | Partial<UpdateAppTokenData>): Promise<AppToken> {
+  public async saveAppToken(id: string, tokenData: CreateAppTokenData | Partial<UpdateAppTokenData> | AppToken): Promise<AppToken> {
     try {
       SecurityValidator.validateDocumentId(id)
 
@@ -523,19 +523,30 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         }
       } catch {
         // Token doesn't exist, this is a new token
-        const createData = tokenData as CreateAppTokenData
-        tokenFile = {
-          id,
-          name: createData.name,
-          description: createData.description,
-          tokenHash: '', // Will be set by the caller
-          permissions: createData.permissions,
-          createdBy: '', // Will be set by the caller
-          isActive: true,
-          usageCount: 0,
-          expiresAt: createData.expiresAt,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        // Check if we received a complete AppToken object (from core engine)
+        if ('tokenHash' in tokenData && 'createdBy' in tokenData) {
+          // Complete AppToken object from core engine
+          const completeToken = tokenData as AppToken
+          tokenFile = {
+            ...completeToken,
+            id // Ensure ID matches
+          }
+        } else {
+          // CreateAppTokenData from API
+          const createData = tokenData as CreateAppTokenData
+          tokenFile = {
+            id,
+            name: createData.name,
+            description: createData.description,
+            tokenHash: '', // Will be set by the caller
+            permissions: createData.permissions,
+            createdBy: '', // Will be set by the caller
+            isActive: true,
+            usageCount: 0,
+            expiresAt: createData.expiresAt,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
         }
       }
 

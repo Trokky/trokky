@@ -1199,6 +1199,39 @@ export class TrokkyCore {
     return await this.dataStorage.getAppToken(id)
   }
 
+  public async validateAppToken(token: string): Promise<{ valid: boolean; appToken?: AppToken; error?: string }> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('validateAppToken')
+    }
+
+    try {
+      // Get all active app tokens and check if any match the hash
+      const tokens = await this.dataStorage.listAppTokens({ isActive: true })
+      
+      for (const appToken of tokens) {
+        if (appToken.tokenHash && await this.cryptoAdapter.verifyPassword(token, appToken.tokenHash)) {
+          // Update last used timestamp and usage count
+          const updatedToken: AppToken = {
+            ...appToken,
+            lastUsedAt: new Date().toISOString(),
+            usageCount: (appToken.usageCount || 0) + 1
+          }
+          
+          await this.dataStorage.saveAppToken(appToken.id, updatedToken)
+          
+          return { valid: true, appToken: updatedToken }
+        }
+      }
+      
+      return { valid: false, error: 'Invalid app token' }
+    } catch (error) {
+      return { 
+        valid: false, 
+        error: error instanceof Error ? error.message : 'App token validation failed' 
+      }
+    }
+  }
+
   public async deleteAppToken(id: string): Promise<void> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('deleteAppToken')
