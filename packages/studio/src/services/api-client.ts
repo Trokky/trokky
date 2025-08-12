@@ -488,7 +488,7 @@ export class ApiClient {
       });
     }
     
-    const url = `${this.baseUrl}/api/documents/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `${this.baseUrl}/api/collections/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.get<{
       documents: Document[];
       pagination: {

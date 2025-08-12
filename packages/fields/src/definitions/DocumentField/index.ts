@@ -6,6 +6,7 @@
 import { MediaFieldComponent } from '../MediaField/component.js';
 import { MediaFieldPreview } from '../MediaField/preview.js';
 import { validateMediaField } from '../MediaField/validation.js';
+import type { MediaFieldDefinition } from '../MediaField/definition.js';
 import type { FieldPlugin } from '../../base/FieldPlugin.js';
 import type { BaseFieldDefinition } from '../../base/FieldDefinition.js';
 
@@ -73,13 +74,44 @@ const DOCUMENT_MIME_TYPES = [
   'application/vnd.apple.keynote'
 ];
 
+// Wrapper component that converts DocumentFieldDefinition to MediaFieldDefinition
+function DocumentFieldComponent(props: any) {
+  // Convert DocumentFieldDefinition to MediaFieldDefinition format
+  const documentDefinition = props.definition as DocumentFieldDefinition;
+  
+  const mediaDefinition: MediaFieldDefinition = {
+    type: 'media',
+    title: documentDefinition.title,
+    description: documentDefinition.description,
+    required: documentDefinition.required,
+    validation: {
+      ...documentDefinition.validation,
+      restrictToMediaType: 'document',
+      allowedExtensions: documentDefinition.validation?.allowedExtensions || DOCUMENT_EXTENSIONS,
+      allowedTypes: documentDefinition.validation?.allowedTypes || DOCUMENT_MIME_TYPES,
+    },
+    options: {
+      enableBrowse: true,
+      enableUpload: true,
+      enableDragDrop: true,
+      ...documentDefinition.options,
+    }
+  };
+  
+  // Pass converted definition to MediaFieldComponent
+  return MediaFieldComponent({
+    ...props,
+    definition: mediaDefinition
+  });
+}
+
 export const DocumentFieldPlugin: FieldPlugin<DocumentFieldDefinition, DocumentFieldValue> = {
   type: 'document',
   displayName: 'Document',
   description: 'Upload and manage document files with document-specific validation',
   category: 'media',
   
-  component: MediaFieldComponent,
+  component: DocumentFieldComponent,
   previewComponent: MediaFieldPreview,
   
   validate: (value, definition, context) => {
