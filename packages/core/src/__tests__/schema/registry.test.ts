@@ -98,11 +98,11 @@ describe('SchemaRegistry', () => {
           metadata: {
             type: 'object',
             required: false,
-            properties: {
+            fields: {
               tags: {
                 type: 'array',
                 required: false,
-                items: {
+                of: {
                   type: 'string',
                   required: true
                 }
@@ -214,18 +214,18 @@ describe('SchemaRegistry', () => {
           deeplyNested: {
             type: 'object',
             required: false,
-            properties: {
+            fields: {
               level1: {
                 type: 'object',
                 required: false,
-                properties: {
+                fields: {
                   level2: {
                     type: 'array',
                     required: false,
-                    items: {
+                    of: {
                       type: 'object',
                       required: true,
-                      properties: {
+                      fields: {
                         level3: {
                           type: 'string',
                           required: true

@@ -29,7 +29,7 @@ export const blogPostSchema: ContentSchema = {
     tags: {
       type: 'array',
       required: false,
-      items: {
+      of: {
         type: 'string',
         required: true
       }
@@ -37,7 +37,7 @@ export const blogPostSchema: ContentSchema = {
     metadata: {
       type: 'object',
       required: false,
-      properties: {
+      fields: {
         excerpt: {
           type: 'string',
           required: false
@@ -118,10 +118,10 @@ export const settingsSchema: ContentSchema = {
     socialLinks: {
       type: 'array',
       required: false,
-      items: {
+      of: {
         type: 'object',
         required: true,
-        properties: {
+        fields: {
           platform: {
             type: 'string',
             required: true

@@ -79,12 +79,11 @@ export class DocumentValidator {
         }, { message: 'Invalid date string' }).transform(str => new Date(str)))
       
       case 'array':
-        // Handle both legacy (items) and modern (of) formats
-        const arrayItemDef = fieldDef.of || (fieldDef as any).items
-        if (!arrayItemDef) {
+        // Use modern 'of' format for array item definition
+        if (!fieldDef.of) {
           return z.array(z.unknown())
         }
-        const itemSchema = this.buildFieldSchema(arrayItemDef)
+        const itemSchema = this.buildFieldSchema(fieldDef.of)
         return z.array(itemSchema)
       
       case 'object':
@@ -130,7 +129,13 @@ export class DocumentValidator {
         return z.object(objectShape)
       
       case 'reference':
-        return z.string() // Reference IDs are strings
+        return z.union([
+          z.string(), // Still allow string IDs for backward compatibility
+          z.object({
+            _ref: z.string(),
+            _type: z.string().optional()
+          }).passthrough() // Allow additional metadata
+        ])
       
       case 'media':
         // Media fields can be either a string ID or a complex object with asset reference
