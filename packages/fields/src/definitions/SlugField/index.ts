@@ -16,6 +16,9 @@ export interface SlugFieldDefinition extends BaseFieldDefinition {
   allowEmpty?: boolean;               // Default: false
   pattern?: RegExp;                   // Custom validation pattern
   
+  // UI options
+  placeholder?: string;               // Placeholder text for the input field
+  
   // Behavior options
   readOnly?: boolean;                 // Default: false (allow manual override)
   preserveCase?: boolean;             // Default: false (convert to lowercase)
@@ -225,14 +228,14 @@ export const SlugFieldPlugin: FieldPlugin<SlugFieldDefinition, string> = {
   fromSchemaField: (schemaField) => {
     return {
       type: 'slug' as const,
-      title: schemaField.title || 'Slug',
-      description: schemaField.description,
-      required: schemaField.required || false,
-      source: schemaField.source,
-      autoGenerate: schemaField.autoGenerate !== false,
+      title: schemaField.title || 'URL Slug',
+      description: schemaField.description || 'Auto-generated URL-friendly slug',
+      required: schemaField.required !== false, // Default to required
+      source: schemaField.source || 'title', // Default source field
+      autoGenerate: schemaField.autoGenerate !== false, // Default to auto-generate
       maxLength: schemaField.maxLength || 200,
       minLength: schemaField.minLength || 1,
-      unique: schemaField.unique !== false,
+      unique: schemaField.unique !== false, // Default to unique
       allowEmpty: schemaField.allowEmpty || false,
       readOnly: schemaField.readOnly || false,
       preserveCase: schemaField.preserveCase || false,

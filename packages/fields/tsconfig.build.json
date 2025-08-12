@@ -19,5 +19,13 @@
     "composite": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx", "**/__tests__/**/*"]
+  "exclude": [
+    "dist", 
+    "node_modules", 
+    "**/*.test.ts", 
+    "**/*.test.tsx", 
+    "**/__tests__/**/*",
+    "src/definitions/ArrayField/**/*",
+    "src/definitions/ObjectField/**/*"
+  ]
 }
