@@ -6,6 +6,7 @@
 import { MediaFieldComponent } from '../MediaField/component.js';
 import { MediaFieldPreview } from '../MediaField/preview.js';
 import { validateMediaField } from '../MediaField/validation.js';
+import type { MediaFieldDefinition } from '../MediaField/definition.js';
 import type { FieldPlugin } from '../../base/FieldPlugin.js';
 import type { BaseFieldDefinition, ValidationResult, DocumentContext } from '../../base/FieldDefinition.js';
 
@@ -51,15 +52,48 @@ export type AudioFieldValue = {
 // Default audio file extensions and MIME types
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac', 'webm'];
 const AUDIO_MIME_TYPES = [
-  'audio/mpeg',
-  'audio/wav', 
-  'audio/wave',
-  'audio/ogg',
-  'audio/aac',
-  'audio/mp4',
-  'audio/flac',
-  'audio/webm'
+  'audio/mpeg',       // MP3
+  'audio/mp3',        // Alternative MP3 MIME type
+  'audio/wav',        // WAV
+  'audio/wave',       // Alternative WAV MIME type
+  'audio/ogg',        // OGG
+  'audio/aac',        // AAC
+  'audio/mp4',        // M4A (MP4 audio)
+  'audio/x-m4a',      // Alternative M4A MIME type
+  'audio/flac',       // FLAC
+  'audio/webm'        // WebM audio
 ];
+
+// Wrapper component that converts AudioFieldDefinition to MediaFieldDefinition
+function AudioFieldComponent(props: any) {
+  // Convert AudioFieldDefinition to MediaFieldDefinition format
+  const audioDefinition = props.definition as AudioFieldDefinition;
+  
+  const mediaDefinition: MediaFieldDefinition = {
+    type: 'media',
+    title: audioDefinition.title,
+    description: audioDefinition.description,
+    required: audioDefinition.required,
+    validation: {
+      ...audioDefinition.validation,
+      restrictToMediaType: 'audio',
+      allowedExtensions: audioDefinition.validation?.allowedExtensions || AUDIO_EXTENSIONS,
+      allowedTypes: audioDefinition.validation?.allowedTypes || AUDIO_MIME_TYPES,
+    },
+    options: {
+      enableBrowse: true,
+      enableUpload: true,
+      enableDragDrop: true,
+      ...audioDefinition.options,
+    }
+  };
+  
+  // Pass converted definition to MediaFieldComponent
+  return MediaFieldComponent({
+    ...props,
+    definition: mediaDefinition
+  });
+}
 
 export const AudioFieldPlugin: FieldPlugin<AudioFieldDefinition, AudioFieldValue> = {
   type: 'audio',
@@ -67,7 +101,7 @@ export const AudioFieldPlugin: FieldPlugin<AudioFieldDefinition, AudioFieldValue
   description: 'Upload and manage audio files with audio-specific validation',
   category: 'media',
   
-  component: MediaFieldComponent,
+  component: AudioFieldComponent,
   previewComponent: MediaFieldPreview,
   
   validate: (value, definition, context) => {
@@ -146,7 +180,7 @@ export const AudioFieldPlugin: FieldPlugin<AudioFieldDefinition, AudioFieldValue
           title: 'Audio File',
           validation: {
             required: false,
-            maxFileSize: 50 * 1024 * 1024, // 50MB
+            maxFileSize: 100 * 1024 * 1024, // 100MB for music files
             restrictToMediaType: 'audio' as const,
             allowedExtensions: AUDIO_EXTENSIONS,
             allowedTypes: AUDIO_MIME_TYPES
@@ -165,10 +199,10 @@ export const AudioFieldPlugin: FieldPlugin<AudioFieldDefinition, AudioFieldValue
           title: 'Podcast Audio',
           validation: {
             required: true,
-            maxFileSize: 100 * 1024 * 1024, // 100MB
+            maxFileSize: 200 * 1024 * 1024, // 200MB for podcasts
             restrictToMediaType: 'audio' as const,
-            allowedExtensions: ['mp3', 'wav'],
-            allowedTypes: ['audio/mpeg', 'audio/wav']
+            allowedExtensions: ['mp3', 'wav', 'aac', 'm4a'],
+            allowedTypes: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/aac', 'audio/mp4', 'audio/x-m4a']
           },
           options: {
             enableBrowse: true,

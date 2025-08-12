@@ -1,4 +1,5 @@
 import type { ArrayFieldDefinition, ArrayItemDefinition } from './definition.js';
+import type { ValidationResult } from '../../base/FieldDefinition.js';
 
 /**
  * Validates an array field value
@@ -6,29 +7,29 @@ import type { ArrayFieldDefinition, ArrayItemDefinition } from './definition.js'
 export function validateArrayField(
   value: any[], 
   definition: ArrayFieldDefinition
-): { valid: boolean; message?: string } {
+): ValidationResult {
   // Check if required field is empty
   if (definition.required && (!value || value.length === 0)) {
-    return { valid: false, message: 'This field is required' };
+    return { isValid: false, errors: ['This field is required'] };
   }
 
   // If value is empty and not required, it's valid
   if (!value || value.length === 0) {
-    return { valid: true };
+    return { isValid: true, errors: [] };
   }
 
   // Check array length constraints
   if (definition.validation?.minItems && value.length < definition.validation.minItems) {
     return { 
-      valid: false, 
-      message: `At least ${definition.validation.minItems} items are required` 
+      isValid: false, 
+      errors: [`At least ${definition.validation.minItems} items are required`] 
     };
   }
 
   if (definition.validation?.maxItems && value.length > definition.validation.maxItems) {
     return { 
-      valid: false, 
-      message: `Maximum ${definition.validation.maxItems} items allowed` 
+      isValid: false, 
+      errors: [`Maximum ${definition.validation.maxItems} items allowed`] 
     };
   }
 
@@ -36,11 +37,11 @@ export function validateArrayField(
   if (definition.validation?.unique) {
     const uniqueValues = new Set(value);
     if (uniqueValues.size !== value.length) {
-      return { valid: false, message: 'All items must be unique' };
+      return { isValid: false, errors: ['All items must be unique'] };
     }
   }
 
-  return { valid: true };
+  return { isValid: true, errors: [] };
 }
 
 /**
@@ -78,7 +79,7 @@ export function validateArrayAdd(
   currentArray: any[], 
   newItem: any, 
   definition: ArrayFieldDefinition
-): { valid: boolean; message?: string } {
+): ValidationResult {
   const newArray = [...currentArray, newItem];
   return validateArrayField(newArray, definition);
 }
@@ -90,7 +91,7 @@ export function validateArrayRemove(
   currentArray: any[], 
   index: number, 
   definition: ArrayFieldDefinition
-): { valid: boolean; message?: string } {
+): ValidationResult {
   const newArray = currentArray.filter((_, i) => i !== index);
   return validateArrayField(newArray, definition);
 }
@@ -103,9 +104,9 @@ export function validateArrayMove(
   fromIndex: number, 
   toIndex: number, 
   definition: ArrayFieldDefinition
-): { valid: boolean; message?: string } {
+): ValidationResult {
   // Moving items doesn't change validation constraints
-  return { valid: true };
+  return { isValid: true, errors: [] };
 }
 
 /**

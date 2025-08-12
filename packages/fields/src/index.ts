@@ -119,6 +119,8 @@ export type {
   BooleanFieldOptions
 } from './definitions/BooleanField/index.js';
 
+// Temporarily disabled due to TypeScript errors
+/*
 export {
   arrayFieldPlugin,
   ArrayFieldComponent,
@@ -165,6 +167,7 @@ export type {
   ObjectFieldContext,
   ObjectFieldMetadata
 } from './definitions/ObjectField/index.js';
+*/
 
 export {
   mediaFieldPlugin,

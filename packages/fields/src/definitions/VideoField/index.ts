@@ -6,6 +6,7 @@
 import { MediaFieldComponent } from '../MediaField/component.js';
 import { MediaFieldPreview } from '../MediaField/preview.js';
 import { validateMediaField } from '../MediaField/validation.js';
+import type { MediaFieldDefinition } from '../MediaField/definition.js';
 import type { FieldPlugin } from '../../base/FieldPlugin.js';
 import type { BaseFieldDefinition } from '../../base/FieldDefinition.js';
 
@@ -56,12 +57,44 @@ const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v
 const VIDEO_MIME_TYPES = [
   'video/mp4',
   'video/webm',
-  'video/quicktime',
-  'video/x-msvideo',
-  'video/x-matroska',
-  'video/x-ms-wmv',
-  'video/x-flv'
+  'video/quicktime',   // MOV files
+  'video/x-msvideo',   // AVI files
+  'video/x-matroska',  // MKV files
+  'video/x-ms-wmv',    // WMV files
+  'video/x-flv',       // FLV files
+  'video/mov'          // Alternative MOV MIME type
 ];
+
+// Wrapper component that converts VideoFieldDefinition to MediaFieldDefinition
+function VideoFieldComponent(props: any) {
+  // Convert VideoFieldDefinition to MediaFieldDefinition format
+  const videoDefinition = props.definition as VideoFieldDefinition;
+  
+  const mediaDefinition: MediaFieldDefinition = {
+    type: 'media',
+    title: videoDefinition.title,
+    description: videoDefinition.description,
+    required: videoDefinition.required,
+    validation: {
+      ...videoDefinition.validation,
+      restrictToMediaType: 'video',
+      allowedExtensions: videoDefinition.validation?.allowedExtensions || VIDEO_EXTENSIONS,
+      allowedTypes: videoDefinition.validation?.allowedTypes || VIDEO_MIME_TYPES,
+    },
+    options: {
+      enableBrowse: true,
+      enableUpload: true,
+      enableDragDrop: true,
+      ...videoDefinition.options,
+    }
+  };
+  
+  // Pass converted definition to MediaFieldComponent
+  return MediaFieldComponent({
+    ...props,
+    definition: mediaDefinition
+  });
+}
 
 export const VideoFieldPlugin: FieldPlugin<VideoFieldDefinition, VideoFieldValue> = {
   type: 'video',
@@ -69,7 +102,7 @@ export const VideoFieldPlugin: FieldPlugin<VideoFieldDefinition, VideoFieldValue
   description: 'Upload and manage video files with video-specific validation',
   category: 'media',
   
-  component: MediaFieldComponent,
+  component: VideoFieldComponent,
   previewComponent: MediaFieldPreview,
   
   validate: (value, definition, context) => {

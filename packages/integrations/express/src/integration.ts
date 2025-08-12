@@ -33,7 +33,9 @@ export class TrokkyExpress {
     }
     
     this.routes = new TrokkyRoutes(config)
-    this.adapter = new ExpressAdapter()
+    this.adapter = new ExpressAdapter({ 
+      maxFileSize: config.fileUpload?.maxFileSize || 50 * 1024 * 1024 
+    })
     this.middleware = new TrokkyExpressMiddleware(config)
   }
 
@@ -222,7 +224,11 @@ export class TrokkyExpress {
         schemas: fullConfig.schemas,
         media: {
           imageProcessor: fullConfig.media.processor,
-          imageVariants: fullConfig.media.variants || []
+          imageVariants: fullConfig.media.variants || [],
+          validation: {
+            maxFileSize: fullConfig.media.upload?.maxFileSize,
+            allowedTypes: fullConfig.media.upload?.allowedMimeTypes
+          }
         },
         security: {
           validateInput: fullConfig.security.validation?.input,

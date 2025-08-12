@@ -72,29 +72,26 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   const renderControl = () => {
     switch (style) {
       case 'toggle':
-        // @todo: Toggle switch UI is not working properly - needs investigation
-        // Issues: Click handler may not be triggering state changes, or CSS classes not applying correctly
-        // The toggle should change background color and slide the white circle when clicked
-        // Will need to debug the onClick event, state updates, and CSS class application
         return (
           <button
             type="button"
             id={fieldId}
             role="switch"
             aria-checked={isChecked}
+            aria-label={label || booleanDefinition.title || 'Toggle'}
             disabled={isDisabled || isReadonly}
             onClick={() => handleChange(!isChecked)}
             className={`
               relative inline-flex items-center h-6 rounded-full w-11 transition-colors duration-200
               focus:outline-none focus:ring-2 focus:ring-offset-2 ${currentColor.ring}
               ${isChecked ? currentColor.bg : 'bg-gray-200 dark:bg-gray-700'}
-              ${hasError ? 'ring-red-500' : ''}
+              ${hasError ? 'ring-1 ring-red-500' : ''}
               disabled:opacity-50 disabled:cursor-not-allowed
             `.trim()}
           >
             <span
               className={`
-                inline-block w-4 h-4 transform transition-transform duration-200 bg-white rounded-full shadow-lg
+                inline-block w-4 h-4 transform transition-transform duration-200 bg-white rounded-full shadow-lg ring-0
                 ${isChecked ? 'translate-x-6' : 'translate-x-1'}
               `.trim()}
             />

@@ -10,6 +10,11 @@ import type { ExpressRequestWithFiles, ExpressRouteHandler } from './types.js'
  */
 export class ExpressAdapter {
   public readonly name = 'express'
+  private maxFileSize: number
+
+  constructor(options?: { maxFileSize?: number }) {
+    this.maxFileSize = options?.maxFileSize || 50 * 1024 * 1024 // Default 50MB
+  }
 
   /**
    * Convert Express Request to framework-agnostic HttpRequest
@@ -163,7 +168,7 @@ export class ExpressAdapter {
         
         const chunks: Buffer[] = []
         let totalSize = 0
-        const maxSize = 50 * 1024 * 1024 // 50MB limit - aligned with config
+        const maxSize = this.maxFileSize
         
         file.on('data', (chunk: Buffer) => {
           totalSize += chunk.length

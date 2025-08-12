@@ -112,6 +112,7 @@ export class TrokkyCore {
   private securityEnabled: boolean
   private options: TrokkyCoreOptions
   private jwtSecret: string
+  private config: TrokkyConfig
   private auditLogger?: (event: AuditEvent) => void
   private cryptoAdapter: CryptoAdapter
   private imageProcessor!: ImageProcessor // Initialized in init() method
@@ -163,6 +164,7 @@ export class TrokkyCore {
       })
     }
     this.options = options
+    this.config = config
     this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas)
     this.validator = options.validator || new DocumentValidator(this.schemas)
     this.idGenerator = options.idGenerator || new IdGenerator()
@@ -503,16 +505,17 @@ export class TrokkyCore {
       await this.rateLimiter.checkRateLimit('uploadMedia')
     }
 
+    let sanitizedFilename = file.name
     if (this.securityEnabled) {
-      this.validateMediaFile(file)
+      sanitizedFilename = this.validateAndSanitizeMediaFile(file)
     }
 
     const metadata: MediaMetadata = {
       id: this.idGenerator.generate({ prefix: 'media' }),
-      filename: file.name,
+      filename: sanitizedFilename,
       contentType: file.type,
       size: file.size,
-      extension: this.getFileExtension(file.name)
+      extension: this.getFileExtension(sanitizedFilename)
     }
 
     // Upload to storage first
@@ -915,13 +918,33 @@ export class TrokkyCore {
   }
 
   // Utility methods
-  private validateMediaFile(file: File): void {
-    const maxSize = 100 * 1024 * 1024 // 100MB
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'video/mp4', 'video/webm',
-      'audio/mp3', 'audio/wav', 'audio/ogg',
-      'application/pdf', 'text/plain'
+  private validateAndSanitizeMediaFile(file: File): string {
+    // Use configuration or fall back to defaults
+    const mediaValidation = this.config.media?.validation
+    const maxSize = mediaValidation?.maxFileSize || (100 * 1024 * 1024) // 100MB default
+    const allowedTypes = mediaValidation?.allowedTypes || [
+      // Images
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      // Video
+      'video/mp4', 'video/webm', 'video/mov', 'video/avi',
+      // Audio - comprehensive list to match AudioField and Routes
+      'audio/mpeg',       // MP3 (primary MIME type)
+      'audio/mp3',        // MP3 (alternative MIME type)
+      'audio/wav',        // WAV
+      'audio/wave',       // WAV (alternative MIME type)
+      'audio/ogg',        // OGG
+      'audio/aac',        // AAC
+      'audio/mp4',        // M4A (MP4 audio)
+      'audio/x-m4a',      // M4A (alternative MIME type)
+      'audio/flac',       // FLAC
+      'audio/webm',       // WebM audio
+      // Documents
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      // Text
+      'text/plain', 'text/csv',
+      'application/json'
     ]
 
     if (file.size > maxSize) {
@@ -932,10 +955,48 @@ export class TrokkyCore {
       throw new InvalidInputError(`File type not allowed: ${file.type}`, 'file')
     }
 
-    // Validate filename
-    if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-      throw new InvalidInputError('Invalid filename characters', 'file')
+    // Sanitize filename instead of rejecting it
+    const sanitizedName = this.sanitizeFilename(file.name)
+    if (sanitizedName !== file.name) {
+      this.logger.debug('Filename sanitized', { 
+        original: file.name, 
+        sanitized: sanitizedName 
+      })
     }
+    
+    return sanitizedName
+  }
+
+  private sanitizeFilename(filename: string): string {
+    // Extract extension first
+    const lastDot = filename.lastIndexOf('.')
+    const name = lastDot > 0 ? filename.substring(0, lastDot) : filename
+    const extension = lastDot > 0 ? filename.substring(lastDot) : ''
+    
+    // Sanitize the name part
+    let sanitized = name
+      // Replace accented characters with ASCII equivalents
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // Replace spaces and special characters with hyphens
+      .replace(/[^a-zA-Z0-9._-]/g, '-')
+      // Remove multiple consecutive hyphens
+      .replace(/-+/g, '-')
+      // Remove leading/trailing hyphens
+      .replace(/^-+|-+$/g, '')
+      // Ensure it's not empty
+      || 'file'
+    
+    // Sanitize extension (keep dots, letters, numbers only)
+    const sanitizedExtension = extension.replace(/[^.a-zA-Z0-9]/g, '')
+    
+    // Limit total length to 255 characters (filesystem limit)
+    const maxNameLength = 255 - sanitizedExtension.length
+    if (sanitized.length > maxNameLength) {
+      sanitized = sanitized.substring(0, maxNameLength)
+    }
+    
+    return sanitized + sanitizedExtension
   }
 
   private getFileExtension(filename: string): string {

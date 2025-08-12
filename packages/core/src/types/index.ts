@@ -254,6 +254,14 @@ export interface TrokkyConfig {
       fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside'
     }>
     imageProcessorOptions?: Record<string, unknown>
+    // File validation configuration
+    validation?: {
+      maxFileSize?: number
+      maxFiles?: number
+      allowedTypes?: string[]
+      allowedExtensions?: string[]
+      forbiddenExtensions?: string[]
+    }
   }
   security?: {
     validateInput?: boolean

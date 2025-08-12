@@ -192,12 +192,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           fieldId={`${fieldId}.${fieldDef.name}`}
           value={fieldValue}
           onChange={(newValue: any) => operations.updateField(fieldDef.name, newValue)}
-          definition={{
-            type: fieldDef.type,
-            title: fieldDef.title,
-            description: fieldDef.description,
-            required: fieldDef.required
-          } as any}
+          definition={fieldDef as any}
           hasError={fieldHasError}
           isDisabled={isDisabled}
           isReadonly={fieldIsReadOnly}
@@ -243,7 +238,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           )}
           
           {/* Field count and progress */}
-          {options.showFieldCount && (
+          {/* {options.showFieldCount && (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span>
                 ({metadata.filledFields}/{metadata.visibleFields} fields)
@@ -254,9 +249,9 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
                 </svg>
               )}
             </div>
-          )}
+          )} */}
           
-          {options.showProgress && (
+          {/* {options.showProgress && (
             <div className="flex items-center gap-2">
               <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
@@ -268,7 +263,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
                 {metadata.completionPercentage}%
               </span>
             </div>
-          )}
+          )} */}
         </div>
         
         {/* Actions */}
@@ -306,7 +301,8 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const renderPreview = () => {
     if (!getCollapseState('main') || !options.preview) return null;
     
-    const { fields: previewFields = [], template, maxLength = 150, showCount } = options.preview;
+    const { fields: previewFields = [], template, maxLength = 150 } = options.preview;
+    // const { fields: previewFields = [], template, maxLength = 150, showCount } = options.preview;
     
     if (template) {
       const fieldsArray = Array.isArray(objectDefinition.fields) 
@@ -530,7 +526,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     
     const currentTab = options.tabs.find(tab => tab.title === activeTab) || options.tabs[0];
     const tabFields = visibleFields.filter(field => 
-      field.tab === currentTab.title || currentTab.fields.includes(field.name)
+      field.tab === currentTab.title //|| currentTab.fields.includes(field.name)
     );
     
     return (
@@ -590,7 +586,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
       </div>
       
       {/* Required fields warning */}
-      {metadata.missingRequiredFields.length > 0 && (
+      {/* {metadata.missingRequiredFields.length > 0 && (
         <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
           <div className="flex items-start">
             <svg className="w-5 h-5 text-amber-400 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -612,7 +608,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

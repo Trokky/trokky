@@ -291,13 +291,29 @@ export class TrokkyRoutes {
 
   // Media validation helper
   private validateMediaFiles(files: File[]): void {
-    const maxFileSize = 50 * 1024 * 1024 // 50MB
+    const maxFileSize = 100 * 1024 * 1024 // 100MB - matches audio field configuration
     const maxFiles = 10
     const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'video/mp4', 'video/webm',
-      'audio/mp3', 'audio/wav', 'audio/ogg',
+      // Images
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      // Video
+      'video/mp4', 'video/webm', 'video/mov', 'video/avi',
+      // Audio - comprehensive list to match AudioField
+      'audio/mpeg',       // MP3 (primary MIME type)
+      'audio/mp3',        // MP3 (alternative MIME type)
+      'audio/wav',        // WAV
+      'audio/wave',       // WAV (alternative MIME type)
+      'audio/ogg',        // OGG
+      'audio/aac',        // AAC
+      'audio/mp4',        // M4A (MP4 audio)
+      'audio/x-m4a',      // M4A (alternative MIME type)
+      'audio/flac',       // FLAC
+      'audio/webm',       // WebM audio
+      // Documents
       'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      // Text
       'text/plain', 'text/csv',
       'application/json'
     ]
