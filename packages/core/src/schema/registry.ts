@@ -39,7 +39,6 @@ export class SchemaRegistry {
   private injectAutoSlugField(schema: ContentSchema): ContentSchema {
     // Skip if slug field already exists
     if (schema.fields.slug) {
-      console.log(`📋 Schema "${schema.name}": Slug field already exists, skipping auto-injection`)
       return schema
     }
 
@@ -48,11 +47,8 @@ export class SchemaRegistry {
     
     // Only inject if we have a source field
     if (!sourceField) {
-      console.log(`📋 Schema "${schema.name}": No suitable source field found for slug generation, skipping`)
       return schema
     }
-
-    console.log(`📋 Schema "${schema.name}": Auto-injecting slug field with source "${sourceField}"`)
 
     // Create a copy of the schema with the injected slug field
     // Insert slug field right after the source field for better UX

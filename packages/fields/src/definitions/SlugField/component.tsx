@@ -71,36 +71,14 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   // Get source field value for dependency tracking
   const sourceFieldValue = useMemo(() => {
     if (!source || !documentContext?.allValues) {
-      console.log('🔍 SLUG DEBUG: No source or allValues', {
-        hasSource: !!source,
-        hasAllValues: !!documentContext?.allValues,
-        source: source,
-        allValues: documentContext?.allValues
-      });
       return '';
     }
-    const value = getSourceValue(source, documentContext.allValues);
-    console.log('🔍 SLUG DEBUG: Source field value changed', {
-      source: source,
-      sourceValue: value,
-      allValues: documentContext.allValues
-    });
-    return value;
+    return getSourceValue(source, documentContext.allValues);
   }, [source, documentContext?.allValues]);
 
   // Auto-generate slug when source fields change (real-time)
   useEffect(() => {
-    console.log('🔍 SLUG DEBUG: Auto-generate effect triggered', {
-      autoGenerate,
-      readOnly,
-      sourceFieldValue,
-      isManuallyEdited,
-      currentValue: value,
-      isEmpty: !value || value.trim() === '',
-    });
-
     if (!autoGenerate || readOnly) {
-      console.log('🔍 SLUG DEBUG: Skipping - auto-generate disabled, read-only, or already generating');
       return;
     }
 
@@ -109,27 +87,12 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     const isEmpty = !value || value.trim() === '';
     const isExistingDocumentWithSlug = !documentContext?.isNewDocument && !isEmpty;
     
-    console.log('🔍 SLUG DEBUG: Generation check', {
-      generatedSlug,
-      isEmpty,
-      isManuallyEdited,
-      isNewDocument,
-      currentValue: value,
-      shouldGenerate: generatedSlug && (isEmpty || (!isManuallyEdited && !isExistingDocumentWithSlug)),
-      isExistingDocumentWithSlug
-    });
-    
     // Auto-generate if:
     // 1. Field is empty (always), OR
     // 2. User hasn't manually edited and source field changed AND this is a new document
     
     if (generatedSlug && (isEmpty || (!isManuallyEdited && !isExistingDocumentWithSlug))) {
       if (generatedSlug !== value) {
-        console.log('🔍 SLUG DEBUG: GENERATING SLUG', {
-          from: value,
-          to: generatedSlug
-        });
-        
         // If unique is required and this is not empty (meaning it's an update), 
         // find a unique variant
         if (!isEmpty && unique && studioContext?.apiClient) {
@@ -138,12 +101,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
           onChange(generatedSlug);
           setIsManuallyEdited(false);
         }
-      } else {
-        console.log('🔍 SLUG DEBUG: Slug unchanged, skipping');
-      }
-    } else {
-      if (isExistingDocumentWithSlug && !isEmpty && !isManuallyEdited) {
-        console.log('🔍 SLUG DEBUG: Skipping auto-generation - existing document with slug (user must manually edit to trigger generation)');
       }
     }
   }, [sourceFieldValue, isManuallyEdited, value, autoGenerate, readOnly, documentContext?.isNewDocument]);
@@ -238,24 +195,12 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   // Handle focus - auto-generate if empty
   const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
     const isEmpty = !value || value.trim() === '';
-    console.log('🔍 SLUG DEBUG: Focus event', {
-      isEmpty,
-      readOnly,
-      autoGenerate,
-      currentValue: value
-    });
 
     if (isEmpty && !readOnly && autoGenerate) {
       const generatedSlug = generateSlug();
-      console.log('🔍 SLUG DEBUG: Focus generation', {
-        generatedSlug,
-        willGenerate: !!generatedSlug
-      });
-
       if (generatedSlug) {
         onChange(generatedSlug);
         setIsManuallyEdited(false);
-        console.log('🔍 SLUG DEBUG: Generated on focus:', generatedSlug);
       }
     }
     if (onFocus) onFocus();
@@ -313,7 +258,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   // Smart generation with uniqueness handling
   const handleSmartGeneration = async (baseSlug: string) => {
     if (isGenerating) {
-      console.log('🔍 SLUG DEBUG: Already generating, skipping');
       return;
     }
     
@@ -359,18 +303,11 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
         finalSlug = candidate;
       }
       
-      console.log('🔍 SLUG DEBUG: Smart generation result', {
-        baseSlug,
-        finalSlug,
-        wasChanged: baseSlug !== finalSlug
-      });
-      
       if (finalSlug !== value) {
         onChange(finalSlug);
         setIsManuallyEdited(false);
       }
     } catch (error) {
-      console.log('🔍 SLUG DEBUG: Smart generation failed, using base slug');
       // Fallback to basic slug if uniqueness check fails
       if (baseSlug !== value) {
         onChange(baseSlug);
