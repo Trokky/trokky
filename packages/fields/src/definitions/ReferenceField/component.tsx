@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { 
   ReferenceFieldDefinition,
@@ -14,10 +14,45 @@ import {
   getReferenceDisplayValue
 } from './validation.js';
 
+// Performance optimization: LRU cache for search results
+class SearchCache {
+  private cache = new Map<string, { results: ReferenceSearchResult[], timestamp: number }>();
+  private maxSize = 50;
+  private ttl = 5 * 60 * 1000; // 5 minutes
+
+  get(key: string): ReferenceSearchResult[] | null {
+    const entry = this.cache.get(key);
+    if (!entry || Date.now() - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    // Move to end (LRU)
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry.results;
+  }
+
+  set(key: string, results: ReferenceSearchResult[]): void {
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, { results, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const globalSearchCache = new SearchCache();
+
 type ReferenceFieldComponentProps = FieldComponentProps;
 
 export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
   
   if (definition.type !== 'reference') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected reference field</div>;
@@ -43,6 +78,13 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [resolvedReferences, setResolvedReferences] = useState<ReferenceValue[]>([]);
+  const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
+  
+  // Performance refs
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const currentSearchRef = useRef<string>('');
+  const abortControllerRef = useRef<AbortController>();
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const isMultiple = validation.multiple || false;
   const currentReferences = resolvedReferences.length > 0 ? resolvedReferences : normalizedReferences;
@@ -174,45 +216,88 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     },
     
     searchDocuments: async (query: string, types?: string[]) => {
+      // Cancel previous search
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+      
       setIsLoading(true);
       try {
-        if (!props.studioContext?.apiClient) {
+        const apiClient = studioContext?.apiClient || props.studioContext?.apiClient;
+        if (!apiClient) {
           console.warn('API client not available for reference search');
           setSearchResults([]);
           return [];
         }
 
+        // Generate cache key
+        const cacheKey = `${query}:${(types || targetTypes.map(t => t.type)).join(',')}`;
+        
+        // Check cache first
+        const cachedResults = globalSearchCache.get(cacheKey);
+        if (cachedResults) {
+          const resultsWithSelection = cachedResults.map(result => ({
+            ...result,
+            isSelected: currentReferences.some(ref => ref._ref === result.id)
+          }));
+          setSearchResults(resultsWithSelection);
+          setIsLoading(false);
+          return resultsWithSelection;
+        }
+
         const searchResults: ReferenceSearchResult[] = [];
         const searchTypes = types || targetTypes.map(t => t.type);
 
-        // Search each target type
-        for (const searchType of searchTypes) {
+        // Search each target type with abort signal
+        const searchPromises = searchTypes.map(async (searchType) => {
           try {
-            const response = await props.studioContext.apiClient.getDocuments(searchType, {
+            const response = await apiClient.getDocuments(searchType, {
               search: query,
-              limit: 10
+              limit: 15 // Increased for better UX
             });
 
+            if (signal.aborted) return [];
+
             if (response.success && response.data?.documents) {
-              const typeResults = response.data.documents.map((doc: any) => ({
+              return response.data.documents.map((doc: any) => ({
                 id: doc.id,
                 type: searchType,
                 title: doc.name || doc.title || doc.id,
                 description: doc.description || doc.bio || doc.excerpt || `${searchType} document`,
-                isSelected: currentReferences.some(ref => ref._ref === doc.id)
+                isSelected: false // Will be updated below
               }));
-              
-              searchResults.push(...typeResults);
             }
           } catch (typeError) {
-            console.warn(`Failed to search ${searchType}:`, typeError);
+            if (!signal.aborted) {
+              console.warn(`Failed to search ${searchType}:`, typeError);
+            }
           }
-        }
+          return [];
+        });
 
-        setSearchResults(searchResults);
-        return searchResults;
+        const allResults = await Promise.all(searchPromises);
+        const flatResults = allResults.flat();
+        
+        if (signal.aborted) return [];
+
+        // Cache results
+        globalSearchCache.set(cacheKey, flatResults);
+        
+        // Update selection status
+        const resultsWithSelection = flatResults.map(result => ({
+          ...result,
+          isSelected: currentReferences.some(ref => ref._ref === result.id)
+        }));
+
+        setSearchResults(resultsWithSelection);
+        return resultsWithSelection;
       } catch (error) {
-        console.error('Search failed:', error);
+        if (!abortControllerRef.current?.signal.aborted) {
+          console.error('Search failed:', error);
+        }
         setSearchResults([]);
         return [];
       } finally {
@@ -249,16 +334,63 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     }
   }), [currentReferences, isMultiple, onChange, props.studioContext, targetTypes]);
   
-  // Handle search
+  // Optimized search handler with improved debouncing
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (query.trim()) {
-      const types = selectedTypeFilter ? [selectedTypeFilter] : targetTypes.map(t => t.type);
-      operations.searchDocuments(query, types);
-    } else {
-      setSearchResults([]);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
+    
+    // Update current search ref for cancellation
+    currentSearchRef.current = query;
+    
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsLoading(false);
+      return;
+    }
+    
+    // Debounced search with shorter delay for better UX
+    searchTimeoutRef.current = setTimeout(() => {
+      // Only proceed if this is still the current search
+      if (currentSearchRef.current === query) {
+        const types = selectedTypeFilter ? [selectedTypeFilter] : targetTypes.map(t => t.type);
+        operations.searchDocuments(query, types);
+      }
+    }, 200); // Reduced from 300ms to 200ms
   }, [selectedTypeFilter, targetTypes, operations]);
+  
+  // Calculate optimal dropdown direction based on viewport position
+  const calculateDropdownDirection = useCallback(() => {
+    if (!containerRef.current) return 'down';
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const dropdownHeight = 300; // Approximate max height of dropdown
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    // Open upward if there's not enough space below but enough above
+    if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+      return 'up';
+    }
+    
+    return 'down';
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
   
   // Render single reference item
   const renderReferenceItem = (ref: ReferenceValue, index: number) => {
@@ -268,14 +400,14 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     return (
       <div
         key={ref._ref}
-        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md border"
+        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {targetType?.icon && (
-            <span className="text-gray-400">{targetType.icon}</span>
+            <span className="text-gray-400 dark:text-gray-400">{targetType.icon}</span>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
               {displayValue}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -289,7 +421,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
             {isMultiple && options.sortable && (
               <button
                 type="button"
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                className="p-1 text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-dark-text-secondary"
                 title="Drag to reorder"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,7 +433,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
             <button
               type="button"
               onClick={() => operations.removeReference(ref._ref)}
-              className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+              className="p-1 text-gray-400 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
               title="Remove reference"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -318,8 +450,12 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const renderSearchResults = () => {
     if (!isSearchOpen) return null;
     
+    const positionClasses = dropdownDirection === 'up' 
+      ? "absolute z-10 bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-64 overflow-y-auto"
+      : "absolute z-10 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-64 overflow-y-auto";
+    
     return (
-      <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-64 overflow-y-auto">
+      <div className={positionClasses}>
         <div className="p-3 border-b border-gray-200 dark:border-gray-700">
           <div className="flex gap-2">
             <input
@@ -327,7 +463,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               placeholder={options.searchPlaceholder || 'Search documents...'}
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
               autoFocus
             />
             
@@ -335,7 +471,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               <select
                 value={selectedTypeFilter}
                 onChange={(e) => setSelectedTypeFilter(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="">All types</option>
                 {targetTypes.map(type => (
@@ -351,6 +487,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         <div className="max-h-48 overflow-y-auto">
           {isLoading ? (
             <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+              <div className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></div>
               Searching...
             </div>
           ) : searchResults.length > 0 ? (
@@ -367,21 +504,21 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 }}
                 disabled={result.isSelected}
                 className={`
-                  w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0
-                  ${result.isSelected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0 transition-colors
+                  ${result.isSelected ? 'opacity-50 cursor-not-allowed bg-blue-50 dark:bg-blue-900/20' : 'cursor-pointer'}
                 `}
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {result.title}
                     </p>
                     {result.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate">
                         {result.description}
                       </p>
                     )}
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                    <p className="text-xs text-gray-400 dark:text-gray-400">
                       {result.type} • {result.id}
                     </p>
                   </div>
@@ -408,7 +545,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           <button
             type="button"
             onClick={() => setIsSearchOpen(false)}
-            className="w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            className="w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-dark-text-primary transition-colors"
           >
             Close
           </button>
@@ -418,7 +555,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   };
   
   return (
-    <div className={`reference-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''}`}>
+    <div className={`reference-field ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
       {/* Current references */}
       {currentReferences.length > 0 && (
         <div className="space-y-2 mb-3">
@@ -435,12 +572,18 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       
       {/* Add reference button */}
       {!isDisabled && !isReadonly && (
-        <div className="relative">
+        <div ref={containerRef} className="relative">
           {(!isMultiple && currentReferences.length === 0) || (isMultiple && (!validation.maxReferences || currentReferences.length < validation.maxReferences)) ? (
             <button
               type="button"
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              onClick={() => {
+                if (!isSearchOpen) {
+                  const direction = calculateDropdownDirection();
+                  setDropdownDirection(direction);
+                }
+                setIsSearchOpen(!isSearchOpen);
+              }}
+              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -455,15 +598,15 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         </div>
       )}
       
-      {/* Actions */}
-      {!isDisabled && !isReadonly && currentReferences.length > 0 && (
+      {/* Actions - only show for non-multiple reference fields */}
+      {!isDisabled && !isReadonly && currentReferences.length > 0 && !isMultiple && (
         <div className="flex justify-end mt-2">
           <button
             type="button"
             onClick={operations.clear}
             className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
           >
-            Clear all
+            Clear
           </button>
         </div>
       )}

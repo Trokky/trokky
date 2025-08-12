@@ -51,6 +51,7 @@ export interface ArrayFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     placeholder?: string;
     allowCustom?: boolean;
     suggestions?: string[];
+    confirmDelete?: boolean;
   };
   /** Preview mode configuration */
   preview?: {
@@ -128,6 +129,7 @@ export const ARRAY_FIELD_DEFAULTS = {
       placeholder: 'Add tag...',
       allowCustom: true,
       suggestions: [],
+      confirmDelete: false,
     },
     preview: {
       showWhenCollapsed: true,

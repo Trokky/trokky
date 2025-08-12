@@ -40,19 +40,20 @@ function generateItemKey(): string {
 }
 
 // Array field component
-export function ArrayFieldComponent({ 
-  fieldId, 
-  value, 
-  onChange, 
-  definition, 
-  hasError,
-  isDisabled = false,
-  isReadonly = false,
-  documentContext,
-  onValidationChange,
-  onFocus,
-  onBlur
-}: FieldComponentProps) {
+export function ArrayFieldComponent(props: FieldComponentProps) { 
+  const {
+    fieldId, 
+    value, 
+    onChange, 
+    definition, 
+    hasError,
+    isDisabled = false,
+    isReadonly = false,
+    documentContext,
+    onValidationChange,
+    onFocus,
+    onBlur
+  } = props;
   const arrayDefinition = definition as ArrayFieldDefinition;
   
   const lastValidatedValue = useRef(value);
@@ -165,7 +166,7 @@ export function ArrayFieldComponent({
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="flex items-center text-base sm:text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:text-gray-900 dark:hover:text-dark-text-primary min-h-[44px] py-2"
+          className="flex items-center text-base sm:text-sm font-medium text-gray-700 dark:text-white hover:text-gray-900 dark:hover:text-dark-text-primary min-h-[44px] py-2"
         >
           {isCollapsed ? (
             <ChevronRightIcon className="h-4 w-4 mr-1" />
@@ -174,7 +175,7 @@ export function ArrayFieldComponent({
           )}
           {arrayDefinition.title}
           {showCount && (
-            <span className="ml-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
               ({arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''})
             </span>
           )}
@@ -237,8 +238,8 @@ export function ArrayFieldComponent({
     return (
       <div
         key={index}
-        className={`group relative bg-white dark:bg-dark-bg-secondary border rounded-lg p-3 transition-colors ${
-          itemHasError ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border-hover'
+        className={`group relative bg-white dark:bg-gray-800 border rounded-lg p-3 transition-colors ${
+          itemHasError ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
         } ${draggedIndex === index ? 'opacity-50' : ''}`}
         draggable={sortable && !isDisabled && !isReadonly}
         onDragStart={() => setDraggedIndex(index)}
@@ -253,8 +254,8 @@ export function ArrayFieldComponent({
       >
         {/* Drag handle */}
         {sortable && !isDisabled && !isReadonly && (
-          <div className="absolute left-1 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Bars3Icon className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary cursor-move" />
+          <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Bars3Icon className="h-5 w-5 text-gray-400 dark:text-gray-400 cursor-move" />
           </div>
         )}
 
@@ -269,6 +270,7 @@ export function ArrayFieldComponent({
             isDisabled={isDisabled}
             isReadonly={isReadonly}
             documentContext={documentContext}
+            studioContext={props.studioContext}
             onValidationChange={(result) => {
               // Handle nested field validation
               if (!result.isValid) {
@@ -286,12 +288,12 @@ export function ArrayFieldComponent({
           />
         </div>
 
-        {/* Remove button */}
-        {!isDisabled && !isReadonly && !disableRemove && (
+        {/* Remove button - hidden for reference fields to avoid UX confusion */}
+        {!isDisabled && !isReadonly && !disableRemove && adjustedItemDefinition.type !== 'reference' && (
           <button
             type="button"
             onClick={() => operations.remove(index)}
-            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-opacity min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-opacity"
             title="Remove item"
           >
             <XMarkIcon className="h-4 w-4" />
@@ -392,18 +394,18 @@ export function ArrayFieldComponent({
 
   // Main render
   return (
-    <div className="array-field">
+    <div className="array-field border border-gray-200 dark:border-gray-700 rounded-lg p-4">
       {renderHeader()}
       
       {!isCollapsed && (
-        <div className={`space-y-4 ${hasError ? 'border-l-4 border-red-400 pl-4' : ''}`}>
+        <div className={`space-y-4 ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
           {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
         </div>
       )}
 
       {/* Validation info */}
       {arrayDefinition.validation && (
-        <div className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
             <span>
               {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items

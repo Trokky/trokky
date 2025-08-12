@@ -25,7 +25,6 @@
     "**/*.test.ts", 
     "**/*.test.tsx", 
     "**/__tests__/**/*",
-    "src/definitions/ArrayField/**/*",
     "src/definitions/ObjectField/**/*"
   ]
 }
