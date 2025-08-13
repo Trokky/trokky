@@ -55,16 +55,17 @@ jobs:
       - name: Initial Publish (if packages don't exist)
         if: steps.check_packages.outputs.packages_exist == 'false'
         run: |
-          npm publish --workspace packages/fields
-          npm publish --workspace packages/core
-          npm publish --workspace packages/routes
-          npm publish --workspace packages/client
-          npm publish --workspace packages/structure
-          npm publish --workspace packages/studio
-          npm publish --workspace packages/adapters/filesystem
-          npm publish --workspace packages/adapters/filesystem-data
-          npm publish --workspace packages/adapters/filesystem-media
-          npm publish --workspace packages/integrations/express
+          # Publish in dependency order, continue on error
+          npm publish --workspace packages/fields || true
+          npm publish --workspace packages/core || true
+          npm publish --workspace packages/routes || true
+          npm publish --workspace packages/structure || true
+          npm publish --workspace packages/client || true
+          npm publish --workspace packages/adapters/filesystem || true
+          npm publish --workspace packages/adapters/filesystem-data || true
+          npm publish --workspace packages/adapters/filesystem-media || true
+          npm publish --workspace packages/studio || true
+          npm publish --workspace packages/integrations/express || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
