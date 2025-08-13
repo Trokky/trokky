@@ -35,7 +35,7 @@ export function ObjectFieldPreview({ value, definition }: ObjectPreviewProps) {
   if (preview.template) {
     const rendered = renderTemplate(preview.template, {
       values: sanitizedValue,
-      fields: objectDefinition.fields.reduce((acc, f) => ({ ...acc, [f.name]: f }), {}),
+      fields: objectDefinition.fields, // Already a Record<string, NestedFieldDefinition>
       metadata
     });
     
@@ -56,7 +56,7 @@ export function ObjectFieldPreview({ value, definition }: ObjectPreviewProps) {
     const previewValues = preview.fields
       .slice(0, 3) // Limit to 3 fields for preview
       .map(fieldName => {
-        const field = objectDefinition.fields.find(f => f.name === fieldName);
+        const field = objectDefinition.fields[fieldName];
         const fieldValue = sanitizedValue[fieldName];
         
         if (!field || fieldValue === undefined || fieldValue === null || fieldValue === '') {
@@ -105,20 +105,20 @@ export function ObjectFieldPreview({ value, definition }: ObjectPreviewProps) {
   }
 
   // Default preview: show field count and completion
-  const filledFieldsText = metadata.filledFields === 1 ? '1 field' : `${metadata.filledFields} fields`;
-  const totalFieldsText = metadata.visibleFields === 1 ? '1 field' : `${metadata.visibleFields} fields`;
+  const filledFieldsText = metadata.filledFields.length === 1 ? '1 field' : `${metadata.filledFields.length} fields`;
+  const totalFieldsText = metadata.visibleFields.length === 1 ? '1 field' : `${metadata.visibleFields.length} fields`;
   
   // Show some key field values if available
-  const keyFields = objectDefinition.fields
-    .filter(field => {
-      const fieldValue = sanitizedValue[field.name];
+  const keyFields = Object.entries(objectDefinition.fields)
+    .filter(([fieldName, field]) => {
+      const fieldValue = sanitizedValue[fieldName];
       return fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
     })
     .slice(0, 2);
 
   if (keyFields.length > 0) {
-    const keyValues = keyFields.map(field => {
-      const fieldValue = sanitizedValue[field.name];
+    const keyValues = keyFields.map(([fieldName, field]) => {
+      const fieldValue = sanitizedValue[fieldName];
       let displayValue: string;
       
       if (typeof fieldValue === 'string') {
@@ -148,7 +148,7 @@ export function ObjectFieldPreview({ value, definition }: ObjectPreviewProps) {
   return (
     <span className="text-sm text-gray-600 dark:text-gray-400">
       {filledFieldsText} of {totalFieldsText} filled
-      {metadata.isRequiredComplete && metadata.requiredFields > 0 && (
+      {metadata.isRequiredComplete && metadata.requiredFieldsStatus.total > 0 && (
         <span className="ml-2 text-green-600 dark:text-green-400">✓</span>
       )}
     </span>

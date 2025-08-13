@@ -1,12 +1,16 @@
 import type { ValidationResult } from '../../base/FieldDefinition.js';
 import type { 
   ObjectFieldDefinition, 
-  ObjectFieldItem, 
-  ObjectFieldMetadata, 
-  ConditionalResult,
-  TemplateContext
+  ObjectFieldMetadata
 } from './definition.js';
 import { fieldRegistry } from '../../registry/FieldRegistry.js';
+
+// Template context for rendering templates
+interface TemplateContext {
+  values: Record<string, any>;
+  fields: Record<string, any>;
+  metadata: ObjectFieldMetadata;
+}
 
 /**
  * Validate entire object field with nested field validation
@@ -51,7 +55,7 @@ export function validateObjectField(
 
   // Check for additional properties if not allowed
   if (validation.additionalProperties === false) {
-    const definedFields = new Set(definition.fields.map(f => f.name));
+    const definedFields = new Set(Object.keys(definition.fields));
     const actualProps = Object.keys(objectValue);
     const extraProps = actualProps.filter(prop => !definedFields.has(prop));
     
@@ -63,30 +67,32 @@ export function validateObjectField(
   // Validate each defined field
   const metadata = getObjectMetadata(objectValue, definition);
   
-  for (const fieldDef of definition.fields) {
+  for (const [fieldName, fieldDef] of Object.entries(definition.fields)) {
     // Check conditional visibility
-    const conditionalResult = evaluateConditional(fieldDef, objectValue);
+    const fieldDefWithName = { name: fieldName, ...fieldDef };
+    const conditionalResult = evaluateConditional(fieldDefWithName, objectValue);
     if (!conditionalResult.visible) {
       continue; // Skip validation for hidden fields
     }
 
-    const fieldValue = objectValue[fieldDef.name];
-    const fieldValidation = validateObjectFieldItem(fieldValue, fieldDef, objectValue, documentContext);
+    const fieldValue = objectValue[fieldName];
+    const fieldValidation = validateObjectFieldItem(fieldValue, fieldDefWithName, objectValue, documentContext);
     
     if (!fieldValidation.isValid) {
-      errors.push(...fieldValidation.errors.map(err => `${fieldDef.title || fieldDef.name}: ${err}`));
+      errors.push(...fieldValidation.errors.map(err => `${fieldDef.title || fieldName}: ${err}`));
     }
     if (fieldValidation.warnings) {
-      warnings.push(...fieldValidation.warnings.map(warn => `${fieldDef.title || fieldDef.name}: ${warn}`));
+      warnings.push(...fieldValidation.warnings.map(warn => `${fieldDef.title || fieldName}: ${warn}`));
     }
   }
 
   // Check required fields
   if (validation.requiredFields) {
     for (const requiredField of validation.requiredFields) {
-      const fieldDef = definition.fields.find(f => f.name === requiredField);
+      const fieldDef = definition.fields[requiredField];
       if (fieldDef) {
-        const conditionalResult = evaluateConditional(fieldDef, objectValue);
+        const fieldDefWithName = { name: requiredField, ...fieldDef };
+        const conditionalResult = evaluateConditional(fieldDefWithName, objectValue);
         if (conditionalResult.visible && (objectValue[requiredField] === undefined || objectValue[requiredField] === null || objectValue[requiredField] === '')) {
           errors.push(`${fieldDef.title || requiredField} is required`);
         }
@@ -95,13 +101,14 @@ export function validateObjectField(
   }
 
   // Check field-level required validation
-  for (const fieldDef of definition.fields) {
+  for (const [fieldName, fieldDef] of Object.entries(definition.fields)) {
     if (fieldDef.required) {
-      const conditionalResult = evaluateConditional(fieldDef, objectValue);
+      const fieldDefWithName = { name: fieldName, ...fieldDef };
+      const conditionalResult = evaluateConditional(fieldDefWithName, objectValue);
       if (conditionalResult.visible) {
-        const fieldValue = objectValue[fieldDef.name];
+        const fieldValue = objectValue[fieldName];
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          errors.push(`${fieldDef.title || fieldDef.name} is required`);
+          errors.push(`${fieldDef.title || fieldName} is required`);
         }
       }
     }
@@ -133,7 +140,7 @@ export function validateObjectField(
  */
 export function validateObjectFieldItem(
   value: any,
-  fieldDefinition: ObjectFieldItem,
+  fieldDefinition: any, // Using any here since we're working with NestedFieldDefinition
   objectValues: Record<string, any>,
   documentContext?: any
 ): ValidationResult {
@@ -172,9 +179,9 @@ export function validateObjectFieldItem(
  * Evaluate conditional visibility for a field
  */
 export function evaluateConditional(
-  fieldDefinition: ObjectFieldItem,
+  fieldDefinition: any, // Using any here since we're working with NestedFieldDefinition
   objectValues: Record<string, any>
-): ConditionalResult {
+): any {
   // Handle function-based hidden property
   if (typeof fieldDefinition.hidden === 'function') {
     try {
@@ -216,13 +223,13 @@ export function evaluateConditional(
     }
 
     // Multiple conditions
-    const results = conditions.map(condition => {
+    const results = conditions.map((condition: any) => {
       evaluatedFields.push(condition.field);
       const actualValue = objectValues[condition.field];
       return evaluateCondition(actualValue, condition.value, condition.operator || 'equals');
     });
 
-    const visible = logic === 'and' ? results.every(r => r) : results.some(r => r);
+    const visible = logic === 'and' ? results.every((r: boolean) => r) : results.some((r: boolean) => r);
     return {
       visible,
       reason: `Multiple conditions (${logic}): ${visible ? 'met' : 'not met'}`,
@@ -288,30 +295,14 @@ export function getObjectMetadata(
   objectValue: Record<string, any>,
   definition: ObjectFieldDefinition
 ): ObjectFieldMetadata {
-  // Handle both array and object formats for fields
-  let allFields: ObjectFieldItem[] = [];
+  // Work directly with Record format
+  const fieldEntries = Object.entries(definition.fields);
   
-  if (Array.isArray(definition.fields)) {
-    allFields = definition.fields;
-  } else if (definition.fields && typeof definition.fields === 'object') {
-    // Convert object format to array format
-    allFields = Object.entries(definition.fields as any).map(([name, field]: [string, any]) => ({
-      name,
-      type: field.type,
-      title: field.title || name,
-      description: field.description,
-      required: field.required,
-      validation: field.validation,
-      options: field.options,
-      defaultValue: field.defaultValue || field.default,
-      fields: field.fields,
-      of: field.of,
-      to: field.to,
-      hidden: field.hidden,
-      readOnly: field.readOnly,
-      conditional: field.conditional
-    }));
-  }
+  // Convert to array format with name property for easier processing
+  const allFields = fieldEntries.map(([name, field]) => ({
+    name,
+    ...field
+  }));
   
   const visibleFields = allFields.filter(field => evaluateConditional(field, objectValue).visible);
   const requiredFields = visibleFields.filter(field => field.required);
@@ -342,17 +333,17 @@ export function getObjectMetadata(
     : 100;
 
   return {
-    totalFields: allFields.length,
-    visibleFields: visibleFields.length,
-    filledFields: filledFields.length,
-    requiredFields: requiredFields.length,
-    completedRequiredFields: completedRequiredFields.length,
+    fieldCount: allFields.length,
+    filledCount: filledFields.length,
     completionPercentage,
-    requiredCompletionPercentage,
-    missingRequiredFields,
-    fieldsWithErrors: [], // This would be populated by validation
-    isRequiredComplete: missingRequiredFields.length === 0,
-    isComplete: completionPercentage === 100
+    requiredFieldsStatus: {
+      total: requiredFields.length,
+      completed: completedRequiredFields.length,
+      missing: missingRequiredFields
+    },
+    filledFields: filledFields.map(f => f.name),
+    visibleFields: visibleFields.map(f => f.name),
+    isRequiredComplete: missingRequiredFields.length === 0
   };
 }
 
@@ -363,14 +354,15 @@ export function getDefaultObjectValue(definition: ObjectFieldDefinition): Record
   const defaultValue: Record<string, any> = {};
 
   // Start with definition's default value
-  if (definition.defaultValue) {
-    Object.assign(defaultValue, definition.defaultValue);
+  if (definition.default) {
+    Object.assign(defaultValue, definition.default);
   }
 
   // Add field-level defaults
-  for (const fieldDef of definition.fields) {
-    if (fieldDef.defaultValue !== undefined && !(fieldDef.name in defaultValue)) {
-      defaultValue[fieldDef.name] = fieldDef.defaultValue;
+  for (const [fieldName, fieldDef] of Object.entries(definition.fields)) {
+    const fieldDefault = fieldDef.default;
+    if (fieldDefault !== undefined && !(fieldName in defaultValue)) {
+      defaultValue[fieldName] = fieldDefault;
     }
   }
 
@@ -505,7 +497,7 @@ function getNestedValue(obj: any, path: string): any {
  * Check if field is read-only based on conditions
  */
 export function isFieldReadOnly(
-  fieldDefinition: ObjectFieldItem,
+  fieldDefinition: any, // Using any here since we're working with NestedFieldDefinition
   objectValues: Record<string, any>,
   isObjectReadOnly: boolean = false
 ): boolean {

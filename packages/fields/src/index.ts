@@ -119,8 +119,7 @@ export type {
   BooleanFieldOptions
 } from './definitions/BooleanField/index.js';
 
-// Temporarily disabled due to TypeScript errors
-/*
+// Array and Object fields - now modernized with Record format
 export {
   arrayFieldPlugin,
   ArrayFieldComponent,
@@ -162,12 +161,11 @@ export type {
   ObjectValidation,
   ObjectFieldOptions,
   ObjectLayout,
-  ObjectFieldItem,
+  NestedFieldDefinition,
   ObjectOperations,
   ObjectFieldContext,
   ObjectFieldMetadata
 } from './definitions/ObjectField/index.js';
-*/
 
 export {
   mediaFieldPlugin,

@@ -26,7 +26,10 @@ export type ObjectLayout =
   | 'collapsible'
   | 'modal'
   | 'card'
-  | 'section';
+  | 'section'
+  | 'sections'
+  | 'columns'
+  | 'tabs';
 
 // Object field-specific options
 export interface ObjectFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
@@ -41,11 +44,18 @@ export interface ObjectFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
   /** Custom title template */
   titleTemplate?: string;
   /** Columns for field layout */
-  columns?: number;
+  columns?: number | {
+    sm?: number;
+    md?: number;
+    lg?: number;
+    xl?: number;
+  };
   /** Field spacing */
   spacing?: 'compact' | 'normal' | 'relaxed';
   /** Show field descriptions */
   showDescriptions?: boolean;
+  /** Field ordering (explicit order for Record format) */
+  fieldOrder?: string[];
   /** Group fields into sections */
   sections?: Array<{
     title: string;
@@ -53,6 +63,14 @@ export interface ObjectFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     fields: string[];
     collapsible?: boolean;
     collapsed?: boolean;
+    icon?: string;
+  }>;
+  /** Tab configuration (for tabs layout) */
+  tabs?: Array<{
+    title: string;
+    description?: string;
+    fields: string[];
+    icon?: string;
   }>;
   /** Preview configuration */
   preview?: {
@@ -62,6 +80,8 @@ export interface ObjectFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     template?: string;
     /** Maximum preview length */
     maxLength?: number;
+    /** Show field count */
+    showCount?: boolean;
   };
   /** Modal configuration (for modal layout) */
   modal?: {
@@ -72,22 +92,15 @@ export interface ObjectFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     /** Show modal footer */
     showFooter?: boolean;
   };
+  /** Animation configuration */
+  animations?: {
+    /** Enable animations */
+    enabled?: boolean;
+  };
 }
 
-// Object field definition for nested fields
-export interface ObjectFieldDefinition extends BaseFieldDefinition {
-  type: 'object';
-  validation?: ObjectValidation;
-  options?: ObjectFieldOptions;
-  /** Fields within the object */
-  fields: ObjectFieldItem[];
-  default?: Record<string, any>;
-}
-
-// Individual field definition within an object
-export interface ObjectFieldItem {
-  /** Field name/key */
-  name: string;
+// Modern nested field definition
+export interface NestedFieldDefinition {
   /** Field type */
   type: string;
   /** Display title */
@@ -112,20 +125,24 @@ export interface ObjectFieldItem {
   conditional?: {
     field: string;
     value: any;
-    operator?:
-      | 'equals'
-      | 'notEquals'
-      | 'contains'
-      | 'notContains'
-      | 'exists'
-      | 'notExists';
+    operator?: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'exists' | 'notExists';
   };
-  /** Fields for nested objects */
-  fields?: ObjectFieldItem[];
+  /** Fields for nested objects (Record format) */
+  fields?: Record<string, NestedFieldDefinition>;
   /** Reference configuration for reference fields */
   to?: Array<{ type: string } | string>;
   /** Array item configuration for array fields */
-  of?: ObjectFieldItem;
+  of?: NestedFieldDefinition;
+}
+
+// Modern object field definition (Record format)
+export interface ObjectFieldDefinition extends BaseFieldDefinition {
+  type: 'object';
+  validation?: ObjectValidation;
+  options?: ObjectFieldOptions;
+  /** Fields within the object (Record format - modern) */
+  fields: Record<string, NestedFieldDefinition>;
+  default?: Record<string, any>;
 }
 
 // Default configuration for object fields
@@ -146,7 +163,9 @@ export const OBJECT_FIELD_DEFAULTS = {
     columns: 1,
     spacing: 'normal',
     showDescriptions: true,
+    fieldOrder: [],
     sections: [],
+    tabs: [],
     preview: {
       fields: [],
       maxLength: 100,
@@ -211,4 +230,22 @@ export interface ObjectFieldMetadata {
     completed: number;
     missing: string[];
   };
+  /** Array of filled field names */
+  filledFields: string[];
+  /** Array of visible field names */
+  visibleFields: string[];
+  /** Whether all required fields are complete */
+  isRequiredComplete: boolean;
+}
+
+// Helper function to get ordered field entries
+export function getOrderedFields(definition: ObjectFieldDefinition): Array<{
+  name: string;
+  definition: NestedFieldDefinition;
+}> {
+  const fieldOrder = definition.options?.fieldOrder || Object.keys(definition.fields);
+  return fieldOrder.map(name => ({
+    name,
+    definition: definition.fields[name]
+  })).filter(field => field.definition); // Filter out undefined fields
 }

@@ -13,7 +13,7 @@ import { SlugFieldPlugin } from './definitions/SlugField/index.js';
 import { numberFieldPlugin } from './definitions/NumberField/index.js';
 import { booleanFieldPlugin } from './definitions/BooleanField/index.js';
 import { arrayFieldPlugin } from './definitions/ArrayField/index.js';
-// import { ObjectFieldPlugin } from './definitions/ObjectField/index.js';
+import { ObjectFieldPlugin } from './definitions/ObjectField/index.js';
 import { mediaFieldPlugin } from './definitions/MediaField/index.js';
 import { AudioFieldPlugin } from './definitions/AudioField/index.js';
 import { VideoFieldPlugin } from './definitions/VideoField/index.js';
@@ -44,7 +44,7 @@ export function registerBuiltinFields(): void {
   fieldRegistry.register(arrayFieldPlugin, 'builtin');
   
   // Object fields
-  // fieldRegistry.register(ObjectFieldPlugin, 'builtin');
+  fieldRegistry.register(ObjectFieldPlugin, 'builtin');
   
   // Media fields
   fieldRegistry.register(mediaFieldPlugin, 'builtin');

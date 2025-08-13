@@ -137,26 +137,23 @@ export const ObjectFieldPlugin: FieldPlugin<ObjectFieldDefinition, Record<string
           type: 'object' as const,
           title: 'User Profile',
           description: 'Complete user profile information',
-          fields: [
-            {
-              name: 'firstName',
+          fields: {
+            firstName: {
               type: 'string',
               title: 'First Name',
               required: true
             },
-            {
-              name: 'lastName',
+            lastName: {
               type: 'string',
               title: 'Last Name',
               required: true
             },
-            {
-              name: 'email',
+            email: {
               type: 'string',
               title: 'Email Address',
               required: true
             }
-          ]
+          }
         }
       },
       {
@@ -165,26 +162,23 @@ export const ObjectFieldPlugin: FieldPlugin<ObjectFieldDefinition, Record<string
           type: 'object' as const,
           title: 'Address',
           description: 'Complete address information',
-          fields: [
-            {
-              name: 'street',
+          fields: {
+            street: {
               type: 'string',
               title: 'Street Address',
               required: true
             },
-            {
-              name: 'city',
+            city: {
               type: 'string',
               title: 'City',
               required: true
             },
-            {
-              name: 'state',
+            state: {
               type: 'string',
               title: 'State',
               required: true
             }
-          ]
+          }
         }
       }
     ]

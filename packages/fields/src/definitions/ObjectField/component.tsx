@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { 
   ObjectFieldDefinition, 
-  ObjectFieldItem, 
+  NestedFieldDefinition, 
   ObjectOperations, 
   ObjectFieldMetadata,
   ObjectLayout 
@@ -17,6 +17,7 @@ import {
   renderTemplate
 } from './validation.js';
 import { fieldRegistry } from '../../registry/FieldRegistry.js';
+import { getOrderedFields } from './definition.js';
 
 // ObjectField component props
 type ObjectFieldComponentProps = FieldComponentProps;
@@ -96,61 +97,37 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
       onChange(sanitizeObjectValue(defaultValue));
     },
     
-    getFieldNames: () => {
-      if (Array.isArray(objectDefinition.fields)) {
-        return objectDefinition.fields.map(f => f.name);
-      }
-      return Object.keys(objectDefinition.fields || {});
-    },
+    getFieldNames: () => Object.keys(objectDefinition.fields || {}),
     
     getFieldDefinition: (fieldName: string) => {
-      if (Array.isArray(objectDefinition.fields)) {
-        return objectDefinition.fields.find(f => f.name === fieldName);
-      }
-      const field = (objectDefinition.fields as any)?.[fieldName];
+      const field = objectDefinition.fields?.[fieldName];
       return field ? { name: fieldName, ...field } : undefined;
     }
   }), [objectValue, objectDefinition, onChange]);
   
-  // Normalize fields and filter visible ones based on conditional logic
+  // Get ordered fields and filter visible ones based on conditional logic
   const visibleFields = useMemo(() => {
-    // Handle both array and object formats for fields
-    let fieldsArray: ObjectFieldItem[] = [];
+    const orderedFields = getOrderedFields(objectDefinition);
     
-    if (Array.isArray(objectDefinition.fields)) {
-      fieldsArray = objectDefinition.fields;
-    } else if (objectDefinition.fields && typeof objectDefinition.fields === 'object') {
-      // Convert object format to array format
-      fieldsArray = Object.entries(objectDefinition.fields as any).map(([name, field]: [string, any]) => ({
-        name,
-        type: field.type,
-        title: field.title || name,
-        description: field.description,
-        required: field.required,
-        validation: field.validation,
-        options: field.options,
-        defaultValue: field.defaultValue || field.default,
-        fields: field.fields,
-        of: field.of,
-        to: field.to,
-        hidden: field.hidden,
-        readOnly: field.readOnly,
-        conditional: field.conditional
-      }));
-    }
-    
-    return fieldsArray.filter(field => {
-      const conditionalResult = evaluateConditional(field, objectValue);
+    return orderedFields.filter(({ name, definition: fieldDef }) => {
+      const conditionalResult = evaluateConditional(
+        { 
+          name, 
+          conditional: fieldDef.conditional,
+          hidden: fieldDef.hidden 
+        }, 
+        objectValue
+      );
       return conditionalResult.visible;
     });
-  }, [objectDefinition.fields, objectValue]);
+  }, [objectDefinition, objectValue]);
   
   // Render individual field
-  const renderField = useCallback((fieldDef: ObjectFieldItem, className: string = '') => {
+  const renderField = useCallback((fieldName: string, fieldDef: NestedFieldDefinition, className: string = '') => {
     const fieldPlugin = fieldRegistry.get(fieldDef.type);
     if (!fieldPlugin) {
       return (
-        <div key={fieldDef.name} className={`space-y-2 ${className}`}>
+        <div key={fieldName} className={`space-y-2 ${className}`}>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             {fieldDef.title}
             {fieldDef.required && <span className="text-red-500 ml-1">*</span>}
@@ -163,15 +140,15 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     }
     
     const FieldComponent = fieldPlugin.component;
-    const fieldValue = objectValue[fieldDef.name];
-    const fieldHasError = !!fieldErrors[fieldDef.name];
+    const fieldValue = objectValue[fieldName];
+    const fieldHasError = !!fieldErrors[fieldName];
     const fieldIsReadOnly = isFieldReadOnly(fieldDef, objectValue, isReadonly);
     
     return (
-      <div key={fieldDef.name} className={`space-y-2 ${className}`}>
+      <div key={fieldName} className={`space-y-2 ${className}`}>
         {/* Field label */}
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          {fieldDef.title}
+          {fieldDef.title || fieldName}
           {fieldDef.required && <span className="text-red-500 ml-1">*</span>}
         </label>
         
@@ -180,27 +157,36 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           <p className="text-xs text-gray-500 dark:text-gray-400">{fieldDef.description}</p>
         )}
         
-        {/* Help text */}
-        {fieldDef.helpText && (
-          <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-            {fieldDef.helpText}
-          </p>
-        )}
-        
         {/* Field component */}
         <FieldComponent
-          fieldId={`${fieldId}.${fieldDef.name}`}
+          fieldId={`${fieldId}.${fieldName}`}
           value={fieldValue}
-          onChange={(newValue: any) => operations.updateField(fieldDef.name, newValue)}
+          onChange={(newValue: any) => operations.updateField(fieldName, newValue)}
           definition={fieldDef as any}
           hasError={fieldHasError}
           isDisabled={isDisabled}
           isReadonly={fieldIsReadOnly}
+          documentContext={props.documentContext}
+          studioContext={props.studioContext}
+          onValidationChange={(result) => {
+            // Handle nested field validation
+            if (!result.isValid) {
+              setFieldErrors(prev => ({ ...prev, [fieldName]: result.errors[0] || 'Validation failed' }));
+            } else {
+              setFieldErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[fieldName];
+                return newErrors;
+              });
+            }
+          }}
+          onFocus={() => {}}
+          onBlur={() => {}}
         />
         
         {/* Field error */}
         {fieldHasError && (
-          <p className="text-xs text-red-600 dark:text-red-400">{fieldErrors[fieldDef.name]}</p>
+          <p className="text-xs text-red-600 dark:text-red-400">{fieldErrors[fieldName]}</p>
         )}
       </div>
     );
@@ -301,7 +287,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const renderPreview = () => {
     if (!getCollapseState('main') || !options.preview) return null;
     
-    const { fields: previewFields = [], template, maxLength = 150 } = options.preview;
+    const { fields: previewFields = [], template, maxLength = 150, showCount = false } = options.preview;
     // const { fields: previewFields = [], template, maxLength = 150, showCount } = options.preview;
     
     if (template) {
@@ -364,7 +350,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
             {previewText.slice(0, maxLength)}{previewText.length > maxLength && '...'}
             {showCount && (
-              <span className="ml-2 text-xs">({metadata.filledFields} fields)</span>
+              <span className="ml-2 text-xs">({metadata.filledCount} fields)</span>
             )}
           </div>
         );
@@ -402,19 +388,41 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     
     return (
       <div className={spacingClass}>
-        {visibleFields.map(field => renderField(field))}
+        {visibleFields.map(field => renderField(field.name, field.definition))}
       </div>
     );
   };
   
   // Columns layout - responsive grid
   const renderColumnsLayout = () => {
-    const cols = options.columns || {};
-    const gridClass = `grid gap-4 grid-cols-1 ${cols.md ? `md:grid-cols-${cols.md}` : 'md:grid-cols-1'} ${cols.lg ? `lg:grid-cols-${cols.lg}` : 'lg:grid-cols-2'} ${cols.xl ? `xl:grid-cols-${cols.xl}` : 'xl:grid-cols-2'}`;
+    const cols = typeof options.columns === 'object' ? options.columns : { md: options.columns || 1 };
+    
+    // Use static Tailwind classes based on column values
+    const getGridClass = () => {
+      const classes = ['grid', 'gap-4', 'grid-cols-1'];
+      
+      // Map column numbers to static Tailwind classes
+      if (cols.md === 2) classes.push('md:grid-cols-2');
+      else if (cols.md === 3) classes.push('md:grid-cols-3');
+      else if (cols.md === 4) classes.push('md:grid-cols-4');
+      else classes.push('md:grid-cols-1');
+      
+      if (cols.lg === 2) classes.push('lg:grid-cols-2');
+      else if (cols.lg === 3) classes.push('lg:grid-cols-3');
+      else if (cols.lg === 4) classes.push('lg:grid-cols-4');
+      else if (!cols.lg) classes.push('lg:grid-cols-2');
+      
+      if (cols.xl === 2) classes.push('xl:grid-cols-2');
+      else if (cols.xl === 3) classes.push('xl:grid-cols-3');
+      else if (cols.xl === 4) classes.push('xl:grid-cols-4');
+      else if (!cols.xl) classes.push('xl:grid-cols-2');
+      
+      return classes.join(' ');
+    };
     
     return (
-      <div className={gridClass}>
-        {visibleFields.map(field => renderField(field))}
+      <div className={getGridClass()}>
+        {visibleFields.map(field => renderField(field.name, field.definition))}
       </div>
     );
   };
@@ -427,7 +435,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     return (
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
         <div className={spacingClass}>
-          {visibleFields.map(field => renderField(field))}
+          {visibleFields.map(field => renderField(field.name, field.definition))}
         </div>
       </div>
     );
@@ -498,7 +506,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
               {/* Section content */}
               {!isCollapsed && (
                 <div className="p-4 space-y-4">
-                  {sectionFields.map(field => renderField(field))}
+                  {sectionFields.map(field => renderField(field.name, field.definition))}
                 </div>
               )}
             </div>
@@ -511,7 +519,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-2">
               Other Fields
             </h4>
-            {ungroupedFields.map(field => renderField(field))}
+            {ungroupedFields.map(field => renderField(field.name, field.definition))}
           </div>
         )}
       </div>
@@ -526,7 +534,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     
     const currentTab = options.tabs.find(tab => tab.title === activeTab) || options.tabs[0];
     const tabFields = visibleFields.filter(field => 
-      field.tab === currentTab.title //|| currentTab.fields.includes(field.name)
+      currentTab.fields.includes(field.name)
     );
     
     return (
@@ -536,10 +544,10 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           <nav className="flex space-x-8">
             {options.tabs.map(tab => {
               const tabFieldCount = visibleFields.filter(field => 
-                field.tab === tab.title || tab.fields.includes(field.name)
+                tab.fields.includes(field.name)
               ).length;
               const filledTabFields = visibleFields.filter(field => 
-                (field.tab === tab.title || tab.fields.includes(field.name)) && operations.hasField(field.name)
+                tab.fields.includes(field.name) && operations.hasField(field.name)
               ).length;
               
               return (
@@ -571,7 +579,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           {currentTab.description && (
             <p className="text-sm text-gray-600 dark:text-gray-400">{currentTab.description}</p>
           )}
-          {tabFields.map(field => renderField(field))}
+          {tabFields.map(field => renderField(field.name, field.definition))}
         </div>
       </div>
     );
