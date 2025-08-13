@@ -56,3 +56,26 @@ examples/demo/archived-files/
 
 # Migration scripts (one-time utilities)
 examples/demo/migrate-media-metadata.js
+
+# Development and internal files (keep private)
+INTERNAL_NOTES.md
+DEVELOPMENT_LOG.md
+TODO.md
+.development/
+.private/
+.beta/
+
+# Package preparation
+*.tgz
+package-lock.json
+
+# Security and keys
+.npmrc
+.env
+.env.*
+!.env.example
+
+# Temporary development files
+*.tmp
+*.temp
+.scratch/

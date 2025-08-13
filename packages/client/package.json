@@ -2,7 +2,13 @@
   "name": "@trokky/client",
   "version": "0.1.0",
   "description": "TypeScript-native client SDK for Trokky CMS with type generation",
-  "keywords": ["cms", "client", "sdk", "typescript", "type-generation"],
+  "keywords": [
+    "cms",
+    "client",
+    "sdk",
+    "typescript",
+    "type-generation"
+  ],
   "author": "Trokky Team",
   "license": "MIT",
   "type": "module",
@@ -28,7 +34,10 @@
       "require": "./dist/generator/document-generator.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
@@ -55,7 +64,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/trokky-v2.git",
-    "directory": "packages/client"
+    "url": "git+https://github.com/trokky/trokky.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   }
 }

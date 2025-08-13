@@ -23,6 +23,18 @@
   ],
   "author": "Trokky Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trokky/trokky.git"
+  },
+  "homepage": "https://github.com/trokky/trokky#readme",
+  "bugs": {
+    "url": "https://github.com/trokky/trokky/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "dependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
