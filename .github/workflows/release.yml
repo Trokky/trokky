@@ -40,7 +40,36 @@ jobs:
       - name: Build Packages
         run: npm run build
 
-      - name: Create Release Pull Request or Publish to GitHub Packages
+      - name: Check if packages exist
+        id: check_packages
+        run: |
+          if npm view @trokky/core@0.1.0 2>/dev/null; then
+            echo "packages_exist=true" >> $GITHUB_OUTPUT
+          else
+            echo "packages_exist=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Initial Publish (if packages don't exist)
+        if: steps.check_packages.outputs.packages_exist == 'false'
+        run: |
+          npm publish --workspace packages/fields
+          npm publish --workspace packages/core
+          npm publish --workspace packages/routes
+          npm publish --workspace packages/client
+          npm publish --workspace packages/structure
+          npm publish --workspace packages/studio
+          npm publish --workspace packages/adapters/filesystem
+          npm publish --workspace packages/adapters/filesystem-data
+          npm publish --workspace packages/adapters/filesystem-media
+          npm publish --workspace packages/integrations/express
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release Pull Request or Publish Updates
+        if: steps.check_packages.outputs.packages_exist == 'true'
         id: changesets
         uses: changesets/action@v1
         with:
