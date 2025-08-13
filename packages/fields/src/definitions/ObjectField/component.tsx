@@ -192,10 +192,23 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     );
   }, [objectValue, fieldErrors, operations, fieldId, isDisabled, isReadonly, options.showDescriptions]);
   
+  // Get dynamic title based on titleTemplate or fallback to definition.title
+  const getDisplayTitle = useCallback(() => {
+    if (options.titleTemplate) {
+      return renderTemplate(options.titleTemplate, {
+        values: objectValue,
+        fields: objectDefinition.fields,
+        metadata
+      });
+    }
+    return definition.title;
+  }, [options.titleTemplate, objectValue, objectDefinition.fields, metadata, definition.title]);
+
   // Render object header with progress
   const renderHeader = () => {
     const isCollapsible = options.collapsible !== false; // Default to true like ArrayField
     const isCollapsed = getCollapseState('main');
+    const displayTitle = getDisplayTitle();
     
     return (
       <div className="flex items-center justify-between mb-4">
@@ -215,11 +228,11 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {definition.title}
+              {displayTitle || definition.title}
             </button>
           ) : (
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {definition.title}
+              {displayTitle || definition.title}
             </h3>
           )}
           
