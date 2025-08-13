@@ -26,7 +26,7 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
-    "@trokky/core": "file:../core"
+    "@trokky/core": "^0.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

@@ -26,13 +26,11 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
-    "@trokky/core": "file:../../core",
-    "@trokky/routes": "file:../../routes",
-    "@trokky/adapter-filesystem": "file:../../adapters/filesystem",
-    "@trokky/adapter-filesystem-data": "file:../../adapters/filesystem-data",
-    "@trokky/adapter-filesystem-media": "file:../../adapters/filesystem-media",
-    "@trokky/adapter-cloudflare-d1": "file:../../adapters/cloudflare-d1",
-    "@trokky/adapter-cloudflare-r2": "file:../../adapters/cloudflare-r2",
+    "@trokky/core": "^0.1.0",
+    "@trokky/routes": "^0.1.0",
+    "@trokky/adapter-filesystem": "^0.1.0",
+    "@trokky/adapter-filesystem-data": "^0.1.0",
+    "@trokky/adapter-filesystem-media": "^0.1.0",
     "@types/busboy": "^1.5.4",
     "busboy": "^1.6.0",
     "express": "^4.18.0"
