@@ -48,7 +48,8 @@ coverage/
 *.tsbuildinfo
 
 # Test-generated files
-content/
+examples/*/content/
+examples/demo/data/
 examples/*/media/
 **/media/
 !packages/*/src/media/
