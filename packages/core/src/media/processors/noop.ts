@@ -13,7 +13,7 @@ import {
   ImageProcessor, 
   type ImageProcessorConfig, 
   type ProcessedImage 
-} from './types'
+} from './types.js'
 
 export class NoOpImageProcessor extends ImageProcessor {
   async processImage(

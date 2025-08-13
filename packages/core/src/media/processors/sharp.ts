@@ -15,7 +15,7 @@ import {
   type ImageProcessorConfig, 
   type ProcessedImage, 
   type ProcessedImageVariant 
-} from './types'
+} from './types.js'
 
 // Type for dynamically imported Sharp
 type SharpInstance = any

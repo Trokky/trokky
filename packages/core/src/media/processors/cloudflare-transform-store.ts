@@ -21,8 +21,8 @@
  * - Can serve directly from R2 or your own domain
  */
 
-import { ImageProcessor } from './types'
-import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types'
+import { ImageProcessor } from './types.js'
+import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types.js'
 
 export interface CloudflareTransformStoreConfig extends ImageProcessorConfig {
   type: 'cloudflare-transform-store'

@@ -6,10 +6,10 @@
  */
 
 // Export types and base classes
-export * from './types'
+export * from './types.js'
 
 // Export NoOp processor (safe for all environments)
-export { NoOpImageProcessor } from './noop'
+export { NoOpImageProcessor } from './noop.js'
 
 // NOTE: Sharp and other processors are NOT exported here!
 // They are loaded dynamically in the factory to prevent bundling issues.

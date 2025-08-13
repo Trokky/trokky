@@ -18,7 +18,7 @@ import {
   type ProcessedImage,
   type ProcessedImageVariant,
   type ImageVariant
-} from './types'
+} from './types.js'
 
 export interface CloudflareImagesConfig extends ImageProcessorConfig {
   type: 'cloudflare-images'

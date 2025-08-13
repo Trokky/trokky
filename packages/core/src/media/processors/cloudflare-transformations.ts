@@ -15,8 +15,8 @@
  * Documentation: https://developers.cloudflare.com/images/image-resizing/
  */
 
-import { ImageProcessor } from './types'
-import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types'
+import { ImageProcessor } from './types.js'
+import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types.js'
 
 export interface CloudflareTransformationsConfig extends ImageProcessorConfig {
   type: 'cloudflare-transformations'

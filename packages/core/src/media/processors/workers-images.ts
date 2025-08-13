@@ -19,8 +19,8 @@
  * Documentation: https://developers.cloudflare.com/images/image-resizing/resize-with-workers/
  */
 
-import { ImageProcessor } from './types'
-import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types'
+import { ImageProcessor } from './types.js'
+import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types.js'
 
 export interface WorkersImagesConfig extends ImageProcessorConfig {
   type: 'workers-images'
