@@ -12,24 +12,24 @@
  */
 
 // Import types and base classes from processors module
-import type { ImageProcessorConfig } from './processors/types.js'
-import type { ImageProcessor } from './processors/types.js'
+import type { ImageProcessorConfig } from './processors/types'
+import type { ImageProcessor } from './processors/types'
 
 export type {
   ImageVariant,
   ProcessedImageVariant, 
   ProcessedImage,
   ImageProcessorConfig
-} from './processors/types.js'
+} from './processors/types'
 
 export { 
   ImageProcessor,
   DEFAULT_IMAGE_VARIANTS 
-} from './processors/types.js'
+} from './processors/types'
 
 export { 
   NoOpImageProcessor 
-} from './processors/noop.js'
+} from './processors/noop'
 
 /**
  * Factory function to create image processors
