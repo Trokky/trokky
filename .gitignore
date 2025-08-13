@@ -42,7 +42,7 @@ coverage/
 .turbo/
 
 # Changesets
-.changeset/
+# .changeset/ - needed for release process
 
 # TypeScript
 *.tsbuildinfo
