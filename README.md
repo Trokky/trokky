@@ -1,292 +1,222 @@
-# Trokky v2 🚀
+# Trokky
 
-> The Modern, Composable CMS for Developers
+> Modern, composable CMS for developers
 
-**Trokky v2** is a complete reimagination of content management - built for developers who want the power of Sanity with the simplicity of file-based workflows and the freedom to use any framework.
+Trokky is a TypeScript-native content management system designed as a developer-friendly alternative to Sanity. Built with a composable architecture, it offers the flexibility of file-based workflows combined with the power of cloud-scale infrastructure.
 
-## 🎯 Vision
+## Overview
 
-Create the **true alternative to Sanity** that developers actually want:
-- **Local-first development** with Git-friendly workflows
-- **Framework agnostic** - works with Express, Next.js, Cloudflare Workers, Hono, etc.
-- **TypeScript native** with full type safety
+Trokky provides a complete content management solution with:
+
+- **Local-first development** with Git-friendly file-based storage
+- **Framework agnostic** architecture supporting Express, Next.js, Cloudflare Workers, and more
+- **TypeScript native** with full type safety from backend to frontend
 - **Enterprise-grade security** with JWT authentication and role-based access control
-- **Multi-environment crypto** - automatic adapter selection for maximum compatibility
-- **Built-in user management** with audit logging and compliance features
-- **Zero vendor lock-in** - own your data and deployment
-- **Simple to start, powerful to scale**
+- **Flexible deployment** from local development to edge computing environments
 
-## 🏗️ Architecture
+## Architecture
 
-### Composable Packages
+### Core Packages
+
 ```
-packages/
-├── core/           # CMS engine (schemas, validation, storage)
-├── routes/         # Framework-agnostic API handlers  
-├── studio/         # Modern React admin interface
-├── client/         # Frontend SDK with type generation
-├── integrations/   # Framework-specific adapters
-│   ├── express/    #   Express.js integration
-│   ├── nextjs/     #   Next.js App Router integration
-│   ├── cloudflare/ #   Cloudflare Workers integration
-│   └── hono/       #   Hono edge runtime integration
-└── adapters/       # Storage backends
-    ├── filesystem/ #   File-based storage (default)
-    ├── cloudflare/ #   Cloudflare D1 + R2 storage
-    └── s3/         #   AWS S3 + DynamoDB storage
+@trokky/core           # CMS engine with schemas, validation, and storage coordination
+@trokky/routes         # Framework-agnostic HTTP route handlers
+@trokky/studio         # React-based admin interface
+@trokky/client         # Frontend SDK with TypeScript type generation
+@trokky/fields         # Comprehensive field system with React components
 ```
 
-### Developer Experience First
+### Framework Integrations
+
+```
+@trokky/express        # Express.js server integration
+@trokky/nextjs         # Next.js App Router integration
+@trokky/hono           # Hono edge runtime integration
+@trokky/cloudflare     # Cloudflare Workers integration
+```
+
+### Storage Adapters
+
+```
+@trokky/adapter-filesystem    # File-based storage (default, Git-friendly)
+@trokky/adapter-cloudflare    # Cloudflare D1 + R2 storage
+@trokky/adapter-s3            # AWS S3 + DynamoDB storage
+```
+
+## Quick Start
+
+### Express.js Integration
+
 ```typescript
-// One config file to rule them all
+import express from 'express'
+import { TrokkyExpress } from '@trokky/express'
+
+const app = express()
+
+const trokky = await TrokkyExpress.create({
+  schemas: [
+    {
+      name: 'article',
+      title: 'Article',
+      type: 'document',
+      fields: {
+        title: { type: 'string', title: 'Title', required: true },
+        content: { type: 'richtext', title: 'Content' },
+        publishedAt: { type: 'date', title: 'Published At' }
+      }
+    }
+  ],
+  storage: { adapter: 'filesystem', contentDir: './content' },
+  studio: { enabled: true, branding: { title: 'My CMS' } }
+})
+
+// Mounts /api/* and /studio/* routes
+trokky.mount(app)
+
+app.listen(3000)
+```
+
+### Configuration
+
+Trokky uses a centralized configuration approach with environment-aware defaults:
+
+```typescript
+// trokky.config.ts
 export default {
-  storage: 'filesystem', // or 'cloudflare', 's3', etc.
-  schemas: './schemas',   // TypeScript schema definitions
+  schemas: './schemas',
+  storage: {
+    adapter: 'filesystem',
+    contentDir: './content'
+  },
   studio: {
-    title: 'My CMS',
-    structure: './studio.structure.ts'
+    enabled: true,
+    branding: {
+      title: 'My CMS',
+      description: 'Content management made simple'
+    }
+  },
+  security: {
+    adminUser: {
+      username: process.env.TROKKY_ADMIN_EMAIL,
+      password: process.env.TROKKY_ADMIN_PASSWORD
+    }
   }
 }
 ```
 
-## 🚀 Quick Start
+## Features
 
-```bash
-# Create new project
-npx create-trokky@latest my-cms
-cd my-cms
+### Content Management
 
-# Start development
-npm run dev  # API + Studio + File watching
+- **Schema-driven** content modeling with TypeScript definitions
+- **Field system** with built-in validation and custom field types
+- **Media management** with automatic processing and variant generation
+- **Reference fields** with automatic relationship management
+- **Draft and publish** workflows with version control
 
-# Or integrate with existing framework
-npm install @trokky/express
-npm install @trokky/nextjs
-npm install @trokky/cloudflare-workers
-```
+### Developer Experience
 
-### Cloudflare Workers Development
+- **Type generation** for frontend development with full IntelliSense
+- **Hot reloading** during development with file watching
+- **CLI tools** for project setup and content generation
+- **Migration tools** for importing from other CMSs
 
-For Cloudflare Workers with concurrent Studio development:
+### Security & Authentication
 
-```bash
-# Clone and setup
-git clone https://github.com/your-org/trokky-v2.git
-cd trokky-v2
-
-# Start Cloudflare Worker + Studio concurrently
-npm run dev:worker
-```
-
-**Runs:**
-- Cloudflare Worker on `http://localhost:8787`
-- Trokky Studio on `http://localhost:5173`
-
-See [Cloudflare Development Guide](./docs/guides/CLOUDFLARE_DEVELOPMENT.md) for detailed setup and troubleshooting.
-
-## 🔐 Authentication & User Management
-
-Trokky v2 includes built-in user management with enterprise-grade security:
-
-```typescript
-// Setup admin user from environment variables
-const core = new TrokkyCore(config, storage, {
-  setupAdminFromEnv: true
-})
-
-await core.init() // Creates admin if TROKKY_ADMIN_EMAIL and TROKKY_ADMIN_PASSWORD are set
-```
-
-```bash
-# .env file
-TROKKY_ADMIN_EMAIL=admin@yoursite.com
-TROKKY_ADMIN_PASSWORD=YourSecurePassword123!
-TROKKY_JWT_SECRET=your-super-secure-256-bit-secret-key
-```
-
-**Authentication Flow:**
-```typescript
-// Login user
-const authResult = await core.authenticateUser('username', 'password')
-if (authResult) {
-  const { user, token } = authResult
-  // JWT token ready for API authentication
-}
-
-// Verify JWT token
-const session = await core.verifyAuthToken(token)
-if (session) {
-  console.log(`User ${session.username} has role ${session.role}`)
-}
-```
-
-**Built-in Features:**
-- 🔒 **JWT authentication** with configurable expiration
-- 👥 **Role-based access** (admin/editor/viewer)
-- 🔐 **bcrypt password hashing** (Node.js) or **PBKDF2** (edge)
-- 📊 **Audit logging** for compliance
-- 🛡️ **Admin access control** with permission validation
-- 🌐 **Multi-environment** crypto adapters (Node.js/Edge compatible)
-
-## ✨ Key Features
-
-### 🔐 **Enterprise Security & User Management**
-- **JWT Authentication** with role-based access control (admin/editor/viewer)
-- **Multi-environment crypto** adapters (Node.js, Web Crypto API, fallback)
-- **Password security** with bcrypt hashing and strength validation
-- **Admin access control** with automatic permission validation
+- **JWT-based authentication** with configurable token expiration
+- **Role-based access control** (admin, editor, viewer)
+- **Multi-environment crypto** adapters for Node.js and edge environments
 - **Audit logging** for compliance and security monitoring
-- **Environment-based admin setup** for development workflows
+- **Admin access control** with automatic permission validation
 
-### 🔔 **Events & Webhooks** (NEW)
-- **Event-driven architecture** with EventBus for all CMS operations
-- **Webhook management** with persistent storage (survives restarts)
-- **HMAC signature verification** for secure webhook delivery
-- **Automatic retry logic** with exponential backoff
-- **Studio UI** for creating and managing webhooks
-- **Wildcard event patterns** for flexible subscriptions
-- **Event history tracking** with configurable retention
+### Deployment Flexibility
 
-### 🎨 **Modern Studio Interface**
-- Clean, intuitive admin UI built with React 18+
-- User authentication and session management
-- Real-time collaborative editing
-- Media management with drag & drop
-- Custom field types and layouts
-- **Webhook management UI** for easy integration setup
+- **Local development** with file-based storage
+- **Cloud deployment** with scalable storage adapters
+- **Edge computing** support for Cloudflare Workers and similar platforms
+- **Container-ready** with Docker support and health checks
 
-### 🔧 **Framework Freedom**
-- Use with any HTTP framework or serverless platform
-- Framework-agnostic route handlers
-- Deploy anywhere - Vercel, Netlify, Cloudflare, AWS, etc.
-- **Edge runtime compatible** with automatic crypto adapter selection
+## Project Structure
 
-### 📝 **TypeScript Native**
-- Schemas defined in TypeScript
-- Auto-generated types for frontend
-- Full type safety from backend to frontend
-- Runtime validation matching compile-time types
+### Monorepo Organization
 
-### 💾 **Flexible Storage**
-- Start with files (Git-friendly)
-- Scale to cloud storage when needed
-- Migrate between storage types seamlessly
+```
+packages/
+├── core/                    # CMS engine
+├── routes/                  # HTTP route handlers
+├── studio/                  # Admin interface
+├── client/                  # Frontend SDK
+├── fields/                  # Field system
+├── structure/               # Studio structure utilities
+├── integrations/
+│   ├── express/            # Express.js integration
+│   ├── nextjs/             # Next.js integration
+│   ├── hono/               # Hono integration
+│   └── cloudflare/         # Cloudflare Workers integration
+└── adapters/
+    ├── filesystem/         # File-based storage
+    ├── filesystem-data/    # File-based data storage
+    ├── filesystem-media/   # File-based media storage
+    ├── cloudflare-d1/      # Cloudflare D1 database
+    ├── cloudflare-r2/      # Cloudflare R2 storage
+    └── s3/                 # AWS S3 storage
+```
 
-### 🌐 **Both REST & GraphQL**
-- Auto-generated REST endpoints
-- Auto-generated GraphQL schema
-- Same data, multiple access patterns
+### Development Workflow
 
-## 🎯 Migration from Sanity
-
-Built-in migration tools to switch from Sanity:
+The project uses npm workspaces with Turbo for efficient development:
 
 ```bash
-# One command migration
-npx trokky migrate --from sanity \
-  --project-id abc123 \
-  --dataset production \
-  --output ./my-trokky-project
+# Install dependencies
+npm install
+
+# Start development (API + Studio)
+npm run dev
+
+# Build all packages
+npm run build
+
+# Run tests
+npm run test
+
+# Type checking
+npm run type-check
 ```
 
-## 🐛 Development & Debugging
+## Documentation
 
-### Studio Logger Control
+- **Installation Guide** - Getting started with Trokky
+- **API Reference** - Complete API documentation
+- **Configuration Guide** - Advanced configuration options
+- **Migration Guide** - Moving from other CMSs
+- **Deployment Guide** - Production deployment strategies
 
-Trokky v2 includes a comprehensive logging system for development and debugging. You can control log verbosity in the browser console:
+## Development Status
 
-```javascript
-// Control log levels (most to least verbose)
-window.TrokkyLogger.setLevel('debug')  // Shows everything
-window.TrokkyLogger.setLevel('info')   // Shows info, warnings, errors
-window.TrokkyLogger.setLevel('warn')   // Shows warnings and errors (default)
-window.TrokkyLogger.setLevel('error')  // Shows errors only
+Trokky v2 represents a complete architectural rewrite focused on modularity and developer experience.
 
-// Disable/enable all logging
-window.TrokkyLogger.disable()
-window.TrokkyLogger.enable()
+### Production Ready
 
-// Check current level
-window.TrokkyLogger.getLevel()
-```
+- **Core engine** with comprehensive schema and validation system
+- **File-based storage** adapter with security hardening
+- **Framework-agnostic routes** with full CRUD operations
+- **Express.js integration** with production-ready middleware
+- **Authentication system** with enterprise-grade security
 
-**Default Behavior:**
-- **Development**: `warn` level (warnings and errors only)
-- **Production**: `error` level (errors only)
-- Settings persist across page reloads in development
+### In Development
 
-## 🌐 Edge Runtime Notes (Cloudflare Workers)
+- **Studio interface** enhancements and user experience improvements
+- **Client SDK** with advanced type generation capabilities
+- **Additional framework integrations** and storage adapters
 
-- Crypto: Core auto-detects Web Crypto and uses an edge-safe adapter. No need to install `bcrypt` or `jsonwebtoken` on Workers.
-- Image processing: Set `media.processor` to `'none'` (or a cloud image service) on Workers; `sharp` is Node-only and optional.
-- Storage: Use split adapters for Cloudflare — D1 for data (`@trokky/adapter-cloudflare-d1`) and R2 for media (`@trokky/adapter-cloudflare-r2`).
-- Responses: Media endpoints return `Uint8Array` bodies, compatible with Workers and Node.
-- Env access: Avoid direct unguarded `process.env` usage in edge code; core guards its env reads for secrets and mode.
+## Contributing
 
-## 📚 Documentation
+Trokky is built with modern development practices and comprehensive testing. See the contributing guide for development setup and guidelines.
 
-- [**Project Specification**](./docs/specs/PROJECT_SPEC.md) - Detailed project overview
-- [**Architecture Guide**](./docs/specs/ARCHITECTURE.md) - System design and patterns
-- [**API Specification**](./docs/specs/API_SPEC.md) - Complete API reference
-- [**Migration Guide**](./docs/specs/MIGRATION_FROM_SANITY.md) - Move from Sanity to Trokky
+## License
 
-## 🛠️ Development Status
-
-**Current Phase: Studio & Client Development** (Phase 2) - **AHEAD OF SCHEDULE** 🚀
-
-### ✅ **Completed Packages** (Production Ready)
-
-**`@trokky/core` v0.1.0** - The foundational CMS engine
-- ✅ **Schema Management**: TypeScript-native schema registry with Zod validation
-- ✅ **User Management**: Complete authentication system with role-based access control
-- ✅ **Security-First**: Enterprise-grade crypto adapters, JWT authentication, bcrypt password hashing
-- ✅ **Multi-Environment Crypto**: Automatic adapter selection (Node.js, Web Crypto API, fallback)
-- ✅ **Storage Interface**: Type-safe adapter pattern for pluggable storage backends
-- ✅ **Audit Logging**: Built-in security event tracking and compliance logging
-- ✅ **Test Coverage**: 173 passing tests covering all functionality
-
-**`@trokky/adapter-filesystem` v0.1.0** - Git-friendly file storage
-- ✅ **Local Development**: File-based storage perfect for Git workflows
-- ✅ **Security Hardened**: Path traversal protection, atomic writes, extension validation
-- ✅ **User Storage**: Complete user management with secure file-based storage
-- ✅ **Test Coverage**: 40 passing tests including security and edge cases
-
-**`@trokky/routes` v0.1.0** - Framework-agnostic HTTP route handlers
-- ✅ **Complete REST API**: Full CRUD operations for documents, media, and users
-- ✅ **User Management API**: Login, logout, user creation, role management, token validation
-- ✅ **JWT Authentication**: Secure token-based authentication with role-based access control
-- ✅ **Admin Protection**: Automatic admin access validation for user management operations
-- ✅ **Enterprise Security**: Authentication, path traversal protection, input validation
-- ✅ **Test Coverage**: 51 passing tests including 16 security-focused tests
-
-**`@trokky/express` v0.1.0** - Production-ready Express.js integration
-- ✅ **Express Middleware**: Complete Express.js integration with authentication support
-- ✅ **File Upload Handling**: Multer integration for secure media uploads
-- ✅ **CORS Configuration**: Automatic CORS setup with security defaults
-- ✅ **Error Handling**: Express-specific error handling and response formatting
-- ✅ **Type Safety**: Full TypeScript support with Express request/response types
-- ✅ **Production Ready**: Comprehensive middleware stack for production deployment
-- ✅ **Test Coverage**: 37 passing tests covering all integration scenarios
-
-### 🚧 **In Progress**
-- [ ] Modern Studio UI (`@trokky/studio`) - **NEXT PRIORITY**
-- [ ] Client SDK (`@trokky/client`)
-
-### 🎯 **Major Achievements**
-- **Enterprise-grade security** implemented with comprehensive authentication system
-- **Multi-environment compatibility** with automatic crypto adapter selection
-- **Express.js integration** complete with production-ready middleware
-- **100% test pass rate** across all packages (301+ total tests)
-- **Production-ready** core packages with full documentation
-
-## 🤝 Contributing
-
-This is a complete rewrite focused on simplicity and developer experience. See our [Development Guide](./docs/guides/DEVELOPMENT.md) for contribution guidelines.
-
-## 📄 License
-
-MIT License - see [LICENSE](./LICENSE) for details.
+MIT License - see LICENSE file for details.
 
 ---
 
-**Trokky v2** - Building the CMS developers actually want to use.
+Built for developers who want the power of enterprise CMS with the simplicity of modern development workflows.
