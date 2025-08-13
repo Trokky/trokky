@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-ORG_NAME="trokky"
+ORG_NAME="Trokky"
 REPO_NAME="trokky"
 CURRENT_DIR=$(pwd)
 
