@@ -1,0 +1,14 @@
+{
+  "id": "posts-mdceuare-b404edfd-01948e",
+  "collection": "posts",
+  "data": {
+    "title": "Test Post",
+    "content": "This is a test post",
+    "status": "published"
+  },
+  "metadata": {
+    "createdAt": "2025-07-21T01:11:42.843Z",
+    "updatedAt": "2025-07-21T01:11:42.843Z",
+    "revision": 1
+  }
+}

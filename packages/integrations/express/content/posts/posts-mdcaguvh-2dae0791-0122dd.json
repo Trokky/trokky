@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdcaguvh-2dae0791-0122dd",
+  "collection": "posts",
+  "data": {
+    "title": "Updated Title",
+    "content": "Original content"
+  },
+  "metadata": {
+    "createdAt": "2025-07-20T23:09:17.261Z",
+    "updatedAt": "2025-07-20T23:09:17.262Z",
+    "revision": 2
+  }
+}

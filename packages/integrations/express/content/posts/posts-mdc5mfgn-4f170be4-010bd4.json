@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdc5mfgn-4f170be4-010bd4",
+  "collection": "posts",
+  "data": {
+    "title": "Updated Title",
+    "content": "Original content"
+  },
+  "metadata": {
+    "createdAt": "2025-07-20T20:53:39.143Z",
+    "updatedAt": "2025-07-20T20:53:39.145Z",
+    "revision": 2
+  }
+}

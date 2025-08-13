@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdc59cvj-b65ed5f3-0169fd",
+  "collection": "posts",
+  "data": {
+    "title": "Specific Post",
+    "content": "Specific content"
+  },
+  "metadata": {
+    "createdAt": "2025-07-20T20:43:29.263Z",
+    "updatedAt": "2025-07-20T20:43:29.263Z",
+    "revision": 1
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdceuast-c7727b61-01f927",
+  "collection": "posts",
+  "data": {
+    "title": "Specific Post",
+    "content": "Specific content"
+  },
+  "metadata": {
+    "createdAt": "2025-07-21T01:11:42.893Z",
+    "updatedAt": "2025-07-21T01:11:42.893Z",
+    "revision": 1
+  }
+}

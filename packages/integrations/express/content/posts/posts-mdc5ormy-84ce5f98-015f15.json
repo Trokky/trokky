@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdc5ormy-84ce5f98-015f15",
+  "collection": "posts",
+  "data": {
+    "title": "Updated Title",
+    "content": "Original content"
+  },
+  "metadata": {
+    "createdAt": "2025-07-20T20:55:28.234Z",
+    "updatedAt": "2025-07-20T20:55:28.235Z",
+    "revision": 2
+  }
+}

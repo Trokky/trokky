@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdcdh0v8-d26e745a-014129",
+  "collection": "posts",
+  "data": {
+    "title": "Post 1",
+    "content": "Content 1"
+  },
+  "metadata": {
+    "createdAt": "2025-07-21T00:33:23.876Z",
+    "updatedAt": "2025-07-21T00:33:23.876Z",
+    "revision": 1
+  }
+}

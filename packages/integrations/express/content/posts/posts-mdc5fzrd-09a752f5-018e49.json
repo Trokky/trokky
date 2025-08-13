@@ -1,0 +1,14 @@
+{
+  "id": "posts-mdc5fzrd-09a752f5-018e49",
+  "collection": "posts",
+  "data": {
+    "title": "Test Post",
+    "content": "This is a test post",
+    "status": "published"
+  },
+  "metadata": {
+    "createdAt": "2025-07-20T20:48:38.857Z",
+    "updatedAt": "2025-07-20T20:48:38.857Z",
+    "revision": 1
+  }
+}

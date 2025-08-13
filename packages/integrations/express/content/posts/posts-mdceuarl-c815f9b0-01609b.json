@@ -1,0 +1,13 @@
+{
+  "id": "posts-mdceuarl-c815f9b0-01609b",
+  "collection": "posts",
+  "data": {
+    "title": "Post 1",
+    "content": "Content 1"
+  },
+  "metadata": {
+    "createdAt": "2025-07-21T01:11:42.850Z",
+    "updatedAt": "2025-07-21T01:11:42.850Z",
+    "revision": 1
+  }
+}
