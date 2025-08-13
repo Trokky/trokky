@@ -93,37 +93,14 @@ export class DocumentValidator {
         
         const objectShape: Record<string, z.ZodSchema> = {}
         
-        // Handle legacy v1 format: fields is an array of ObjectFieldItem
-        if (Array.isArray(fieldDef.fields)) {
-          for (const fieldItem of fieldDef.fields) {
-            // Convert ObjectFieldItem to FieldDefinition
-            const propDef: FieldDefinition = {
-              type: fieldItem.type as any,
-              required: fieldItem.required,
-              description: fieldItem.description,
-              validation: fieldItem.validation,
-              options: fieldItem.options,
-              of: fieldItem.of as any,
-              fields: fieldItem.fields as any,
-              to: fieldItem.to as any
-            }
-            
-            let propSchema = this.buildFieldSchema(propDef)
-            if (!fieldItem.required) {
-              propSchema = propSchema.optional()
-            }
-            objectShape[fieldItem.name] = propSchema
+        // Handle modern format: fields is a Record<string, FieldDefinition>
+        for (const [propName, propDef] of Object.entries(fieldDef.fields)) {
+          const typedPropDef = propDef as FieldDefinition
+          let propSchema = this.buildFieldSchema(typedPropDef)
+          if (!typedPropDef.required) {
+            propSchema = propSchema.optional()
           }
-        } else {
-          // Handle modern format: fields is a Record<string, FieldDefinition>
-          for (const [propName, propDef] of Object.entries(fieldDef.fields)) {
-            const typedPropDef = propDef as FieldDefinition
-            let propSchema = this.buildFieldSchema(typedPropDef)
-            if (!typedPropDef.required) {
-              propSchema = propSchema.optional()
-            }
-            objectShape[propName] = propSchema
-          }
+          objectShape[propName] = propSchema
         }
         
         return z.object(objectShape)
