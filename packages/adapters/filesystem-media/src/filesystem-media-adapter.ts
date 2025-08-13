@@ -258,7 +258,16 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       
       try {
         const buffer = await fs.readFile(filePath)
-        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+        const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+        // Ensure we return ArrayBuffer, not SharedArrayBuffer
+        if (sliced instanceof ArrayBuffer) {
+          return sliced
+        } else {
+          // Copy SharedArrayBuffer to ArrayBuffer
+          const arrayBuffer = new ArrayBuffer(sliced.byteLength)
+          new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+          return arrayBuffer
+        }
       } catch {
         return null
       }
@@ -456,7 +465,16 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
 
       // Read and return variant file content
       const buffer = await fs.readFile(resolvedPath)
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      // Ensure we return ArrayBuffer, not SharedArrayBuffer
+      if (sliced instanceof ArrayBuffer) {
+        return sliced
+      } else {
+        // Copy SharedArrayBuffer to ArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        return arrayBuffer
+      }
     } catch (error) {
       this.logger.error(`Failed to get variant content for ${parentId}/${variantName}`, error)
       return null
