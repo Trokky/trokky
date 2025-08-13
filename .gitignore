@@ -73,7 +73,9 @@ TODO.md
 package-lock.json
 
 # Security and keys
-.npmrc
+# Root .npmrc needed for GitHub Package Registry
+!/.npmrc
+**/.npmrc
 .env
 .env.*
 !.env.example
