@@ -38,7 +38,21 @@ export class MockFile implements File {
   constructor(content: string | ArrayBuffer, filename: string, options: { type?: string } = {}) {
     this.name = filename
     this.type = options.type || 'application/octet-stream'
-    this.content = typeof content === 'string' ? new TextEncoder().encode(content) : content
+    if (typeof content === 'string') {
+      const encoded = new TextEncoder().encode(content)
+      const sliced = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength)
+      // Ensure we have ArrayBuffer, not SharedArrayBuffer
+      if (sliced instanceof ArrayBuffer) {
+        this.content = sliced
+      } else {
+        // Copy SharedArrayBuffer to ArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        this.content = arrayBuffer
+      }
+    } else {
+      this.content = content
+    }
     this.size = this.content.byteLength
     this.lastModified = Date.now()
   }

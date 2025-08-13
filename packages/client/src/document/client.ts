@@ -26,14 +26,14 @@ export class DocumentClient {
     id: string, 
     useCache = true
   ): Promise<DocumentResult<T>> {
-    const cacheKey = this.cache.generateKey(`documents/${type}/${id}`)
+    const cacheKey = this.cache.generateKey(`collections/${type}/${id}`)
     
     if (useCache) {
       const cached = this.cache.get<DocumentResult<T>>(cacheKey)
       if (cached) return cached
     }
 
-    const result = await this.http.get<DocumentResult<T>>(`/documents/${type}/${id}`)
+    const result = await this.http.get<DocumentResult<T>>(`/collections/${type}/${id}`)
     
     if (useCache) {
       this.cache.set(cacheKey, result)
@@ -50,7 +50,7 @@ export class DocumentClient {
     options: QueryOptions = {},
     useCache = true
   ): Promise<CollectionResult<T>> {
-    const cacheKey = this.cache.generateKey(`documents/${type}`, options)
+    const cacheKey = this.cache.generateKey(`collections/${type}`, options)
     
     if (useCache) {
       const cached = this.cache.get<CollectionResult<T>>(cacheKey)
@@ -84,7 +84,7 @@ export class DocumentClient {
       queryParams.set('select', options.select.join(','))
     }
 
-    const endpoint = `/documents/${type}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    const endpoint = `/collections/${type}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     const result = await this.http.get<CollectionResult<T>>(endpoint)
     
     if (useCache) {
@@ -106,7 +106,7 @@ export class DocumentClient {
       _type: type
     }
 
-    const result = await this.http.post<DocumentResult<T>>(`/documents/${type}`, payload)
+    const result = await this.http.post<DocumentResult<T>>(`/collections/${type}`, payload)
     
     // Invalidate type cache
     this.invalidateTypeCache(type)
@@ -122,10 +122,10 @@ export class DocumentClient {
     id: string, 
     data: Partial<Omit<T, '_id' | '_type' | '_createdAt' | '_updatedAt' | '_version'>>
   ): Promise<DocumentResult<T>> {
-    const result = await this.http.patch<DocumentResult<T>>(`/documents/${type}/${id}`, data)
+    const result = await this.http.patch<DocumentResult<T>>(`/collections/${type}/${id}`, data)
     
     // Update cache
-    const cacheKey = this.cache.generateKey(`documents/${type}/${id}`)
+    const cacheKey = this.cache.generateKey(`collections/${type}/${id}`)
     this.cache.set(cacheKey, result)
     
     // Invalidate type cache
@@ -147,10 +147,10 @@ export class DocumentClient {
       _type: type
     }
 
-    const result = await this.http.put<DocumentResult<T>>(`/documents/${type}/${id}`, payload)
+    const result = await this.http.put<DocumentResult<T>>(`/collections/${type}/${id}`, payload)
     
     // Update cache
-    const cacheKey = this.cache.generateKey(`documents/${type}/${id}`)
+    const cacheKey = this.cache.generateKey(`collections/${type}/${id}`)
     this.cache.set(cacheKey, result)
     
     // Invalidate type cache
@@ -163,10 +163,10 @@ export class DocumentClient {
    * Delete document
    */
   async delete(type: string, id: string): Promise<void> {
-    await this.http.delete(`/documents/${type}/${id}`)
+    await this.http.delete(`/collections/${type}/${id}`)
     
     // Remove from cache
-    const cacheKey = this.cache.generateKey(`documents/${type}/${id}`)
+    const cacheKey = this.cache.generateKey(`collections/${type}/${id}`)
     this.cache.delete(cacheKey)
     
     // Invalidate type cache
@@ -213,7 +213,7 @@ export class DocumentClient {
       queryParams.set('filter', JSON.stringify(filter))
     }
 
-    const endpoint = `/documents/${type}/count${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    const endpoint = `/collections/${type}/count${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     const result = await this.http.get<{ count: number }>(endpoint)
     
     return result.count
@@ -224,7 +224,7 @@ export class DocumentClient {
    */
   async exists(type: string, id: string): Promise<boolean> {
     try {
-      await this.http.get(`/documents/${type}/${id}/exists`)
+      await this.http.get(`/collections/${type}/${id}/exists`)
       return true
     } catch (error: any) {
       if (error.status === 404) return false

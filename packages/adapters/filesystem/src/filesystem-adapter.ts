@@ -479,7 +479,16 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Read file content as buffer and convert to ArrayBuffer
       const buffer = await fs.readFile(filePath)
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      // Ensure we return ArrayBuffer, not SharedArrayBuffer
+      if (sliced instanceof ArrayBuffer) {
+        return sliced
+      } else {
+        // Copy SharedArrayBuffer to ArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        return arrayBuffer
+      }
     } catch (error) {
       throw new Error(`Failed to get file content ${id}: ${error}`)
     }
@@ -930,7 +939,7 @@ export class FilesystemAdapter implements StorageAdapter {
         url: webhookData.url || existingWebhook?.url || '',
         events: webhookData.events || existingWebhook?.events || [],
         active: webhookData.active !== undefined ? webhookData.active : (existingWebhook?.active ?? true),
-        secret: webhookData.secret || existingWebhook?.secret || '',
+        secret: webhookData.secret || existingWebhook?.secret || crypto.randomUUID(),
         headers: webhookData.headers || existingWebhook?.headers || {},
         retryPolicy: webhookData.retryPolicy || existingWebhook?.retryPolicy || {
           maxRetries: 3,
@@ -939,7 +948,7 @@ export class FilesystemAdapter implements StorageAdapter {
           maxDelay: 30000,
           retryOnStatus: [500, 502, 503, 504, 408, 429]
         },
-        createdBy: (webhookData.createdBy || existingWebhook?.createdBy) as string | undefined,
+        createdBy: webhookData.createdBy || existingWebhook?.createdBy || 'system',
         createdAt: isUpdate ? existingWebhook!.createdAt : now,
         updatedAt: now
       }
@@ -1448,7 +1457,16 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Read and return variant file content
       const buffer = await fs.readFile(resolvedPath)
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      // Ensure we return ArrayBuffer, not SharedArrayBuffer
+      if (sliced instanceof ArrayBuffer) {
+        return sliced
+      } else {
+        // Copy SharedArrayBuffer to ArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        return arrayBuffer
+      }
     } catch (error) {
       console.error(`[ERROR] FilesystemAdapter.getVariantContent failed for ${parentId}/${variantName}:`, error)
       return null

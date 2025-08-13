@@ -13,10 +13,19 @@ export interface FieldSchema {
   required?: boolean
   validation?: Record<string, any>
   options?: Record<string, any>
-  // New field format properties
-  fields?: FieldSchema[] // for object fields
+  // Modern field format properties
+  fields?: FieldSchema[] | Record<string, FieldSchema> // for object fields (Record format)
   of?: FieldSchema // for array fields
-  to?: string // for reference fields
+  to?: string | string[] // for reference fields (can be array of collection names)
+  // Additional modern field properties
+  default?: any
+  hidden?: boolean | ((values: Record<string, any>) => boolean)
+  readOnly?: boolean | ((values: Record<string, any>) => boolean)
+  conditional?: {
+    field: string
+    value: any
+    operator?: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'exists' | 'notExists'
+  }
 }
 
 export interface DocumentSchema {
@@ -68,8 +77,8 @@ export class TypeGenerator {
    */
   private async fetchSchema(): Promise<ProjectSchema> {
     try {
-      // For Trokky API, we need to fetch from /api/collections and transform the response
-      const apiUrl = this.options.schemaUrl.replace('/api/schemas', '/api/collections')
+      // Use the schemaUrl directly, which should point to /api/collections
+      const apiUrl = this.options.schemaUrl
       
       // Handle authentication
       let authToken = this.options.authToken
@@ -159,7 +168,7 @@ export class TypeGenerator {
       }))
     }
     
-    // Handle object format (top-level fields)
+    // Handle Record format (modern ObjectField format: Record<string, NestedFieldDefinition>)
     return Object.entries(fields).map(([name, field]) => ({
       name,
       type: field.type,
@@ -168,7 +177,7 @@ export class TypeGenerator {
       required: field.required,
       validation: field.validation,
       options: field.options,
-      // Handle new field formats
+      // Handle nested fields for object types (Record format)
       fields: field.fields ? this.transformFields(field.fields) : undefined,
       of: field.of ? this.transformSingleField(field.of) : undefined,
       to: field.to
@@ -281,29 +290,50 @@ export class TypeGenerator {
    */
   private hasMediaFields(fields: FieldSchema[]): boolean {
     for (const field of fields) {
-      if (field.type === 'media') {
+      // Check for all media field types
+      if (['media', 'image', 'audio', 'video', 'document'].includes(field.type)) {
         return true
       }
       
-      // Check nested fields in objects
+      // Check nested fields in objects (both array and Record formats)
       if (field.type === 'object') {
         const objectFields = (field as any).fields || field.options?.fields
-        if (objectFields && this.hasMediaFields(objectFields)) {
-          return true
+        if (objectFields) {
+          // Handle Record format
+          if (!Array.isArray(objectFields)) {
+            const fieldArray = Object.values(objectFields) as FieldSchema[]
+            if (this.hasMediaFields(fieldArray)) {
+              return true
+            }
+          }
+          // Handle array format
+          else if (this.hasMediaFields(objectFields)) {
+            return true
+          }
         }
       }
       
       // Check array item types
       if (field.type === 'array') {
         const arrayItemDef = (field as any).of || (field as any).items
-        if (arrayItemDef && arrayItemDef.type === 'media') {
+        if (arrayItemDef && ['media', 'image', 'audio', 'video', 'document'].includes(arrayItemDef.type)) {
           return true
         }
         // Check if array contains objects with media fields
         if (arrayItemDef && arrayItemDef.type === 'object') {
           const arrayObjectFields = arrayItemDef.fields || arrayItemDef.options?.fields
-          if (arrayObjectFields && this.hasMediaFields(arrayObjectFields)) {
-            return true
+          if (arrayObjectFields) {
+            // Handle Record format
+            if (!Array.isArray(arrayObjectFields)) {
+              const fieldArray = Object.values(arrayObjectFields) as FieldSchema[]
+              if (this.hasMediaFields(fieldArray)) {
+                return true
+              }
+            }
+            // Handle array format
+            else if (this.hasMediaFields(arrayObjectFields)) {
+              return true
+            }
           }
         }
       }
@@ -320,20 +350,36 @@ export class TypeGenerator {
     let content = `export interface ${interfaceName} {\n`
     
     if (field.type === 'object') {
-      // Updated to handle new object format: field.fields instead of field.options?.fields
+      // Handle both Record format and array format
       const objectFields = (field as any).fields || field.options?.fields
       if (objectFields) {
-        for (const subField of objectFields) {
-          const fieldType = this.mapFieldType(subField, documentName)
-          const optional = subField.required ? '' : '?'
-          content += `  ${subField.name}${optional}: ${fieldType}\n`
+        // Handle Record format (modern ObjectField format)
+        if (!Array.isArray(objectFields)) {
+          for (const [fieldName, subField] of Object.entries(objectFields)) {
+            const subFieldSchema = subField as FieldSchema
+            const fieldType = this.mapFieldType({ ...subFieldSchema, name: fieldName }, documentName)
+            const optional = subFieldSchema.required ? '' : '?'
+            content += `  ${fieldName}${optional}: ${fieldType}\n`
+          }
+        }
+        // Handle array format (legacy)
+        else {
+          for (const subField of objectFields) {
+            const fieldType = this.mapFieldType(subField, documentName)
+            const optional = subField.required ? '' : '?'
+            content += `  ${subField.name}${optional}: ${fieldType}\n`
+          }
         }
       }
     } else if (field.type === 'reference') {
       content += `  _ref: string\n`
       // Updated to handle new reference format: field.to instead of field.options?.to
       const refType = (field as any).to || field.options?.to || 'reference'
-      content += `  _type: '${refType}'\n`
+      if (Array.isArray(refType)) {
+        content += `  _type: ${refType.map(t => `'${t}'`).join(' | ')}\n`
+      } else {
+        content += `  _type: '${refType}'\n`
+      }
     }
     
     content += '}'
@@ -350,6 +396,7 @@ export class TypeGenerator {
       case 'slug':
       case 'email':
       case 'url':
+      case 'password':
         return 'string'
       
       case 'number':
@@ -374,12 +421,20 @@ export class TypeGenerator {
       case 'reference':
         // Updated to handle new reference format: field.to instead of field.options?.to
         const refType = (field as any).to || field.options?.to || 'any'
+        // Handle multiple reference types
+        if (Array.isArray(refType)) {
+          const types = refType.map(t => `${t}Document`).join(' | ')
+          return `string | ${types}`
+        }
         return `string | ${refType}Document`
       
       case 'media':
+      case 'image':
+      case 'audio':
+      case 'video':
+      case 'document':
         return 'MediaAsset | null'
       
-      case 'image':
       case 'file':
         return 'string | { _ref: string; url?: string; metadata?: Record<string, any> }'
       
@@ -387,6 +442,7 @@ export class TypeGenerator {
         return 'any[] // Portable Text blocks'
       
       case 'richText':
+      case 'richtext':
         return 'any[] // Rich text blocks'
       
       default:
