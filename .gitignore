@@ -49,7 +49,9 @@ coverage/
 
 # Test-generated files
 content/
-media/
+examples/*/media/
+**/media/
+!packages/*/src/media/
 
 # Archived files from refactoring
 examples/demo/archived-files/

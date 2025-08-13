@@ -34,6 +34,7 @@ export {
 /**
  * Factory function to create image processors
  * Uses dynamic imports to avoid bundling issues in edge environments
+ * Note: All processor imports now use consistent module resolution
  */
 export async function createImageProcessor(config: ImageProcessorConfig): Promise<ImageProcessor> {
   switch (config.type) {
