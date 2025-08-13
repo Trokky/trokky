@@ -39,14 +39,14 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
   switch (config.type) {
     case 'none': {
       // NoOp processor is safe to import statically (no external dependencies)
-      const { NoOpImageProcessor } = await import('./processors/noop.js')
+      const { NoOpImageProcessor } = await import('./processors/noop')
       return new NoOpImageProcessor(config)
     }
     
     case 'sharp': {
       // Sharp processor is dynamically imported to avoid bundling issues
       try {
-        const { SharpImageProcessor } = await import('./processors/sharp.js')
+        const { SharpImageProcessor } = await import('./processors/sharp')
         return new SharpImageProcessor(config)
       } catch (error) {
         throw new Error(
@@ -60,7 +60,7 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
     case 'cloudflare-images': {
       // Cloudflare Images processor - future implementation
       try {
-        const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images.js')
+        const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images')
         return new CloudflareImagesProcessor(config as any)
       } catch (error) {
         throw new Error(
