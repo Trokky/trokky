@@ -5,7 +5,7 @@ import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
 import { createLogger } from '../utils/logger.js'
-import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig } from '../media/image-processor.js'
+import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig, type ProcessedImageVariant } from '../media/image-processor.js'
 import { TrokkyEventBus, type EventBusConfig, MemoryEventStorage } from '../events/index.js'
 import { 
   documentCreated,
@@ -532,7 +532,7 @@ export class TrokkyCore {
 
         // Save variant files directly to storage without creating separate MediaFile records
         const savedVariants: Record<string, any> = {}
-        for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
+        for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
           if (variantData.buffer) {
             try {
               // Save variant file directly using storage adapter's variant support
@@ -781,7 +781,7 @@ export class TrokkyCore {
 
       // Save new variant files
       const savedVariants: Record<string, any> = {}
-      for (const [variantName, variantData] of Object.entries(processedImage.variants)) {
+      for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
         if (variantData.buffer) {
           try {
             if (this.mediaStorage.saveVariantFile) {
