@@ -194,7 +194,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Render object header with progress
   const renderHeader = () => {
-    const isCollapsible = options.collapsible && options.layout !== 'tabs';
+    const isCollapsible = options.collapsible !== false; // Default to true like ArrayField
     const isCollapsed = getCollapseState('main');
     
     return (
@@ -360,12 +360,8 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     return null;
   };
   
-  // Render content based on layout
-  const renderContent = () => {
-    if (options.collapsible && getCollapseState('main')) {
-      return renderPreview();
-    }
-    
+  // Render main content based on layout
+  const renderMainContent = () => {
     switch (options.layout) {
       case 'tabs':
         return renderTabsLayout();
@@ -586,12 +582,43 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   };
   
   // Main render
+  const wrapperClasses = useMemo(() => {
+    const classes = ['object-field'];
+    
+    // Add subtle border for better visual distinction (like ArrayField)
+    if (options.layout !== 'inline') {
+      classes.push('border border-gray-200 dark:border-gray-700');
+      classes.push('rounded-lg');
+      classes.push('p-4');
+      
+      if (!isDisabled && !isReadonly) {
+        classes.push('hover:border-gray-300 dark:hover:border-gray-600');
+        classes.push('transition-colors');
+      }
+    }
+    
+    // Add error state
+    if (hasError) {
+      classes.push('border-red-300 dark:border-red-600');
+    }
+    
+    return classes.join(' ');
+  }, [options.layout, isDisabled, isReadonly, hasError]);
+  
   return (
-    <div className="object-field">
-      {/* Content */}
-      <div className={options.animations?.enabled ? 'transition-all duration-200' : ''}>
-        {renderContent()}
-      </div>
+    <div className={wrapperClasses}>
+      {/* Always render header for collapsible functionality */}
+      {renderHeader()}
+      
+      {/* Content - only show when not collapsed */}
+      {!getCollapseState('main') && (
+        <div className={options.animations?.enabled ? 'transition-all duration-200' : ''}>
+          {renderMainContent()}
+        </div>
+      )}
+      
+      {/* Preview when collapsed */}
+      {getCollapseState('main') && renderPreview()}
       
       {/* Required fields warning */}
       {/* {metadata.missingRequiredFields.length > 0 && (
