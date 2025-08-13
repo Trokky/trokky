@@ -311,7 +311,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         totalItems={totalItems}
         selectedItems={selectedItems.length}
         bulkActions={bulkActions}
-        onBulkAction={async (actionId) => {
+        onBulkAction={async (actionId: string) => {
           if (selectedItems.length === 0) return;
           
           switch (actionId) {
@@ -351,7 +351,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
             pageSize={pageSize}
             totalItems={totalItems}
             onPageChange={setCurrentPage}
-            onPageSizeChange={(newSize) => {
+            onPageSizeChange={(newSize: number) => {
               setPageSize(newSize);
               setCurrentPage(1);
             }}

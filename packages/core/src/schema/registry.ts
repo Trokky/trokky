@@ -94,7 +94,7 @@ export class SchemaRegistry {
 
     // Priority 3: First string field
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
-      if (fieldDef.type === 'string') {
+      if ((fieldDef as any).type === 'string') {
         return fieldName
       }
     }

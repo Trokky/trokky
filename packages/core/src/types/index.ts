@@ -81,7 +81,7 @@ export interface FieldDefinition {
 }
 
 // Schema field definition Zod schema
-export const FieldDefinitionSchema: z.ZodType<FieldDefinition> = z.object({
+export const FieldDefinitionSchema: z.ZodSchema<any> = z.object({
   type: FieldTypeSchema,
   required: z.boolean().optional().default(false),
   description: z.string().optional(),
@@ -122,7 +122,7 @@ export const FieldDefinitionSchema: z.ZodType<FieldDefinition> = z.object({
 }).passthrough() // Allow additional properties for extensibility
 
 // Content schema definition
-export const ContentSchemaSchema = z.object({
+export const ContentSchemaSchema: z.ZodSchema<any> = z.object({
   name: z.string(),
   type: z.enum(['document', 'singleton']),
   title: z.string().optional(),

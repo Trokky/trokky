@@ -12,24 +12,24 @@
  */
 
 // Import types and base classes from processors module
-import type { ImageProcessorConfig } from './processors/index'
-import type { ImageProcessor } from './processors/index'
+import type { ImageProcessorConfig } from './processors/index.js'
+import type { ImageProcessor } from './processors/index.js'
 
 export type {
   ImageVariant,
   ProcessedImageVariant, 
   ProcessedImage,
   ImageProcessorConfig
-} from './processors/index'
+} from './processors/index.js'
 
 export { 
   ImageProcessor,
   DEFAULT_IMAGE_VARIANTS 
-} from './processors/index'
+} from './processors/index.js'
 
 export { 
   NoOpImageProcessor 
-} from './processors/index'
+} from './processors/index.js'
 
 /**
  * Factory function to create image processors
