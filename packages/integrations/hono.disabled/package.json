@@ -1,5 +1,5 @@
 {
-  "name": "@trokky/hono",
+  "name": "@trokky/hono-disabled",
   "version": "0.1.0",
   "description": "Hono integration for Trokky CMS - Cloudflare Workers compatible",
   "type": "module",

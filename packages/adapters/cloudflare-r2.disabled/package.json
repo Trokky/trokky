@@ -1,7 +1,7 @@
 {
-  "name": "@trokky/adapter-cloudflare-d1",
+  "name": "@trokky/adapter-cloudflare-r2-disabled",
   "version": "0.1.0",
-  "description": "Cloudflare D1 data storage adapter for Trokky CMS",
+  "description": "Cloudflare R2 media storage adapter for Trokky CMS",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,14 +15,16 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "jest",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "file:../../core"
+    "@trokky/core": "file:../../core",
+    "@aws-sdk/client-s3": "^3.658.1",
+    "@aws-sdk/s3-request-presigner": "^3.658.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240806.0",
@@ -46,9 +48,9 @@
     "trokky",
     "cms",
     "cloudflare",
-    "d1",
-    "database",
+    "r2",
     "storage",
+    "media",
     "adapter",
     "edge",
     "workers"
