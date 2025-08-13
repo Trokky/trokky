@@ -12,24 +12,24 @@
  */
 
 // Import types and base classes from processors module
-import type { ImageProcessorConfig } from './processors/types'
-import type { ImageProcessor } from './processors/types'
+import type { ImageProcessorConfig } from './processors/types.js'
+import type { ImageProcessor } from './processors/types.js'
 
 export type {
   ImageVariant,
   ProcessedImageVariant, 
   ProcessedImage,
   ImageProcessorConfig
-} from './processors/types'
+} from './processors/types.js'
 
 export { 
   ImageProcessor,
   DEFAULT_IMAGE_VARIANTS 
-} from './processors/types'
+} from './processors/types.js'
 
 export { 
   NoOpImageProcessor 
-} from './processors/noop'
+} from './processors/noop.js'
 
 /**
  * Factory function to create image processors
@@ -39,14 +39,14 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
   switch (config.type) {
     case 'none': {
       // NoOp processor is safe to import statically (no external dependencies)
-      const { NoOpImageProcessor } = await import('./processors/noop')
+      const { NoOpImageProcessor } = await import('./processors/noop.js')
       return new NoOpImageProcessor(config)
     }
     
     case 'sharp': {
       // Sharp processor is dynamically imported to avoid bundling issues
       try {
-        const { SharpImageProcessor } = await import('./processors/sharp')
+        const { SharpImageProcessor } = await import('./processors/sharp.js')
         return new SharpImageProcessor(config)
       } catch (error) {
         throw new Error(
@@ -60,7 +60,7 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
     case 'cloudflare-images': {
       // Cloudflare Images processor - future implementation
       try {
-        const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images')
+        const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images.js')
         return new CloudflareImagesProcessor(config as any)
       } catch (error) {
         throw new Error(
