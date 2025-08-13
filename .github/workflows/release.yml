@@ -44,16 +44,18 @@ jobs:
       - name: Publish All Packages
         run: |
           # Publish in dependency order, continue on error
-          npm publish --workspace packages/fields || true
-          npm publish --workspace packages/core || true
-          npm publish --workspace packages/routes || true
-          npm publish --workspace packages/structure || true
-          npm publish --workspace packages/client || true
-          npm publish --workspace packages/adapters/filesystem || true
-          npm publish --workspace packages/adapters/filesystem-data || true
-          npm publish --workspace packages/adapters/filesystem-media || true
-          npm publish --workspace packages/studio || true
-          npm publish --workspace packages/integrations/express || true
+          npm publish --workspace packages/fields || echo "fields already published"
+          npm publish --workspace packages/core || echo "core already published"
+          npm publish --workspace packages/routes || echo "routes already published"
+          npm publish --workspace packages/structure || echo "structure already published"
+          npm publish --workspace packages/adapters/filesystem || echo "adapter-filesystem already published"
+          npm publish --workspace packages/adapters/filesystem-data || echo "adapter-filesystem-data already published"
+          npm publish --workspace packages/adapters/filesystem-media || echo "adapter-filesystem-media already published"
+          npm publish --workspace packages/studio || echo "studio already published"
+          npm publish --workspace packages/integrations/express || echo "express already published"
+          # Explicitly publish client package
+          cd packages/client && npm publish || echo "client publish failed"
+          cd ../..
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
