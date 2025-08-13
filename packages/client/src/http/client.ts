@@ -265,8 +265,9 @@ export class HttpClient {
     if (file instanceof File) {
       formData.append('file', file)
     } else {
-      // For Node.js Buffer support
-      const blob = new Blob([file])
+      // For Node.js Buffer support - convert Buffer to Uint8Array to ensure ArrayBuffer compatibility
+      const uint8Array = new Uint8Array(file)
+      const blob = new Blob([uint8Array])
       formData.append('file', blob, filename || 'file')
     }
 
