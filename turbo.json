@@ -10,7 +10,7 @@
       "dependsOn": ["^build"]
     },
     "type-check": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "build"]
     },
     "dev": {
       "cache": false,
