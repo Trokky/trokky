@@ -11,9 +11,13 @@ out/
 
 # Environment variables
 .env*.local
+.env.devcontainer
+!.env.devcontainer.example
 
-# IDE
-.vscode/
+# IDE (allow specific devContainer settings)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo

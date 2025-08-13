@@ -15,7 +15,7 @@ Trokky uses [Changesets](https://github.com/changesets/changesets) for version m
 
 ### 2. **Manual Publish** (`manual-publish.yml`)
 - **Triggers**: Manual workflow dispatch from GitHub Actions UI
-- **Purpose**: Emergency publishing or republishing specific packages
+- **Purpose**: Emergency pCublishing or republishing specific packages
 - **Options**: Can publish individual packages or all packages
 
 ### 3. **Initial Release** (`release.yml`)
