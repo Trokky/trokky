@@ -12,24 +12,24 @@
  */
 
 // Import types and base classes from processors module
-import type { ImageProcessorConfig } from './processors/types'
-import type { ImageProcessor } from './processors/types'
+import type { ImageProcessorConfig } from './processors/index'
+import type { ImageProcessor } from './processors/index'
 
 export type {
   ImageVariant,
   ProcessedImageVariant, 
   ProcessedImage,
   ImageProcessorConfig
-} from './processors/types'
+} from './processors/index'
 
 export { 
   ImageProcessor,
   DEFAULT_IMAGE_VARIANTS 
-} from './processors/types'
+} from './processors/index'
 
 export { 
   NoOpImageProcessor 
-} from './processors/noop'
+} from './processors/index'
 
 /**
  * Factory function to create image processors
