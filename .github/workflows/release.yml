@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -40,20 +41,7 @@ jobs:
       - name: Build Packages
         run: npm run build
 
-      - name: Check if packages exist
-        id: check_packages
-        run: |
-          if npm view @trokky/core@0.1.0 2>/dev/null; then
-            echo "packages_exist=true" >> $GITHUB_OUTPUT
-          else
-            echo "packages_exist=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Initial Publish (if packages don't exist)
-        if: steps.check_packages.outputs.packages_exist == 'false'
+      - name: Publish All Packages
         run: |
           # Publish in dependency order, continue on error
           npm publish --workspace packages/fields || true
@@ -69,13 +57,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release Pull Request or Publish Updates
-        if: steps.check_packages.outputs.packages_exist == 'true'
+      - name: Create Release Pull Request
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npx changeset publish
+          publish: echo "Packages published in previous step"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
