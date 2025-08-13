@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.changeset/**'
+      - 'packages/**'
+      - '!packages/**/*.md'
+      - '!packages/**/*.test.ts'
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}

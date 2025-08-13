@@ -1,0 +1,81 @@
+name: Manual Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to publish (e.g., client, studio, or "all")'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - client
+          - core
+          - routes
+          - fields
+          - studio
+          - structure
+          - express
+          - adapter-filesystem
+          - adapter-filesystem-data
+          - adapter-filesystem-media
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@trokky'
+
+      - name: Configure npm for GitHub Packages
+        run: |
+          echo "@trokky:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Install Dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Packages
+        run: npm run build
+
+      - name: Publish Selected Package
+        run: |
+          if [ "${{ github.event.inputs.package }}" = "all" ]; then
+            echo "Publishing all packages..."
+            npm publish --workspace packages/fields || echo "fields already published"
+            npm publish --workspace packages/core || echo "core already published"
+            npm publish --workspace packages/routes || echo "routes already published"
+            npm publish --workspace packages/structure || echo "structure already published"
+            npm publish --workspace packages/client || echo "client already published"
+            npm publish --workspace packages/adapters/filesystem || echo "adapter-filesystem already published"
+            npm publish --workspace packages/adapters/filesystem-data || echo "adapter-filesystem-data already published"
+            npm publish --workspace packages/adapters/filesystem-media || echo "adapter-filesystem-media already published"
+            npm publish --workspace packages/studio || echo "studio already published"
+            npm publish --workspace packages/integrations/express || echo "express already published"
+          else
+            echo "Publishing @trokky/${{ github.event.inputs.package }}..."
+            if [ "${{ github.event.inputs.package }}" = "express" ]; then
+              npm publish --workspace packages/integrations/express
+            elif [[ "${{ github.event.inputs.package }}" == adapter-* ]]; then
+              npm publish --workspace packages/adapters/${{ github.event.inputs.package }}
+            else
+              npm publish --workspace packages/${{ github.event.inputs.package }}
+            fi
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
