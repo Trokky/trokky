@@ -162,16 +162,33 @@ packages/
     └── s3/                 # AWS S3 storage
 ```
 
-### Development Workflow
+### Development Setup
 
-The project uses npm workspaces with Turbo for efficient development:
+For new contributors or fresh clones:
 
 ```bash
-# Install dependencies
-npm install
+# Clone and setup development environment
+git clone https://github.com/your-org/trokky-v2.git
+cd trokky-v2
 
+# Run complete development setup (recommended)
+npm run setup-dev
+```
+
+The setup script will:
+- Install git hooks to protect main branch
+- Configure helpful git aliases
+- Install dependencies and build packages
+- Verify type checking passes
+
+### Development Workflow
+
+```bash
 # Start development (API + Studio)
 npm run dev
+
+# Create new feature branch
+git new-feature my-awesome-feature
 
 # Build all packages
 npm run build
@@ -181,6 +198,9 @@ npm run test
 
 # Type checking
 npm run type-check
+
+# Finish feature (push + create PR)
+git finish-feature
 ```
 
 ## Documentation

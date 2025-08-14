@@ -24,6 +24,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo build && changeset publish",
+    "setup-dev": "./scripts/setup-dev-env.sh",
+    "install-hooks": "node scripts/install-git-hooks.js",
     "client": "node packages/client/dist/cli/index.js",
     "generate-types": "node packages/client/dist/cli/index.js generate-types",
     "generate-docs": "node packages/client/dist/cli/index.js generate-documents",
