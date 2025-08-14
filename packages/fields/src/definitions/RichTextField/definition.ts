@@ -1,4 +1,4 @@
-import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition.js';
+import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition';
 
 export interface RichTextValidation extends BaseValidation {
   minLength?: number;
@@ -11,21 +11,60 @@ export interface RichTextValidation extends BaseValidation {
 }
 
 export interface RichTextFieldOptions extends BaseFieldOptions {
-  toolbar?: Array<string | ToolbarGroup>;
-  spellCheck?: boolean;
+  /** Available text styles */
+  styles?: Array<{
+    name: string;
+    title: string;
+    value: string;
+    component?: React.ComponentType;
+  }>;
+  /** Available decorators (marks) */
+  decorators?: Array<{
+    name: string;
+    title: string;
+    icon?: React.ComponentType;
+    component?: React.ComponentType;
+  }>;
+  /** Available annotations (links, etc.) */
+  annotations?: Array<{
+    name: string;
+    title: string;
+    type: object;
+    icon?: React.ComponentType;
+    component?: React.ComponentType;
+  }>;
+  /** Available block types */
+  blockTypes?: Array<{
+    name: string;
+    title: string;
+    value: string;
+  }>;
+  /** Available list types */
+  lists?: Array<{
+    name: string;
+    title: string;
+    value: string;
+  }>;
+  /** Editor theme */
   theme?: 'light' | 'dark' | 'auto';
+  /** Enable spell check */
+  spellCheck?: boolean;
+  /** Enable markdown shortcuts */
   markdownShortcuts?: boolean;
+  /** Auto-save interval (milliseconds) */
   autoSave?: number;
+  /** Show content statistics */
   showCharacterCount?: boolean;
   showWordCount?: boolean;
   showReadTime?: boolean;
+  /** Enable media uploads */
   enableMediaUpload?: boolean;
-  enableLinkEditing?: boolean;
-  enableTables?: boolean;
-  enableCodeHighlighting?: boolean;
+  /** Enable full-screen mode */
+  enableFullscreen?: boolean;
+  /** Editor height constraints */
   maxHeight?: string;
   minHeight?: string;
-  enableFullscreen?: boolean;
+  /** Custom CSS classes */
   editorClasses?: string;
 }
 
@@ -34,10 +73,13 @@ export interface ToolbarGroup {
   items: string[];
 }
 
+// Simple rich text content (just HTML)
 export interface RichTextContent {
-  html?: string;
-  text?: string;
-  blocks?: RichTextBlock[];
+  /** HTML content */
+  html: string;
+  /** Plain text content (auto-generated) */
+  text: string;
+  /** Content metadata */
   metadata?: {
     wordCount?: number;
     characterCount?: number;
@@ -46,19 +88,6 @@ export interface RichTextContent {
   };
 }
 
-export interface RichTextBlock {
-  type: 'paragraph' | 'heading' | 'list' | 'quote' | 'code' | 'image' | 'video' | 'divider';
-  content?: string;
-  attrs?: Record<string, any>;
-  children?: RichTextBlock[];
-}
-
-export interface RichTextFieldDefinition extends BaseFieldDefinition {
-  type: 'richtext';
-  validation?: RichTextValidation;
-  options?: RichTextFieldOptions;
-  default?: string | RichTextContent;
-}
 
 export const RICHTEXT_FIELD_DEFAULTS = {
   validation: {
@@ -82,37 +111,47 @@ export const RICHTEXT_FIELD_DEFAULTS = {
       '|',
       'undo', 'redo'
     ],
+    theme: 'auto',
     spellCheck: true,
-    theme: 'light',
-    markdownShortcuts: true,
-    autoSave: 5000,
     showCharacterCount: true,
     showWordCount: true,
     showReadTime: false,
-    enableMediaUpload: true,
-    enableLinkEditing: true,
-    enableTables: false,
-    enableCodeHighlighting: true,
+    enableFullscreen: true,
     minHeight: '200px',
     maxHeight: '600px',
-    enableFullscreen: true,
     editorClasses: ''
   } as RichTextFieldOptions,
   
-  default: '' as string
+  default: ''
 };
 
-export interface RichTextOperations {
-  insertText: (text: string) => void;
-  insertHTML: (html: string) => void;
-  insertMedia: (url: string, type: 'image' | 'video', alt?: string) => void;
-  formatText: (format: string, value?: any) => void;
-  toggleFormat: (format: string) => void;
-  getHTML: () => string;
-  getText: () => string;
-  getStats: () => { words: number; characters: number; readTime: number };
-  focus: () => void;
-  clear: () => void;
-  undo: () => void;
-  redo: () => void;
+// Simple rich text field interface (HTML-based)
+export interface RichTextFieldDefinition extends BaseFieldDefinition {
+  type: 'richtext';
+  validation?: RichTextValidation;
+  options?: RichTextFieldOptions;
+  default?: string; // Simple HTML string for now
+}
+
+// Simplified toolbar configuration
+export interface RichTextFieldOptions extends BaseFieldOptions {
+  /** Toolbar items to show */
+  toolbar?: string[];
+  /** Editor theme */
+  theme?: 'light' | 'dark' | 'auto';
+  /** Enable spell check */
+  spellCheck?: boolean;
+  /** Show content statistics */
+  showCharacterCount?: boolean;
+  showWordCount?: boolean;
+  showReadTime?: boolean;
+  /** Enable full-screen mode */
+  enableFullscreen?: boolean;
+  /** Editor height constraints */
+  maxHeight?: string;
+  minHeight?: string;
+  /** Custom CSS classes */
+  editorClasses?: string;
+  /** Placeholder text */
+  placeholder?: string;
 }

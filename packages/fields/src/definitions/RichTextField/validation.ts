@@ -96,7 +96,10 @@ export function sanitizeRichTextValue(
   
   // Handle object input (RichTextContent)
   if (typeof value === 'object') {
-    const sanitized: RichTextContent = {};
+    const sanitized: RichTextContent = {
+      html: '',
+      text: ''
+    };
     
     if (value.html && typeof value.html === 'string') {
       sanitized.html = value.html.trim();
@@ -106,16 +109,12 @@ export function sanitizeRichTextValue(
       sanitized.text = value.text.trim();
     }
     
-    if (value.blocks && Array.isArray(value.blocks)) {
-      sanitized.blocks = value.blocks;
-    }
-    
     if (value.metadata && typeof value.metadata === 'object') {
       sanitized.metadata = { ...value.metadata };
     }
     
     // Return undefined if no meaningful content
-    if (!sanitized.html && !sanitized.text && (!sanitized.blocks || sanitized.blocks.length === 0)) {
+    if (!sanitized.html && !sanitized.text) {
       return undefined;
     }
     
@@ -166,12 +165,6 @@ export function getTextContent(value: string | RichTextContent | undefined): str
       return stripHTML(value.html);
     }
     
-    if (value.blocks) {
-      return value.blocks
-        .map(block => block.content || '')
-        .join(' ')
-        .trim();
-    }
   }
   
   return '';
@@ -235,7 +228,6 @@ export function normalizeRichTextContent(value: any): RichTextContent {
   const normalized: RichTextContent = {
     html: sanitized.html || '',
     text: sanitized.text || stripHTML(sanitized.html || ''),
-    blocks: sanitized.blocks,
     metadata: {
       ...sanitized.metadata,
       wordCount: countWords(sanitized.text || stripHTML(sanitized.html || '')),

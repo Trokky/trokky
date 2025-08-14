@@ -85,8 +85,7 @@ export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, string | 
           validation: { minWords: 10, maxWords: 1000 },
           options: { 
             showWordCount: true,
-            enableTables: true,
-            enableMediaUpload: true
+            enableFullscreen: true
           }
         }
       }

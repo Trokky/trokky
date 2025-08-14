@@ -1,25 +1,34 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import type { FC } from 'react';
+import {
+  BoldIcon,
+  ItalicIcon,
+  UnderlineIcon,
+  StrikethroughIcon,
+  LinkIcon,
+  PhotoIcon,
+  ListBulletIcon,
+  NumberedListIcon,
+  ChatBubbleBottomCenterTextIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  EyeIcon,
+  ChartBarIcon,
+  ArrowsPointingOutIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { 
-  RichTextFieldDefinition,
-  RichTextContent,
-  RichTextOperations,
-  ToolbarGroup
-} from './definition.js';
-import { 
-  validateRichTextField,
-  sanitizeRichTextValue,
-  getDefaultRichTextValue,
-  getHTMLContent,
-  getTextContent,
-  getContentStats,
-  normalizeRichTextContent
-} from './validation.js';
+import type { RichTextFieldDefinition } from './definition.js';
+import { MediaBrowser } from '../MediaField/MediaBrowser.js';
+import { createStudioLogger } from '../../utils/logger.js';
+
+const logger = createStudioLogger('RichTextField');
+
 
 type RichTextFieldComponentProps = FieldComponentProps;
 
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
   
   if (definition.type !== 'richtext') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected richtext field</div>;
@@ -29,335 +38,364 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const options = richtextDefinition.options || {};
   const validation = richtextDefinition.validation || {};
   
-  const sanitizedValue = useMemo(() => 
-    sanitizeRichTextValue(value), 
-    [value]
-  );
-  
-  const normalizedContent = useMemo(() => 
-    normalizeRichTextContent(sanitizedValue),
-    [sanitizedValue]
-  );
-  
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
   const [showStats, setShowStats] = useState(false);
+  const [showMediaBrowser, setShowMediaBrowser] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  
+  // Get current HTML content
+  const currentHtml = useMemo(() => {
+    if (typeof value === 'string') return value;
+    return '';
+  }, [value]);
+  
   const editorRef = useRef<HTMLDivElement>(null);
-  const isInitializedRef = useRef(false);
-  const lastValueRef = useRef<string>('');
+  const [isInitialized, setIsInitialized] = useState(false);
   
-  const contentStats = useMemo(() => 
-    getContentStats(sanitizedValue),
-    [sanitizedValue]
-  );
-  
-  // Initialize editor content only once per field instance
+  // Initialize editor content
   useEffect(() => {
-    if (editorRef.current && !isInitializedRef.current) {
-      const initialContent = getHTMLContent(sanitizedValue) || '';
-      editorRef.current.innerHTML = initialContent;
-      lastValueRef.current = initialContent;
-      isInitializedRef.current = true;
-      console.log(`RichTextField ${fieldId} initialized with content:`, initialContent.slice(0, 50));
+    if (editorRef.current && !isInitialized) {
+      editorRef.current.innerHTML = currentHtml;
+      setIsInitialized(true);
     }
-  }, [sanitizedValue, fieldId]);
+  }, [currentHtml, isInitialized]);
   
-  // Handle external value changes (but not our own changes)
+  // Update editor when external value changes
   useEffect(() => {
-    if (editorRef.current && isInitializedRef.current) {
-      const newContent = getHTMLContent(sanitizedValue) || '';
-      if (newContent !== lastValueRef.current && newContent !== editorRef.current.innerHTML) {
-        editorRef.current.innerHTML = newContent;
-        lastValueRef.current = newContent;
-      }
+    if (editorRef.current && isInitialized && currentHtml !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = currentHtml;
     }
-  }, [sanitizedValue]);
+  }, [currentHtml, isInitialized]);
   
-  // Rich text operations
-  const operations: RichTextOperations = useMemo(() => ({
-    insertText: (text: string) => {
-      if (editorRef.current) {
-        document.execCommand('insertText', false, text);
-        handleContentChange();
-      }
-    },
+  // Content statistics
+  const contentStats = useMemo(() => {
+    const text = editorRef.current?.textContent || '';
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const characters = text.length;
+    const readTime = Math.ceil(words / 200);
     
-    insertHTML: (html: string) => {
-      if (editorRef.current) {
-        document.execCommand('insertHTML', false, html);
-        handleContentChange();
-      }
-    },
-    
-    insertMedia: (url: string, type: 'image' | 'video', alt?: string) => {
-      if (type === 'image') {
-        const img = `<img src="${url}" alt="${alt || ''}" style="max-width: 100%; height: auto;" />`;
-        operations.insertHTML(img);
-      } else if (type === 'video') {
-        const video = `<video src="${url}" controls style="max-width: 100%; height: auto;"></video>`;
-        operations.insertHTML(video);
-      }
-    },
-    
-    formatText: (format: string, value?: any) => {
-      if (editorRef.current) {
-        editorRef.current.focus();
-        document.execCommand(format, false, value);
-        updateActiveFormats();
-        handleContentChange();
-      }
-    },
-    
-    toggleFormat: (format: string) => {
-      operations.formatText(format);
-    },
-    
-    getHTML: () => {
-      return editorRef.current?.innerHTML || '';
-    },
-    
-    getText: () => {
-      return editorRef.current?.textContent || '';
-    },
-    
-    getStats: () => {
-      const text = operations.getText();
-      return {
-        words: contentStats.words,
-        characters: contentStats.characters,
-        readTime: contentStats.readTime
-      };
-    },
-    
-    focus: () => {
-      editorRef.current?.focus();
-    },
-    
-    clear: () => {
-      if (editorRef.current) {
-        editorRef.current.innerHTML = '';
-        handleContentChange();
-      }
-    },
-    
-    undo: () => {
-      document.execCommand('undo');
-      handleContentChange();
-    },
-    
-    redo: () => {
-      document.execCommand('redo');
-      handleContentChange();
-    }
-  }), [contentStats]);
+    return { words, characters, readTime };
+  }, [currentHtml]);
   
+  // Handle content changes
   const handleContentChange = useCallback(() => {
     if (editorRef.current) {
       const newHtml = editorRef.current.innerHTML;
-      const newText = editorRef.current.textContent || '';
-      
-      // Update our tracking ref to prevent circular updates
-      lastValueRef.current = newHtml;
-      
-      console.log(`RichTextField ${fieldId} content changed:`, newText.slice(0, 50));
-      
-      // Calculate stats from the new content
-      const newStats = {
-        words: newText.trim().split(/\s+/).filter(word => word.length > 0).length,
-        characters: newText.length,
-        readTime: Math.ceil(newText.trim().split(/\s+/).filter(word => word.length > 0).length / 200)
-      };
-      
-      const newContent: RichTextContent = {
-        html: newHtml,
-        text: newText,
-        metadata: {
-          wordCount: newStats.words,
-          characterCount: newStats.characters,
-          readTime: newStats.readTime,
-          lastModified: new Date().toISOString()
-        }
-      };
-      
-      onChange(sanitizeRichTextValue(newContent));
+      logger.debug('Editor content updated', { fieldId, length: newHtml.length });
+      onChange(newHtml);
     }
   }, [onChange, fieldId]);
   
-  const updateActiveFormats = useCallback(() => {
-    const formats = new Set<string>();
+  // Format text using document.execCommand (fallback for modern approach)
+  const formatText = useCallback((command: string, value?: any) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      try {
+        document.execCommand(command, false, value);
+        handleContentChange();
+      } catch (error) {
+        logger.warn('Command not supported', { command, error });
+      }
+    }
+  }, [handleContentChange]);
+  
+  // Handle media selection from browser
+  const handleMediaSelect = useCallback((media: any) => {
+    logger.debug('Media selected for insertion', { media, fieldId });
     
-    if (document.queryCommandState('bold')) formats.add('bold');
-    if (document.queryCommandState('italic')) formats.add('italic');
-    if (document.queryCommandState('underline')) formats.add('underline');
-    if (document.queryCommandState('strikeThrough')) formats.add('strikethrough');
+    if (editorRef.current && media && (media.type === 'image' || media.mimeType?.startsWith('image/'))) {
+      // Get the proper public URL - check for url field first, then fallback to API path
+      const imageUrl = media.url || media.publicUrl || `/api/media/${media._id || media.id}`;
+      const alt = media.metadata?.alt || media.alt || media.title || 'Uploaded image';
+      const imgHtml = `<img src="${imageUrl}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
+      
+      // Ensure editor is focused and insert image
+      editorRef.current.focus();
+      
+      // Try different insertion methods for better compatibility
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const imgElement = document.createElement('div');
+        imgElement.innerHTML = imgHtml;
+        range.insertNode(imgElement.firstChild!);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        // Fallback to execCommand
+        document.execCommand('insertHTML', false, imgHtml);
+      }
+      
+      // Trigger change event
+      setTimeout(() => handleContentChange(), 100);
+      
+      logger.info('Image inserted into rich text', { fieldId, mediaId: media._id || media.id, imageUrl });
+    } else {
+      logger.warn('Invalid media selection or not an image', { media, fieldId });
+    }
+    setShowMediaBrowser(false);
+  }, [fieldId, handleContentChange]);
+  
+  // Handle link insertion
+  const handleAddLink = useCallback(() => {
+    const selection = window.getSelection();
+    const hasSelection = selection && !selection.isCollapsed;
     
-    setActiveFormats(formats);
+    if (hasSelection) {
+      setShowLinkDialog(true);
+    } else {
+      // No selection, prompt for URL
+      const url = prompt('Enter URL:');
+      if (url) {
+        formatText('createLink', url);
+      }
+    }
+  }, [formatText]);
+  
+  const handleLinkSubmit = useCallback(() => {
+    if (linkUrl) {
+      formatText('createLink', linkUrl);
+      setShowLinkDialog(false);
+      setLinkUrl('');
+    }
+  }, [linkUrl, formatText]);
+  
+  // Check if current format is active
+  const isFormatActive = useCallback((format: string) => {
+    try {
+      return document.queryCommandState(format);
+    } catch {
+      return false;
+    }
   }, []);
   
-  // Handle selection change to update active formats
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      updateActiveFormats();
-    };
-    
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
-  }, [updateActiveFormats]);
+  // Toolbar button component
+  const ToolbarButton = ({ 
+    onClick, 
+    isActive = false, 
+    disabled = false, 
+    title, 
+    children, 
+    className = '' 
+  }: {
+    onClick: () => void;
+    isActive?: boolean;
+    disabled?: boolean;
+    title: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || isDisabled || isReadonly}
+      title={title}
+      className={`
+        p-2 rounded transition-colors ${className}
+        ${isActive 
+          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' 
+          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
+        }
+        ${disabled || isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+      `}
+    >
+      {children}
+    </button>
+  );
   
-  // Toolbar configuration
-  const defaultToolbar = options.toolbar || [
-    'bold', 'italic', 'underline', 'strikethrough',
-    '|',
-    'heading1', 'heading2', 'heading3',
-    '|',
-    'bulletList', 'orderedList', 'blockquote',
-    '|',
-    'link', 'image',
-    '|',
-    'undo', 'redo'
-  ];
-  
-  // Render toolbar button
-  const renderToolbarButton = (item: string | ToolbarGroup, index: number) => {
-    // Handle toolbar groups
-    if (typeof item === 'object' && 'name' in item) {
-      return (
-        <div key={`group-${index}`} className="flex items-center gap-1">
-          {item.items.map((subItem: string, subIndex: number) => renderToolbarButton(subItem, subIndex))}
-        </div>
-      );
-    }
-    
-    const stringItem = item as string;
-    if (stringItem === '|') {
-      return <div key={`separator-${index}`} className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />;
-    }
-    
-    const isActive = activeFormats.has(stringItem);
-    const buttonClass = `
-      p-2 rounded text-sm transition-colors
-      ${isActive 
-        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' 
-        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
-      }
-      ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-    `;
-    
-    const handleToolbarAction = () => {
-      if (isDisabled || isReadonly) return;
-      
-      switch (stringItem) {
-        case 'bold':
-        case 'italic':
-        case 'underline':
-        case 'strikethrough':
-          operations.toggleFormat(stringItem === 'strikethrough' ? 'strikeThrough' : stringItem);
-          break;
-        case 'heading1':
-          operations.formatText('formatBlock', 'h1');
-          break;
-        case 'heading2':
-          operations.formatText('formatBlock', 'h2');
-          break;
-        case 'heading3':
-          operations.formatText('formatBlock', 'h3');
-          break;
-        case 'bulletList':
-          operations.formatText('insertUnorderedList');
-          break;
-        case 'orderedList':
-          operations.formatText('insertOrderedList');
-          break;
-        case 'blockquote':
-          operations.formatText('formatBlock', 'blockquote');
-          break;
-        case 'link':
-          const url = prompt('Enter URL:');
-          if (url) {
-            operations.formatText('createLink', url);
-          }
-          break;
-        case 'image':
-          const imageUrl = prompt('Enter image URL:');
-          if (imageUrl) {
-            operations.insertMedia(imageUrl, 'image');
-          }
-          break;
-        case 'undo':
-          operations.undo();
-          break;
-        case 'redo':
-          operations.redo();
-          break;
-      }
-    };
-    
-    // Button icons and labels
-    const getButtonContent = () => {
-      switch (stringItem) {
-        case 'bold': return <strong>B</strong>;
-        case 'italic': return <em>I</em>;
-        case 'underline': return <u>U</u>;
-        case 'strikethrough': return <s>S</s>;
-        case 'heading1': return 'H1';
-        case 'heading2': return 'H2';
-        case 'heading3': return 'H3';
-        case 'bulletList': return '•';
-        case 'orderedList': return '1.';
-        case 'blockquote': return '"';
-        case 'link': return '🔗';
-        case 'image': return '🖼️';
-        case 'undo': return '↶';
-        case 'redo': return '↷';
-        default: return stringItem;
-      }
-    };
-    
-    return (
-      <button
-        key={`button-${stringItem}-${index}`}
-        type="button"
-        className={buttonClass}
-        onClick={handleToolbarAction}
-        title={stringItem}
-        disabled={isDisabled || isReadonly}
-      >
-        {getButtonContent()}
-      </button>
-    );
-  };
+  const Separator = () => <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />;
   
   return (
-    <div className={`richtext-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''} ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900' : ''}`}>
+    <>
+      {/* Rich Text Editor Styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .richtext-editor h1 { font-size: 2rem; font-weight: 700; margin: 1.5rem 0 1rem 0; line-height: 1.2; }
+          .richtext-editor h2 { font-size: 1.5rem; font-weight: 600; margin: 1.25rem 0 0.75rem 0; line-height: 1.3; }
+          .richtext-editor h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem 0; line-height: 1.4; }
+          .richtext-editor p { margin: 0.75rem 0; }
+          .richtext-editor ul, .richtext-editor ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+          .richtext-editor ul { list-style-type: disc; }
+          .richtext-editor ol { list-style-type: decimal; }
+          .richtext-editor li { margin: 0.25rem 0; display: list-item; list-style-position: outside; }
+          .richtext-editor ul li { list-style-type: disc; }
+          .richtext-editor ol li { list-style-type: decimal; }
+          .richtext-editor blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; margin: 1rem 0; font-style: italic; color: #6b7280; }
+          .dark .richtext-editor blockquote { border-left-color: #4b5563; color: #9ca3af; }
+          .richtext-editor strong { font-weight: 600; }
+          .richtext-editor em { font-style: italic; }
+          .richtext-editor u { text-decoration: underline; }
+          .richtext-editor s { text-decoration: line-through; }
+          .richtext-editor a { color: #3b82f6; text-decoration: underline; }
+          .dark .richtext-editor a { color: #60a5fa; }
+          .richtext-editor img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; }
+        `
+      }} />
+      
+      <div className={`richtext-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''} ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col' : ''}`}>
       {/* Toolbar */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-t-md bg-gray-50 dark:bg-gray-800 p-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 flex-wrap">
-            {defaultToolbar.map(renderToolbarButton)}
+            {/* Text formatting */}
+            <ToolbarButton
+              onClick={() => formatText('bold')}
+              isActive={isFormatActive('bold')}
+              title="Bold"
+            >
+              <BoldIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('italic')}
+              isActive={isFormatActive('italic')}
+              title="Italic"
+            >
+              <ItalicIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('underline')}
+              isActive={isFormatActive('underline')}
+              title="Underline"
+            >
+              <UnderlineIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('strikeThrough')}
+              isActive={isFormatActive('strikeThrough')}
+              title="Strikethrough"
+            >
+              <StrikethroughIcon className="h-4 w-4" />
+            </ToolbarButton>
+            
+            <Separator />
+            
+            {/* Headings */}
+            <ToolbarButton
+              onClick={() => formatText('formatBlock', '<h1>')}
+              isActive={false}
+              title="Heading 1"
+            >
+              <span className="text-sm font-bold">H1</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('formatBlock', '<h2>')}
+              isActive={false}
+              title="Heading 2"
+            >
+              <span className="text-sm font-bold">H2</span>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('formatBlock', '<h3>')}
+              isActive={false}
+              title="Heading 3"
+            >
+              <span className="text-sm font-bold">H3</span>
+            </ToolbarButton>
+            
+            <Separator />
+            
+            {/* Lists and blockquote */}
+            <ToolbarButton
+              onClick={() => formatText('insertUnorderedList')}
+              isActive={isFormatActive('insertUnorderedList')}
+              title="Bullet List"
+            >
+              <ListBulletIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('insertOrderedList')}
+              isActive={isFormatActive('insertOrderedList')}
+              title="Numbered List"
+            >
+              <NumberedListIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('formatBlock', '<blockquote>')}
+              isActive={false}
+              title="Blockquote"
+            >
+              <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />
+            </ToolbarButton>
+            
+            <Separator />
+            
+            {/* Link and Image */}
+            <ToolbarButton
+              onClick={handleAddLink}
+              isActive={false}
+              title="Add Link"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => {
+                if (studioContext?.apiClient) {
+                  // Use proper MediaBrowser integration
+                  setShowMediaBrowser(true);
+                } else {
+                  // Fallback for non-Studio environments
+                  const url = prompt('Enter image URL:');
+                  if (url) {
+                    const imgHtml = `<img src="${url}" alt="Image" class="max-w-full h-auto rounded" />`;
+                    if (editorRef.current) {
+                      editorRef.current.focus();
+                      document.execCommand('insertHTML', false, imgHtml);
+                      handleContentChange();
+                    }
+                  }
+                }
+              }}
+              title="Insert Image"
+            >
+              <span className="text-lg">🖼️</span>
+            </ToolbarButton>
+            
+            <Separator />
+            
+            {/* History */}
+            <ToolbarButton
+              onClick={() => formatText('undo')}
+              title="Undo"
+            >
+              <ArrowUturnLeftIcon className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => formatText('redo')}
+              title="Redo"
+            >
+              <ArrowUturnRightIcon className="h-4 w-4" />
+            </ToolbarButton>
           </div>
           
           <div className="flex items-center gap-2">
             {/* Stats toggle */}
             {(options.showCharacterCount || options.showWordCount || options.showReadTime) && (
-              <button
-                type="button"
+              <ToolbarButton
                 onClick={() => setShowStats(!showStats)}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                isActive={showStats}
+                title="Toggle statistics"
+                className="text-xs"
               >
-                Stats
-              </button>
+                <ChartBarIcon className="h-4 w-4" />
+              </ToolbarButton>
             )}
             
             {/* Fullscreen toggle */}
             {options.enableFullscreen && (
-              <button
-                type="button"
+              <ToolbarButton
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                isActive={isFullscreen}
                 title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
-                {isFullscreen ? '⊗' : '⊡'}
-              </button>
+                {isFullscreen ? (
+                  <XMarkIcon className="h-4 w-4" />
+                ) : (
+                  <ArrowsPointingOutIcon className="h-4 w-4" />
+                )}
+              </ToolbarButton>
             )}
           </div>
         </div>
@@ -379,24 +417,37 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       </div>
       
       {/* Editor */}
-      <div
-        ref={editorRef}
-        contentEditable={!isDisabled && !isReadonly}
-        className={`
-          border-x border-b border-gray-200 dark:border-gray-700 p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
-          ${options.editorClasses || ''}
-          ${isFullscreen ? 'flex-1 overflow-auto' : ''}
-        `}
-        style={{
-          minHeight: isFullscreen ? 'auto' : (options.minHeight || '200px'),
-          maxHeight: isFullscreen ? 'none' : (options.maxHeight || '600px'),
-          overflowY: isFullscreen ? 'auto' : 'auto'
-        }}
-        onInput={handleContentChange}
-        onFocus={updateActiveFormats}
-        spellCheck={options.spellCheck}
-      />
-      
+      <div className={`
+        border-x border-b border-gray-200 dark:border-gray-700 
+        ${isFullscreen ? 'flex-1 overflow-hidden' : ''}
+      `}>
+        <div
+          ref={editorRef}
+          contentEditable={!isDisabled && !isReadonly}
+          suppressContentEditableWarning={true}
+          onInput={handleContentChange}
+          spellCheck={options.spellCheck !== false}
+          className={`
+            richtext-editor p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 
+            bg-white dark:bg-gray-900 text-gray-900 dark:text-white leading-relaxed
+            ${options.editorClasses || ''}
+            ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+            ${isReadonly ? 'pointer-events-none' : ''}
+          `}
+          style={{
+            minHeight: isFullscreen ? 'auto' : (options.minHeight || '200px'),
+            maxHeight: isFullscreen ? 'none' : (options.maxHeight || '600px'),
+            overflowY: isFullscreen ? 'auto' : 'auto'
+          }}
+        />
+        
+        {/* Placeholder */}
+        {!currentHtml && (
+          <div className="absolute top-4 left-4 text-gray-400 dark:text-gray-500 pointer-events-none">
+            {options.placeholder || 'Start typing...'}
+          </div>
+        )}
+      </div>
       
       {/* Character/word limits */}
       {(validation.maxLength || validation.maxWords) && (
@@ -414,6 +465,54 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           )}
         </div>
       )}
-    </div>
+      
+      {/* Link Dialog */}
+      {showLinkDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Add Link</h3>
+            <input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => { setShowLinkDialog(false); setLinkUrl(''); }}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLinkSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                disabled={!linkUrl}
+              >
+                Add Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Media Browser */}
+      {showMediaBrowser && (
+        <MediaBrowser
+          isOpen={showMediaBrowser}
+          onClose={() => setShowMediaBrowser(false)}
+          onSelect={handleMediaSelect}
+          mediaTypeFilter="image"
+          context="richtext"
+          apiClient={studioContext?.apiClient}
+          logger={studioContext?.logger || logger}
+        />
+      )}
+      </div>
+    </>
   );
 }

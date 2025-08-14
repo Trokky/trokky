@@ -255,5 +255,21 @@ export type {
   DateFieldOptions
 } from './definitions/DateField/index.js';
 
+export {
+  richtextFieldPlugin,
+  RichTextFieldComponent,
+  RichTextFieldPreview,
+  validateRichTextField,
+  getDefaultRichTextValue,
+  RICHTEXT_FIELD_DEFAULTS
+} from './definitions/RichTextField/index.js';
+
+export type {
+  RichTextFieldDefinition,
+  RichTextContent,
+  RichTextValidation,
+  RichTextFieldOptions
+} from './definitions/RichTextField/index.js';
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js';
