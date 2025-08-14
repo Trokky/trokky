@@ -21,7 +21,7 @@ import {
   WebhookListOptions,
   createLogger
 } from '@trokky/core'
-import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile } from './types.js'
+import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile } from './types'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
   private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir'>> & { webhooksDir: string }

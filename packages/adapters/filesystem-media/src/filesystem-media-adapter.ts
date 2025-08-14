@@ -11,7 +11,7 @@ import {
   InvalidInputError,
   createLogger
 } from '@trokky/core'
-import { FilesystemMediaAdapterConfig, FileMetadata } from './types.js'
+import { FilesystemMediaAdapterConfig, FileMetadata } from './types'
 
 export class FilesystemMediaAdapter implements MediaStorageAdapter {
   private config: Required<Omit<FilesystemMediaAdapterConfig, 'mediaBaseUrl'>> & { 
