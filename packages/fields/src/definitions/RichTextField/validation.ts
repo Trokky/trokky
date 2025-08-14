@@ -2,9 +2,9 @@ import type {
   RichTextFieldDefinition, 
   RichTextValidation,
   RichTextContent
-} from './definition.js';
-import type { ValidationResult, DocumentContext } from '../../base/FieldDefinition.js';
-import { RICHTEXT_FIELD_DEFAULTS } from './definition.js';
+} from './definition';
+import type { ValidationResult, DocumentContext } from '../../base/FieldDefinition';
+import { RICHTEXT_FIELD_DEFAULTS } from './definition';
 
 export function validateRichTextField(
   value: string | RichTextContent | undefined,

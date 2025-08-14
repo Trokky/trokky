@@ -17,10 +17,10 @@ import {
   ArrowsPointingOutIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { RichTextFieldDefinition } from './definition.js';
-import { MediaBrowser } from '../MediaField/MediaBrowser.js';
-import { createStudioLogger } from '../../utils/logger.js';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
+import type { RichTextFieldDefinition } from './definition';
+import { MediaBrowser } from '../MediaField/MediaBrowser';
+import { createStudioLogger } from '../../utils/logger';
 
 const logger = createStudioLogger('RichTextField');
 

@@ -1,9 +1,9 @@
-import type { FieldPlugin } from '../../base/FieldPlugin.js';
-import type { RichTextFieldDefinition, RichTextContent } from './definition.js';
-import { RichTextFieldComponent } from './component.js';
-import { RichTextFieldPreview } from './preview.js';
-import { validateRichTextField, getDefaultRichTextValue } from './validation.js';
-import { RICHTEXT_FIELD_DEFAULTS } from './definition.js';
+import type { FieldPlugin } from '../../base/FieldPlugin';
+import type { RichTextFieldDefinition, RichTextContent } from './definition';
+import { RichTextFieldComponent } from './component';
+import { RichTextFieldPreview } from './preview';
+import { validateRichTextField, getDefaultRichTextValue } from './validation';
+import { RICHTEXT_FIELD_DEFAULTS } from './definition';
 
 export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, string | RichTextContent> = {
   type: 'richtext',
@@ -93,7 +93,7 @@ export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, string | 
   }
 };
 
-export * from './definition.js';
-export * from './validation.js';
-export { RichTextFieldComponent } from './component.js';
-export { RichTextFieldPreview } from './preview.js';
+export * from './definition';
+export * from './validation';
+export { RichTextFieldComponent } from './component';
+export { RichTextFieldPreview } from './preview';
