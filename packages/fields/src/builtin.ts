@@ -68,4 +68,14 @@ export function registerBuiltinFields(): void {
 }
 
 // Auto-register built-in fields when this module is imported
-registerBuiltinFields();
+// Use a global flag to ensure fields are only registered once
+if (typeof globalThis !== 'undefined') {
+  const globalAny = globalThis as any;
+  if (!globalAny.__TROKKY_BUILTIN_FIELDS_REGISTERED__) {
+    registerBuiltinFields();
+    globalAny.__TROKKY_BUILTIN_FIELDS_REGISTERED__ = true;
+  }
+} else {
+  // Fallback for environments without globalThis
+  registerBuiltinFields();
+}
