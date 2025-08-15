@@ -22,11 +22,6 @@ const logger = createStudioLogger('PortableTextField');
 
 type PortableTextFieldComponentProps = FieldComponentProps;
 
-interface Selection {
-  blockKey: string;
-  offset: number;
-  length: number;
-}
 
 interface DragState {
   isDragging: boolean;
@@ -58,7 +53,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<string | null>(null);
-  const [selection, setSelection] = useState<Selection | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -133,7 +127,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     onChange(sanitizePortableTextValue(updatedContent));
   }, [onChange, fieldId]);
   
-  // Handle text input in a block
+  // Handle text input in a block (preserve existing marks, only update text)
   const handleBlockInput = useCallback((blockKey: string, element: HTMLElement) => {
     const newText = element.textContent || '';
     
@@ -149,6 +143,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           children: [{
             ...block.children![0],
             text: newText
+            // Keep existing marks - don't change them during typing
           }]
         };
       }
@@ -191,9 +186,10 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     });
   }, [blocksToRender, updateContent]);
   
-  // Toggle text formatting (marks)
+  
+  // Toggle text formatting (marks) - simple block-level approach
   const toggleMark = useCallback((mark: string) => {
-    if (!selection || !selectedBlockKey) return;
+    if (!selectedBlockKey) return;
     
     const blocks = blocksToRender.map(block => {
       if (block._key === selectedBlockKey && block.children) {
@@ -215,7 +211,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     });
     
     updateContent(blocks);
-  }, [selection, selectedBlockKey, blocksToRender, updateContent]);
+  }, [selectedBlockKey, blocksToRender, updateContent]);
   
   // Change block style (heading, normal, etc.)
   const changeBlockStyle = useCallback((style: string) => {
@@ -638,7 +634,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     setLinkText('');
   }, [linkUrl, linkText, selectedBlockKey, blocksToRender, updateContent]);
   
-  // Check if a mark is active for current selection
+  // Check if a mark is active for current block
   const isMarkActive = useCallback((mark: string): boolean => {
     if (!selectedBlockKey) return false;
     
@@ -1028,13 +1024,13 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               blockClasses = 'mb-2';
           }
           
-          // Apply marks to text
-          let textClasses = '';
-          if (marks.includes('strong')) textClasses += ' font-semibold';
-          if (marks.includes('em')) textClasses += ' italic';
-          if (marks.includes('underline')) textClasses += ' underline';
-          if (marks.includes('strike')) textClasses += ' line-through';
-          if (marks.includes('code')) textClasses += ' font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm';
+          // Apply marks to block-level formatting
+          let markClasses = '';
+          if (marks.includes('strong')) markClasses += ' font-semibold';
+          if (marks.includes('em')) markClasses += ' italic';
+          if (marks.includes('underline')) markClasses += ' underline';
+          if (marks.includes('strike')) markClasses += ' line-through';
+          if (marks.includes('code')) markClasses += ' font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm';
           
           return (
             <div key={block._key} className="relative">
@@ -1119,7 +1115,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                 )}
                 
                 <BlockElement
-                className={`${blockClasses} outline-none focus:outline-none text-gray-900 dark:text-gray-100 relative`}
+                className={`outline-none focus:outline-none text-gray-900 dark:text-gray-100 relative ${blockClasses}${markClasses}`}
                 contentEditable={!isDisabled && !isReadonly}
                 suppressContentEditableWarning
                 onInput={(e) => {
@@ -1143,7 +1139,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   minHeight: text ? 'auto' : '1.5em'
                 }}
               >
-                {text && <span className={textClasses}>{text}</span>}
+                {text}
               </BlockElement>
               
               {/* Placeholder overlay */}
