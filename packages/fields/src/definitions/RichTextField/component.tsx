@@ -21,6 +21,7 @@ import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { RichTextFieldDefinition } from './definition';
 import { MediaBrowser } from '../MediaField/MediaBrowser';
 import { createStudioLogger } from '../../utils/logger';
+import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer';
 
 const logger = createStudioLogger('RichTextField');
 
@@ -43,6 +44,8 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const [showMediaBrowser, setShowMediaBrowser] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [sanitizationWarnings, setSanitizationWarnings] = useState<string[]>([]);
+  const [showWarnings, setShowWarnings] = useState(false);
   
   // Get current HTML content
   const currentHtml = useMemo(() => {
@@ -86,6 +89,62 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       onChange(newHtml);
     }
   }, [onChange, fieldId]);
+  
+  // Handle paste events with sanitization
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    e.preventDefault();
+    
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+    
+    // Get HTML content if available, otherwise fallback to plain text
+    const htmlContent = clipboardData.getData('text/html');
+    const textContent = clipboardData.getData('text/plain');
+    
+    const contentToSanitize = htmlContent || textContent;
+    if (!contentToSanitize) return;
+    
+    // Get paste security configuration
+    const pasteConfig = options.pasteSecurity || SECURITY_PRESETS.safe;
+    
+    // Sanitize the content
+    const result = sanitizePastedContent(contentToSanitize, pasteConfig);
+    
+    logger.debug('Paste content sanitized', {
+      fieldId,
+      originalLength: result.originalContent.length,
+      sanitizedLength: result.sanitizedContent.length,
+      wasModified: result.wasModified,
+      warnings: result.warnings
+    });
+    
+    // Show warnings if configured and content was modified
+    if (pasteConfig.showSanitizationWarning && result.wasModified && result.warnings.length > 0) {
+      setSanitizationWarnings(result.warnings);
+      setShowWarnings(true);
+      
+      // Auto-hide warnings after 5 seconds
+      setTimeout(() => {
+        setShowWarnings(false);
+      }, 5000);
+    }
+    
+    // Insert sanitized content
+    if (editorRef.current) {
+      editorRef.current.focus();
+      
+      // Use different insertion methods based on content type
+      if (result.sanitizedContent.includes('<')) {
+        // HTML content
+        document.execCommand('insertHTML', false, result.sanitizedContent);
+      } else {
+        // Plain text content
+        document.execCommand('insertText', false, result.sanitizedContent);
+      }
+      
+      handleContentChange();
+    }
+  }, [options.pasteSecurity, fieldId, handleContentChange]);
   
   // Format text using document.execCommand (fallback for modern approach)
   const formatText = useCallback((command: string, value?: any) => {
@@ -426,6 +485,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           contentEditable={!isDisabled && !isReadonly}
           suppressContentEditableWarning={true}
           onInput={handleContentChange}
+          onPaste={handlePaste as any}
           spellCheck={options.spellCheck !== false}
           className={`
             richtext-editor p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 
@@ -494,6 +554,43 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 disabled={!linkUrl}
               >
                 Add Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Sanitization Warnings */}
+      {showWarnings && sanitizationWarnings.length > 0 && (
+        <div className="fixed bottom-4 right-4 max-w-md bg-yellow-50 dark:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 shadow-lg z-50">
+          <div className="flex items-start justify-between">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Content was sanitized for security
+                </h3>
+                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  <ul className="list-disc list-inside space-y-1">
+                    {sanitizationWarnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="ml-4 flex-shrink-0">
+              <button
+                type="button"
+                className="bg-yellow-50 dark:bg-yellow-900/50 rounded-md p-1.5 text-yellow-400 hover:text-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                onClick={() => setShowWarnings(false)}
+              >
+                <span className="sr-only">Dismiss</span>
+                <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
           </div>

@@ -119,7 +119,20 @@ export const RICHTEXT_FIELD_DEFAULTS = {
     enableFullscreen: true,
     minHeight: '200px',
     maxHeight: '600px',
-    editorClasses: ''
+    editorClasses: '',
+    pasteSecurity: {
+      mode: 'safe',
+      maxPasteLength: 10000,
+      allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
+      allowedAttributes: {
+        'a': ['href', 'title']
+      },
+      linkPolicy: 'sanitize',
+      allowedDomains: [],
+      imagePolicy: 'strip',
+      showSanitizationWarning: true,
+      stripFormatting: false
+    }
   } as RichTextFieldOptions,
   
   default: ''
@@ -131,6 +144,28 @@ export interface RichTextFieldDefinition extends BaseFieldDefinition {
   validation?: RichTextValidation;
   options?: RichTextFieldOptions;
   default?: string; // Simple HTML string for now
+}
+
+// Paste security configuration
+export interface PasteSecurityConfig {
+  /** Security mode: strict = text only, safe = basic HTML, permissive = advanced HTML */
+  mode?: 'strict' | 'safe' | 'permissive';
+  /** Maximum length of pasted content */
+  maxPasteLength?: number;
+  /** Allowed HTML tags (safe/permissive modes) */
+  allowedTags?: string[];
+  /** Allowed HTML attributes per tag */
+  allowedAttributes?: Record<string, string[]>;
+  /** How to handle links: strip, sanitize, validate */
+  linkPolicy?: 'strip' | 'sanitize' | 'validate';
+  /** Allowed link domains (validate mode) */
+  allowedDomains?: string[];
+  /** How to handle images: strip, proxy, allow */
+  imagePolicy?: 'strip' | 'proxy' | 'allow';
+  /** Show warning when content is sanitized */
+  showSanitizationWarning?: boolean;
+  /** Strip all formatting from pasted content */
+  stripFormatting?: boolean;
 }
 
 // Simplified toolbar configuration
@@ -154,4 +189,6 @@ export interface RichTextFieldOptions extends BaseFieldOptions {
   editorClasses?: string;
   /** Placeholder text */
   placeholder?: string;
+  /** Paste security configuration */
+  pasteSecurity?: PasteSecurityConfig;
 }
