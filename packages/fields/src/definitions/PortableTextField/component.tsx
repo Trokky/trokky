@@ -28,6 +28,13 @@ interface Selection {
   length: number;
 }
 
+interface DragState {
+  isDragging: boolean;
+  draggedBlockKey: string | null;
+  dragOverBlockKey: string | null;
+  dragPosition: 'before' | 'after' | null;
+}
+
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
   
@@ -57,6 +64,12 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [dragState, setDragState] = useState<DragState>({
+    isDragging: false,
+    draggedBlockKey: null,
+    dragOverBlockKey: null,
+    dragPosition: null
+  });
   const editorRef = useRef<HTMLDivElement>(null);
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const blockMenuRef = useRef<HTMLDivElement>(null);
@@ -269,13 +282,86 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     return newBlock._key;
   }, [blocksToRender, updateContent, fieldId]);
   
+  
   // Delete block
   const deleteBlock = useCallback((blockKey: string) => {
     if (blocksToRender.length <= 1) return; // Keep at least one block
     
-    const blocks = blocksToRender.filter(b => b._key !== blockKey);
+    // Get block content for confirmation message
+    const block = blocksToRender.find(b => b._key === blockKey);
+    const blockText = block?.children?.[0]?.text || '';
+    const previewText = blockText.length > 50 ? blockText.substring(0, 50) + '...' : blockText;
+    
+    // Show confirmation dialog
+    const message = previewText 
+      ? `Are you sure you want to delete this block?\n\n"${previewText}"`
+      : 'Are you sure you want to delete this empty block?';
+    
+    if (confirm(message)) {
+      const blocks = blocksToRender.filter(b => b._key !== blockKey);
+      updateContent(blocks);
+      
+      logger.info('Block deleted', { fieldId, blockKey });
+    }
+  }, [blocksToRender, updateContent, fieldId]);
+  
+  // Move block to new position
+  const moveBlock = useCallback((blockKey: string, direction: 'up' | 'down') => {
+    const currentIndex = blocksToRender.findIndex(b => b._key === blockKey);
+    if (currentIndex === -1) return;
+    
+    let newIndex: number;
+    if (direction === 'up') {
+      if (currentIndex === 0) return; // Already at top
+      newIndex = currentIndex - 1;
+    } else {
+      if (currentIndex === blocksToRender.length - 1) return; // Already at bottom
+      newIndex = currentIndex + 1;
+    }
+    
+    const blocks = [...blocksToRender];
+    const [movedBlock] = blocks.splice(currentIndex, 1);
+    blocks.splice(newIndex, 0, movedBlock);
+    
+    logger.debug('Moving block', { 
+      fieldId, 
+      blockKey, 
+      direction, 
+      from: currentIndex, 
+      to: newIndex 
+    });
+    
     updateContent(blocks);
-  }, [blocksToRender, updateContent]);
+    
+    // Keep focus on moved block
+    setTimeout(() => {
+      const blockEl = blockRefs.current.get(blockKey);
+      const editableEl = blockEl?.querySelector('[contenteditable]') as HTMLElement;
+      editableEl?.focus();
+    }, 50);
+  }, [blocksToRender, updateContent, fieldId]);
+  
+  // Move block to specific position (for drag and drop)
+  const moveBlockToPosition = useCallback((blockKey: string, targetIndex: number) => {
+    const currentIndex = blocksToRender.findIndex(b => b._key === blockKey);
+    if (currentIndex === -1 || currentIndex === targetIndex) return;
+    
+    const blocks = [...blocksToRender];
+    const [movedBlock] = blocks.splice(currentIndex, 1);
+    
+    // Adjust target index if moving down
+    const adjustedIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    blocks.splice(adjustedIndex, 0, movedBlock);
+    
+    logger.debug('Moving block to position', { 
+      fieldId, 
+      blockKey, 
+      from: currentIndex, 
+      to: adjustedIndex 
+    });
+    
+    updateContent(blocks);
+  }, [blocksToRender, updateContent, fieldId]);
   
   // Merge blocks (for backspace at start of block)
   const mergeWithPreviousBlock = useCallback((blockKey: string) => {
@@ -464,6 +550,20 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       }
     }
     
+    // Block movement shortcuts (Alt + Up/Down)
+    if (e.altKey && !e.metaKey && !e.ctrlKey) {
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          moveBlock(blockKey, 'up');
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          moveBlock(blockKey, 'down');
+          break;
+      }
+    }
+    
     // Format shortcuts
     if (e.metaKey || e.ctrlKey) {
       switch (e.key) {
@@ -481,7 +581,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           break;
       }
     }
-  }, [blocksToRender, insertBlock, mergeWithPreviousBlock, toggleMark]);
+  }, [blocksToRender, insertBlock, mergeWithPreviousBlock, toggleMark, moveBlock]);
   
   // Handle link creation
   const handleCreateLink = useCallback(() => {
@@ -556,6 +656,101 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     return block?.style || 'normal';
   }, [selectedBlockKey, blocksToRender]);
   
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e: React.DragEvent, blockKey: string) => {
+    logger.debug('Drag start', { fieldId, blockKey });
+    
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', blockKey);
+    
+    setDragState({
+      isDragging: true,
+      draggedBlockKey: blockKey,
+      dragOverBlockKey: null,
+      dragPosition: null
+    });
+  }, [fieldId]);
+  
+  const handleDragOver = useCallback((e: React.DragEvent, targetBlockKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (!dragState.isDragging || dragState.draggedBlockKey === targetBlockKey) return;
+    
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const position = e.clientY < midpoint ? 'before' : 'after';
+    
+    setDragState(prev => ({
+      ...prev,
+      dragOverBlockKey: targetBlockKey,
+      dragPosition: position
+    }));
+  }, [dragState.isDragging, dragState.draggedBlockKey]);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear drag over state if leaving the block entirely
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const isLeavingBlock = (
+      e.clientX < rect.left || 
+      e.clientX > rect.right || 
+      e.clientY < rect.top || 
+      e.clientY > rect.bottom
+    );
+    
+    if (isLeavingBlock) {
+      setDragState(prev => ({
+        ...prev,
+        dragOverBlockKey: null,
+        dragPosition: null
+      }));
+    }
+  }, []);
+  
+  const handleDrop = useCallback((e: React.DragEvent, targetBlockKey: string) => {
+    e.preventDefault();
+    
+    const draggedBlockKey = e.dataTransfer.getData('text/plain');
+    if (!draggedBlockKey || draggedBlockKey === targetBlockKey) {
+      setDragState({
+        isDragging: false,
+        draggedBlockKey: null,
+        dragOverBlockKey: null,
+        dragPosition: null
+      });
+      return;
+    }
+    
+    const targetIndex = blocksToRender.findIndex(b => b._key === targetBlockKey);
+    const dropIndex = dragState.dragPosition === 'before' ? targetIndex : targetIndex + 1;
+    
+    logger.debug('Drop block', { 
+      fieldId, 
+      draggedBlockKey, 
+      targetBlockKey, 
+      position: dragState.dragPosition,
+      dropIndex 
+    });
+    
+    moveBlockToPosition(draggedBlockKey, dropIndex);
+    
+    setDragState({
+      isDragging: false,
+      draggedBlockKey: null,
+      dragOverBlockKey: null,
+      dragPosition: null
+    });
+  }, [dragState.dragPosition, blocksToRender, moveBlockToPosition, fieldId]);
+  
+  const handleDragEnd = useCallback(() => {
+    setDragState({
+      isDragging: false,
+      draggedBlockKey: null,
+      dragOverBlockKey: null,
+      dragPosition: null
+    });
+  }, []);
+  
   // Toolbar button component
   const ToolbarButton = ({ 
     onClick, 
@@ -592,7 +787,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   );
   
   return (
-    <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col p-4' : ''}`}>
+    <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col p-4' : 'overflow-visible'}`}>
       {/* Toolbar */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-t-lg shadow-sm">
         <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
@@ -772,7 +967,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         ref={editorRef}
         className={`
           bg-white dark:bg-gray-900 border-x border-b border-gray-200 dark:border-gray-700 
-          rounded-b-lg p-4 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400
+          rounded-b-lg p-4 pr-16 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400
           ${isFullscreen ? 'flex-1 overflow-auto' : ''}
         `}
         style={{
@@ -842,43 +1037,89 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           if (marks.includes('code')) textClasses += ' font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm';
           
           return (
-            <div
-              key={block._key}
-              ref={(el) => {
-                if (el) {
-                  blockRefs.current.set(block._key, el);
-                } else {
-                  blockRefs.current.delete(block._key);
-                }
-              }}
-              className={`
-                group relative transition-all duration-150
-                ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400 rounded-md -mx-2 px-2' : ''}
-                ${!isReadonly && !isDisabled ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30 -mx-2 px-2 rounded-md' : ''}
-              `}
-              onClick={() => setSelectedBlockKey(block._key)}
-            >
-              {/* Block controls */}
-              {isSelected && !isDisabled && !isReadonly && blocksToRender.length > 1 && (
-                <div className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div key={block._key} className="relative">
+              {/* Block controls - shown floating outside on right when selected */}
+              {isSelected && !isDisabled && !isReadonly && (
+                <div className="absolute left-full -ml-2 top-0 flex flex-col gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-1 z-20">
+                  {/* Drag handle */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteBlock(block._key);
-                    }}
-                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                    title="Delete block"
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, block._key)}
+                    onDragEnd={handleDragEnd}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-grab active:cursor-grabbing rounded transition-colors"
+                    title="Drag to reorder (or use Alt+↑/↓)"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                     </svg>
                   </button>
+                  
+                  {/* Delete button */}
+                  {blocksToRender.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteBlock(block._key);
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete block"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               )}
               
-              <BlockElement
-                className={`${blockClasses} outline-none text-gray-900 dark:text-gray-100 relative`}
+              {/* Block content container */}
+              <div
+                ref={(el) => {
+                  if (el) {
+                    blockRefs.current.set(block._key, el);
+                  } else {
+                    blockRefs.current.delete(block._key);
+                  }
+                }}
+                className={`
+                  relative transition-all duration-150
+                  ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400 rounded-md px-2' : ''}
+                  ${!isReadonly && !isDisabled ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30 px-2 rounded-md' : ''}
+                  ${dragState.isDragging && dragState.draggedBlockKey === block._key ? 'opacity-30 scale-95 bg-blue-50 dark:bg-blue-900/20' : ''}
+                `}
+                onClick={() => setSelectedBlockKey(block._key)}
+                onDragOver={(e) => handleDragOver(e, block._key)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, block._key)}
+              >
+                {/* Drop indicators */}
+                {dragState.dragOverBlockKey === block._key && dragState.draggedBlockKey !== block._key && (
+                  <>
+                    {dragState.dragPosition === 'before' && (
+                      <div className="absolute -top-3 left-0 right-0 flex items-center z-50 pointer-events-none">
+                        <div className="w-full h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-pulse" 
+                             style={{ 
+                               boxShadow: '0 0 20px rgba(59, 130, 246, 0.9), 0 0 40px rgba(59, 130, 246, 0.6)',
+                               backgroundColor: 'rgb(59, 130, 246)'
+                             }} />
+                      </div>
+                    )}
+                    {dragState.dragPosition === 'after' && (
+                      <div className="absolute -bottom-3 left-0 right-0 flex items-center z-50 pointer-events-none">
+                        <div className="w-full h-2 bg-blue-500 dark:bg-blue-400 rounded-full animate-pulse" 
+                             style={{ 
+                               boxShadow: '0 0 20px rgba(59, 130, 246, 0.9), 0 0 40px rgba(59, 130, 246, 0.6)',
+                               backgroundColor: 'rgb(59, 130, 246)'
+                             }} />
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                <BlockElement
+                className={`${blockClasses} outline-none focus:outline-none text-gray-900 dark:text-gray-100 relative`}
                 contentEditable={!isDisabled && !isReadonly}
                 suppressContentEditableWarning
                 onInput={(e) => {
@@ -917,6 +1158,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   </span>
                 </div>
               )}
+              </div>
             </div>
           );
         })}
