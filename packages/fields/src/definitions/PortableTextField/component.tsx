@@ -31,13 +31,6 @@ interface Selection {
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
   
-  console.log('🎯 PortableTextFieldComponent render:', { 
-    fieldId, 
-    valueType: typeof value, 
-    value,
-    hasBlocks: value?.blocks?.length 
-  });
-  
   if (definition.type !== 'portable') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected portable field</div>;
   }
@@ -46,19 +39,15 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const options = portableDefinition.options || {};
   const validation = portableDefinition.validation || {};
   
-  const sanitizedValue = useMemo(() => {
-    console.log('🧹 sanitizePortableTextValue called with:', value);
-    const result = sanitizePortableTextValue(value);
-    console.log('🧹 sanitized result:', result);
-    return result;
-  }, [value]);
+  const sanitizedValue = useMemo(() => 
+    sanitizePortableTextValue(value), 
+    [value]
+  );
   
-  const normalizedContent = useMemo(() => {
-    console.log('📐 normalizePortableTextContent called with:', sanitizedValue);
-    const result = normalizePortableTextContent(sanitizedValue);
-    console.log('📐 normalized result:', result);
-    return result;
-  }, [sanitizedValue]);
+  const normalizedContent = useMemo(() => 
+    normalizePortableTextContent(sanitizedValue),
+    [sanitizedValue]
+  );
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<string | null>(null);
@@ -93,13 +82,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   
   // Ensure we always have at least one block for rendering
   const blocksToRender = useMemo(() => {
-    console.log('🔄 blocksToRender recalculating...', { 
-      normalizedContentBlocks: normalizedContent.blocks?.length || 0,
-      blocks: normalizedContent.blocks?.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' }))
-    });
-    
     if (!normalizedContent.blocks || normalizedContent.blocks.length === 0) {
-      console.log('🆕 Creating default block');
       return [{
         _key: 'default-block',
         _type: 'block' as const,
@@ -112,16 +95,11 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         }]
       }];
     }
-    
-    console.log('✅ Returning existing blocks:', normalizedContent.blocks.length);
     return normalizedContent.blocks;
   }, [normalizedContent.blocks]);
   
   // Update content with new blocks
   const updateContent = useCallback((newBlocks: PortableTextBlock[]) => {
-    console.log('📝 updateContent called with blocks:', newBlocks.length);
-    console.log('Blocks details:', newBlocks.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' })));
-    
     const plainText = getPlainTextFromPortableText({ blocks: newBlocks });
     const updatedContent: PortableTextContent = {
       blocks: newBlocks,
@@ -139,9 +117,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       blockCount: newBlocks.length 
     });
     
-    console.log('📤 Calling onChange with content:', updatedContent);
     onChange(sanitizePortableTextValue(updatedContent));
-    console.log('✅ onChange called successfully');
   }, [onChange, fieldId]);
   
   // Handle text input in a block
@@ -200,7 +176,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         editableDiv.focus();
       }
     });
-  }, [blocksToRender, updateContent, fieldId]);
+  }, [blocksToRender, updateContent]);
   
   // Toggle text formatting (marks)
   const toggleMark = useCallback((mark: string) => {
@@ -245,8 +221,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   
   // Insert new block
   const insertBlock = useCallback((afterKey: string, style: string = 'normal') => {
-    console.log('🆕 insertBlock called:', { afterKey, style, currentBlocks: blocksToRender.length });
-    
     const newBlock: PortableTextBlock = {
       _key: generateKey(),
       _type: 'block',
@@ -259,23 +233,15 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       }]
     };
     
-    console.log('Created new block:', newBlock);
-    
     const index = blocksToRender.findIndex(b => b._key === afterKey);
-    console.log('Found index for afterKey:', index);
-    
     const blocks = [...blocksToRender];
     
     // If index is -1 (not found), add to end
     if (index === -1) {
-      console.log('Adding block to end');
       blocks.push(newBlock);
     } else {
-      console.log('Inserting block at position:', index + 1);
       blocks.splice(index + 1, 0, newBlock);
     }
-    
-    console.log('New blocks array:', blocks.map(b => ({ key: b._key, text: b.children?.[0]?.text })));
     
     logger.debug('Inserting new block', { 
       fieldId, 
@@ -284,31 +250,22 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       totalBlocks: blocks.length 
     });
     
-    console.log('🔄 Calling updateContent...');
     updateContent(blocks);
     
     // Focus new block after render
-    console.log('⏰ Setting timeout for focus...');
     setTimeout(() => {
-      console.log('🎯 Timeout fired, looking for new block element...');
       const newBlockEl = blockRefs.current.get(newBlock._key);
-      console.log('Found block element:', !!newBlockEl);
       
       if (newBlockEl) {
         const editableEl = newBlockEl.querySelector('[contenteditable]') as HTMLElement;
-        console.log('Found editable element:', !!editableEl);
         
         if (editableEl) {
           editableEl.focus();
           setSelectedBlockKey(newBlock._key);
-          console.log('✅ Focused new block');
         }
-      } else {
-        console.warn('❌ Could not find new block element');
       }
-    }, 100); // Increased timeout for better reliability
+    }, 100);
     
-    console.log('🎉 insertBlock returning:', newBlock._key);
     return newBlock._key;
   }, [blocksToRender, updateContent, fieldId]);
   
@@ -395,14 +352,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     const maxLength = pasteSecurity.maxPasteLength || 10000;
     const warnOnUnsafe = pasteSecurity.warnOnUnsafeContent !== false;
     
-    logger.warn('Paste detected', { 
-      hasHtml: !!htmlData, 
-      hasText: !!textData,
-      htmlLength: htmlData.length,
-      textLength: textData.length,
-      securityMode: mode 
-    });
-    
     // Check for dangerous content and warn user
     if (warnOnUnsafe && htmlData && (
       htmlData.includes('<script') || 
@@ -418,9 +367,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         containsEventHandlers: htmlData.includes('on"'),
         containsIframe: htmlData.includes('<iframe')
       });
-      
-      // Show warning message (you might want to add a toast notification here)
-      console.warn('SECURITY WARNING: Dangerous content detected in clipboard. Only plain text will be pasted.');
     }
     
     let sanitizedText: string;
@@ -455,10 +401,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     // Apply length limit
     if (sanitizedText.length > maxLength) {
       sanitizedText = sanitizedText.substring(0, maxLength);
-      logger.warn('Paste content truncated due to length limit', { 
-        originalLength: sanitizedText.length, 
-        maxLength 
-      });
+      logger.warn('Paste content truncated due to length limit', { maxLength });
     }
     
     // Split pasted content into lines and create blocks
@@ -500,13 +443,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     }
     
     updateContent(blocks);
-    
-    logger.info('Paste sanitized and processed', { 
-      originalLength: htmlData.length || textData.length,
-      sanitizedLength: sanitizedText.length,
-      blocksCreated: lines.length,
-      securityMode: mode 
-    });
   }, [blocksToRender, updateContent, sanitizePastedContent, options.pasteSecurity]);
   
   // Handle keyboard events in block
@@ -909,10 +845,8 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
             <div
               key={block._key}
               ref={(el) => {
-                console.log('🔗 Setting ref for block:', block._key, !!el);
                 if (el) {
                   blockRefs.current.set(block._key, el);
-                  console.log('📋 Current blockRefs keys:', Array.from(blockRefs.current.keys()));
                 } else {
                   blockRefs.current.delete(block._key);
                 }
@@ -995,25 +929,13 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('🔥 Add Block button clicked!');
-                console.log('Current blocks:', blocksToRender.length);
-                console.log('Blocks to render:', blocksToRender.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' })));
                 
                 const lastBlock = blocksToRender[blocksToRender.length - 1];
-                console.log('Last block:', lastBlock);
-                
-                logger.info('Add Block button clicked', { 
-                  fieldId, 
-                  totalBlocks: blocksToRender.length,
-                  lastBlockKey: lastBlock._key 
-                });
-                
-                const newBlockKey = insertBlock(lastBlock._key);
-                console.log('New block key returned:', newBlockKey);
+                insertBlock(lastBlock._key);
               }}
               className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm font-medium"
             >
-              + Add block (Debug: {blocksToRender.length} blocks)
+              + Add block
             </button>
           </div>
         )}
