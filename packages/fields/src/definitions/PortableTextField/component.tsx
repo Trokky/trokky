@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, KeyboardEvent } from 'react';
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { 
   PortableTextFieldDefinition,
   PortableTextContent,
   PortableTextBlock,
   PortableTextSpan,
   PortableTextMarkDef
-} from './definition.js';
+} from './definition';
 import { 
   validatePortableTextField,
   sanitizePortableTextValue,
@@ -14,9 +14,9 @@ import {
   getPortableTextStats,
   normalizePortableTextContent,
   generateKey
-} from './validation.js';
-import { BLOCK_STYLES, MARKS } from './definition.js';
-import { createStudioLogger } from '../../utils/logger.js';
+} from './validation';
+import { BLOCK_STYLES, MARKS } from './definition';
+import { createStudioLogger } from '../../utils/logger';
 
 const logger = createStudioLogger('PortableTextField');
 
@@ -342,6 +342,172 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     
     updateContent(blocks);
   }, [blocksToRender, updateContent]);
+  
+  // Sanitize pasted content
+  const sanitizePastedContent = useCallback((html: string): string => {
+    // Create a temporary DOM element to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Remove all scripts, styles, and dangerous elements
+    const dangerousElements = tempDiv.querySelectorAll('script, style, iframe, object, embed, form, input, button, link, meta');
+    dangerousElements.forEach(el => el.remove());
+    
+    // Remove all event handlers and dangerous attributes
+    const allElements = tempDiv.querySelectorAll('*');
+    allElements.forEach(el => {
+      // Remove all event attributes (onclick, onmouseover, etc.)
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('on') || 
+            ['javascript:', 'data:', 'vbscript:'].some(prefix => attr.value.toLowerCase().includes(prefix))) {
+          el.removeAttribute(attr.name);
+        }
+      });
+      
+      // Remove dangerous attributes
+      ['src', 'href', 'action', 'formaction', 'background', 'cite', 'codebase', 'data'].forEach(attr => {
+        if (el.hasAttribute(attr)) {
+          const value = el.getAttribute(attr);
+          if (value && (value.toLowerCase().startsWith('javascript:') || 
+                       value.toLowerCase().startsWith('data:') ||
+                       value.toLowerCase().startsWith('vbscript:'))) {
+            el.removeAttribute(attr);
+          }
+        }
+      });
+    });
+    
+    // Extract only plain text to be safe
+    return tempDiv.textContent || tempDiv.innerText || '';
+  }, []);
+  
+  // Handle paste events
+  const handlePaste = useCallback((e: React.ClipboardEvent, blockKey: string) => {
+    e.preventDefault();
+    
+    const clipboardData = e.clipboardData;
+    const htmlData = clipboardData.getData('text/html');
+    const textData = clipboardData.getData('text/plain');
+    
+    // Get paste security settings (default to strict mode for safety)
+    const pasteSecurity = options.pasteSecurity || { mode: 'strict' };
+    const mode = pasteSecurity.mode || 'strict';
+    const maxLength = pasteSecurity.maxPasteLength || 10000;
+    const warnOnUnsafe = pasteSecurity.warnOnUnsafeContent !== false;
+    
+    logger.warn('Paste detected', { 
+      hasHtml: !!htmlData, 
+      hasText: !!textData,
+      htmlLength: htmlData.length,
+      textLength: textData.length,
+      securityMode: mode 
+    });
+    
+    // Check for dangerous content and warn user
+    if (warnOnUnsafe && htmlData && (
+      htmlData.includes('<script') || 
+      htmlData.includes('javascript:') ||
+      htmlData.includes('on"') || 
+      htmlData.includes('<iframe') ||
+      htmlData.includes('<object') ||
+      htmlData.includes('<embed')
+    )) {
+      logger.error('Dangerous content detected in paste', { 
+        containsScript: htmlData.includes('<script'),
+        containsJavascript: htmlData.includes('javascript:'),
+        containsEventHandlers: htmlData.includes('on"'),
+        containsIframe: htmlData.includes('<iframe')
+      });
+      
+      // Show warning message (you might want to add a toast notification here)
+      console.warn('SECURITY WARNING: Dangerous content detected in clipboard. Only plain text will be pasted.');
+    }
+    
+    let sanitizedText: string;
+    
+    // Handle different security modes
+    switch (mode) {
+      case 'strict':
+        // Always use plain text only - safest option
+        sanitizedText = textData;
+        break;
+        
+      case 'safe':
+        // Use sanitized HTML content, fallback to plain text
+        sanitizedText = htmlData ? sanitizePastedContent(htmlData) : textData;
+        break;
+        
+      case 'permissive':
+        // Minimal sanitization - only remove obvious threats
+        if (htmlData) {
+          sanitizedText = sanitizePastedContent(htmlData);
+        } else {
+          sanitizedText = textData;
+        }
+        break;
+        
+      default:
+        sanitizedText = textData; // Default to strict
+    }
+    
+    if (!sanitizedText) return;
+    
+    // Apply length limit
+    if (sanitizedText.length > maxLength) {
+      sanitizedText = sanitizedText.substring(0, maxLength);
+      logger.warn('Paste content truncated due to length limit', { 
+        originalLength: sanitizedText.length, 
+        maxLength 
+      });
+    }
+    
+    // Split pasted content into lines and create blocks
+    const lines = sanitizedText.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) return;
+    
+    // Update current block with first line
+    const blocks = blocksToRender.map(block => {
+      if (block._key === blockKey) {
+        return {
+          ...block,
+          children: [{
+            ...block.children![0],
+            text: lines[0]
+          }]
+        };
+      }
+      return block;
+    });
+    
+    // Create additional blocks for remaining lines
+    if (lines.length > 1) {
+      const currentIndex = blocks.findIndex(b => b._key === blockKey);
+      for (let i = 1; i < lines.length; i++) {
+        const newBlock: PortableTextBlock = {
+          _key: generateKey(),
+          _type: 'block',
+          style: 'normal',
+          children: [{
+            _key: generateKey(),
+            _type: 'span',
+            text: lines[i],
+            marks: []
+          }]
+        };
+        blocks.splice(currentIndex + i, 0, newBlock);
+      }
+    }
+    
+    updateContent(blocks);
+    
+    logger.info('Paste sanitized and processed', { 
+      originalLength: htmlData.length || textData.length,
+      sanitizedLength: sanitizedText.length,
+      blocksCreated: lines.length,
+      securityMode: mode 
+    });
+  }, [blocksToRender, updateContent, sanitizePastedContent, options.pasteSecurity]);
   
   // Handle keyboard events in block
   const handleBlockKeyDown = useCallback((e: KeyboardEvent<HTMLElement>, blockKey: string) => {
@@ -786,6 +952,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   handleBlockInput(block._key, target);
                 }}
                 onKeyDown={(e) => handleBlockKeyDown(e, block._key)}
+                onPaste={(e) => handlePaste(e, block._key)}
                 onFocus={() => setSelectedBlockKey(block._key)}
                 spellCheck={options.spellCheck !== false}
                 data-placeholder={
