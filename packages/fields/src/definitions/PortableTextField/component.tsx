@@ -1,27 +1,42 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, KeyboardEvent } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { 
   PortableTextFieldDefinition,
   PortableTextContent,
-  PortableTextOperations,
   PortableTextBlock,
-  PortableTextSpan
+  PortableTextSpan,
+  PortableTextMarkDef
 } from './definition.js';
 import { 
   validatePortableTextField,
   sanitizePortableTextValue,
-  getDefaultPortableTextValue,
   getPlainTextFromPortableText,
   getPortableTextStats,
   normalizePortableTextContent,
   generateKey
 } from './validation.js';
 import { BLOCK_STYLES, MARKS } from './definition.js';
+import { createStudioLogger } from '../../utils/logger.js';
+
+const logger = createStudioLogger('PortableTextField');
 
 type PortableTextFieldComponentProps = FieldComponentProps;
 
+interface Selection {
+  blockKey: string;
+  offset: number;
+  length: number;
+}
+
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  
+  console.log('🎯 PortableTextFieldComponent render:', { 
+    fieldId, 
+    valueType: typeof value, 
+    value,
+    hasBlocks: value?.blocks?.length 
+  });
   
   if (definition.type !== 'portable') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected portable field</div>;
@@ -31,29 +46,60 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const options = portableDefinition.options || {};
   const validation = portableDefinition.validation || {};
   
-  const sanitizedValue = useMemo(() => 
-    sanitizePortableTextValue(value), 
-    [value]
-  );
+  const sanitizedValue = useMemo(() => {
+    console.log('🧹 sanitizePortableTextValue called with:', value);
+    const result = sanitizePortableTextValue(value);
+    console.log('🧹 sanitized result:', result);
+    return result;
+  }, [value]);
   
-  const normalizedContent = useMemo(() => 
-    normalizePortableTextContent(sanitizedValue),
-    [sanitizedValue]
-  );
+  const normalizedContent = useMemo(() => {
+    console.log('📐 normalizePortableTextContent called with:', sanitizedValue);
+    const result = normalizePortableTextContent(sanitizedValue);
+    console.log('📐 normalized result:', result);
+    return result;
+  }, [sanitizedValue]);
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [showBlockMenu, setShowBlockMenu] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
+  const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const blockMenuRef = useRef<HTMLDivElement>(null);
   
   const contentStats = useMemo(() => 
     getPortableTextStats(sanitizedValue),
     [sanitizedValue]
   );
   
+  // Close block menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (blockMenuRef.current && !blockMenuRef.current.contains(event.target as Node)) {
+        setShowBlockMenu(false);
+      }
+    }
+    
+    if (showBlockMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showBlockMenu]);
+  
   // Ensure we always have at least one block for rendering
   const blocksToRender = useMemo(() => {
+    console.log('🔄 blocksToRender recalculating...', { 
+      normalizedContentBlocks: normalizedContent.blocks?.length || 0,
+      blocks: normalizedContent.blocks?.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' }))
+    });
+    
     if (!normalizedContent.blocks || normalizedContent.blocks.length === 0) {
+      console.log('🆕 Creating default block');
       return [{
         _key: 'default-block',
         _type: 'block' as const,
@@ -66,365 +112,554 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         }]
       }];
     }
+    
+    console.log('✅ Returning existing blocks:', normalizedContent.blocks.length);
     return normalizedContent.blocks;
   }, [normalizedContent.blocks]);
   
-  // Portable text operations
-  const operations: PortableTextOperations = useMemo(() => ({
-    insertBlock: (blockType: string, style?: string, position?: number) => {
+  // Update content with new blocks
+  const updateContent = useCallback((newBlocks: PortableTextBlock[]) => {
+    console.log('📝 updateContent called with blocks:', newBlocks.length);
+    console.log('Blocks details:', newBlocks.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' })));
+    
+    const plainText = getPlainTextFromPortableText({ blocks: newBlocks });
+    const updatedContent: PortableTextContent = {
+      blocks: newBlocks,
+      metadata: {
+        blockCount: newBlocks.length,
+        characterCount: plainText.length,
+        wordCount: getPortableTextStats({ blocks: newBlocks }).words,
+        lastModified: new Date().toISOString(),
+        version: '1.0'
+      }
+    };
+    
+    logger.debug('Updating portable text content', { 
+      fieldId, 
+      blockCount: newBlocks.length 
+    });
+    
+    console.log('📤 Calling onChange with content:', updatedContent);
+    onChange(sanitizePortableTextValue(updatedContent));
+    console.log('✅ onChange called successfully');
+  }, [onChange, fieldId]);
+  
+  // Handle text input in a block
+  const handleBlockInput = useCallback((blockKey: string, element: HTMLElement) => {
+    const newText = element.textContent || '';
+    
+    // Store cursor position before updating
+    const selection = window.getSelection();
+    const range = selection?.getRangeAt(0);
+    const offset = range?.startOffset || 0;
+    
+    const blocks = blocksToRender.map(block => {
+      if (block._key === blockKey) {
+        return {
+          ...block,
+          children: [{
+            ...block.children![0],
+            text: newText
+          }]
+        };
+      }
+      return block;
+    });
+    
+    updateContent(blocks);
+    
+    // Restore cursor position after content update, using the up-to-date element from refs
+    requestAnimationFrame(() => {
+      const blockWrapper = blockRefs.current.get(blockKey);
+      const editableDiv = blockWrapper?.querySelector('[contenteditable="true"]') as HTMLElement;
+
+      if (!editableDiv) {
+        return;
+      }
+
+      // The text node is inside a span, which is the first child.
+      const textNode = editableDiv.firstChild?.firstChild;
+
+      if (textNode && window.getSelection) {
+        const newSelection = window.getSelection();
+        if (newSelection) {
+          try {
+            const newRange = document.createRange();
+            const safeOffset = Math.min(offset, textNode.textContent?.length || 0);
+            newRange.setStart(textNode, safeOffset);
+            newRange.setEnd(textNode, safeOffset);
+            newSelection.removeAllRanges();
+            newSelection.addRange(newRange);
+          } catch (e) {
+            // Fallback to focus
+            editableDiv.focus();
+          }
+        }
+      } else {
+        // If no text node (e.g., empty block), just focus the div.
+        editableDiv.focus();
+      }
+    });
+  }, [blocksToRender, updateContent, fieldId]);
+  
+  // Toggle text formatting (marks)
+  const toggleMark = useCallback((mark: string) => {
+    if (!selection || !selectedBlockKey) return;
+    
+    const blocks = blocksToRender.map(block => {
+      if (block._key === selectedBlockKey && block.children) {
+        const span = block.children[0];
+        const marks = span.marks || [];
+        const hasMark = marks.includes(mark);
+        
+        return {
+          ...block,
+          children: [{
+            ...span,
+            marks: hasMark 
+              ? marks.filter(m => m !== mark)
+              : [...marks, mark]
+          }]
+        };
+      }
+      return block;
+    });
+    
+    updateContent(blocks);
+  }, [selection, selectedBlockKey, blocksToRender, updateContent]);
+  
+  // Change block style (heading, normal, etc.)
+  const changeBlockStyle = useCallback((style: string) => {
+    if (!selectedBlockKey) return;
+    
+    const blocks = blocksToRender.map(block => {
+      if (block._key === selectedBlockKey) {
+        return { ...block, style };
+      }
+      return block;
+    });
+    
+    updateContent(blocks);
+    setShowBlockMenu(false);
+  }, [selectedBlockKey, blocksToRender, updateContent]);
+  
+  // Insert new block
+  const insertBlock = useCallback((afterKey: string, style: string = 'normal') => {
+    console.log('🆕 insertBlock called:', { afterKey, style, currentBlocks: blocksToRender.length });
+    
+    const newBlock: PortableTextBlock = {
+      _key: generateKey(),
+      _type: 'block',
+      style,
+      children: [{
+        _key: generateKey(),
+        _type: 'span',
+        text: '',
+        marks: []
+      }]
+    };
+    
+    console.log('Created new block:', newBlock);
+    
+    const index = blocksToRender.findIndex(b => b._key === afterKey);
+    console.log('Found index for afterKey:', index);
+    
+    const blocks = [...blocksToRender];
+    
+    // If index is -1 (not found), add to end
+    if (index === -1) {
+      console.log('Adding block to end');
+      blocks.push(newBlock);
+    } else {
+      console.log('Inserting block at position:', index + 1);
+      blocks.splice(index + 1, 0, newBlock);
+    }
+    
+    console.log('New blocks array:', blocks.map(b => ({ key: b._key, text: b.children?.[0]?.text })));
+    
+    logger.debug('Inserting new block', { 
+      fieldId, 
+      afterKey, 
+      newBlockKey: newBlock._key, 
+      totalBlocks: blocks.length 
+    });
+    
+    console.log('🔄 Calling updateContent...');
+    updateContent(blocks);
+    
+    // Focus new block after render
+    console.log('⏰ Setting timeout for focus...');
+    setTimeout(() => {
+      console.log('🎯 Timeout fired, looking for new block element...');
+      const newBlockEl = blockRefs.current.get(newBlock._key);
+      console.log('Found block element:', !!newBlockEl);
+      
+      if (newBlockEl) {
+        const editableEl = newBlockEl.querySelector('[contenteditable]') as HTMLElement;
+        console.log('Found editable element:', !!editableEl);
+        
+        if (editableEl) {
+          editableEl.focus();
+          setSelectedBlockKey(newBlock._key);
+          console.log('✅ Focused new block');
+        }
+      } else {
+        console.warn('❌ Could not find new block element');
+      }
+    }, 100); // Increased timeout for better reliability
+    
+    console.log('🎉 insertBlock returning:', newBlock._key);
+    return newBlock._key;
+  }, [blocksToRender, updateContent, fieldId]);
+  
+  // Delete block
+  const deleteBlock = useCallback((blockKey: string) => {
+    if (blocksToRender.length <= 1) return; // Keep at least one block
+    
+    const blocks = blocksToRender.filter(b => b._key !== blockKey);
+    updateContent(blocks);
+  }, [blocksToRender, updateContent]);
+  
+  // Merge blocks (for backspace at start of block)
+  const mergeWithPreviousBlock = useCallback((blockKey: string) => {
+    const index = blocksToRender.findIndex(b => b._key === blockKey);
+    if (index <= 0) return;
+    
+    const currentBlock = blocksToRender[index];
+    const previousBlock = blocksToRender[index - 1];
+    
+    const mergedBlock: PortableTextBlock = {
+      ...previousBlock,
+      children: [{
+        ...previousBlock.children![0],
+        text: previousBlock.children![0].text + currentBlock.children![0].text
+      }]
+    };
+    
+    const blocks = [...blocksToRender];
+    blocks[index - 1] = mergedBlock;
+    blocks.splice(index, 1);
+    
+    updateContent(blocks);
+  }, [blocksToRender, updateContent]);
+  
+  // Handle keyboard events in block
+  const handleBlockKeyDown = useCallback((e: KeyboardEvent<HTMLElement>, blockKey: string) => {
+    const target = e.target as HTMLElement;
+    const text = target.textContent || '';
+    
+    // Enter key - create new block
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      insertBlock(blockKey);
+    }
+    
+    // Backspace at start - merge with previous or delete
+    if (e.key === 'Backspace' && text === '') {
+      e.preventDefault();
+      if (blocksToRender.length > 1) {
+        mergeWithPreviousBlock(blockKey);
+      }
+    }
+    
+    // Format shortcuts
+    if (e.metaKey || e.ctrlKey) {
+      switch (e.key) {
+        case 'b':
+          e.preventDefault();
+          toggleMark('strong');
+          break;
+        case 'i':
+          e.preventDefault();
+          toggleMark('em');
+          break;
+        case 'u':
+          e.preventDefault();
+          toggleMark('underline');
+          break;
+      }
+    }
+  }, [blocksToRender, insertBlock, mergeWithPreviousBlock, toggleMark]);
+  
+  // Handle link creation
+  const handleCreateLink = useCallback(() => {
+    if (!linkUrl) return;
+    
+    if (!selectedBlockKey) {
+      // If no selection, create a new link span
       const newBlock: PortableTextBlock = {
         _key: generateKey(),
-        _type: blockType as any,
-        style: style || 'normal',
-        children: [{
-          _key: generateKey(),
-          _type: 'span' as const,
-          text: '',
-          marks: []
-        }]
-      };
-      
-      // If we're working with an empty default block, replace it
-      const currentBlocks = normalizedContent.blocks || [];
-      const blocks = [...currentBlocks];
-      const insertAt = position !== undefined ? position : blocks.length;
-      blocks.splice(insertAt, 0, newBlock);
-      
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    removeBlock: (blockKey: string) => {
-      const currentBlocks = normalizedContent.blocks || [];
-      const blocks = currentBlocks.filter(block => block._key !== blockKey);
-      
-      // If we removed all blocks, the component will show a default block for rendering
-      // but we'll store empty blocks array
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    updateBlock: (blockKey: string, updates: Partial<PortableTextBlock>) => {
-      const currentBlocks = normalizedContent.blocks || [];
-      const blocks = currentBlocks.map(block => 
-        block._key === blockKey ? { ...block, ...updates } : block
-      );
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    moveBlock: (blockKey: string, newPosition: number) => {
-      const currentBlocks = normalizedContent.blocks || [];
-      const blocks = [...currentBlocks];
-      const currentIndex = blocks.findIndex(block => block._key === blockKey);
-      
-      if (currentIndex === -1) return;
-      
-      const [movedBlock] = blocks.splice(currentIndex, 1);
-      blocks.splice(newPosition, 0, movedBlock);
-      
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    insertText: (blockKey: string, text: string, position: number) => {
-      // Simplified implementation - would need more sophisticated cursor handling
-      const blocks = (normalizedContent.blocks || []).map(block => {
-        if (block._key === blockKey && block.children && block.children[0]) {
-          const span = block.children[0];
-          const newText = span.text.slice(0, position) + text + span.text.slice(position);
-          return {
-            ...block,
-            children: [{
-              ...span,
-              text: newText
-            }]
-          };
-        }
-        return block;
-      });
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    deleteText: (blockKey: string, start: number, end: number) => {
-      const blocks = (normalizedContent.blocks || []).map(block => {
-        if (block._key === blockKey && block.children && block.children[0]) {
-          const span = block.children[0];
-          const newText = span.text.slice(0, start) + span.text.slice(end);
-          return {
-            ...block,
-            children: [{
-              ...span,
-              text: newText
-            }]
-          };
-        }
-        return block;
-      });
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    toggleMark: (blockKey: string, spanKey: string, mark: string) => {
-      const blocks = (normalizedContent.blocks || []).map(block => {
-        if (block._key === blockKey && block.children) {
-          const children = block.children.map(child => {
-            if (child._key === spanKey) {
-              const marks = child.marks || [];
-              const hasmark = marks.includes(mark);
-              return {
-                ...child,
-                marks: hasmark 
-                  ? marks.filter(m => m !== mark)
-                  : [...marks, mark]
-              };
-            }
-            return child;
-          });
-          return { ...block, children };
-        }
-        return block;
-      });
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    addMark: (blockKey: string, spanKey: string, mark: string) => {
-      operations.toggleMark(blockKey, spanKey, mark);
-    },
-    
-    removeMark: (blockKey: string, spanKey: string, mark: string) => {
-      const blocks = (normalizedContent.blocks || []).map(block => {
-        if (block._key === blockKey && block.children) {
-          const children = block.children.map(child => {
-            if (child._key === spanKey) {
-              return {
-                ...child,
-                marks: (child.marks || []).filter(m => m !== mark)
-              };
-            }
-            return child;
-          });
-          return { ...block, children };
-        }
-        return block;
-      });
-      updateContent({ ...normalizedContent, blocks });
-    },
-    
-    convertBlockType: (blockKey: string, newType: string, newStyle?: string) => {
-      operations.updateBlock(blockKey, { _type: newType, style: newStyle });
-    },
-    
-    getPlainText: () => {
-      return getPlainTextFromPortableText(normalizedContent);
-    },
-    
-    getStats: () => contentStats,
-    
-    focus: () => {
-      editorRef.current?.focus();
-    },
-    
-    clear: () => {
-      const emptyBlock: PortableTextBlock = {
-        _key: generateKey(),
-        _type: 'block' as const,
+        _type: 'block',
         style: 'normal',
         children: [{
           _key: generateKey(),
-          _type: 'span' as const,
-          text: '',
-          marks: []
+          _type: 'span',
+          text: linkText || linkUrl,
+          marks: ['link']
+        }],
+        markDefs: [{
+          _key: 'link',
+          _type: 'link',
+          href: linkUrl
         }]
       };
       
-      updateContent({
-        blocks: [emptyBlock],
-        metadata: {
-          blockCount: 1,
-          characterCount: 0,
-          wordCount: 0,
-          lastModified: new Date().toISOString(),
-          version: '1.0'
+      const blocks = [...blocksToRender, newBlock];
+      updateContent(blocks);
+    } else {
+      // Add link to selected block
+      const blocks = blocksToRender.map(block => {
+        if (block._key === selectedBlockKey) {
+          return {
+            ...block,
+            markDefs: [
+              ...(block.markDefs || []),
+              {
+                _key: 'link',
+                _type: 'link',
+                href: linkUrl
+              }
+            ],
+            children: block.children?.map(child => ({
+              ...child,
+              marks: [...(child.marks || []), 'link']
+            })) || []
+          };
         }
+        return block;
       });
-    },
-    
-    undo: () => {
-      // Would implement undo/redo with history stack
-      console.log('Undo not implemented yet');
-    },
-    
-    redo: () => {
-      // Would implement undo/redo with history stack
-      console.log('Redo not implemented yet');
+      updateContent(blocks);
     }
-  }), [normalizedContent, contentStats]);
+    
+    setShowLinkDialog(false);
+    setLinkUrl('');
+    setLinkText('');
+  }, [linkUrl, linkText, selectedBlockKey, blocksToRender, updateContent]);
   
-  const updateContent = useCallback((newContent: PortableTextContent) => {
-    const updatedContent = {
-      ...newContent,
-      metadata: {
-        ...newContent.metadata,
-        blockCount: newContent.blocks.length,
-        characterCount: getPlainTextFromPortableText(newContent).length,
-        wordCount: getPortableTextStats(newContent).words,
-        lastModified: new Date().toISOString()
-      }
-    };
+  // Check if a mark is active for current selection
+  const isMarkActive = useCallback((mark: string): boolean => {
+    if (!selectedBlockKey) return false;
     
-    onChange(sanitizePortableTextValue(updatedContent));
-  }, [onChange]);
+    const block = blocksToRender.find(b => b._key === selectedBlockKey);
+    if (!block || !block.children?.[0]) return false;
+    
+    return block.children[0].marks?.includes(mark) || false;
+  }, [selectedBlockKey, blocksToRender]);
   
-  // Render a single block
-  const renderBlock = (block: PortableTextBlock, index: number) => {
-    const isSelected = selectedBlockKey === block._key;
-    const text = block.children?.[0]?.text || '';
-    const marks = block.children?.[0]?.marks || [];
+  // Get current block style
+  const getCurrentBlockStyle = useCallback((): string => {
+    if (!selectedBlockKey) return 'normal';
     
-    const blockElement = () => {
-      switch (block.style) {
-        case 'h1':
-          return 'h1';
-        case 'h2':
-          return 'h2';
-        case 'h3':
-          return 'h3';
-        case 'h4':
-          return 'h4';
-        case 'h5':
-          return 'h5';
-        case 'h6':
-          return 'h6';
-        case 'blockquote':
-          return 'blockquote';
-        default:
-          return 'p';
-      }
-    };
-    
-    const blockClass = `
-      outline-none border-l-2 transition-colors cursor-text
-      ${isSelected 
-        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-        : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-      }
-      ${block.style === 'blockquote' ? 'italic pl-4 border-l-4 border-gray-300 dark:border-gray-600' : 'pl-2'}
-      ${hasError ? 'border-red-400' : ''}
-    `;
-    
-    const textClass = `
-      ${marks.includes('strong') ? 'font-bold' : ''}
-      ${marks.includes('em') ? 'italic' : ''}
-      ${marks.includes('underline') ? 'underline' : ''}
-      ${marks.includes('code') ? 'font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded' : ''}
-      ${marks.includes('strike') ? 'line-through' : ''}
-    `;
-    
-    const Element = blockElement() as keyof JSX.IntrinsicElements;
-    
-    return (
-      <div
-        key={block._key}
-        className={`group relative ${isSelected ? 'ring-1 ring-blue-500 rounded' : ''}`}
-        onClick={() => setSelectedBlockKey(block._key)}
-      >
-        {/* Block controls */}
-        {isSelected && !isDisabled && !isReadonly && (
-          <div className="absolute -left-8 top-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              type="button"
-              onClick={() => operations.removeBlock(block._key)}
-              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded text-xs"
-              title="Delete block"
-            >
-              ×
-            </button>
-          </div>
-        )}
-        
-        <Element
-          className={blockClass}
-          contentEditable={!isDisabled && !isReadonly}
-          suppressContentEditableWarning
-          onInput={(e) => {
-            const newText = (e.target as HTMLElement).textContent || '';
-            if (block.children && block.children[0]) {
-              operations.updateBlock(block._key, {
-                children: [{
-                  ...block.children[0],
-                  text: newText
-                }]
-              });
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              operations.insertBlock('block', 'normal', index + 1);
-            }
-            if (e.key === 'Backspace' && text === '' && blocksToRender.length > 1) {
-              e.preventDefault();
-              operations.removeBlock(block._key);
-            }
-          }}
-        >
-          <span className={textClass}>
-            {text || (
-              <span className="text-gray-400 italic">
-                {options.placeholder || 'Type something...'}
-              </span>
-            )}
-          </span>
-        </Element>
-      </div>
-    );
-  };
+    const block = blocksToRender.find(b => b._key === selectedBlockKey);
+    return block?.style || 'normal';
+  }, [selectedBlockKey, blocksToRender]);
+  
+  // Toolbar button component
+  const ToolbarButton = ({ 
+    onClick, 
+    isActive = false, 
+    disabled = false, 
+    title, 
+    children 
+  }: {
+    onClick: () => void;
+    isActive?: boolean;
+    disabled?: boolean;
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || isDisabled || isReadonly}
+      title={title}
+      className={`
+        px-2 py-1.5 rounded text-sm font-medium transition-all duration-150
+        ${isActive 
+          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 shadow-sm' 
+          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'
+        }
+        ${disabled || isDisabled || isReadonly 
+          ? 'opacity-40 cursor-not-allowed' 
+          : 'cursor-pointer active:scale-95'
+        }
+      `}
+    >
+      {children}
+    </button>
+  );
   
   return (
-    <div className={`portable-text-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''} ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4' : ''}`}>
+    <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col p-4' : ''}`}>
       {/* Toolbar */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-t-md bg-gray-50 dark:bg-gray-800 p-2 mb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Portable Text</span>
-            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
-              Structured
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Stats toggle */}
-            {(options.showBlockCount || options.showCharacterCount || options.showWordCount) && (
-              <button
-                type="button"
-                onClick={() => setShowStats(!showStats)}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-t-lg shadow-sm">
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              {/* Block type selector */}
+              <div ref={blockMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowBlockMenu(!showBlockMenu)}
+                  disabled={isDisabled || isReadonly}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                >
+                  <span>{getCurrentBlockStyle() === 'normal' ? 'Normal' : getCurrentBlockStyle().toUpperCase()}</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showBlockMenu && (
+                  <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                    <button
+                      type="button"
+                      onClick={() => changeBlockStyle('normal')}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Normal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeBlockStyle('h1')}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-bold text-lg"
+                    >
+                      Heading 1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeBlockStyle('h2')}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-semibold"
+                    >
+                      Heading 2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeBlockStyle('h3')}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium"
+                    >
+                      Heading 3
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeBlockStyle('blockquote')}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors italic"
+                    >
+                      Quote
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+              
+              {/* Text formatting */}
+              <ToolbarButton
+                onClick={() => toggleMark('strong')}
+                isActive={isMarkActive('strong')}
+                title="Bold (⌘B)"
               >
-                Stats
-              </button>
-            )}
+                <span className="font-bold">B</span>
+              </ToolbarButton>
+              
+              <ToolbarButton
+                onClick={() => toggleMark('em')}
+                isActive={isMarkActive('em')}
+                title="Italic (⌘I)"
+              >
+                <span className="italic">I</span>
+              </ToolbarButton>
+              
+              <ToolbarButton
+                onClick={() => toggleMark('underline')}
+                isActive={isMarkActive('underline')}
+                title="Underline (⌘U)"
+              >
+                <span className="underline">U</span>
+              </ToolbarButton>
+              
+              <ToolbarButton
+                onClick={() => toggleMark('strike')}
+                isActive={isMarkActive('strike')}
+                title="Strikethrough"
+              >
+                <span className="line-through">S</span>
+              </ToolbarButton>
+              
+              <ToolbarButton
+                onClick={() => toggleMark('code')}
+                isActive={isMarkActive('code')}
+                title="Code"
+              >
+                <span className="font-mono text-xs">{'<>'}</span>
+              </ToolbarButton>
+              
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+              
+              {/* Link */}
+              <ToolbarButton
+                onClick={() => setShowLinkDialog(true)}
+                isActive={false}
+                title="Add link"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </ToolbarButton>
+            </div>
             
-            {/* Fullscreen toggle */}
-            {options.enableFullscreen && (
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              >
-                {isFullscreen ? '⊗' : '⊡'}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Stats toggle */}
+              {(options.showBlockCount || options.showCharacterCount || options.showWordCount) && (
+                <button
+                  type="button"
+                  onClick={() => setShowStats(!showStats)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {showStats ? 'Hide' : 'Show'} stats
+                </button>
+              )}
+              
+              {/* Fullscreen toggle */}
+              {options.enableFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                >
+                  {isFullscreen ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
         
         {/* Stats bar */}
         {showStats && (
-          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
             {options.showBlockCount && (
-              <span>Blocks: {contentStats.blocks}</span>
+              <span>
+                <span className="font-medium">Blocks:</span> {contentStats.blocks}
+              </span>
             )}
             {options.showCharacterCount && (
-              <span>Characters: {contentStats.characters}</span>
+              <span>
+                <span className="font-medium">Characters:</span> {contentStats.characters}
+              </span>
             )}
             {options.showWordCount && (
-              <span>Words: {contentStats.words}</span>
+              <span>
+                <span className="font-medium">Words:</span> {contentStats.words}
+              </span>
             )}
           </div>
         )}
@@ -433,43 +668,275 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       {/* Editor */}
       <div
         ref={editorRef}
-        className="border border-gray-200 dark:border-gray-700 rounded-b-md p-4 space-y-2 min-h-[200px] focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400"
+        className={`
+          bg-white dark:bg-gray-900 border-x border-b border-gray-200 dark:border-gray-700 
+          rounded-b-lg p-4 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400
+          ${isFullscreen ? 'flex-1 overflow-auto' : ''}
+        `}
         style={{
-          minHeight: isFullscreen ? '300px' : '200px',
+          minHeight: isFullscreen ? 'auto' : '200px',
           maxHeight: isFullscreen ? 'none' : '500px',
-          overflowY: 'auto'
+          overflowY: isFullscreen ? 'auto' : 'auto'
+        }}
+        onClick={(e) => {
+          // Click on empty area to focus last block
+          if (e.target === editorRef.current && blocksToRender.length > 0) {
+            const lastBlock = blocksToRender[blocksToRender.length - 1];
+            const blockEl = blockRefs.current.get(lastBlock._key);
+            const editableEl = blockEl?.querySelector('[contenteditable]') as HTMLElement;
+            editableEl?.focus();
+          }
         }}
       >
-        {blocksToRender.map((block, index) => renderBlock(block, index))}
+        {/* Render blocks */}
+        {blocksToRender.map((block, index) => {
+          const isSelected = selectedBlockKey === block._key;
+          const text = block.children?.[0]?.text || '';
+          const marks = block.children?.[0]?.marks || [];
+          
+          // Determine block element type
+          let BlockElement: keyof JSX.IntrinsicElements = 'p';
+          let blockClasses = '';
+          
+          switch (block.style) {
+            case 'h1':
+              BlockElement = 'h1';
+              blockClasses = 'text-3xl font-bold mb-4 mt-6';
+              break;
+            case 'h2':
+              BlockElement = 'h2';
+              blockClasses = 'text-2xl font-semibold mb-3 mt-5';
+              break;
+            case 'h3':
+              BlockElement = 'h3';
+              blockClasses = 'text-xl font-semibold mb-2 mt-4';
+              break;
+            case 'h4':
+              BlockElement = 'h4';
+              blockClasses = 'text-lg font-medium mb-2 mt-3';
+              break;
+            case 'h5':
+              BlockElement = 'h5';
+              blockClasses = 'text-base font-medium mb-1 mt-2';
+              break;
+            case 'h6':
+              BlockElement = 'h6';
+              blockClasses = 'text-sm font-medium mb-1 mt-2';
+              break;
+            case 'blockquote':
+              BlockElement = 'blockquote';
+              blockClasses = 'border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-4';
+              break;
+            default:
+              blockClasses = 'mb-2';
+          }
+          
+          // Apply marks to text
+          let textClasses = '';
+          if (marks.includes('strong')) textClasses += ' font-semibold';
+          if (marks.includes('em')) textClasses += ' italic';
+          if (marks.includes('underline')) textClasses += ' underline';
+          if (marks.includes('strike')) textClasses += ' line-through';
+          if (marks.includes('code')) textClasses += ' font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm';
+          
+          return (
+            <div
+              key={block._key}
+              ref={(el) => {
+                console.log('🔗 Setting ref for block:', block._key, !!el);
+                if (el) {
+                  blockRefs.current.set(block._key, el);
+                  console.log('📋 Current blockRefs keys:', Array.from(blockRefs.current.keys()));
+                } else {
+                  blockRefs.current.delete(block._key);
+                }
+              }}
+              className={`
+                group relative transition-all duration-150
+                ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400 rounded-md -mx-2 px-2' : ''}
+                ${!isReadonly && !isDisabled ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30 -mx-2 px-2 rounded-md' : ''}
+              `}
+              onClick={() => setSelectedBlockKey(block._key)}
+            >
+              {/* Block controls */}
+              {isSelected && !isDisabled && !isReadonly && blocksToRender.length > 1 && (
+                <div className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteBlock(block._key);
+                    }}
+                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                    title="Delete block"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              
+              <BlockElement
+                className={`${blockClasses} outline-none text-gray-900 dark:text-gray-100 relative`}
+                contentEditable={!isDisabled && !isReadonly}
+                suppressContentEditableWarning
+                onInput={(e) => {
+                  const target = e.target as HTMLElement;
+                  handleBlockInput(block._key, target);
+                }}
+                onKeyDown={(e) => handleBlockKeyDown(e, block._key)}
+                onFocus={() => setSelectedBlockKey(block._key)}
+                spellCheck={options.spellCheck !== false}
+                data-placeholder={
+                  !text ? (
+                    block.style === 'h1' ? 'Heading 1' : 
+                    block.style === 'h2' ? 'Heading 2' :
+                    block.style === 'h3' ? 'Heading 3' :
+                    block.style === 'blockquote' ? 'Quote...' :
+                    options.placeholder || 'Type something...'
+                  ) : undefined
+                }
+                style={{
+                  minHeight: text ? 'auto' : '1.5em'
+                }}
+              >
+                {text && <span className={textClasses}>{text}</span>}
+              </BlockElement>
+              
+              {/* Placeholder overlay */}
+              {!text && (
+                <div className="absolute inset-0 pointer-events-none text-gray-400 dark:text-gray-600 select-none">
+                  <span className={blockClasses}>
+                    {block.style === 'h1' ? 'Heading 1' : 
+                     block.style === 'h2' ? 'Heading 2' :
+                     block.style === 'h3' ? 'Heading 3' :
+                     block.style === 'blockquote' ? 'Quote...' :
+                     options.placeholder || 'Type something...'}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
         
         {/* Add block button */}
         {!isDisabled && !isReadonly && (
-          <div className="pt-2">
+          <div className="mt-4">
             <button
               type="button"
-              onClick={() => operations.insertBlock('block', 'normal')}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 rounded-md px-3 py-2 w-full transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔥 Add Block button clicked!');
+                console.log('Current blocks:', blocksToRender.length);
+                console.log('Blocks to render:', blocksToRender.map(b => ({ key: b._key, text: b.children?.[0]?.text || '' })));
+                
+                const lastBlock = blocksToRender[blocksToRender.length - 1];
+                console.log('Last block:', lastBlock);
+                
+                logger.info('Add Block button clicked', { 
+                  fieldId, 
+                  totalBlocks: blocksToRender.length,
+                  lastBlockKey: lastBlock._key 
+                });
+                
+                const newBlockKey = insertBlock(lastBlock._key);
+                console.log('New block key returned:', newBlockKey);
+              }}
+              className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm font-medium"
             >
-              + Add block
+              + Add block (Debug: {blocksToRender.length} blocks)
             </button>
           </div>
         )}
       </div>
       
-      {/* Block/character limits */}
+      {/* Validation feedback */}
+      {hasError && (
+        <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+          Please check the content requirements
+        </div>
+      )}
+      
+      {/* Character/block limits */}
       {(validation.maxBlocks || validation.maxLength) && (
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
           {validation.maxBlocks && (
-            <span className={contentStats.blocks > validation.maxBlocks ? 'text-red-500' : ''}>
+            <span className={contentStats.blocks > validation.maxBlocks ? 'text-red-500 font-medium' : ''}>
               {contentStats.blocks}/{validation.maxBlocks} blocks
             </span>
           )}
           {validation.maxBlocks && validation.maxLength && ' • '}
           {validation.maxLength && (
-            <span className={contentStats.characters > validation.maxLength ? 'text-red-500' : ''}>
+            <span className={contentStats.characters > validation.maxLength ? 'text-red-500 font-medium' : ''}>
               {contentStats.characters}/{validation.maxLength} characters
             </span>
           )}
+        </div>
+      )}
+      
+      {/* Link Dialog */}
+      {showLinkDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+              Add Link
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="link-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  URL
+                </label>
+                <input
+                  id="link-url"
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="link-text" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Text (optional)
+                </label>
+                <input
+                  id="link-text"
+                  type="text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="Link text"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLinkDialog(false);
+                  setLinkUrl('');
+                  setLinkText('');
+                }}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateLink}
+                disabled={!linkUrl}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+              >
+                Add Link
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
