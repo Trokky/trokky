@@ -424,7 +424,14 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.get<MediaFile[]>('/media', options);
+    const response = await this.get<MediaFile[]>('/media', options);
+    
+    // Transform media objects to include constructed URLs
+    if (response.success && response.data) {
+      response.data = response.data.map(media => this.transformMediaObject(media));
+    }
+    
+    return response;
   }
 
   /**
@@ -434,7 +441,14 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.get<{ file: MediaFile }>(`/media/${id}`);
+    const response = await this.get<{ file: MediaFile }>(`/media/${id}`);
+    
+    // Transform media object to include constructed URLs
+    if (response.success && response.data?.file) {
+      response.data.file = this.transformMediaObject(response.data.file);
+    }
+    
+    return response;
   }
 
   /**
@@ -464,10 +478,17 @@ export class ApiClient {
       formData.append('metadata', JSON.stringify(finalMetadata));
     }
 
-    return this.request<MediaFile>('/media/upload', {
+    const response = await this.request<MediaFile>('/media/upload', {
       method: 'POST',
       body: formData
     });
+    
+    // Transform media object to include constructed URLs
+    if (response.success && response.data) {
+      response.data = this.transformMediaObject(response.data);
+    }
+    
+    return response;
   }
 
   /**
@@ -477,7 +498,14 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.put<{ file: MediaFile }>(`/media/${id}`, { metadata });
+    const response = await this.put<{ file: MediaFile }>(`/media/${id}`, { metadata });
+    
+    // Transform media object to include constructed URLs
+    if (response.success && response.data?.file) {
+      response.data.file = this.transformMediaObject(response.data.file);
+    }
+    
+    return response;
   }
 
   /**
@@ -501,13 +529,44 @@ export class ApiClient {
   }
 
   /**
+   * Transform media object to include constructed URLs
+   */
+  private transformMediaObject(media: any): any {
+    if (!media || !media.id) {
+      return media;
+    }
+    
+    return {
+      ...media,
+      url: this.getMediaUrl(media.id), // Original file URL
+      // Add variant URLs if they exist
+      ...(media.variants && {
+        variants: Object.keys(media.variants).reduce((acc, variantName) => {
+          acc[variantName] = {
+            ...media.variants[variantName],
+            url: this.getMediaUrl(media.id, variantName)
+          };
+          return acc;
+        }, {} as any)
+      })
+    };
+  }
+
+  /**
    * Construct media URL for asset reference
    * This properly handles the configurable API base path
    */
-  getMediaUrl(assetRef: string, variant: string = 'thumbnail'): string {
+  getMediaUrl(assetRef: string, variant?: string): string {
     if (!assetRef) {
       return '';
     }
+    
+    // If no variant specified, return the original file URL
+    if (!variant) {
+      return `${this.backendUrl}/media/${assetRef}/file`;
+    }
+    
+    // Return variant URL
     return `${this.backendUrl}/media/${assetRef}/variants/${variant}`;
   }
 

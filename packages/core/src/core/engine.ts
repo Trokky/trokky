@@ -527,7 +527,7 @@ export class TrokkyCore {
         const processedImage = await this.imageProcessor.processImage(file, {
           id: metadata.id,
           filename: metadata.filename,
-          path: mediaFile.url
+          path: metadata.filename // Use filename as fallback since we don't have the full path here
         })
 
         // Save variant files directly to storage without creating separate MediaFile records
@@ -544,9 +544,8 @@ export class TrokkyCore {
                   variantData.format
                 )
                 
-                // Store variant info with the correct URL
+                // Store variant info without URL - let frontend handle URL construction
                 savedVariants[variantName] = {
-                  url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(metadata.id, variantName) : variantPath}`,
                   width: variantData.width,
                   height: variantData.height,
                   format: variantData.format,
@@ -766,7 +765,7 @@ export class TrokkyCore {
       const processedImage = await this.imageProcessor.processImage(file, {
         id: mediaFile.id,
         filename: mediaFile.filename,
-        path: mediaFile.url
+        path: (mediaFile.metadata as any)?.path || mediaFile.filename
       })
 
       // Delete existing variants first
@@ -792,8 +791,8 @@ export class TrokkyCore {
                 variantData.format
               )
               
+              // Store variant info without URL - let frontend handle URL construction
               savedVariants[variantName] = {
-                url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(id, variantName) : variantPath}`,
                 width: variantData.width,
                 height: variantData.height,
                 format: variantData.format,

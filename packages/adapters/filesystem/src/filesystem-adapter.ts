@@ -292,14 +292,8 @@ export class FilesystemAdapter implements StorageAdapter {
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${metadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: metadata.id,
-        url: fileUrl,
         filename: metadata.filename,
         contentType: metadata.contentType,
         size: metadata.size,
@@ -344,14 +338,8 @@ export class FilesystemAdapter implements StorageAdapter {
 
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${fileMetadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: fileMetadata.id,
-        url: fileUrl,
         filename: fileMetadata.filename,
         contentType: fileMetadata.contentType,
         size: fileMetadata.size,
@@ -424,14 +412,8 @@ export class FilesystemAdapter implements StorageAdapter {
       const filePath = this.getMediaPath(id, updatedMetadata.extension)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${updatedMetadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: updatedMetadata.id,
-        url: fileUrl,
         filename: updatedMetadata.filename,
         contentType: updatedMetadata.contentType,
         size: updatedMetadata.size,
@@ -1403,8 +1385,8 @@ export class FilesystemAdapter implements StorageAdapter {
   }
 
   public getVariantUrl(parentId: string, variantName: string): string {
-    // Generate API-based URL for controlled variant access
-    return `${this.config.mediaBaseUrl}/api/media/${parentId}/variants/${variantName}`
+    // No URL generation - let frontend handle URL construction
+    return ''
   }
 
   private updateVariantUrls(imageVariants: Record<string, any>, parentId: string): Record<string, any> {

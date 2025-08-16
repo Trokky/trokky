@@ -156,7 +156,7 @@ export interface ValidationErrorDetail {
 // Media file structure
 export interface MediaFile {
   id: string
-  url: string
+  url?: string  // Optional - frontend will construct URLs
   filename: string
   contentType: string
   size: number
