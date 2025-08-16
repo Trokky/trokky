@@ -11,15 +11,20 @@ import {
   TagIcon,
   LinkIcon,
   ChevronRightIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 import { useDocumentEditor } from './DocumentEditorContext';
+import { useStudioContext } from '@/contexts/StudioContext';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 
 const logger = createStudioLogger('DocumentSidebar');
 
 export function DocumentSidebar() {
+  const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const {
     schema,
     document,
@@ -188,6 +193,52 @@ export function DocumentSidebar() {
     const baseUrl = window.location.origin;
     const slug = document.slug || document.id;
     return `${baseUrl}/${schema?.name}/${slug}`;
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!document || !schema || isNewDocument) return;
+
+    const documentTitle = document.title || document.name || 'this document';
+    
+    // Confirm deletion
+    const confirmed = await studioContext?.utils?.showConfirm?.(
+      `Are you sure you want to delete "${documentTitle}"? This action cannot be undone.`,
+      {
+        title: 'Delete Document',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'danger'
+      }
+    );
+
+    if (!confirmed) return;
+
+    try {
+      logger.info('Deleting document', { 
+        schema: schema.name, 
+        documentId: document.id,
+        title: documentTitle 
+      });
+
+      const response = await apiClient.deleteDocument(schema.name, document.id);
+      
+      if (response.success) {
+        studioContext?.utils?.showToast?.('Document deleted', 'success');
+        logger.info('Document deleted successfully', { 
+          schema: schema.name, 
+          documentId: document.id 
+        });
+        
+        // Navigate back to collection list
+        navigate(`/content/${schema.name}`);
+      } else {
+        throw new Error(response.error?.message || 'Failed to delete document');
+      }
+    } catch (error) {
+      logger.error('Failed to delete document', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete document';
+      studioContext?.utils?.showToast?.(errorMessage, 'error');
+    }
   };
 
   if (isCollapsed) {
@@ -447,6 +498,26 @@ export function DocumentSidebar() {
             </div>
           </div>
         </div>
+
+        {/* Danger zone - Delete document */}
+        {!isNewDocument && (
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Danger Zone
+            </h4>
+            <button
+              onClick={handleDeleteDocument}
+              className="w-full flex items-center justify-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-sm font-medium text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+              title="Delete this document permanently"
+            >
+              <TrashIcon className="h-4 w-4 mr-2" />
+              Delete Document
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              This action cannot be undone.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -107,8 +107,27 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   }, []);
 
   // Confirm dialog
-  const showConfirm = useCallback(async (message: string): Promise<boolean> => {
-    return window.confirm(message);
+  const showConfirm = useCallback(async (
+    message: string, 
+    options?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      variant?: 'default' | 'danger';
+    }
+  ): Promise<boolean> => {
+    return new Promise((resolve) => {
+      window.dispatchEvent(new CustomEvent('studio:confirm', {
+        detail: { 
+          message, 
+          title: options?.title,
+          confirmText: options?.confirmText,
+          cancelText: options?.cancelText,
+          variant: options?.variant,
+          resolve 
+        }
+      }));
+    });
   }, []);
 
   // Modal system (simplified - could be enhanced with a proper modal library)

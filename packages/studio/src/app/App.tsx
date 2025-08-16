@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
 import { ToastContainer } from '@/components/ui/Toast';
+import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
 import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import '@/utils/debug'; // Load debug utilities
@@ -65,6 +66,7 @@ function AppContent() {
       <AppRouter />
       <SessionTimeoutWarningContainer />
       <ToastContainer />
+      <ConfirmDialogContainer />
     </>
   );
 }

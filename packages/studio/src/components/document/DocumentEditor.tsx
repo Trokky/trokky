@@ -372,15 +372,24 @@ export function DocumentEditor({
     }
   }, [document, schema, isNewDocument, schemaName, documentId, documentState, onSave, navigate]);
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async () => {
     if (hasUnsavedChanges) {
-      if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+      const confirmed = await studioContext?.utils?.showConfirm?.(
+        'You have unsaved changes. Are you sure you want to cancel?',
+        {
+          title: 'Unsaved Changes',
+          confirmText: 'Discard Changes',
+          cancelText: 'Keep Editing',
+          variant: 'danger'
+        }
+      );
+      if (!confirmed) {
         return;
       }
     }
 
     onCancel?.() || navigate(`/content/${schemaName}`);
-  }, [hasUnsavedChanges, onCancel, navigate, schemaName]);
+  }, [hasUnsavedChanges, onCancel, navigate, schemaName, studioContext]);
 
   const validateDocument = (doc: any, schema: any) => {
     const errors: string[] = [];
