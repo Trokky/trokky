@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { 
@@ -95,6 +96,7 @@ export function MediaPage() {
   const loadingRef = useRef(false);
   const apiClient = useApiClient();
   const logger = createStudioLogger('MediaPage');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Example: You can control the context sidebar from any page
   // Uncomment these to test the API:
@@ -259,6 +261,39 @@ export function MediaPage() {
     return () => contextSidebar.show();
   }, []); // Remove contextSidebar dependency to prevent infinite re-renders
 
+  // Handle URL parameter for opening specific file
+  useEffect(() => {
+    const fileId = searchParams.get('file');
+    
+    if (fileId && mediaFiles.length > 0) {
+      const file = mediaFiles.find(f => f.id === fileId);
+      
+      if (file && (!selectedFile || selectedFile.id !== fileId)) {
+        // Only open if we don't already have this file selected
+        openViewer(file);
+        logger.debug('Opening media file from URL parameter', { fileId, filename: file.filename });
+      }
+    }
+  }, [searchParams, mediaFiles]);
+
+  // Update URL when viewer opens/closes
+  useEffect(() => {
+    if (isViewerOpen && selectedFile) {
+      // Add file parameter to URL without triggering navigation
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('file', selectedFile.id);
+      setSearchParams(newParams, { replace: true });
+    } else if (!isViewerOpen && mediaFiles.length > 0) {
+      // Remove file parameter when viewer is closed AND we have loaded files
+      // This prevents removing the parameter during initial load
+      const newParams = new URLSearchParams(searchParams);
+      if (newParams.has('file')) {
+        newParams.delete('file');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [isViewerOpen, selectedFile, mediaFiles.length]);
+
   // Keyboard navigation for viewer
   useEffect(() => {
     if (!isViewerOpen) return;
@@ -382,18 +417,31 @@ export function MediaPage() {
   // Media viewer navigation
   const openViewer = (file: MediaFile) => {
     const index = filteredFiles.findIndex(f => f.id === file.id);
-    setCurrentViewerIndex(index);
+    // If file is not in filtered list (e.g., when coming from URL), use -1
+    setCurrentViewerIndex(index >= 0 ? index : -1);
     setSelectedFile(file);
     setIsViewerOpen(true);
   };
 
   const navigateViewer = (direction: 'prev' | 'next') => {
+    // If currentViewerIndex is -1, start from beginning or end
+    if (currentViewerIndex === -1) {
+      const newIndex = direction === 'prev' ? filteredFiles.length - 1 : 0;
+      if (filteredFiles[newIndex]) {
+        setCurrentViewerIndex(newIndex);
+        setSelectedFile(filteredFiles[newIndex]);
+      }
+      return;
+    }
+    
     const newIndex = direction === 'prev' 
       ? Math.max(0, currentViewerIndex - 1)
       : Math.min(filteredFiles.length - 1, currentViewerIndex + 1);
     
-    setCurrentViewerIndex(newIndex);
-    setSelectedFile(filteredFiles[newIndex]);
+    if (filteredFiles[newIndex]) {
+      setCurrentViewerIndex(newIndex);
+      setSelectedFile(filteredFiles[newIndex]);
+    }
   };
 
   // Media actions
