@@ -2,7 +2,7 @@
  * GlobalSearchModal - Main search interface with keyboard navigation
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   MagnifyingGlassIcon, 
@@ -63,10 +63,19 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     debounceMs: 150,
   });
 
-  // Compute derived state
-  const showRecentSearches = !query && recentSearches.length > 0;
-  const showEmptyState = query.length >= 2 && isEmpty && !isLoading;
-  const showMinQueryState = query.length > 0 && query.length < 2;
+  // Compute derived state with useMemo to prevent unnecessary recalculations
+  const showRecentSearches = useMemo(
+    () => !query && recentSearches.length > 0,
+    [query, recentSearches.length]
+  );
+  const showEmptyState = useMemo(
+    () => query.length >= 2 && isEmpty && !isLoading,
+    [query.length, isEmpty, isLoading]
+  );
+  const showMinQueryState = useMemo(
+    () => query.length > 0 && query.length < 2,
+    [query.length]
+  );
 
   // Reset search when modal opens/closes
   useEffect(() => {
@@ -108,89 +117,88 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     }
   }, [selectedIndex]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target === searchInputRef.current) {
-        switch (e.key) {
-          case 'ArrowDown':
-            e.preventDefault();
-            setSelectedIndex(prev => {
-              let maxIndex = -1;
-              if (showRecentSearches) {
-                maxIndex = recentSearches.length - 1;
-              } else if (hasResults) {
-                maxIndex = results.length - 1;
-              }
-              return prev >= maxIndex ? 0 : prev + 1;
-            });
-            break;
-          case 'ArrowUp':
-            e.preventDefault();
-            setSelectedIndex(prev => {
-              let maxIndex = -1;
-              if (showRecentSearches) {
-                maxIndex = recentSearches.length - 1;
-              } else if (hasResults) {
-                maxIndex = results.length - 1;
-              }
-              return prev <= 0 ? maxIndex : prev - 1;
-            });
-            break;
-          case 'Enter':
-            e.preventDefault();
-            if (selectedIndex >= 0) {
-              if (showRecentSearches && selectedIndex < recentSearches.length) {
-                const recentSearch = recentSearches[selectedIndex];
-                if (recentSearch) {
-                  handleRecentSearchClick(recentSearch);
-                }
-              } else if (hasResults && !showRecentSearches && selectedIndex < results.length) {
-                const selectedResult = results[selectedIndex];
-                if (selectedResult) {
-                  handleResultClick(selectedResult);
-                }
-              }
-            } else if (query.trim().length >= 2) {
-              handleSubmit(e as any);
-            }
-            break;
-          case 'Escape':
-            e.preventDefault();
-            onClose();
-            break;
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, results, recentSearches, hasResults, showRecentSearches, query, onClose]);
-
   // Handle search submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim().length >= 2) {
       saveSearch(query.trim());
     }
-  };
+  }, [query, saveSearch]);
 
   // Handle result click
-  const handleResultClick = (result: SearchResult) => {
+  const handleResultClick = useCallback((result: SearchResult) => {
     saveSearch(query);
     if (result.url) {
       logger.debug('Navigating to search result', { url: result.url, title: result.title });
       navigate(result.url);
     }
     onClose();
-  };
+  }, [query, saveSearch, navigate, onClose]);
 
   // Handle recent search click
-  const handleRecentSearchClick = (recentQuery: string) => {
+  const handleRecentSearchClick = useCallback((recentQuery: string) => {
     setQuery(recentQuery);
-  };
+  }, [setQuery]);
+
+  // Memoized keyboard navigation handler
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!isOpen || e.target !== searchInputRef.current) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          let maxIndex = -1;
+          if (showRecentSearches) {
+            maxIndex = recentSearches.length - 1;
+          } else if (hasResults) {
+            maxIndex = results.length - 1;
+          }
+          return prev >= maxIndex ? 0 : prev + 1;
+        });
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => {
+          let maxIndex = -1;
+          if (showRecentSearches) {
+            maxIndex = recentSearches.length - 1;
+          } else if (hasResults) {
+            maxIndex = results.length - 1;
+          }
+          return prev <= 0 ? maxIndex : prev - 1;
+        });
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex >= 0) {
+          if (showRecentSearches && selectedIndex < recentSearches.length) {
+            const recentSearch = recentSearches[selectedIndex];
+            if (recentSearch) {
+              handleRecentSearchClick(recentSearch);
+            }
+          } else if (hasResults && !showRecentSearches && selectedIndex < results.length) {
+            const selectedResult = results[selectedIndex];
+            if (selectedResult) {
+              handleResultClick(selectedResult);
+            }
+          }
+        } else if (query.trim().length >= 2) {
+          handleSubmit(e as any);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        onClose();
+        break;
+    }
+  }, [isOpen, selectedIndex, showRecentSearches, recentSearches, hasResults, results, query, handleRecentSearchClick, handleResultClick, handleSubmit, onClose]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   // Group results by type
   const groupedResults = React.useMemo(() => {

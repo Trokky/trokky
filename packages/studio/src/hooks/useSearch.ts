@@ -2,7 +2,7 @@
  * Search Hooks - React hooks for search functionality
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useApiClient } from './useApiClient';
 import { createSearchService, SearchResult, SearchResponse, SearchOptions } from '@/services/search-service';
 import { createStudioLogger } from '@/utils/logger';
@@ -66,23 +66,21 @@ export function useSearch(
   const [error, setError] = useState<Error | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [debounceTimeout, setDebounceTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create search service instance
   const searchService = useMemo(() => createSearchService(client), [client]);
 
   // Debounced search function
   const debouncedSearch = useCallback((searchQuery: string) => {
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout);
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
     }
 
-    const timeout = setTimeout(() => {
+    debounceTimeoutRef.current = setTimeout(() => {
       setQuery(searchQuery);
     }, debounceMs);
-
-    setDebounceTimeout(timeout);
-  }, [debounceMs, debounceTimeout]);
+  }, [debounceMs]);
 
   // Handle query change with immediate display update and debounced search
   const handleQueryChange = useCallback((value: string) => {
@@ -160,11 +158,11 @@ export function useSearch(
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [debounceTimeout]);
+  }, []);
 
   // Memoized results
   const results = useMemo(

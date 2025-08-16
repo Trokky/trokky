@@ -248,6 +248,7 @@ export class SearchService {
       // Filter media files that match the search query
       const filteredFiles = (response.data as any[]).filter((file: any) => {
         const searchableFields = [
+          file.id,
           file.filename,
           file.title,
           file.description,
