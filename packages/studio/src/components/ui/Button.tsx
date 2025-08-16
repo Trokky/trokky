@@ -37,17 +37,18 @@ export function Button({
 
   // If asChild is true, render children directly (assumes children is a single React element)
   if (asChild) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
       className: cn(
         baseClasses,
         variantClasses[variant],
         sizeClasses[size],
-        (children as React.ReactElement).props.className,
+        child.props.className,
         className
       ),
       disabled: disabled || loading,
       ...props
-    });
+    } as any);
   }
 
   return (

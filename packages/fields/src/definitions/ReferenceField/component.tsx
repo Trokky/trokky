@@ -81,9 +81,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
   
   // Performance refs
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentSearchRef = useRef<string>('');
-  const abortControllerRef = useRef<AbortController>();
+  const abortControllerRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const isMultiple = validation.multiple || false;

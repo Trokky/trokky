@@ -988,7 +988,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           const marks = block.children?.[0]?.marks || [];
           
           // Determine block element type
-          let BlockElement: keyof JSX.IntrinsicElements = 'p';
+          let BlockElement: keyof React.JSX.IntrinsicElements = 'p';
           let blockClasses = '';
           
           switch (block.style) {
@@ -1118,12 +1118,12 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                 className={`outline-none focus:outline-none text-gray-900 dark:text-gray-100 relative ${blockClasses}${markClasses}`}
                 contentEditable={!isDisabled && !isReadonly}
                 suppressContentEditableWarning
-                onInput={(e) => {
+                onInput={(e: React.FormEvent<HTMLElement>) => {
                   const target = e.target as HTMLElement;
                   handleBlockInput(block._key, target);
                 }}
-                onKeyDown={(e) => handleBlockKeyDown(e, block._key)}
-                onPaste={(e) => handlePaste(e, block._key)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => handleBlockKeyDown(e, block._key)}
+                onPaste={(e: React.ClipboardEvent<HTMLElement>) => handlePaste(e, block._key)}
                 onFocus={() => setSelectedBlockKey(block._key)}
                 spellCheck={options.spellCheck !== false}
                 data-placeholder={

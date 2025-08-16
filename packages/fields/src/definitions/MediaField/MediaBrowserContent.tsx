@@ -86,7 +86,7 @@ function getMediaTypeFromMime(mimeType: string): MediaType {
   return 'document'; // fallback
 }
 
-function getMediaTypeIcon(mediaType: string): JSX.Element {
+function getMediaTypeIcon(mediaType: string): React.ReactElement {
   const iconClass = "w-full h-full";
   switch (mediaType) {
     case 'image': return (

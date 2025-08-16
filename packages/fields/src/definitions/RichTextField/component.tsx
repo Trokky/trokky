@@ -1,35 +1,83 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import type { FC } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
+import Placeholder from '@tiptap/extension-placeholder';
+import CharacterCount from '@tiptap/extension-character-count';
 import {
   BoldIcon,
   ItalicIcon,
   UnderlineIcon,
   StrikethroughIcon,
   LinkIcon,
-  PhotoIcon,
   ListBulletIcon,
   NumberedListIcon,
-  ChatBubbleBottomCenterTextIcon,
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
-  EyeIcon,
   ChartBarIcon,
-  ArrowsPointingOutIcon,
-  XMarkIcon
+  ChatBubbleBottomCenterTextIcon
 } from '@heroicons/react/24/outline';
+
+// Simple heading icons
+const H1Icon = ({ className }: { className?: string }) => (
+  <span className={`font-bold text-base ${className || ''}`}>H1</span>
+);
+const H2Icon = ({ className }: { className?: string }) => (
+  <span className={`font-bold text-sm ${className || ''}`}>H2</span>
+);
+const H3Icon = ({ className }: { className?: string }) => (
+  <span className={`font-bold text-xs ${className || ''}`}>H3</span>
+);
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { RichTextFieldDefinition } from './definition';
-import { MediaBrowser } from '../MediaField/MediaBrowser';
 import { createStudioLogger } from '../../utils/logger';
-import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer';
 
 const logger = createStudioLogger('RichTextField');
 
-
 type RichTextFieldComponentProps = FieldComponentProps;
 
+// Toolbar button component
+function ToolbarButton({ 
+  onClick, 
+  isActive = false, 
+  isDisabled = false,
+  icon: Icon,
+  title 
+}: {
+  onClick: () => void;
+  isActive?: boolean;
+  isDisabled?: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isDisabled}
+      title={title}
+      className={`
+        p-2 rounded transition-colors
+        ${isActive 
+          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+        }
+        ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-900 dark:hover:text-white'}
+      `}
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  );
+}
+
+// Toolbar separator
+function ToolbarSeparator() {
+  return <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />;
+}
+
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
   
   if (definition.type !== 'richtext') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected richtext field</div>;
@@ -39,577 +87,393 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const options = richtextDefinition.options || {};
   const validation = richtextDefinition.validation || {};
   
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  const [showMediaBrowser, setShowMediaBrowser] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
+  // Character limit from validation
+  const characterLimit = validation.maxLength;
+  
+  // Link dialog state
   const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [sanitizationWarnings, setSanitizationWarnings] = useState<string[]>([]);
-  const [showWarnings, setShowWarnings] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
   
-  // Get current HTML content
-  const currentHtml = useMemo(() => {
-    if (typeof value === 'string') return value;
-    return '';
-  }, [value]);
+  // Check if we're in dark mode
+  const isDarkMode = document.documentElement.classList.contains('dark');
   
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  
-  // Initialize editor content
-  useEffect(() => {
-    if (editorRef.current && !isInitialized) {
-      editorRef.current.innerHTML = currentHtml;
-      setIsInitialized(true);
+  // Initialize Tiptap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: (options.headingLevels || [1, 2, 3]) as any
+        }
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300'
+        }
+      }),
+      Placeholder.configure({
+        placeholder: options.placeholder || 'Start typing...'
+      }),
+      ...(characterLimit ? [CharacterCount.configure({ limit: characterLimit })] : [])
+    ],
+    content: value || '',
+    editable: !isDisabled && !isReadonly,
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      logger.debug('Content updated', { fieldId, length: html.length });
+      onChange(html);
     }
-  }, [currentHtml, isInitialized]);
+  });
+
+  // Format operations
+  const canUndo = editor?.can().undo() ?? false;
+  const canRedo = editor?.can().redo() ?? false;
   
-  // Update editor when external value changes
-  useEffect(() => {
-    if (editorRef.current && isInitialized && currentHtml !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = currentHtml;
+  // Add link functionality
+  const openLinkDialog = useCallback(() => {
+    if (!editor) return;
+    
+    const selection = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(selection.from, selection.to);
+    const existingLink = editor.getAttributes('link').href;
+    
+    setLinkText(selectedText || '');
+    setLinkUrl(existingLink || '');
+    setShowLinkDialog(true);
+  }, [editor]);
+  
+  const handleLinkSubmit = useCallback(() => {
+    if (!editor) return;
+    
+    if (!linkUrl.trim()) {
+      // Remove link if URL is empty
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    } else {
+      // Add or update link
+      const selection = editor.state.selection;
+      const selectedText = editor.state.doc.textBetween(selection.from, selection.to);
+      
+      if (selectedText || linkText.trim()) {
+        // If there's selected text or link text provided
+        if (linkText.trim() && linkText !== selectedText) {
+          // Replace selection with link text
+          editor.chain().focus().deleteSelection().insertContent(linkText).setLink({ href: linkUrl }).run();
+        } else {
+          // Just add link to existing selection
+          editor.chain().focus().setLink({ href: linkUrl }).run();
+        }
+      } else {
+        // No selection, insert link text with URL
+        const text = linkText.trim() || linkUrl;
+        editor.chain().focus().insertContent(`<a href="${linkUrl}">${text}</a>`).run();
+      }
     }
-  }, [currentHtml, isInitialized]);
+    
+    setShowLinkDialog(false);
+    setLinkUrl('');
+    setLinkText('');
+  }, [editor, linkUrl, linkText]);
   
   // Content statistics
-  const contentStats = useMemo(() => {
-    const text = editorRef.current?.textContent || '';
+  const stats = useMemo(() => {
+    if (!editor) return { words: 0, characters: 0, readTime: 0 };
+    
+    const text = editor.state.doc.textContent;
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    const characters = text.length;
+    const characters = editor.storage.characterCount?.characters() ?? text.length;
     const readTime = Math.ceil(words / 200);
     
     return { words, characters, readTime };
-  }, [currentHtml]);
+  }, [editor?.state.doc, editor?.storage.characterCount]);
   
-  // Handle content changes
-  const handleContentChange = useCallback(() => {
-    if (editorRef.current) {
-      const newHtml = editorRef.current.innerHTML;
-      logger.debug('Editor content updated', { fieldId, length: newHtml.length });
-      onChange(newHtml);
-    }
-  }, [onChange, fieldId]);
-  
-  // Handle paste events with sanitization
-  const handlePaste = useCallback((e: ClipboardEvent) => {
-    e.preventDefault();
-    
-    const clipboardData = e.clipboardData;
-    if (!clipboardData) return;
-    
-    // Get HTML content if available, otherwise fallback to plain text
-    const htmlContent = clipboardData.getData('text/html');
-    const textContent = clipboardData.getData('text/plain');
-    
-    const contentToSanitize = htmlContent || textContent;
-    if (!contentToSanitize) return;
-    
-    // Get paste security configuration
-    const pasteConfig = options.pasteSecurity || SECURITY_PRESETS.safe;
-    
-    // Sanitize the content
-    const result = sanitizePastedContent(contentToSanitize, pasteConfig);
-    
-    logger.debug('Paste content sanitized', {
-      fieldId,
-      originalLength: result.originalContent.length,
-      sanitizedLength: result.sanitizedContent.length,
-      wasModified: result.wasModified,
-      warnings: result.warnings
-    });
-    
-    // Show warnings if configured and content was modified
-    if (pasteConfig.showSanitizationWarning && result.wasModified && result.warnings.length > 0) {
-      setSanitizationWarnings(result.warnings);
-      setShowWarnings(true);
-      
-      // Auto-hide warnings after 5 seconds
-      setTimeout(() => {
-        setShowWarnings(false);
-      }, 5000);
-    }
-    
-    // Insert sanitized content
-    if (editorRef.current) {
-      editorRef.current.focus();
-      
-      // Use different insertion methods based on content type
-      if (result.sanitizedContent.includes('<')) {
-        // HTML content
-        document.execCommand('insertHTML', false, result.sanitizedContent);
-      } else {
-        // Plain text content
-        document.execCommand('insertText', false, result.sanitizedContent);
-      }
-      
-      handleContentChange();
-    }
-  }, [options.pasteSecurity, fieldId, handleContentChange]);
-  
-  // Format text using document.execCommand (fallback for modern approach)
-  const formatText = useCallback((command: string, value?: any) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      try {
-        document.execCommand(command, false, value);
-        handleContentChange();
-      } catch (error) {
-        logger.warn('Command not supported', { command, error });
-      }
-    }
-  }, [handleContentChange]);
-  
-  // Handle media selection from browser
-  const handleMediaSelect = useCallback((media: any) => {
-    logger.debug('Media selected for insertion', { media, fieldId });
-    
-    if (editorRef.current && media && (media.type === 'image' || media.mimeType?.startsWith('image/'))) {
-      // Get the proper public URL - check for url field first, then fallback to API path
-      const imageUrl = media.url || media.publicUrl || `/api/media/${media._id || media.id}`;
-      const alt = media.metadata?.alt || media.alt || media.title || 'Uploaded image';
-      const imgHtml = `<img src="${imageUrl}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`;
-      
-      // Ensure editor is focused and insert image
-      editorRef.current.focus();
-      
-      // Try different insertion methods for better compatibility
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        const imgElement = document.createElement('div');
-        imgElement.innerHTML = imgHtml;
-        range.insertNode(imgElement.firstChild!);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      } else {
-        // Fallback to execCommand
-        document.execCommand('insertHTML', false, imgHtml);
-      }
-      
-      // Trigger change event
-      setTimeout(() => handleContentChange(), 100);
-      
-      logger.info('Image inserted into rich text', { fieldId, mediaId: media._id || media.id, imageUrl });
-    } else {
-      logger.warn('Invalid media selection or not an image', { media, fieldId });
-    }
-    setShowMediaBrowser(false);
-  }, [fieldId, handleContentChange]);
-  
-  // Handle link insertion
-  const handleAddLink = useCallback(() => {
-    const selection = window.getSelection();
-    const hasSelection = selection && !selection.isCollapsed;
-    
-    if (hasSelection) {
-      setShowLinkDialog(true);
-    } else {
-      // No selection, prompt for URL
-      const url = prompt('Enter URL:');
-      if (url) {
-        formatText('createLink', url);
-      }
-    }
-  }, [formatText]);
-  
-  const handleLinkSubmit = useCallback(() => {
-    if (linkUrl) {
-      formatText('createLink', linkUrl);
-      setShowLinkDialog(false);
-      setLinkUrl('');
-    }
-  }, [linkUrl, formatText]);
-  
-  // Check if current format is active
-  const isFormatActive = useCallback((format: string) => {
-    try {
-      return document.queryCommandState(format);
-    } catch {
-      return false;
-    }
-  }, []);
-  
-  // Toolbar button component
-  const ToolbarButton = ({ 
-    onClick, 
-    isActive = false, 
-    disabled = false, 
-    title, 
-    children, 
-    className = '' 
-  }: {
-    onClick: () => void;
-    isActive?: boolean;
-    disabled?: boolean;
-    title: string;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled || isDisabled || isReadonly}
-      title={title}
-      className={`
-        p-2 rounded transition-colors ${className}
-        ${isActive 
-          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' 
-          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200'
-        }
-        ${disabled || isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
-    >
-      {children}
-    </button>
-  );
-  
-  const Separator = () => <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1" />;
+  if (!editor) {
+    return <div>Loading editor...</div>;
+  }
   
   return (
-    <>
-      {/* Rich Text Editor Styles */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          .richtext-editor h1 { font-size: 2rem; font-weight: 700; margin: 1.5rem 0 1rem 0; line-height: 1.2; }
-          .richtext-editor h2 { font-size: 1.5rem; font-weight: 600; margin: 1.25rem 0 0.75rem 0; line-height: 1.3; }
-          .richtext-editor h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem 0; line-height: 1.4; }
-          .richtext-editor p { margin: 0.75rem 0; }
-          .richtext-editor ul, .richtext-editor ol { margin: 0.75rem 0; padding-left: 1.5rem; }
-          .richtext-editor ul { list-style-type: disc; }
-          .richtext-editor ol { list-style-type: decimal; }
-          .richtext-editor li { margin: 0.25rem 0; display: list-item; list-style-position: outside; }
-          .richtext-editor ul li { list-style-type: disc; }
-          .richtext-editor ol li { list-style-type: decimal; }
-          .richtext-editor blockquote { border-left: 4px solid #e5e7eb; padding-left: 1rem; margin: 1rem 0; font-style: italic; color: #6b7280; }
-          .dark .richtext-editor blockquote { border-left-color: #4b5563; color: #9ca3af; }
-          .richtext-editor strong { font-weight: 600; }
-          .richtext-editor em { font-style: italic; }
-          .richtext-editor u { text-decoration: underline; }
-          .richtext-editor s { text-decoration: line-through; }
-          .richtext-editor a { color: #3b82f6; text-decoration: underline; }
-          .dark .richtext-editor a { color: #60a5fa; }
-          .richtext-editor img { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; display: block; }
-        `
-      }} />
-      
-      <div className={`richtext-field ${hasError ? 'border-l-4 border-red-400 pl-4' : ''} ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col' : ''}`}>
+    <div className={`rich-text-field ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
       {/* Toolbar */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-t-md bg-gray-50 dark:bg-gray-800 p-2">
-        <div className="flex items-center justify-between">
+      {!isReadonly && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-t-lg bg-gray-50 dark:bg-gray-800 p-2">
           <div className="flex items-center gap-1 flex-wrap">
             {/* Text formatting */}
             <ToolbarButton
-              onClick={() => formatText('bold')}
-              isActive={isFormatActive('bold')}
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              isActive={editor.isActive('bold')}
+              isDisabled={isDisabled}
+              icon={BoldIcon}
               title="Bold"
-            >
-              <BoldIcon className="h-4 w-4" />
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('italic')}
-              isActive={isFormatActive('italic')}
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              isActive={editor.isActive('italic')}
+              isDisabled={isDisabled}
+              icon={ItalicIcon}
               title="Italic"
-            >
-              <ItalicIcon className="h-4 w-4" />
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('underline')}
-              isActive={isFormatActive('underline')}
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              isActive={editor.isActive('underline')}
+              isDisabled={isDisabled}
+              icon={UnderlineIcon}
               title="Underline"
-            >
-              <UnderlineIcon className="h-4 w-4" />
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('strikeThrough')}
-              isActive={isFormatActive('strikeThrough')}
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              isActive={editor.isActive('strike')}
+              isDisabled={isDisabled}
+              icon={StrikethroughIcon}
               title="Strikethrough"
-            >
-              <StrikethroughIcon className="h-4 w-4" />
-            </ToolbarButton>
+            />
             
-            <Separator />
+            <ToolbarSeparator />
             
             {/* Headings */}
             <ToolbarButton
-              onClick={() => formatText('formatBlock', '<h1>')}
-              isActive={false}
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              isActive={editor.isActive('heading', { level: 1 })}
+              isDisabled={isDisabled}
+              icon={H1Icon}
               title="Heading 1"
-            >
-              <span className="text-sm font-bold">H1</span>
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('formatBlock', '<h2>')}
-              isActive={false}
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              isActive={editor.isActive('heading', { level: 2 })}
+              isDisabled={isDisabled}
+              icon={H2Icon}
               title="Heading 2"
-            >
-              <span className="text-sm font-bold">H2</span>
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('formatBlock', '<h3>')}
-              isActive={false}
+              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              isActive={editor.isActive('heading', { level: 3 })}
+              isDisabled={isDisabled}
+              icon={H3Icon}
               title="Heading 3"
-            >
-              <span className="text-sm font-bold">H3</span>
-            </ToolbarButton>
+            />
             
-            <Separator />
+            <ToolbarSeparator />
             
-            {/* Lists and blockquote */}
+            {/* Quote */}
             <ToolbarButton
-              onClick={() => formatText('insertUnorderedList')}
-              isActive={isFormatActive('insertUnorderedList')}
-              title="Bullet List"
-            >
-              <ListBulletIcon className="h-4 w-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => formatText('insertOrderedList')}
-              isActive={isFormatActive('insertOrderedList')}
-              title="Numbered List"
-            >
-              <NumberedListIcon className="h-4 w-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => formatText('formatBlock', '<blockquote>')}
-              isActive={false}
-              title="Blockquote"
-            >
-              <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />
-            </ToolbarButton>
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              isActive={editor.isActive('blockquote')}
+              isDisabled={isDisabled}
+              icon={ChatBubbleBottomCenterTextIcon}
+              title="Quote"
+            />
             
-            <Separator />
+            <ToolbarSeparator />
             
-            {/* Link and Image */}
+            {/* Links */}
             <ToolbarButton
-              onClick={handleAddLink}
-              isActive={false}
+              onClick={openLinkDialog}
+              isActive={editor.isActive('link')}
+              isDisabled={isDisabled}
+              icon={LinkIcon}
               title="Add Link"
-            >
-              <LinkIcon className="h-4 w-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => {
-                if (studioContext?.apiClient) {
-                  // Use proper MediaBrowser integration
-                  setShowMediaBrowser(true);
-                } else {
-                  // Fallback for non-Studio environments
-                  const url = prompt('Enter image URL:');
-                  if (url) {
-                    const imgHtml = `<img src="${url}" alt="Image" class="max-w-full h-auto rounded" />`;
-                    if (editorRef.current) {
-                      editorRef.current.focus();
-                      document.execCommand('insertHTML', false, imgHtml);
-                      handleContentChange();
-                    }
-                  }
-                }
-              }}
-              title="Insert Image"
-            >
-              <span className="text-lg">🖼️</span>
-            </ToolbarButton>
+            />
             
-            <Separator />
+            <ToolbarSeparator />
+            
+            {/* Lists */}
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              isActive={editor.isActive('bulletList')}
+              isDisabled={isDisabled}
+              icon={ListBulletIcon}
+              title="Bullet List"
+            />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              isActive={editor.isActive('orderedList')}
+              isDisabled={isDisabled}
+              icon={NumberedListIcon}
+              title="Numbered List"
+            />
+            
+            <ToolbarSeparator />
             
             {/* History */}
             <ToolbarButton
-              onClick={() => formatText('undo')}
+              onClick={() => editor.chain().focus().undo().run()}
+              isDisabled={isDisabled || !canUndo}
+              icon={ArrowUturnLeftIcon}
               title="Undo"
-            >
-              <ArrowUturnLeftIcon className="h-4 w-4" />
-            </ToolbarButton>
+            />
             <ToolbarButton
-              onClick={() => formatText('redo')}
+              onClick={() => editor.chain().focus().redo().run()}
+              isDisabled={isDisabled || !canRedo}
+              icon={ArrowUturnRightIcon}
               title="Redo"
-            >
-              <ArrowUturnRightIcon className="h-4 w-4" />
-            </ToolbarButton>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Stats toggle */}
-            {(options.showCharacterCount || options.showWordCount || options.showReadTime) && (
-              <ToolbarButton
-                onClick={() => setShowStats(!showStats)}
-                isActive={showStats}
-                title="Toggle statistics"
-                className="text-xs"
-              >
-                <ChartBarIcon className="h-4 w-4" />
-              </ToolbarButton>
-            )}
-            
-            {/* Fullscreen toggle */}
-            {options.enableFullscreen && (
-              <ToolbarButton
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                isActive={isFullscreen}
-                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              >
-                {isFullscreen ? (
-                  <XMarkIcon className="h-4 w-4" />
-                ) : (
-                  <ArrowsPointingOutIcon className="h-4 w-4" />
-                )}
-              </ToolbarButton>
-            )}
+            />
           </div>
         </div>
-        
-        {/* Stats bar */}
-        {showStats && (
-          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-            {options.showCharacterCount && (
-              <span>Characters: {contentStats.characters}</span>
-            )}
-            {options.showWordCount && (
-              <span>Words: {contentStats.words}</span>
-            )}
-            {options.showReadTime && (
-              <span>Read time: {contentStats.readTime} min</span>
-            )}
-          </div>
-        )}
-      </div>
+      )}
       
       {/* Editor */}
-      <div className={`
-        border-x border-b border-gray-200 dark:border-gray-700 
-        ${isFullscreen ? 'flex-1 overflow-hidden' : ''}
-      `}>
-        <div
-          ref={editorRef}
-          contentEditable={!isDisabled && !isReadonly}
-          suppressContentEditableWarning={true}
-          onInput={handleContentChange}
-          onPaste={handlePaste as any}
-          spellCheck={options.spellCheck !== false}
-          className={`
-            richtext-editor p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 
-            bg-white dark:bg-gray-900 text-gray-900 dark:text-white leading-relaxed
-            ${options.editorClasses || ''}
-            ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-            ${isReadonly ? 'pointer-events-none' : ''}
-          `}
-          style={{
-            minHeight: isFullscreen ? 'auto' : (options.minHeight || '200px'),
-            maxHeight: isFullscreen ? 'none' : (options.maxHeight || '600px'),
-            overflowY: isFullscreen ? 'auto' : 'auto'
-          }}
-        />
-        
-        {/* Placeholder */}
-        {!currentHtml && (
-          <div className="absolute top-4 left-4 text-gray-400 dark:text-gray-500 pointer-events-none">
-            {options.placeholder || 'Start typing...'}
-          </div>
-        )}
+      <div 
+        className={`
+          border border-t-0 border-gray-200 dark:border-gray-700 
+          ${isReadonly ? 'rounded-lg' : 'rounded-b-lg'}
+          bg-white dark:bg-gray-900
+          ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
+      >
+        <div className="tiptap-editor-container">
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              .tiptap-editor-container .ProseMirror h1 {
+                font-size: 1.875rem !important;
+                font-weight: 700 !important;
+                margin-bottom: 1rem !important;
+                margin-top: 0.5rem !important;
+                line-height: 1.2 !important;
+              }
+              .tiptap-editor-container .ProseMirror h2 {
+                font-size: 1.5rem !important;
+                font-weight: 600 !important;
+                margin-bottom: 0.75rem !important;
+                margin-top: 0.5rem !important;
+                line-height: 1.3 !important;
+              }
+              .tiptap-editor-container .ProseMirror h3 {
+                font-size: 1.25rem !important;
+                font-weight: 600 !important;
+                margin-bottom: 0.5rem !important;
+                margin-top: 0.5rem !important;
+                line-height: 1.4 !important;
+              }
+              .tiptap-editor-container .ProseMirror blockquote {
+                border-left: 3px solid #d1d5db !important;
+                padding-left: 1rem !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                margin-top: 0.5rem !important;
+                margin-bottom: 0.5rem !important;
+                font-style: italic !important;
+              }
+              .dark .tiptap-editor-container .ProseMirror blockquote {
+                border-left-color: #4b5563 !important;
+              }
+              .tiptap-editor-container .ProseMirror ul {
+                list-style-type: disc !important;
+                padding-left: 1.5rem !important;
+                margin-top: 0.5rem !important;
+                margin-bottom: 0.5rem !important;
+              }
+              .tiptap-editor-container .ProseMirror ol {
+                list-style-type: decimal !important;
+                padding-left: 1.5rem !important;
+                margin-top: 0.5rem !important;
+                margin-bottom: 0.5rem !important;
+              }
+              .tiptap-editor-container .ProseMirror li {
+                margin-bottom: 0.25rem !important;
+              }
+              .tiptap-editor-container .ProseMirror {
+                outline: none !important;
+                border: none !important;
+                box-shadow: none !important;
+              }
+              .tiptap-editor-container .ProseMirror:focus {
+                outline: none !important;
+                border: none !important;
+                box-shadow: none !important;
+              }
+            `
+          }} />
+          <EditorContent 
+            editor={editor}
+            className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[150px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
+          />
+        </div>
       </div>
       
-      {/* Character/word limits */}
-      {(validation.maxLength || validation.maxWords) && (
-        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
-          {validation.maxLength && (
-            <span className={contentStats.characters > validation.maxLength ? 'text-red-500' : ''}>
-              {contentStats.characters}/{validation.maxLength} characters
-            </span>
-          )}
-          {validation.maxLength && validation.maxWords && ' • '}
-          {validation.maxWords && (
-            <span className={contentStats.words > validation.maxWords ? 'text-red-500' : ''}>
-              {contentStats.words}/{validation.maxWords} words
-            </span>
+      {/* Footer with stats */}
+      {options.showStats && (
+        <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-4">
+            <span>{stats.words} words</span>
+            <span>{stats.characters}{characterLimit ? ` / ${characterLimit}` : ''} characters</span>
+            <span>{stats.readTime} min read</span>
+          </div>
+          {characterLimit && stats.characters > characterLimit && (
+            <div className="text-red-500 dark:text-red-400">
+              Exceeds character limit
+            </div>
           )}
         </div>
       )}
       
-      {/* Link Dialog */}
+      {/* Link Dialog Modal */}
       {showLinkDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Add Link</h3>
-            <input
-              type="url"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://example.com"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2 mt-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Add Link
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Link Text
+                </label>
+                <input
+                  type="text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="Enter link text"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400 bg-white dark:bg-gray-700"
+                  style={{ 
+                    WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #374151 inset' : '0 0 0 1000px white inset',
+                    WebkitTextFillColor: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  URL
+                </label>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400 bg-white dark:bg-gray-700"
+                  style={{ 
+                    WebkitBoxShadow: isDarkMode ? '0 0 0 1000px #374151 inset' : '0 0 0 1000px white inset',
+                    WebkitTextFillColor: isDarkMode ? '#ffffff' : '#111827'
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
-                onClick={() => { setShowLinkDialog(false); setLinkUrl(''); }}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                onClick={() => {
+                  setShowLinkDialog(false);
+                  setLinkUrl('');
+                  setLinkText('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleLinkSubmit}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                disabled={!linkUrl}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               >
-                Add Link
+                {linkUrl.trim() ? 'Add Link' : 'Remove Link'}
               </button>
             </div>
           </div>
         </div>
       )}
-      
-      {/* Sanitization Warnings */}
-      {showWarnings && sanitizationWarnings.length > 0 && (
-        <div className="fixed bottom-4 right-4 max-w-md bg-yellow-50 dark:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 shadow-lg z-50">
-          <div className="flex items-start justify-between">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                  Content was sanitized for security
-                </h3>
-                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  <ul className="list-disc list-inside space-y-1">
-                    {sanitizationWarnings.map((warning, index) => (
-                      <li key={index}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="ml-4 flex-shrink-0">
-              <button
-                type="button"
-                className="bg-yellow-50 dark:bg-yellow-900/50 rounded-md p-1.5 text-yellow-400 hover:text-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
-                onClick={() => setShowWarnings(false)}
-              >
-                <span className="sr-only">Dismiss</span>
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Media Browser */}
-      {showMediaBrowser && (
-        <MediaBrowser
-          isOpen={showMediaBrowser}
-          onClose={() => setShowMediaBrowser(false)}
-          onSelect={handleMediaSelect}
-          mediaTypeFilter="image"
-          context="richtext"
-          apiClient={studioContext?.apiClient}
-          logger={studioContext?.logger || logger}
-        />
-      )}
-      </div>
-    </>
+    </div>
   );
 }

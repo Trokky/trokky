@@ -11,16 +11,49 @@ export interface RichTextValidation extends BaseValidation {
 }
 
 export interface RichTextFieldOptions extends BaseFieldOptions {
-  /** Toolbar items to show */
-  toolbar?: string[];
-  /** Heading levels to allow (e.g., [1, 2, 3] for H1, H2, H3) */
-  headingLevels?: number[];
+  /** Available text styles */
+  styles?: Array<{
+    name: string;
+    title: string;
+    value: string;
+    component?: React.ComponentType;
+  }>;
+  /** Available decorators (marks) */
+  decorators?: Array<{
+    name: string;
+    title: string;
+    icon?: React.ComponentType;
+    component?: React.ComponentType;
+  }>;
+  /** Available annotations (links, etc.) */
+  annotations?: Array<{
+    name: string;
+    title: string;
+    type: object;
+    icon?: React.ComponentType;
+    component?: React.ComponentType;
+  }>;
+  /** Available block types */
+  blockTypes?: Array<{
+    name: string;
+    title: string;
+    value: string;
+  }>;
+  /** Available list types */
+  lists?: Array<{
+    name: string;
+    title: string;
+    value: string;
+  }>;
   /** Editor theme */
   theme?: 'light' | 'dark' | 'auto';
   /** Enable spell check */
   spellCheck?: boolean;
+  /** Enable markdown shortcuts */
+  markdownShortcuts?: boolean;
+  /** Auto-save interval (milliseconds) */
+  autoSave?: number;
   /** Show content statistics */
-  showStats?: boolean;
   showCharacterCount?: boolean;
   showWordCount?: boolean;
   showReadTime?: boolean;
@@ -33,10 +66,6 @@ export interface RichTextFieldOptions extends BaseFieldOptions {
   minHeight?: string;
   /** Custom CSS classes */
   editorClasses?: string;
-  /** Placeholder text */
-  placeholder?: string;
-  /** Paste security configuration */
-  pasteSecurity?: PasteSecurityConfig;
 }
 
 export interface ToolbarGroup {
@@ -139,3 +168,27 @@ export interface PasteSecurityConfig {
   stripFormatting?: boolean;
 }
 
+// Simplified toolbar configuration
+export interface RichTextFieldOptions extends BaseFieldOptions {
+  /** Toolbar items to show */
+  toolbar?: string[];
+  /** Editor theme */
+  theme?: 'light' | 'dark' | 'auto';
+  /** Enable spell check */
+  spellCheck?: boolean;
+  /** Show content statistics */
+  showCharacterCount?: boolean;
+  showWordCount?: boolean;
+  showReadTime?: boolean;
+  /** Enable full-screen mode */
+  enableFullscreen?: boolean;
+  /** Editor height constraints */
+  maxHeight?: string;
+  minHeight?: string;
+  /** Custom CSS classes */
+  editorClasses?: string;
+  /** Placeholder text */
+  placeholder?: string;
+  /** Paste security configuration */
+  pasteSecurity?: PasteSecurityConfig;
+}
