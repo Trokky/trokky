@@ -5,6 +5,7 @@ import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
+import Image from '@tiptap/extension-image';
 import {
   BoldIcon,
   ItalicIcon,
@@ -18,7 +19,8 @@ import {
   ChartBarIcon,
   ChatBubbleBottomCenterTextIcon,
   ArrowsPointingOutIcon,
-  XMarkIcon
+  XMarkIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 
 // Simple heading icons
@@ -34,6 +36,8 @@ const H3Icon = ({ className }: { className?: string }) => (
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { RichTextFieldDefinition } from './definition';
 import { createStudioLogger } from '../../utils/logger';
+import { MediaBrowser } from '../MediaField/MediaBrowser';
+import type { MediaFieldValue } from '../MediaField/definition';
 
 const logger = createStudioLogger('RichTextField');
 
@@ -79,7 +83,7 @@ function ToolbarSeparator() {
 }
 
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
   
   if (definition.type !== 'richtext') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected richtext field</div>;
@@ -99,6 +103,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Image browser state
+  const [showImageBrowser, setShowImageBrowser] = useState(false);
   
   // Store content when entering fullscreen to ensure persistence
   const [contentBackup, setContentBackup] = useState<string>('');
@@ -120,6 +127,12 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         HTMLAttributes: {
           class: 'text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300'
         }
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-lg'
+        },
+        allowBase64: true
       }),
       Placeholder.configure({
         placeholder: options.placeholder || 'Start typing...'
@@ -239,6 +252,70 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     setLinkText('');
   }, [editor, linkUrl, linkText]);
   
+  // Handle image selection from media browser
+  const handleImageSelected = useCallback((selectedValue: MediaFieldValue) => {
+    if (!editor || !selectedValue?.asset?._ref) {
+      return;
+    }
+    
+    const assetId = selectedValue.asset._ref;
+    let altText = selectedValue.alt || '';
+    
+    // Get the media metadata to extract the correct URL
+    if (studioContext?.apiClient) {
+      studioContext.apiClient.getMediaById(assetId)
+        .then(response => {
+          if (response.success && response.data?.file) {
+            const mediaFile = response.data.file;
+            let imageUrl: string;
+            
+            // Use metadata alt text if no alt text was provided
+            if (!selectedValue.alt) {
+              altText = mediaFile.metadata?.alt || mediaFile.filename || '';
+            }
+            
+            // Get the correct URL from the API response
+            if (selectedValue.variant && selectedValue.variant !== 'original') {
+              // Use variant URL from metadata
+              const variantData = mediaFile.metadata?.imageVariants?.[selectedValue.variant];
+              if (variantData?.url) {
+                imageUrl = variantData.url;
+              } else {
+                logger.warn(`Variant '${selectedValue.variant}' not found, falling back to original`);
+                imageUrl = mediaFile.url;
+              }
+            } else {
+              // Use original file URL from metadata
+              imageUrl = mediaFile.url;
+            }
+            
+            // Insert the image into the editor
+            editor.chain().focus().setImage({ 
+              src: imageUrl, 
+              alt: altText,
+              title: altText
+            }).run();
+            
+            logger.info('Image inserted successfully', {
+              imageUrl,
+              altText,
+              assetId,
+              variant: selectedValue.variant
+            });
+          } else {
+            logger.error('Invalid media metadata response', response);
+          }
+        })
+        .catch(error => {
+          logger.error('Failed to load image asset', error);
+        });
+    } else {
+      logger.warn('No Studio context available for image URL resolution');
+    }
+    
+    setShowImageBrowser(false);
+  }, [editor, studioContext?.apiClient, logger]);
+  
   // Content statistics
   const stats = useMemo(() => {
     if (!editor) return { words: 0, characters: 0, readTime: 0 };
@@ -340,6 +417,15 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               isDisabled={isDisabled}
               icon={LinkIcon}
               title="Add Link"
+            />
+            
+            {/* Images */}
+            <ToolbarButton
+              onClick={() => setShowImageBrowser(true)}
+              isActive={false}
+              isDisabled={isDisabled}
+              icon={PhotoIcon}
+              title="Insert Image"
             />
             
             <ToolbarSeparator />
@@ -450,6 +536,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               }
               .tiptap-editor-container .ProseMirror li {
                 margin-bottom: 0.25rem !important;
+              }
+              .tiptap-editor-container .ProseMirror img {
+                max-width: 100% !important;
+                height: auto !important;
+                border-radius: 0.5rem !important;
+                margin: 0.5rem 0 !important;
+                display: block !important;
               }
               .tiptap-editor-container .ProseMirror {
                 outline: none !important;
@@ -643,6 +736,15 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   title="Add Link"
                 />
                 
+                {/* Images */}
+                <ToolbarButton
+                  onClick={() => setShowImageBrowser(true)}
+                  isActive={false}
+                  isDisabled={isDisabled}
+                  icon={PhotoIcon}
+                  title="Insert Image"
+                />
+                
                 <ToolbarSeparator />
                 
                 {/* Lists */}
@@ -742,6 +844,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   .tiptap-editor-container .ProseMirror li {
                     margin-bottom: 0.25rem !important;
                   }
+                  .tiptap-editor-container .ProseMirror img {
+                    max-width: 100% !important;
+                    height: auto !important;
+                    border-radius: 0.5rem !important;
+                    margin: 0.5rem 0 !important;
+                    display: block !important;
+                  }
                   .tiptap-editor-container .ProseMirror {
                     outline: none !important;
                     border: none !important;
@@ -780,6 +889,20 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             </div>
           )}
         </div>
+      )}
+      
+      {/* Image Browser Modal */}
+      {showImageBrowser && (
+        <MediaBrowser
+          isOpen={showImageBrowser}
+          onClose={() => setShowImageBrowser(false)}
+          onSelect={handleImageSelected}
+          mediaTypeFilter="image"
+          showVariantSelector={true}
+          context="richtext-image"
+          apiClient={studioContext?.apiClient}
+          logger={studioContext?.logger}
+        />
       )}
     </>
   );
