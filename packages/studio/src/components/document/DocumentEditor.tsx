@@ -315,11 +315,15 @@ export function DocumentEditor({
         return;
       }
 
+      // Clean document data before sending to API - remove frontend-only fields
+      const cleanDocument = { ...document };
+      delete cleanDocument._state; // Remove frontend state field
+
       let response;
       if (isNewDocument) {
-        response = await apiClient.createDocument(schemaName, document);
+        response = await apiClient.createDocument(schemaName, cleanDocument);
       } else {
-        response = await apiClient.updateDocument(schemaName, documentId!, document);
+        response = await apiClient.updateDocument(schemaName, documentId!, cleanDocument);
       }
 
       if (response.success && response.data) {

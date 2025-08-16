@@ -73,10 +73,22 @@ export class DocumentValidator {
         return z.boolean()
       
       case 'date':
-        return z.date().or(z.string().refine(str => {
-          const date = new Date(str)
-          return !isNaN(date.getTime())
-        }, { message: 'Invalid date string' }).transform(str => new Date(str)))
+        return z.date()
+          .or(z.string().refine(str => {
+            // Handle special "now" value
+            if (str === 'now') {
+              return true
+            }
+            const date = new Date(str)
+            return !isNaN(date.getTime())
+          }, { message: 'Invalid date string' }).transform(str => {
+            // Transform "now" to current date
+            if (str === 'now') {
+              return new Date()
+            }
+            return new Date(str)
+          }))
+          .or(z.null()) // Allow null values for optional date fields
       
       case 'array':
         // Use modern 'of' format for array item definition

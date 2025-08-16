@@ -508,9 +508,28 @@ export class TrokkyRoutes {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentData(data)
 
+      this.logger.debug('Creating document', { collection, data, id })
+      
+      // Check validation before saving to get detailed error info
+      const validation = this.core.validateDocument(collection, { ...data, id })
+      if (!validation.valid) {
+        this.logger.error('Document validation failed', {
+          collection,
+          errors: validation.errors,
+          data: { ...data, id }
+        })
+        throw new Error(`Document validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`)
+      }
+      
       const document = await this.core.saveDocument(collection, { ...data, id })
       return this.successResponse({ document }, 201)
     } catch (error) {
+      this.logger.error('Failed to create document', { 
+        collection: request.params.collection, 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        requestBody: request.body
+      })
       return this.errorResponse(error)
     }
   }
