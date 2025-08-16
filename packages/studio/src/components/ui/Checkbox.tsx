@@ -78,15 +78,15 @@ export function Checkbox({
         {/* Checkmark */}
         {checked && (
           <svg
-            className="absolute inset-0 w-4 h-4 text-white pointer-events-none"
+            className="absolute inset-0 w-4 h-4 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="currentColor"
+            stroke="white"
+            strokeWidth={3}
           >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={3}
               d="M5 13l4 4L19 7"
             />
           </svg>
@@ -95,7 +95,7 @@ export function Checkbox({
         {/* Indeterminate state */}
         {indeterminate && !checked && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-2 h-0.5 bg-white"></div>
+            <div className="w-2 h-0.5 bg-white dark:bg-gray-300"></div>
           </div>
         )}
       </div>
