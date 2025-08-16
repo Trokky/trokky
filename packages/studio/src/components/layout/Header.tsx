@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
@@ -20,7 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
-import { GlobalSearchModal } from '@/components/search';
+import { SimpleSearchModal } from '@/components/SimpleSearchModal';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -50,6 +50,18 @@ export function Header({
 
   // Global search functionality
   const { isOpen: searchOpen, openSearch, closeSearch } = useGlobalSearch();
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [openSearch]);
 
   const handleCreateDocument = (schemaName: string, isSingleton: boolean = false) => {
     setCreateMenuOpen(false);
@@ -419,8 +431,8 @@ export function Header({
         />
       )}
 
-      {/* Global Search Modal */}
-      <GlobalSearchModal 
+      {/* Simple Search Modal */}
+      <SimpleSearchModal 
         isOpen={searchOpen} 
         onClose={closeSearch} 
       />
