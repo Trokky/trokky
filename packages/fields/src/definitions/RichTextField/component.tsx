@@ -53,6 +53,7 @@ import type { RichTextFieldDefinition } from './definition';
 import { createStudioLogger } from '../../utils/logger';
 import { MediaBrowser } from '../MediaField/MediaBrowser';
 import type { MediaFieldValue } from '../MediaField/definition';
+import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer';
 
 const logger = createStudioLogger('RichTextField');
 
@@ -210,11 +211,80 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   // Store content when entering fullscreen to ensure persistence
   const [contentBackup, setContentBackup] = useState<string>('');
   
+  // Sanitization notification state
+  const [sanitizationWarning, setSanitizationWarning] = useState<string | null>(null);
+  
   // Editor container references for positioning
   const editorContainerRef = useRef<HTMLDivElement>(null);
   
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark');
+  
+  // Handle paste with sanitization (declared before editor initialization)
+  const handlePaste = useCallback((view: any, event: ClipboardEvent): boolean => {
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return false;
+    
+    const html = clipboardData.getData('text/html');
+    
+    // If there's HTML content, sanitize it
+    if (html && html.trim()) {
+      event.preventDefault();
+      
+      // Get paste security config from field options or use safe default
+      const pasteConfig = richtextDefinition.options?.pasteSecurity || SECURITY_PRESETS.safe;
+      
+      // Sanitize the pasted content
+      const result = sanitizePastedContent(html, pasteConfig);
+      
+      logger.debug('Paste sanitization result', {
+        originalLength: result.originalContent.length,
+        sanitizedLength: result.sanitizedContent.length,
+        wasModified: result.wasModified,
+        warningCount: result.warnings.length
+      });
+      
+      // Show warning if content was modified and warnings are enabled
+      if (result.wasModified && pasteConfig.showSanitizationWarning && result.warnings.length > 0) {
+        const warningMessage = `Content was sanitized for security: ${result.warnings.slice(0, 3).join(', ')}${result.warnings.length > 3 ? '...' : ''}`;
+        setSanitizationWarning(warningMessage);
+        
+        // Auto-hide warning after 5 seconds
+        setTimeout(() => setSanitizationWarning(null), 5000);
+      }
+      
+      // Use view parameter to access editor and insert content
+      const { state, dispatch } = view;
+      const { tr } = state;
+      
+      // Insert the sanitized content
+      if (result.sanitizedContent) {
+        // Parse the HTML content and insert it
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(result.sanitizedContent, 'text/html');
+        const textContent = doc.body.textContent || '';
+        
+        if (textContent) {
+          const insertPos = state.selection.from;
+          tr.insertText(textContent, insertPos);
+          dispatch(tr);
+        }
+      } else {
+        // Fallback to plain text if sanitization removed everything
+        const plainText = clipboardData.getData('text/plain');
+        if (plainText) {
+          const insertPos = state.selection.from;
+          tr.insertText(plainText, insertPos);
+          dispatch(tr);
+        }
+      }
+      
+      return true; // Prevent default paste
+    }
+    
+    // For plain text or when HTML sanitization isn't needed, allow default behavior
+    return false;
+  }, [richtextDefinition.options?.pasteSecurity, logger]);
   
   // Initialize Tiptap editor
   const editor = useEditor({
@@ -257,6 +327,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     ],
     content: value || '',
     editable: !isDisabled && !isReadonly,
+    editorProps: {
+      handlePaste: handlePaste
+    },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       logger.debug('Content updated', { fieldId, length: html.length });
@@ -943,6 +1016,28 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 Table
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Sanitization Warning */}
+      {sanitizationWarning && (
+        <div className="border-l border-r border-yellow-200 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 15.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="text-sm text-yellow-800 dark:text-yellow-200">{sanitizationWarning}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSanitizationWarning(null)}
+              className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
+              title="Dismiss warning"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

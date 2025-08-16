@@ -28,9 +28,17 @@ export const SECURITY_PRESETS: Record<string, PasteSecurityConfig> = {
   safe: {
     mode: 'safe',
     maxPasteLength: 10000,
-    allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
+    allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'pre'],
     allowedAttributes: {
-      'a': ['href', 'title']
+      'a': ['href', 'title', 'target', 'rel', 'class'],
+      'table': ['class'],
+      'th': ['colspan', 'rowspan', 'class'],
+      'td': ['colspan', 'rowspan', 'class'],
+      'tr': ['class'],
+      'thead': ['class'],
+      'tbody': ['class'],
+      'pre': ['class'],
+      'code': ['class']
     },
     linkPolicy: 'sanitize',
     allowedDomains: [],
@@ -41,12 +49,23 @@ export const SECURITY_PRESETS: Record<string, PasteSecurityConfig> = {
   permissive: {
     mode: 'permissive',
     maxPasteLength: 50000,
-    allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'img', 'pre', 'span', 'div'],
+    allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'img', 'pre', 'span', 'div', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col'],
     allowedAttributes: {
-      'a': ['href', 'title', 'target'],
-      'img': ['src', 'alt', 'width', 'height'],
-      'span': ['style'],
-      'div': ['style']
+      'a': ['href', 'title', 'target', 'rel', 'class'],
+      'img': ['src', 'alt', 'width', 'height', 'class'],
+      'span': ['class'],
+      'div': ['class'],
+      'table': ['class', 'style'],
+      'th': ['colspan', 'rowspan', 'class', 'style'],
+      'td': ['colspan', 'rowspan', 'class', 'style'],
+      'tr': ['class', 'style'],
+      'thead': ['class', 'style'],
+      'tbody': ['class', 'style'],
+      'tfoot': ['class', 'style'],
+      'colgroup': ['class', 'style'],
+      'col': ['class', 'style'],
+      'pre': ['class'],
+      'code': ['class']
     },
     linkPolicy: 'validate',
     allowedDomains: ['github.com', 'stackoverflow.com', 'developer.mozilla.org'],
@@ -62,14 +81,20 @@ export const SECURITY_PRESETS: Record<string, PasteSecurityConfig> = {
 export function sanitizeUrl(url: string, policy: 'strip' | 'sanitize' | 'validate', allowedDomains: string[] = []): string | null {
   if (!url) return null;
   
-  // Strip javascript:, data:, vbscript:, and other dangerous protocols
-  const dangerousProtocols = /^(javascript|data|vbscript|file|about):/i;
+  // Strip dangerous protocols immediately
+  const dangerousProtocols = /^(javascript|data|vbscript|file|about|livescript|mocha):/i;
   if (dangerousProtocols.test(url)) {
     return policy === 'strip' ? null : '#';
   }
   
-  // For relative URLs, allow them
-  if (url.startsWith('/') || url.startsWith('#') || url.startsWith('?')) {
+  // Allow relative URLs
+  if (url.startsWith('/') || url.startsWith('#') || url.startsWith('?') || url.startsWith('./')) {
+    return url;
+  }
+  
+  // Allow safe protocols without full URL validation
+  const safeProtocols = /^(mailto|tel|sms):/i;
+  if (safeProtocols.test(url)) {
     return url;
   }
   
@@ -77,9 +102,15 @@ export function sanitizeUrl(url: string, policy: 'strip' | 'sanitize' | 'validat
   try {
     const urlObj = new URL(url);
     
-    // Only allow http and https
+    // Only allow http and https for web URLs
     if (!['http:', 'https:'].includes(urlObj.protocol)) {
       return policy === 'strip' ? null : '#';
+    }
+    
+    // Security: Remove auth info from URLs
+    if (urlObj.username || urlObj.password) {
+      urlObj.username = '';
+      urlObj.password = '';
     }
     
     // In validate mode, check against allowlist
@@ -92,10 +123,47 @@ export function sanitizeUrl(url: string, policy: 'strip' | 'sanitize' | 'validat
       }
     }
     
-    return url;
+    return urlObj.toString();
   } catch {
     return policy === 'strip' ? null : '#';
   }
+}
+
+/**
+ * Check if an attribute is dangerous (event handlers, javascript, etc.)
+ */
+function isDangerousAttribute(attrName: string, attrValue: string): boolean {
+  // Event handlers
+  if (attrName.startsWith('on')) {
+    return true;
+  }
+  
+  // Other dangerous attributes
+  const dangerousAttrs = [
+    'action', 'background', 'codebase', 'dynsrc', 'lowsrc',
+    'archive', 'cite', 'classid', 'code', 'data', 'datasrc',
+    'for', 'form', 'formaction', 'manifest', 'poster', 'profile'
+  ];
+  
+  if (dangerousAttrs.includes(attrName)) {
+    return true;
+  }
+  
+  // Check for javascript: or other dangerous content in attribute values
+  if (attrValue && typeof attrValue === 'string') {
+    const dangerousValuePatterns = [
+      /javascript:/i,
+      /vbscript:/i,
+      /data:/i,
+      /expression\s*\(/i,
+      /url\s*\(\s*javascript:/i,
+      /url\s*\(\s*data:/i
+    ];
+    
+    return dangerousValuePatterns.some(pattern => pattern.test(attrValue));
+  }
+  
+  return false;
 }
 
 /**
@@ -169,6 +237,15 @@ export function sanitizeHtml(html: string, config: PasteSecurityConfig): Sanitiz
       for (let i = 0; i < node.attributes.length; i++) {
         const attr = node.attributes[i];
         const attrName = attr.name.toLowerCase();
+        const attrValue = attr.value;
+        
+        // Check for dangerous attributes (event handlers, etc.)
+        if (isDangerousAttribute(attrName, attrValue)) {
+          attributesToRemove.push(attrName);
+          warnings.push(`Removed dangerous attribute: ${attrName}`);
+          wasModified = true;
+          continue;
+        }
         
         if (!allowedAttrs.includes(attrName)) {
           attributesToRemove.push(attrName);

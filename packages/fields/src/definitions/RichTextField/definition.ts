@@ -94,9 +94,17 @@ export const RICHTEXT_FIELD_DEFAULTS = {
     pasteSecurity: {
       mode: 'safe',
       maxPasteLength: 10000,
-      allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
+      allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'pre'],
       allowedAttributes: {
-        'a': ['href', 'title']
+        'a': ['href', 'title', 'target', 'rel', 'class'],
+        'table': ['class'],
+        'th': ['colspan', 'rowspan', 'class'],
+        'td': ['colspan', 'rowspan', 'class'],
+        'tr': ['class'],
+        'thead': ['class'],
+        'tbody': ['class'],
+        'pre': ['class'],
+        'code': ['class']
       },
       linkPolicy: 'sanitize',
       allowedDomains: [],
