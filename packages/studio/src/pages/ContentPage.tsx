@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { useStructureItem } from '@/hooks/useStructure';
+import { useStudioContext } from '@/contexts/StudioContext';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
@@ -80,6 +81,7 @@ export function ContentPage() {
 // Enhanced Content List Page Component
 function ContentListPage({ schemaName }: { schemaName: string }) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const structureItem = useStructureItem(schemaName);
   
   // State management
@@ -155,7 +157,16 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     try {
       switch (action) {
         case 'delete':
-          if (!confirm('Are you sure you want to delete this document?')) return;
+          const confirmed = await studioContext?.utils?.showConfirm?.(
+            'Are you sure you want to delete this document? This action cannot be undone.',
+            {
+              title: 'Delete Document',
+              confirmText: 'Delete',
+              cancelText: 'Cancel',
+              variant: 'danger'
+            }
+          );
+          if (!confirmed) return;
           await apiClient.deleteDocument(schemaName, documentId);
           logger.info('Document deleted', { schema: schemaName, id: documentId });
           await loadDocuments();

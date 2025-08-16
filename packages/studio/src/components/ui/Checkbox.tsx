@@ -60,8 +60,8 @@ export function Checkbox({
           !disabled && "hover:border-gray-400 dark:hover:border-gray-500",
           
           // Checked states
-          checked && "border-blue-600 bg-blue-600",
-          checked && "dark:border-blue-600 dark:bg-blue-600",
+          checked && "!border-blue-600 !bg-blue-600",
+          checked && "dark:!border-blue-600 dark:!bg-blue-600",
           
           // Disabled states
           disabled && "opacity-50 cursor-not-allowed",
@@ -81,8 +81,7 @@ export function Checkbox({
             className="absolute inset-0 w-4 h-4 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="white"
-            strokeWidth={3}
+            style={{ stroke: '#ffffff', strokeWidth: 3 }}
           >
             <path
               strokeLinecap="round"

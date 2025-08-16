@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronUpIcon, 
@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { useStudioContext } from '@/contexts/StudioContext';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -45,10 +46,26 @@ export function ListView({
   onDocumentAction
 }: ListViewProps) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   
   const allSelected = documents.length > 0 && selectedItems.length === documents.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < documents.length;
+  
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (listRef.current && !listRef.current.contains(event.target as Node)) {
+        setActionsOpen(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   const handleSort = (column: ListColumn) => {
     if (!column.sortable || !onSort) return;
@@ -119,8 +136,8 @@ export function ListView({
   }
   
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="overflow-x-auto">
+    <div ref={listRef} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="overflow-x-auto overflow-y-visible">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
@@ -231,14 +248,20 @@ export function ListView({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">
                       <button
-                        onClick={() => setActionsOpen(actionsOpen === docId ? null : docId)}
+                        onClick={() => {
+                          console.log('Actions button clicked', { docId, actionsOpen });
+                          setActionsOpen(actionsOpen === docId ? null : docId);
+                        }}
                         className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <EllipsisHorizontalIcon className="h-5 w-5" />
                       </button>
                       
                       {actionsOpen === docId && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                        <div 
+                          className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-max"
+                          style={{ backgroundColor: 'red', border: '2px solid blue' }}
+                        >
                           <div className="py-1">
                             <button
                               onClick={() => {
@@ -269,8 +292,17 @@ export function ListView({
                             </button>
                             <hr className="my-1 border-gray-200 dark:border-gray-600" />
                             <button
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this document?')) {
+                              onClick={async () => {
+                                const confirmed = await studioContext?.utils?.showConfirm?.(
+                                  'Are you sure you want to delete this document? This action cannot be undone.',
+                                  {
+                                    title: 'Delete Document',
+                                    confirmText: 'Delete',
+                                    cancelText: 'Cancel',
+                                    variant: 'danger'
+                                  }
+                                );
+                                if (confirmed) {
                                   onDocumentAction?.(docId, 'delete');
                                 }
                                 setActionsOpen(null);
