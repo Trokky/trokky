@@ -33,36 +33,61 @@ interface SearchResult {
   };
 }
 
+// Sanitize and strip HTML/markdown - safe content only
+function sanitizeText(text: string): string {
+  if (!text) return '';
+  
+  return text
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Remove markdown images ![alt](url)
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    // Remove markdown links [text](url) but keep the text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Remove script-like content
+    .replace(/javascript:/gi, '')
+    // Remove other markdown formatting
+    .replace(/[*_`#]/g, '')
+    // Clean up extra whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Simple highlight function - safe and performance-friendly
 function highlightText(text: string, query: string): string {
-  if (!query || query.length < 2) return text;
+  if (!query || query.length < 2) return sanitizeText(text);
+  
+  // First sanitize the text
+  const sanitized = sanitizeText(text);
   
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
+  return sanitized.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
 }
 
 // Extract excerpt with context around search term
 function extractExcerpt(text: string, query: string, maxLength: number = 150): string {
   if (!text || !query || query.length < 2) {
-    return text ? text.substring(0, maxLength) : '';
+    return text ? sanitizeText(text).substring(0, maxLength) : '';
   }
   
-  const lowerText = text.toLowerCase();
+  // First sanitize the text
+  const sanitized = sanitizeText(text);
+  const lowerText = sanitized.toLowerCase();
   const lowerQuery = query.toLowerCase();
   const index = lowerText.indexOf(lowerQuery);
   
   if (index === -1) {
-    return text.substring(0, maxLength);
+    return sanitized.substring(0, maxLength);
   }
   
   // Extract text around the match
   const start = Math.max(0, index - 75);
-  const end = Math.min(text.length, index + 75);
-  let excerpt = text.substring(start, end);
+  const end = Math.min(sanitized.length, index + 75);
+  let excerpt = sanitized.substring(start, end);
   
   // Add ellipsis if truncated
   if (start > 0) excerpt = '...' + excerpt;
-  if (end < text.length) excerpt = excerpt + '...';
+  if (end < sanitized.length) excerpt = excerpt + '...';
   
   return excerpt;
 }
