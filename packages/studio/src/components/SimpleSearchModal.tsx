@@ -25,6 +25,55 @@ interface SearchResult {
   title: string;
   url: string;
   excerpt?: string;
+  metadata?: {
+    schemaType?: string;
+    author?: string;
+    createdAt?: string;
+    size?: string;
+  };
+}
+
+// Simple highlight function - safe and performance-friendly
+function highlightText(text: string, query: string): string {
+  if (!query || query.length < 2) return text;
+  
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
+}
+
+// Extract excerpt with context around search term
+function extractExcerpt(text: string, query: string, maxLength: number = 150): string {
+  if (!text || !query || query.length < 2) {
+    return text ? text.substring(0, maxLength) : '';
+  }
+  
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerText.indexOf(lowerQuery);
+  
+  if (index === -1) {
+    return text.substring(0, maxLength);
+  }
+  
+  // Extract text around the match
+  const start = Math.max(0, index - 75);
+  const end = Math.min(text.length, index + 75);
+  let excerpt = text.substring(start, end);
+  
+  // Add ellipsis if truncated
+  if (start > 0) excerpt = '...' + excerpt;
+  if (end < text.length) excerpt = excerpt + '...';
+  
+  return excerpt;
+}
+
+// Format file size
+function formatFileSize(bytes: number): string {
+  if (!bytes) return '';
+  
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
@@ -70,13 +119,28 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
             if (docsResponse.success && docsResponse.data?.documents) {
               docsResponse.data.documents.forEach((doc: any) => {
                 const title = doc.title || doc.name || doc.slug || 'Untitled';
-                if (title.toLowerCase().includes(searchQuery.toLowerCase())) {
+                const content = doc.content || doc.body || doc.description || doc.excerpt || '';
+                
+                // Check if title or content matches
+                if (title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    content.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  
+                  // Create contextual excerpt
+                  const excerpt = extractExcerpt(content || title, searchQuery);
+                  
                   results.push({
                     id: doc.id || doc._id,
                     type: 'document',
                     title,
                     url: `/content/${schema.name}/${doc.id || doc._id}`,
-                    excerpt: doc.description || doc.excerpt
+                    excerpt,
+                    metadata: {
+                      schemaType: schema.title || schema.name,
+                      author: typeof doc.author === 'object' && doc.author?._cached?.name 
+                        ? doc.author._cached.name 
+                        : (doc.author || doc._createdBy),
+                      createdAt: doc._createdAt || doc.createdAt,
+                    }
                   });
                 }
               });
@@ -93,14 +157,22 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
         if (mediaResponse.success && mediaResponse.data) {
           (mediaResponse.data as any[]).forEach((file: any) => {
             const title = file.title || file.filename || 'Untitled';
+            const description = file.description || file.alt || '';
+            
             if (title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                (file.id && file.id.toLowerCase().includes(searchQuery.toLowerCase()))) {
+                (file.id && file.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                description.toLowerCase().includes(searchQuery.toLowerCase())) {
+              
               results.push({
                 id: file.id,
                 type: 'media',
                 title,
                 url: `/media?file=${file.id}`,
-                excerpt: file.description
+                excerpt: extractExcerpt(description || title, searchQuery),
+                metadata: {
+                  size: file.size ? formatFileSize(file.size) : undefined,
+                  createdAt: file.createdAt,
+                }
               });
             }
           });
@@ -174,12 +246,27 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
             className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
             autoComplete="off"
           />
-          <button
-            onClick={handleClose}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+          {query ? (
+            <button
+              onClick={() => {
+                setQuery('');
+                setResults([]);
+                searchInputRef.current?.focus();
+              }}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              title="Clear search"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              onClick={handleClose}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              title="Close search"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Content */}
@@ -206,7 +293,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                     onClick={() => handleRecentClick(recentQuery)}
                     className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                   >
-                    {recentQuery}
+                    <span dangerouslySetInnerHTML={{ __html: highlightText(recentQuery, query) }} />
                   </button>
                 ))}
               </div>
@@ -235,16 +322,42 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {result.title}
+                        <span dangerouslySetInnerHTML={{ __html: highlightText(result.title, query) }} />
                       </h4>
                       {result.excerpt && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                          {result.excerpt}
+                        <p className="text-sm text-gray-600 dark:text-gray-400 overflow-hidden" style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          <span dangerouslySetInnerHTML={{ __html: highlightText(result.excerpt, query) }} />
                         </p>
                       )}
-                      <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded mt-1 inline-block">
-                        {result.type === 'document' ? 'Document' : 'Media'}
-                      </span>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                          {result.type === 'document' ? 'Document' : 'Media'}
+                        </span>
+                        {result.metadata?.schemaType && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400">
+                            {result.metadata.schemaType}
+                          </span>
+                        )}
+                        {result.metadata?.author && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            by {result.metadata.author}
+                          </span>
+                        )}
+                        {result.metadata?.size && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {result.metadata.size}
+                          </span>
+                        )}
+                        {result.metadata?.createdAt && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(result.metadata.createdAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 ))}
