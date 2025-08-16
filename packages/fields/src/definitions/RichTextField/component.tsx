@@ -7,6 +7,13 @@ import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
 import Image from '@tiptap/extension-image';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeaderCell from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
+import Gapcursor from '@tiptap/extension-gapcursor';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
 import {
   BoldIcon,
   ItalicIcon,
@@ -90,6 +97,79 @@ function ToolbarSeparator() {
   return <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />;
 }
 
+// Table and Code icons
+const TableIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v18H3V3zm0 6h18m-9-6v18M3 15h18" />
+  </svg>
+);
+
+const CodeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m7 8-4 4 4 4m10-8 4 4-4 4M14 4l-4 16" />
+  </svg>
+);
+
+// Table manipulation icons
+const PlusRowIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 12h18M3 8h18M3 16h18" />
+  </svg>
+);
+
+const MinusRowIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 12h18M3 8h18M3 16h18" />
+  </svg>
+);
+
+const PlusColumnIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 3v18M12 3v18M16 3v18" />
+  </svg>
+);
+
+const MinusColumnIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 3v18M12 3v18M16 3v18" />
+  </svg>
+);
+
+const HeaderIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v6H3V3zM3 15h18v6H3v-6z" />
+  </svg>
+);
+
+const MergeCellsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v18H3V3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h6v6H9V9z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 3v6M12 15v6M3 12h6M15 12h6" />
+  </svg>
+);
+
+const SplitCellIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v18H3V3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18M3 12h18" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 8h8M8 16h8" />
+  </svg>
+);
+
+const SourceCodeIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+// Create lowlight instance for code syntax highlighting
+const lowlight = createLowlight(common);
+
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
   
@@ -119,6 +199,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const [selectedImageNode, setSelectedImageNode] = useState<any>(null);
   const [showImageToolbar, setShowImageToolbar] = useState(false);
   const [availableVariants, setAvailableVariants] = useState<Record<string, any>>({});
+  
+  // Table toolbar state
+  const [showTableToolbar, setShowTableToolbar] = useState(false);
+  
+  // Source view state
+  const [isSourceView, setIsSourceView] = useState(false);
+  const [sourceCode, setSourceCode] = useState('');
   
   // Store content when entering fullscreen to ensure persistence
   const [contentBackup, setContentBackup] = useState<string>('');
@@ -153,6 +240,19 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       Placeholder.configure({
         placeholder: options.placeholder || 'Start typing...'
       }),
+      Gapcursor,
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeaderCell,
+      TableCell,
+      CodeBlockLowlight.configure({
+        lowlight,
+        HTMLAttributes: {
+          class: 'hljs',
+        },
+      }),
       ...(characterLimit ? [CharacterCount.configure({ limit: characterLimit })] : [])
     ],
     content: value || '',
@@ -182,7 +282,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const canRedo = editor?.can().redo() ?? false;
   
 
-  // Handle selection updates to detect image selection
+  // Handle selection updates to detect image selection and table context
   const handleSelectionUpdate = useCallback((editor: any) => {
     const { selection } = editor.state;
     
@@ -201,25 +301,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       const selectedImg = editor.view.dom.querySelector(`img[src="${imageSrc}"]`);
       if (selectedImg) {
         selectedImg.setAttribute('data-selected', 'true');
-        // Log detailed CSS debugging info
-        const computedStyle = window.getComputedStyle(selectedImg);
-        logger.debug('Manual selection attribute applied to image', { 
-          imageSrc,
-          hasSelectedNodeClass: selectedImg.classList.contains('ProseMirror-selectednode'),
-          hasDataAttribute: selectedImg.hasAttribute('data-selected'),
-          border: computedStyle.border,
-          boxShadow: computedStyle.boxShadow,
-          transform: computedStyle.transform,
-          zIndex: computedStyle.zIndex
-        });
-        // Force browser console log for easier debugging
-        console.log('🔍 Image selection debug:', {
-          element: selectedImg,
-          classes: selectedImg.className,
-          attributes: Array.from(selectedImg.attributes).map(attr => `${(attr as Attr).name}="${(attr as Attr).value}"`),
-          computedBorder: computedStyle.border,
-          computedBoxShadow: computedStyle.boxShadow
-        });
+        logger.debug('Image selected', { imageSrc });
       }
       
       setSelectedImageNode(imageNode);
@@ -243,13 +325,52 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       
       // Show contextual toolbar (no positioning needed)
       setShowImageToolbar(true);
+      setShowTableToolbar(false); // Hide table toolbar when image is selected
     } else {
-      // No image selected, hide toolbar
+      // No image selected, hide image toolbar
       setShowImageToolbar(false);
       setSelectedImageNode(null);
       setAvailableVariants({});
+      
+      // Check if cursor is inside a table
+      const isInTable = editor.isActive('table');
+      setShowTableToolbar(isInTable);
+      
+      if (isInTable) {
+        logger.debug('Cursor is inside table, showing table toolbar');
+      }
     }
   }, [studioContext?.apiClient, logger]);
+  
+  // Toggle source view
+  const toggleSourceView = useCallback(() => {
+    if (!editor) return;
+    
+    if (!isSourceView) {
+      // Entering source view - get current HTML
+      const html = editor.getHTML();
+      setSourceCode(html);
+      logger.debug('Entering source view', { htmlLength: html.length });
+    } else {
+      // Exiting source view - update editor with modified HTML
+      try {
+        editor.commands.setContent(sourceCode, false);
+        onChange(sourceCode);
+        logger.debug('Exiting source view, content updated', { htmlLength: sourceCode.length });
+      } catch (error) {
+        logger.error('Failed to parse source HTML', error);
+        // Keep the source view open if HTML is invalid
+        return;
+      }
+    }
+    
+    setIsSourceView(!isSourceView);
+  }, [editor, isSourceView, sourceCode, onChange, logger]);
+  
+  // Handle source code changes
+  const handleSourceChange = useCallback((newSource: string) => {
+    setSourceCode(newSource);
+  }, []);
   
   // Fullscreen toggle with content backup
   const toggleFullscreen = useCallback(() => {
@@ -443,7 +564,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         }
       });
       
-      logger.info('Image variant changed', { 
+      logger.debug('Image variant changed', { 
         assetId, 
         variant: variantName, 
         newUrl: newImageUrl 
@@ -604,6 +725,25 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             
             <ToolbarSeparator />
             
+            {/* Table */}
+            <ToolbarButton
+              onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+              isDisabled={isDisabled}
+              icon={TableIcon}
+              title="Insert Table"
+            />
+            
+            {/* Code Block */}
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              isActive={editor.isActive('codeBlock')}
+              isDisabled={isDisabled}
+              icon={CodeIcon}
+              title="Code Block"
+            />
+            
+            <ToolbarSeparator />
+            
             {/* History */}
             <ToolbarButton
               onClick={() => editor.chain().focus().undo().run()}
@@ -619,16 +759,28 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             />
                 </div>
                 
-                {/* Fullscreen toggle (if enabled) - separated on the right */}
-                {options.enableFullscreen && (
+                {/* Source view and Fullscreen toggles - separated on the right */}
+                <div className="flex items-center gap-1">
+                  {/* Source View Toggle */}
                   <ToolbarButton
-                    onClick={toggleFullscreen}
-                    isActive={isFullscreen}
+                    onClick={toggleSourceView}
+                    isActive={isSourceView}
                     isDisabled={isDisabled}
-                    icon={ArrowsPointingOutIcon}
-                    title="Fullscreen"
+                    icon={SourceCodeIcon}
+                    title="View/Edit Source Code"
                   />
-                )}
+                  
+                  {/* Fullscreen toggle (if enabled) */}
+                  {options.enableFullscreen && (
+                    <ToolbarButton
+                      onClick={toggleFullscreen}
+                      isActive={isFullscreen}
+                      isDisabled={isDisabled}
+                      icon={ArrowsPointingOutIcon}
+                      title="Fullscreen"
+                    />
+                  )}
+                </div>
               </div>
         </div>
       )}
@@ -671,6 +823,124 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               >
                 <TrashIcon className="w-4 h-4" />
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Contextual Table Toolbar */}
+      {!isReadonly && showTableToolbar && editor && (
+        <div className="border-l border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TableIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Table Options:</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {/* Add Row */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().addRowAfter().run()}
+                disabled={isDisabled || !editor.can().addRowAfter()}
+                className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
+                title="Add Row After"
+              >
+                <PlusRowIcon className="w-3 h-3" />
+                Row
+              </button>
+              
+              {/* Remove Row */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().deleteRow().run()}
+                disabled={isDisabled || !editor.can().deleteRow()}
+                className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
+                title="Delete Row"
+              >
+                <MinusRowIcon className="w-3 h-3" />
+                Row
+              </button>
+              
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+              
+              {/* Add Column */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().addColumnAfter().run()}
+                disabled={isDisabled || !editor.can().addColumnAfter()}
+                className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
+                title="Add Column After"
+              >
+                <PlusColumnIcon className="w-3 h-3" />
+                Col
+              </button>
+              
+              {/* Remove Column */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().deleteColumn().run()}
+                disabled={isDisabled || !editor.can().deleteColumn()}
+                className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
+                title="Delete Column"
+              >
+                <MinusColumnIcon className="w-3 h-3" />
+                Col
+              </button>
+              
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+              
+              {/* Toggle Header Row */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+                disabled={isDisabled || !editor.can().toggleHeaderRow()}
+                className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors flex items-center gap-1"
+                title="Toggle Header Row"
+              >
+                <HeaderIcon className="w-3 h-3" />
+                Header
+              </button>
+              
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+              
+              {/* Merge Cells */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().mergeCells().run()}
+                disabled={isDisabled || !editor.can().mergeCells()}
+                className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
+                title="Merge Selected Cells"
+              >
+                <MergeCellsIcon className="w-3 h-3" />
+                Merge
+              </button>
+              
+              {/* Split Cell */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().splitCell().run()}
+                disabled={isDisabled || !editor.can().splitCell()}
+                className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
+                title="Split Cell"
+              >
+                <SplitCellIcon className="w-3 h-3" />
+                Split
+              </button>
+              
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+              
+              {/* Delete Table */}
+              <button
+                type="button"
+                onClick={() => editor.chain().focus().deleteTable().run()}
+                disabled={isDisabled || !editor.can().deleteTable()}
+                className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
+                title="Delete Table"
+              >
+                <TrashIcon className="w-3 h-3" />
+                Table
               </button>
             </div>
           </div>
@@ -768,6 +1038,82 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 outline: none !important;
               }
               
+              /* Table Styles */
+              .tiptap-editor-container .ProseMirror table {
+                border-collapse: collapse !important;
+                table-layout: fixed !important;
+                width: 100% !important;
+                margin: 1rem 0 !important;
+                overflow: hidden !important;
+                border: 2px solid #d1d5db !important;
+                border-radius: 0.5rem !important;
+              }
+              .dark .tiptap-editor-container .ProseMirror table {
+                border-color: #4b5563 !important;
+              }
+              .tiptap-editor-container .ProseMirror td, .tiptap-editor-container .ProseMirror th {
+                min-width: 1em !important;
+                border: 1px solid #d1d5db !important;
+                padding: 0.75rem !important;
+                vertical-align: top !important;
+                box-sizing: border-box !important;
+                position: relative !important;
+                background: #ffffff !important;
+              }
+              .dark .tiptap-editor-container .ProseMirror td, .dark .tiptap-editor-container .ProseMirror th {
+                border-color: #4b5563 !important;
+                background: #1f2937 !important;
+              }
+              .tiptap-editor-container .ProseMirror th {
+                font-weight: 600 !important;
+                text-align: left !important;
+                background-color: #f9fafb !important;
+              }
+              .dark .tiptap-editor-container .ProseMirror th {
+                background-color: #374151 !important;
+              }
+              .tiptap-editor-container .ProseMirror .selectedCell:after {
+                z-index: 2 !important;
+                position: absolute !important;
+                content: "" !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: 0 !important;
+                bottom: 0 !important;
+                background: rgba(59, 130, 246, 0.2) !important;
+                pointer-events: none !important;
+              }
+              
+              /* Table cell content styling */
+              .tiptap-editor-container .ProseMirror td > *, .tiptap-editor-container .ProseMirror th > * {
+                margin-bottom: 0 !important;
+              }
+              
+              /* Code Block Styles */
+              .tiptap-editor-container .ProseMirror pre {
+                background: #1f2937 !important;
+                color: #f9fafb !important;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace !important;
+                padding: 1rem !important;
+                border-radius: 0.5rem !important;
+                overflow-x: auto !important;
+                margin: 1rem 0 !important;
+                border: 1px solid #374151 !important;
+                font-size: 0.875rem !important;
+                line-height: 1.5 !important;
+              }
+              .dark .tiptap-editor-container .ProseMirror pre {
+                background: #0f172a !important;
+                border-color: #1e293b !important;
+              }
+              .tiptap-editor-container .ProseMirror pre code {
+                color: inherit !important;
+                padding: 0 !important;
+                background: none !important;
+                font-size: inherit !important;
+                border-radius: 0 !important;
+              }
+              
               /* Selection container styles */
               .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode,
               .tiptap-editor-container .ProseMirror .ProseMirror-selectednode {
@@ -799,6 +1145,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 outline: none !important;
                 border: none !important;
                 box-shadow: none !important;
+                min-height: 300px !important;
+              }
+              .tiptap-editor-container {
+                min-height: 300px !important;
               }
               .tiptap-editor-container .ProseMirror:focus {
                 outline: none !important;
@@ -808,11 +1158,24 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             `
           }} />
           {!isFullscreen && (
-            <EditorContent 
-              key="editor-content"
-              editor={editor}
-              className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[150px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
-            />
+            <>
+              {isSourceView ? (
+                <textarea
+                  value={sourceCode}
+                  onChange={(e) => handleSourceChange(e.target.value)}
+                  className="w-full p-4 min-h-[300px] font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-none resize-none focus:outline-none focus:ring-0"
+                  placeholder="Edit HTML source code..."
+                  disabled={isDisabled || isReadonly}
+                  spellCheck={false}
+                />
+              ) : (
+                <EditorContent 
+                  key="editor-content"
+                  editor={editor}
+                  className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[300px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[270px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
+                />
+              )}
+            </>
           )}
         </div>
           </div>
@@ -1016,6 +1379,25 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 
                 <ToolbarSeparator />
                 
+                {/* Table */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+                  isDisabled={isDisabled}
+                  icon={TableIcon}
+                  title="Insert Table"
+                />
+                
+                {/* Code Block */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                  isActive={editor.isActive('codeBlock')}
+                  isDisabled={isDisabled}
+                  icon={CodeIcon}
+                  title="Code Block"
+                />
+                
+                <ToolbarSeparator />
+                
                 {/* History */}
                 <ToolbarButton
                   onClick={() => editor.chain().focus().undo().run()}
@@ -1088,7 +1470,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           
           {/* Fullscreen Editor Container */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 tiptap-editor-container">
+            <div className="flex-1 tiptap-editor-container relative">
               <style dangerouslySetInnerHTML={{
                 __html: `
                   .tiptap-editor-container .ProseMirror h1 {
@@ -1197,6 +1579,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     outline: none !important;
                     border: none !important;
                     box-shadow: none !important;
+                    min-height: 100vh !important;
+                  }
+                  .tiptap-editor-container {
+                    min-height: 100vh !important;
                   }
                   .tiptap-editor-container .ProseMirror:focus {
                     outline: none !important;
@@ -1205,11 +1591,22 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   }
                 `
               }} />
-              <EditorContent 
-                key="editor-content"
-                editor={editor}
-                className="prose prose-sm dark:prose-invert max-w-none p-8 h-full overflow-y-auto text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:h-full [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
-              />
+              {isSourceView ? (
+                <textarea
+                  value={sourceCode}
+                  onChange={(e) => handleSourceChange(e.target.value)}
+                  className="absolute inset-0 w-full h-full p-8 font-mono text-sm bg-gray-900 text-gray-100 border-none resize-none focus:outline-none focus:ring-0 overflow-y-auto"
+                  placeholder="Edit HTML source code..."
+                  disabled={isDisabled || isReadonly}
+                  spellCheck={false}
+                />
+              ) : (
+                <EditorContent 
+                  key="editor-content"
+                  editor={editor}
+                  className="prose prose-sm dark:prose-invert max-w-none p-8 absolute inset-0 overflow-y-auto text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-full [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
+                />
+              )}
             </div>
           </div>
           
