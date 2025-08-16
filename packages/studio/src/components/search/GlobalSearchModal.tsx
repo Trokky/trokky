@@ -243,7 +243,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         </div>
 
         {/* Content */}
-        <div ref={scrollContainerRef} className="max-h-96 overflow-y-auto">
+        <div ref={scrollContainerRef} className="h-96 overflow-y-auto">
           {/* Loading State */}
           {isLoading && (
             <div className="p-8 text-center">
@@ -392,8 +392,8 @@ function SearchResultItem({ result, isSelected = false, dataIndex, onClick }: Se
   const IconComponent = CONTENT_TYPE_ICONS[result.type];
   const typeLabel = CONTENT_TYPE_LABELS[result.type];
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleClick = () => {
+    // Let the Link navigate naturally, just handle additional logic
     onClick();
   };
 

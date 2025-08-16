@@ -66,7 +66,7 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   
   const errorClasses = hasError 
     ? 'border-red-400 focus:ring-red-500'
-    : 'border-gray-300 dark:border-gray-600';
+    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700';
   
   // Render different styles
   const renderControl = () => {
@@ -164,17 +164,50 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
         
       default: // checkbox
         return (
-          <input
-            type="checkbox"
-            id={fieldId}
-            checked={isChecked}
-            disabled={isDisabled || isReadonly}
-            onChange={(e) => handleChange(e.target.checked)}
-            className={`
-              ${baseControlClasses} rounded
-              ${isChecked ? `${currentColor.bg} ${currentColor.border}` : errorClasses}
-            `.trim()}
-          />
+          <div className="relative inline-block">
+            <input
+              type="checkbox"
+              id={fieldId}
+              checked={isChecked}
+              disabled={isDisabled || isReadonly}
+              onChange={(e) => handleChange(e.target.checked)}
+              className="sr-only"
+            />
+            <div
+              className={`
+                ${currentSize.control} rounded border-2 transition-all duration-200 relative cursor-pointer
+                ${hasError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}
+                ${isChecked 
+                  ? `${currentColor.bg} ${currentColor.border}` 
+                  : 'bg-white dark:bg-gray-700'
+                }
+                ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-400 dark:hover:border-gray-500'}
+                focus-within:ring-2 focus-within:ring-offset-2 ${currentColor.ring}
+              `.trim()}
+              onClick={() => {
+                if (!isDisabled && !isReadonly) {
+                  handleChange(!isChecked);
+                }
+              }}
+            >
+              {/* Checkmark */}
+              {isChecked && (
+                <svg
+                  className="absolute inset-0 w-full h-full text-white pointer-events-none p-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+          </div>
         );
     }
   };

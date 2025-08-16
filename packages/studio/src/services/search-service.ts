@@ -210,7 +210,9 @@ export class SearchService {
                 url: `/content/${schema.name}/${doc.id || doc._id}`,
                 metadata: {
                   schemaType: schema.name,
-                  author: doc.author || doc._createdBy,
+                  author: typeof doc.author === 'object' && doc.author?._ref 
+                    ? (doc.author._cached?.name || doc.author._cached?.title || 'Reference') 
+                    : (doc.author || doc._createdBy),
                   createdAt: doc._createdAt || doc.createdAt,
                   updatedAt: doc._updatedAt || doc.updatedAt,
                   status: doc._state || doc.status,

@@ -346,7 +346,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
             onChange={(e) => setNewItemInput(e.target.value)}
             onKeyPress={handleTagKeyPress}
             placeholder={tagField.placeholder || 'Add tag...'}
-            className="flex-1 px-3 py-3 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm min-h-[44px]"
+            className="flex-1 px-3 py-3 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-sm min-h-[44px]"
           />
           <button
             type="button"

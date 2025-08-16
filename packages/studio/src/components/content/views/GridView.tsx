@@ -7,6 +7,7 @@ import {
   UserIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
+import { Checkbox } from '@/components/ui/Checkbox';
 import type { Document } from '@/types';
 
 export type GridCardSize = 'small' | 'medium' | 'large';
@@ -185,11 +186,10 @@ export function GridView({
           >
             {/* Selection checkbox */}
             <div className="absolute top-3 left-3 z-10">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={isSelected}
-                onChange={(e) => onItemSelect(docId, e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-white/90 backdrop-blur-sm"
+                onChange={(checked) => onItemSelect(docId, checked)}
+                className="bg-white/90 dark:bg-gray-700/90 backdrop-blur-sm"
               />
             </div>
             

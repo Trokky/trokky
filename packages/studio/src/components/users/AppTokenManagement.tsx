@@ -198,7 +198,7 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
                           type="checkbox"
                           checked={formData.permissions.includes(permission.value)}
                           onChange={() => togglePermission(permission.value)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                         />
                         <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                           {permission.label}

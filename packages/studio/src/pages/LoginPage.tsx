@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
@@ -127,13 +128,10 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </div>
 
           <div className="flex items-center">
-            <input
+            <Checkbox
               id="remember-me"
-              name="remember-me"
-              type="checkbox"
               checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              onChange={setRememberMe}
             />
             <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
               Remember me for 7 days

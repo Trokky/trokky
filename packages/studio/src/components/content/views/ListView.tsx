@@ -6,6 +6,7 @@ import {
   EllipsisHorizontalIcon 
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
+import { Checkbox } from '@/components/ui/Checkbox';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -125,14 +126,10 @@ export function ListView({
             <tr>
               {/* Selection column */}
               <th className="px-6 py-3 text-left w-12">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={allSelected}
-                  ref={(input) => {
-                    if (input) input.indeterminate = someSelected;
-                  }}
-                  onChange={(e) => onSelectAll(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  indeterminate={someSelected}
+                  onChange={onSelectAll}
                 />
               </th>
               
@@ -194,11 +191,9 @@ export function ListView({
                 >
                   {/* Selection cell */}
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={isSelected}
-                      onChange={(e) => onItemSelect(docId, e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onChange={(checked) => onItemSelect(docId, checked)}
                     />
                   </td>
                   

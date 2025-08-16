@@ -257,7 +257,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
                         type="checkbox"
                         checked={formData.events.includes(event.value)}
                         onChange={() => toggleEvent(event.value)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                       />
                       <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                         {event.label}

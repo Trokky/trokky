@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import type { Document } from '@/types';
 
 export interface TableColumn {
@@ -199,11 +200,10 @@ export function TableView({
                 <div className="space-y-2">
                   {columns.map((column) => (
                     <label key={column.key} className="flex items-center">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={column.visible !== false}
-                        onChange={(e) => onColumnVisibilityChange?.(column.key, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                        onChange={(checked) => onColumnVisibilityChange?.(column.key, checked)}
+                        className="mr-2"
                       />
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {column.title}
@@ -224,14 +224,10 @@ export function TableView({
             <tr>
               {/* Selection column */}
               <th className="px-4 py-3 text-left w-12">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={allSelected}
-                  ref={(input) => {
-                    if (input) input.indeterminate = someSelected;
-                  }}
-                  onChange={(e) => onSelectAll(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  indeterminate={someSelected}
+                  onChange={onSelectAll}
                 />
               </th>
               
@@ -312,11 +308,9 @@ export function TableView({
                 >
                   {/* Selection cell */}
                   <td className={cn("px-4 whitespace-nowrap", getDensityClasses())}>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={isSelected}
-                      onChange={(e) => onItemSelect(docId, e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onChange={(checked) => onItemSelect(docId, checked)}
                     />
                   </td>
                   
