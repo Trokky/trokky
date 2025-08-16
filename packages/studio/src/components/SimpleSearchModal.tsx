@@ -161,9 +161,27 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                     excerpt,
                     metadata: {
                       schemaType: schema.title || schema.name,
-                      author: typeof doc.author === 'object' && doc.author?._cached?.name 
-                        ? doc.author._cached.name 
-                        : (doc.author || doc._createdBy),
+                      author: (() => {
+                        // Try to get a proper author name
+                        if (typeof doc.author === 'object' && doc.author) {
+                          // Check for cached reference data
+                          if (doc.author._cached?.name) return doc.author._cached.name;
+                          if (doc.author._cached?.title) return doc.author._cached.title;
+                          if (doc.author._cached?.username) return doc.author._cached.username;
+                          // If it's a reference object but no cached data, don't show it
+                          if (doc.author._ref) return undefined;
+                        }
+                        // Try string values
+                        if (typeof doc.author === 'string' && !doc.author.startsWith('author-')) {
+                          return doc.author;
+                        }
+                        // Try other fields
+                        if (doc._createdBy && !doc._createdBy.startsWith('author-')) {
+                          return doc._createdBy;
+                        }
+                        // Don't show technical IDs
+                        return undefined;
+                      })(),
                       createdAt: doc._createdAt || doc.createdAt,
                     }
                   });
@@ -295,7 +313,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
         </div>
 
         {/* Content */}
-        <div className="max-h-96 overflow-y-auto">
+        <div className="h-96 overflow-y-auto">
           {/* Loading */}
           {isLoading && (
             <div className="p-8 text-center">
