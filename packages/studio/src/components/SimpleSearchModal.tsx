@@ -140,9 +140,10 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
       try {
         const schemasResponse = await client.getSchemas();
         if (schemasResponse.success && schemasResponse.data) {
-          for (const schema of schemasResponse.data.slice(0, 3)) { // Limit to 3 schemas
-            const docsResponse = await client.getDocuments(schema.name, { limit: 5 });
+          for (const schema of schemasResponse.data) { // Search all schemas
+            const docsResponse = await client.getDocuments(schema.name, { limit: 20 }); // Increase limit
             if (docsResponse.success && docsResponse.data?.documents) {
+              console.log(`Searching schema ${schema.name}, found ${docsResponse.data.documents.length} documents`, docsResponse.data.documents);
               docsResponse.data.documents.forEach((doc: any) => {
                 const title = doc.title || doc.name || doc.slug || 'Untitled';
                 const content = doc.content || doc.body || doc.description || doc.excerpt || '';
@@ -225,12 +226,60 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
         console.warn('Media search failed:', error);
       }
 
+      // Also search singletons directly if they're not included in regular document lists
+      await searchSingletons(searchQuery, results);
+
       setResults(results.slice(0, 10)); // Limit to 10 results
     } catch (error) {
       console.error('Search failed:', error);
       setResults([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Search singleton documents specifically
+  const searchSingletons = async (searchQuery: string, results: SearchResult[]) => {
+    try {
+      // Known singletons from the structure
+      const singletons = [
+        { schema: 'homePage', id: 'home', title: 'Home Page' },
+        { schema: 'settings', id: 'site-settings', title: 'Site Settings' }
+      ];
+
+      for (const singleton of singletons) {
+        try {
+          const response = await client.getDocument(singleton.schema, singleton.id);
+          if (response.success && response.data) {
+            const doc = response.data;
+            const title = doc.title || singleton.title;
+            const content = doc.content || doc.body || doc.description || '';
+            
+            // Check if singleton matches search
+            if (title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                content.toLowerCase().includes(searchQuery.toLowerCase())) {
+              
+              console.log(`Found singleton match: ${singleton.schema}/${singleton.id}`);
+              
+              results.push({
+                id: doc.id || singleton.id,
+                type: 'document',
+                title,
+                url: `/content/${singleton.schema}/${singleton.id}`,
+                excerpt: extractExcerpt(content || title, searchQuery),
+                metadata: {
+                  schemaType: singleton.title,
+                  createdAt: doc._createdAt || doc.createdAt,
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to search singleton ${singleton.schema}:`, error);
+        }
+      }
+    } catch (error) {
+      console.warn('Singleton search failed:', error);
     }
   };
 

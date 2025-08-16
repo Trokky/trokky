@@ -2007,6 +2007,7 @@ export class TrokkyRoutes {
         return {
           title: 'Home Page',
           description: 'Welcome to our website',
+          content: '<p>Welcome to our website! This is the homepage content.</p>',
           slug: 'home'
         }
       case 'settings':
