@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { NodeSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
@@ -32,6 +33,13 @@ const H2Icon = ({ className }: { className?: string }) => (
 );
 const H3Icon = ({ className }: { className?: string }) => (
   <span className={`font-bold text-xs ${className || ''}`}>H3</span>
+);
+
+// Simple trash icon
+const TrashIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
 );
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { RichTextFieldDefinition } from './definition';
@@ -107,8 +115,16 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   // Image browser state
   const [showImageBrowser, setShowImageBrowser] = useState(false);
   
+  // Image toolbar state
+  const [selectedImageNode, setSelectedImageNode] = useState<any>(null);
+  const [showImageToolbar, setShowImageToolbar] = useState(false);
+  const [availableVariants, setAvailableVariants] = useState<Record<string, any>>({});
+  
   // Store content when entering fullscreen to ensure persistence
   const [contentBackup, setContentBackup] = useState<string>('');
+  
+  // Editor container references for positioning
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark');
@@ -145,6 +161,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       const html = editor.getHTML();
       logger.debug('Content updated', { fieldId, length: html.length });
       onChange(html);
+    },
+    onSelectionUpdate: ({ editor }) => {
+      handleSelectionUpdate(editor);
     }
   });
 
@@ -161,6 +180,76 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   // Format operations
   const canUndo = editor?.can().undo() ?? false;
   const canRedo = editor?.can().redo() ?? false;
+  
+
+  // Handle selection updates to detect image selection
+  const handleSelectionUpdate = useCallback((editor: any) => {
+    const { selection } = editor.state;
+    
+    // First, clear any existing manual selection attributes
+    const allImages = editor.view.dom.querySelectorAll('img');
+    allImages.forEach((img: HTMLImageElement) => {
+      img.removeAttribute('data-selected');
+    });
+    
+    // Check if an image node is selected
+    if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+      const imageNode = selection.node;
+      const imageSrc = imageNode.attrs.src;
+      
+      // Add manual selection attribute as fallback
+      const selectedImg = editor.view.dom.querySelector(`img[src="${imageSrc}"]`);
+      if (selectedImg) {
+        selectedImg.setAttribute('data-selected', 'true');
+        // Log detailed CSS debugging info
+        const computedStyle = window.getComputedStyle(selectedImg);
+        logger.debug('Manual selection attribute applied to image', { 
+          imageSrc,
+          hasSelectedNodeClass: selectedImg.classList.contains('ProseMirror-selectednode'),
+          hasDataAttribute: selectedImg.hasAttribute('data-selected'),
+          border: computedStyle.border,
+          boxShadow: computedStyle.boxShadow,
+          transform: computedStyle.transform,
+          zIndex: computedStyle.zIndex
+        });
+        // Force browser console log for easier debugging
+        console.log('🔍 Image selection debug:', {
+          element: selectedImg,
+          classes: selectedImg.className,
+          attributes: Array.from(selectedImg.attributes).map(attr => `${(attr as Attr).name}="${(attr as Attr).value}"`),
+          computedBorder: computedStyle.border,
+          computedBoxShadow: computedStyle.boxShadow
+        });
+      }
+      
+      setSelectedImageNode(imageNode);
+      
+      // Extract asset ID from the URL to load variants
+      const assetIdMatch = imageSrc.match(/\/media\/([^\/]+)/);
+      if (assetIdMatch && studioContext?.apiClient) {
+        const assetId = assetIdMatch[1];
+        
+        // Load media metadata to get available variants
+        studioContext.apiClient.getMediaById(assetId)
+          .then(response => {
+            if (response.success && response.data?.file?.metadata?.imageVariants) {
+              setAvailableVariants(response.data.file.metadata.imageVariants);
+            }
+          })
+          .catch(error => {
+            logger.error('Failed to load image variants', error);
+          });
+      }
+      
+      // Show contextual toolbar (no positioning needed)
+      setShowImageToolbar(true);
+    } else {
+      // No image selected, hide toolbar
+      setShowImageToolbar(false);
+      setSelectedImageNode(null);
+      setAvailableVariants({});
+    }
+  }, [studioContext?.apiClient, logger]);
   
   // Fullscreen toggle with content backup
   const toggleFullscreen = useCallback(() => {
@@ -206,6 +295,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       document.body.style.overflow = '';
     };
   }, [isFullscreen, toggleFullscreen]);
+
 
   // Add link functionality
   const openLinkDialog = useCallback(() => {
@@ -315,6 +405,72 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     
     setShowImageBrowser(false);
   }, [editor, studioContext?.apiClient, logger]);
+  
+  // Handle variant change for selected image
+  const handleVariantChange = useCallback((variantName: string) => {
+    if (!editor || !selectedImageNode) return;
+    
+    const imageSrc = selectedImageNode.attrs.src;
+    const assetIdMatch = imageSrc.match(/\/media\/([^\/]+)/);
+    
+    if (assetIdMatch) {
+      const assetId = assetIdMatch[1];
+      let newImageUrl: string;
+      
+      if (variantName === 'original') {
+        // Use original file URL
+        newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file');
+      } else {
+        // Use variant URL
+        const variantData = availableVariants[variantName];
+        if (variantData?.url) {
+          newImageUrl = variantData.url;
+        } else {
+          logger.warn(`Variant '${variantName}' not found`);
+          return;
+        }
+      }
+      
+      // Update the image src attribute
+      editor.chain().focus().updateAttributes('image', { src: newImageUrl }).run();
+      
+      // Update the selected image node in state to reflect the new src
+      setSelectedImageNode({
+        ...selectedImageNode,
+        attrs: {
+          ...selectedImageNode.attrs,
+          src: newImageUrl
+        }
+      });
+      
+      logger.info('Image variant changed', { 
+        assetId, 
+        variant: variantName, 
+        newUrl: newImageUrl 
+      });
+    }
+  }, [editor, selectedImageNode, availableVariants, logger]);
+  
+  // Get current variant from image URL
+  const getCurrentVariant = useCallback((imageSrc: string) => {
+    if (imageSrc.includes('/variants/')) {
+      const variantMatch = imageSrc.match(/\/variants\/([^\/]+)/);
+      return variantMatch ? variantMatch[1] : 'original';
+    }
+    return 'original';
+  }, []);
+
+  // Handle image deletion
+  const handleDeleteImage = useCallback(() => {
+    if (!editor) return;
+    
+    editor.chain().focus().deleteSelection().run();
+    setShowImageToolbar(false);
+    setSelectedImageNode(null);
+    setAvailableVariants({});
+    
+    logger.info('Image deleted');
+  }, [editor, logger]);
   
   // Content statistics
   const stats = useMemo(() => {
@@ -477,6 +633,50 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         </div>
       )}
       
+      {/* Contextual Image Toolbar */}
+      {!isReadonly && showImageToolbar && selectedImageNode && (
+        <div className="border-l border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Image Options:</span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Variant Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-600 dark:text-gray-400">Variant:</label>
+                <select
+                  value={getCurrentVariant(selectedImageNode.attrs.src)}
+                  onChange={(e) => handleVariantChange(e.target.value)}
+                  className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={isDisabled}
+                >
+                  <option value="original">Original</option>
+                  {Object.entries(availableVariants).map(([variantName, variantData]: [string, any]) => (
+                    <option key={variantName} value={variantName}>
+                      {variantName.charAt(0).toUpperCase() + variantName.slice(1)} ({variantData.width}×{variantData.height})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Delete Button */}
+              <button
+                type="button"
+                onClick={handleDeleteImage}
+                disabled={isDisabled}
+                className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
+                title="Delete Image"
+              >
+                <TrashIcon className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Editor */}
       <div 
         className={`
@@ -486,7 +686,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
-        <div className="tiptap-editor-container">
+        <div className="tiptap-editor-container relative" ref={editorContainerRef}>
           <style dangerouslySetInnerHTML={{
             __html: `
               .tiptap-editor-container .ProseMirror h1 {
@@ -543,6 +743,57 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 border-radius: 0.5rem !important;
                 margin: 0.5rem 0 !important;
                 display: block !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+              }
+              .tiptap-editor-container .ProseMirror img:hover {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+              }
+              /* Direct image selection styles with maximum specificity */
+              img.ProseMirror-selectednode {
+                border: 4px solid #3b82f6 !important;
+                box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4) !important;
+                transform: scale(1.03) !important;
+                outline: none !important;
+                background: rgba(59, 130, 246, 0.1) !important;
+                position: relative !important;
+                z-index: 100 !important;
+              }
+              
+              /* Backup selector with blue styling to match */
+              .ProseMirror img[data-selected="true"] {
+                border: 3px solid #3b82f6 !important;
+                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+                transform: scale(1.02) !important;
+                outline: none !important;
+              }
+              
+              /* Selection container styles */
+              .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode,
+              .tiptap-editor-container .ProseMirror .ProseMirror-selectednode {
+                position: relative !important;
+                margin: 8px !important;
+              }
+              
+              .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before,
+              .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
+                content: '' !important;
+                position: absolute !important;
+                top: -8px !important;
+                left: -8px !important;
+                right: -8px !important;
+                bottom: -8px !important;
+                border: 2px dashed #3b82f6 !important;
+                border-radius: 1rem !important;
+                pointer-events: none !important;
+                background: rgba(59, 130, 246, 0.05) !important;
+                z-index: 9 !important;
+              }
+              
+              .dark .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before,
+              .dark .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
+                border-color: #60a5fa !important;
+                background: rgba(96, 165, 250, 0.05) !important;
               }
               .tiptap-editor-container .ProseMirror {
                 outline: none !important;
@@ -791,6 +1042,50 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             </div>
           </div>
           
+          {/* Contextual Image Toolbar - Fullscreen */}
+          {showImageToolbar && selectedImageNode && (
+            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Image Options:</span>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  {/* Variant Selector */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Variant:</label>
+                    <select
+                      value={getCurrentVariant(selectedImageNode.attrs.src)}
+                      onChange={(e) => handleVariantChange(e.target.value)}
+                      className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={isDisabled}
+                    >
+                      <option value="original">Original</option>
+                      {Object.entries(availableVariants).map(([variantName, variantData]: [string, any]) => (
+                        <option key={variantName} value={variantName}>
+                          {variantName.charAt(0).toUpperCase() + variantName.slice(1)} ({variantData.width}×{variantData.height})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Delete Button */}
+                  <button
+                    type="button"
+                    onClick={handleDeleteImage}
+                    disabled={isDisabled}
+                    className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
+                    title="Delete Image"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Fullscreen Editor Container */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 tiptap-editor-container">
@@ -850,6 +1145,53 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     border-radius: 0.5rem !important;
                     margin: 0.5rem 0 !important;
                     display: block !important;
+                    cursor: pointer !important;
+                    transition: all 0.2s ease !important;
+                  }
+                  .tiptap-editor-container .ProseMirror img:hover {
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+                  }
+                  /* High specificity selection styles - Fullscreen */
+                  .tiptap-editor-container .ProseMirror img.ProseMirror-selectednode,
+                  .ProseMirror img.ProseMirror-selectednode {
+                    border: 4px solid #3b82f6 !important;
+                    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4) !important;
+                    transform: scale(1.03) !important;
+                    outline: none !important;
+                    transition: all 0.2s ease !important;
+                    position: relative !important;
+                    z-index: 10 !important;
+                  }
+                  
+                  .dark .tiptap-editor-container .ProseMirror img.ProseMirror-selectednode,
+                  .dark .ProseMirror img.ProseMirror-selectednode {
+                    border-color: #60a5fa !important;
+                    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.3), 0 4px 20px rgba(96, 165, 250, 0.5) !important;
+                  }
+                  
+                  /* Selection container styles - Fullscreen */
+                  .tiptap-editor-container .ProseMirror .ProseMirror-selectednode {
+                    position: relative !important;
+                    margin: 8px !important;
+                  }
+                  
+                  .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
+                    content: '' !important;
+                    position: absolute !important;
+                    top: -8px !important;
+                    left: -8px !important;
+                    right: -8px !important;
+                    bottom: -8px !important;
+                    border: 2px dashed #3b82f6 !important;
+                    border-radius: 1rem !important;
+                    pointer-events: none !important;
+                    background: rgba(59, 130, 246, 0.05) !important;
+                    z-index: 9 !important;
+                  }
+                  
+                  .dark .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
+                    border-color: #60a5fa !important;
+                    background: rgba(96, 165, 250, 0.05) !important;
                   }
                   .tiptap-editor-container .ProseMirror {
                     outline: none !important;
@@ -904,6 +1246,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           logger={studioContext?.logger}
         />
       )}
+      
     </>
   );
 }
