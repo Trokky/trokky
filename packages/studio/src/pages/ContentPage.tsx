@@ -177,15 +177,29 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           const docResponse = await apiClient.getDocument(schemaName, documentId);
           if (docResponse.success && docResponse.data) {
             const originalDoc = docResponse.data;
-            const duplicateData = {
-              ...originalDoc,
-              title: `${originalDoc.title || 'Document'} (Copy)`,
-              slug: undefined,
-              _id: undefined,
-              id: undefined,
-              _createdAt: undefined,
-              _updatedAt: undefined
-            };
+            
+            // Clean up the document for duplication - remove system fields and problematic references
+            const duplicateData = { ...originalDoc };
+            
+            // Remove system fields
+            delete duplicateData._id;
+            delete duplicateData.id;
+            delete duplicateData._createdAt;
+            delete duplicateData._updatedAt;
+            delete duplicateData._revision;
+            delete duplicateData._collection;
+            delete duplicateData._status;
+            
+            // Remove reference fields that might cause validation issues
+            delete duplicateData.author;
+            delete duplicateData.category;
+            
+            // Set as draft
+            duplicateData._state = 'draft';
+            duplicateData.published = false;
+            duplicateData.publishedAt = null;
+            duplicateData.title = `${originalDoc.title || 'Document'} (Copy)`;
+            duplicateData.slug = undefined;
             
             const createResponse = await apiClient.createDocument(schemaName, duplicateData);
             if (createResponse.success) {
@@ -327,7 +341,16 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           
           switch (actionId) {
             case 'delete':
-              if (!confirm(`Are you sure you want to delete ${selectedItems.length} documents?`)) return;
+              const confirmed = await studioContext?.utils?.showConfirm?.(
+                `Are you sure you want to delete ${selectedItems.length} document${selectedItems.length === 1 ? '' : 's'}? This action cannot be undone.`,
+                {
+                  title: 'Delete Documents',
+                  confirmText: 'Delete All',
+                  cancelText: 'Cancel',
+                  variant: 'danger'
+                }
+              );
+              if (!confirmed) return;
               await Promise.all(selectedItems.map(id => apiClient.deleteDocument(schemaName, id)));
               setSelectedItems([]);
               await loadDocuments();
