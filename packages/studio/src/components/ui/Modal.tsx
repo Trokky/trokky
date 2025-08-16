@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 
@@ -19,6 +19,20 @@ export function Modal({
   children,
   closeOnOverlayClick = true
 }: ModalProps) {
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const sizeClasses = {

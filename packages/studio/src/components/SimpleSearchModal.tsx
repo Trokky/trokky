@@ -65,33 +65,6 @@ function highlightText(text: string, query: string): string {
   return sanitized.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
 }
 
-// Extract excerpt with context around search term
-function extractExcerpt(text: string, query: string, maxLength: number = 150): string {
-  if (!text || !query || query.length < 2) {
-    return text ? sanitizeText(text).substring(0, maxLength) : '';
-  }
-  
-  // First sanitize the text
-  const sanitized = sanitizeText(text);
-  const lowerText = sanitized.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  const index = lowerText.indexOf(lowerQuery);
-  
-  if (index === -1) {
-    return sanitized.substring(0, maxLength);
-  }
-  
-  // Extract text around the match
-  const start = Math.max(0, index - 75);
-  const end = Math.min(sanitized.length, index + 75);
-  let excerpt = sanitized.substring(start, end);
-  
-  // Add ellipsis if truncated
-  if (start > 0) excerpt = '...' + excerpt;
-  if (end < sanitized.length) excerpt = excerpt + '...';
-  
-  return excerpt;
-}
 
 // Format file size
 function formatFileSize(bytes: number): string {
@@ -108,10 +81,11 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
   const client = useApiClient();
 
-  // Load recent searches
+  // Load recent searches and cleanup
   useEffect(() => {
     if (isOpen) {
       try {
@@ -122,10 +96,16 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
       }
       // Focus input
       setTimeout(() => searchInputRef.current?.focus(), 100);
+    } else {
+      // Clear search timeout when modal closes
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
+      }
     }
   }, [isOpen]);
 
-  // Simple search function
+  // Efficient server-side search function
   const performSearch = async (searchQuery: string) => {
     if (searchQuery.length < 2) {
       setResults([]);
@@ -134,102 +114,35 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
 
     setIsLoading(true);
     try {
-      const results: SearchResult[] = [];
-      
-      // Search documents
-      try {
-        const schemasResponse = await client.getSchemas();
-        if (schemasResponse.success && schemasResponse.data) {
-          for (const schema of schemasResponse.data) { // Search all schemas
-            const docsResponse = await client.getDocuments(schema.name, { limit: 20 }); // Increase limit
-            if (docsResponse.success && docsResponse.data?.documents) {
-              console.log(`Searching schema ${schema.name}, found ${docsResponse.data.documents.length} documents`, docsResponse.data.documents);
-              docsResponse.data.documents.forEach((doc: any) => {
-                const title = doc.title || doc.name || doc.slug || 'Untitled';
-                const content = doc.content || doc.body || doc.description || doc.excerpt || '';
-                
-                // Check if title or content matches
-                if (title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    content.toLowerCase().includes(searchQuery.toLowerCase())) {
-                  
-                  // Create contextual excerpt
-                  const excerpt = extractExcerpt(content || title, searchQuery);
-                  
-                  results.push({
-                    id: doc.id || doc._id,
-                    type: 'document',
-                    title,
-                    url: `/content/${schema.name}/${doc.id || doc._id}`,
-                    excerpt,
-                    metadata: {
-                      schemaType: schema.title || schema.name,
-                      author: (() => {
-                        // Try to get a proper author name
-                        if (typeof doc.author === 'object' && doc.author) {
-                          // Check for cached reference data
-                          if (doc.author._cached?.name) return doc.author._cached.name;
-                          if (doc.author._cached?.title) return doc.author._cached.title;
-                          if (doc.author._cached?.username) return doc.author._cached.username;
-                          // If it's a reference object but no cached data, don't show it
-                          if (doc.author._ref) return undefined;
-                        }
-                        // Try string values
-                        if (typeof doc.author === 'string' && !doc.author.startsWith('author-')) {
-                          return doc.author;
-                        }
-                        // Try other fields
-                        if (doc._createdBy && !doc._createdBy.startsWith('author-')) {
-                          return doc._createdBy;
-                        }
-                        // Don't show technical IDs
-                        return undefined;
-                      })(),
-                      createdAt: doc._createdAt || doc.createdAt,
-                    }
-                  });
-                }
-              });
-            }
+      // Use the new server-side search endpoint
+      const searchResponse = await client.get('/api/search', { 
+        q: searchQuery,
+        limit: 10 
+      });
+
+      if (searchResponse.success && searchResponse.data) {
+        const serverResults = (searchResponse.data as any).results || [];
+        
+        // Transform server results to match our interface
+        const transformedResults: SearchResult[] = serverResults.map((result: any) => ({
+          id: result.id,
+          type: result.type,
+          title: result.title,
+          url: result.url,
+          excerpt: result.excerpt,
+          metadata: {
+            schemaType: result.metadata?.schemaType,
+            author: result.metadata?.author,
+            createdAt: result.metadata?.createdAt,
+            size: result.metadata?.size ? formatFileSize(result.metadata.size) : undefined,
           }
-        }
-      } catch (error) {
-        console.warn('Document search failed:', error);
+        }));
+
+        setResults(transformedResults);
+      } else {
+        console.warn('Search failed:', searchResponse.error);
+        setResults([]);
       }
-
-      // Search media
-      try {
-        const mediaResponse = await client.get('/api/media', { limit: 10 });
-        if (mediaResponse.success && mediaResponse.data) {
-          (mediaResponse.data as any[]).forEach((file: any) => {
-            const title = file.title || file.filename || 'Untitled';
-            const description = file.description || file.alt || '';
-            
-            if (title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                (file.id && file.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                description.toLowerCase().includes(searchQuery.toLowerCase())) {
-              
-              results.push({
-                id: file.id,
-                type: 'media',
-                title,
-                url: `/media?file=${file.id}`,
-                excerpt: extractExcerpt(description || title, searchQuery),
-                metadata: {
-                  size: file.size ? formatFileSize(file.size) : undefined,
-                  createdAt: file.createdAt,
-                }
-              });
-            }
-          });
-        }
-      } catch (error) {
-        console.warn('Media search failed:', error);
-      }
-
-      // Also search singletons directly if they're not included in regular document lists
-      await searchSingletons(searchQuery, results);
-
-      setResults(results.slice(0, 10)); // Limit to 10 results
     } catch (error) {
       console.error('Search failed:', error);
       setResults([]);
@@ -238,59 +151,19 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
     }
   };
 
-  // Search singleton documents specifically
-  const searchSingletons = async (searchQuery: string, results: SearchResult[]) => {
-    try {
-      // Known singletons from the structure
-      const singletons = [
-        { schema: 'homePage', id: 'home', title: 'Home Page' },
-        { schema: 'settings', id: 'site-settings', title: 'Site Settings' }
-      ];
 
-      for (const singleton of singletons) {
-        try {
-          const response = await client.getDocument(singleton.schema, singleton.id);
-          if (response.success && response.data) {
-            const doc = response.data;
-            const title = doc.title || singleton.title;
-            const content = doc.content || doc.body || doc.description || '';
-            
-            // Check if singleton matches search
-            if (title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                content.toLowerCase().includes(searchQuery.toLowerCase())) {
-              
-              console.log(`Found singleton match: ${singleton.schema}/${singleton.id}`);
-              
-              results.push({
-                id: doc.id || singleton.id,
-                type: 'document',
-                title,
-                url: `/content/${singleton.schema}/${singleton.id}`,
-                excerpt: extractExcerpt(content || title, searchQuery),
-                metadata: {
-                  schemaType: singleton.title,
-                  createdAt: doc._createdAt || doc.createdAt,
-                }
-              });
-            }
-          }
-        } catch (error) {
-          console.warn(`Failed to search singleton ${singleton.schema}:`, error);
-        }
-      }
-    } catch (error) {
-      console.warn('Singleton search failed:', error);
-    }
-  };
-
-  // Handle search input change
+  // Handle search input change with proper debouncing
   const handleSearchChange = (value: string) => {
     setQuery(value);
-    // Simple debounce - use timeout
-    setTimeout(() => {
-      if (value === query) { // Only search if query hasn't changed
-        performSearch(value);
-      }
+    
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(value);
     }, 300);
   };
 
