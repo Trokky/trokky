@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -16,7 +16,9 @@ import {
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
   ChartBarIcon,
-  ChatBubbleBottomCenterTextIcon
+  ChatBubbleBottomCenterTextIcon,
+  ArrowsPointingOutIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 // Simple heading icons
@@ -95,6 +97,12 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Store content when entering fullscreen to ensure persistence
+  const [contentBackup, setContentBackup] = useState<string>('');
+  
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark');
   
@@ -127,10 +135,65 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     }
   });
 
+  // Ensure editor content is synced when toggling fullscreen
+  useEffect(() => {
+    if (editor && value !== undefined) {
+      const currentContent = editor.getHTML();
+      if (currentContent !== value) {
+        editor.commands.setContent(value, false); // false = don't emit update event
+      }
+    }
+  }, [editor, value, isFullscreen]);
+
   // Format operations
   const canUndo = editor?.can().undo() ?? false;
   const canRedo = editor?.can().redo() ?? false;
   
+  // Fullscreen toggle with content backup
+  const toggleFullscreen = useCallback(() => {
+    if (!editor) return;
+    
+    if (!isFullscreen) {
+      // Entering fullscreen - backup current content
+      const currentContent = editor.getHTML();
+      setContentBackup(currentContent);
+      logger.debug('Entering fullscreen, backed up content', { length: currentContent.length });
+    } else {
+      // Exiting fullscreen - ensure content is preserved
+      const currentContent = editor.getHTML();
+      logger.debug('Exiting fullscreen, current content', { length: currentContent.length });
+      if (currentContent && currentContent !== contentBackup) {
+        // Content changed in fullscreen, make sure it's saved
+        onChange(currentContent);
+      }
+    }
+    
+    setIsFullscreen(!isFullscreen);
+  }, [editor, isFullscreen, contentBackup, onChange]);
+
+
+  // Escape key handler for fullscreen mode
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        toggleFullscreen();
+      }
+    };
+
+    if (isFullscreen) {
+      document.addEventListener('keydown', handleEscape);
+      // Prevent body scroll when fullscreen
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen, toggleFullscreen]);
+
   // Add link functionality
   const openLinkDialog = useCallback(() => {
     if (!editor) return;
@@ -193,11 +256,15 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   }
   
   return (
-    <div className={`rich-text-field ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
-      {/* Toolbar */}
-      {!isReadonly && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-t-lg bg-gray-50 dark:bg-gray-800 p-2">
-          <div className="flex items-center gap-1 flex-wrap">
+    <>
+      {/* Normal Mode */}
+      {!isFullscreen && (
+        <div className={`rich-text-field ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
+          {/* Toolbar */}
+          {!isReadonly && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-t-lg bg-gray-50 dark:bg-gray-800 p-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 flex-wrap">
             {/* Text formatting */}
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleBold().run()}
@@ -308,7 +375,19 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               icon={ArrowUturnRightIcon}
               title="Redo"
             />
-          </div>
+                </div>
+                
+                {/* Fullscreen toggle (if enabled) - separated on the right */}
+                {options.enableFullscreen && (
+                  <ToolbarButton
+                    onClick={toggleFullscreen}
+                    isActive={isFullscreen}
+                    isDisabled={isDisabled}
+                    icon={ArrowsPointingOutIcon}
+                    title="Fullscreen"
+                  />
+                )}
+              </div>
         </div>
       )}
       
@@ -384,24 +463,29 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               }
             `
           }} />
-          <EditorContent 
-            editor={editor}
-            className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[150px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
-          />
+          {!isFullscreen && (
+            <EditorContent 
+              key="editor-content"
+              editor={editor}
+              className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[150px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
+            />
+          )}
         </div>
-      </div>
-      
-      {/* Footer with stats */}
-      {options.showStats && (
-        <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-4">
-            <span>{stats.words} words</span>
-            <span>{stats.characters}{characterLimit ? ` / ${characterLimit}` : ''} characters</span>
-            <span>{stats.readTime} min read</span>
           </div>
-          {characterLimit && stats.characters > characterLimit && (
-            <div className="text-red-500 dark:text-red-400">
-              Exceeds character limit
+          
+          {/* Footer with stats */}
+          {options.showStats && (
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-4">
+                <span>{stats.words} words</span>
+                <span>{stats.characters}{characterLimit ? ` / ${characterLimit}` : ''} characters</span>
+                <span>{stats.readTime} min read</span>
+              </div>
+              {characterLimit && stats.characters > characterLimit && (
+                <div className="text-red-500 dark:text-red-400">
+                  Exceeds character limit
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -474,6 +558,229 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           </div>
         </div>
       )}
-    </div>
+      
+      {/* Fullscreen Modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
+          {/* Fullscreen Toolbar */}
+          <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 flex-wrap">
+                {/* Text formatting */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  isActive={editor.isActive('bold')}
+                  isDisabled={isDisabled}
+                  icon={BoldIcon}
+                  title="Bold"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  isActive={editor.isActive('italic')}
+                  isDisabled={isDisabled}
+                  icon={ItalicIcon}
+                  title="Italic"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  isActive={editor.isActive('underline')}
+                  isDisabled={isDisabled}
+                  icon={UnderlineIcon}
+                  title="Underline"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  isActive={editor.isActive('strike')}
+                  isDisabled={isDisabled}
+                  icon={StrikethroughIcon}
+                  title="Strikethrough"
+                />
+                
+                <ToolbarSeparator />
+                
+                {/* Headings */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                  isActive={editor.isActive('heading', { level: 1 })}
+                  isDisabled={isDisabled}
+                  icon={H1Icon}
+                  title="Heading 1"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                  isActive={editor.isActive('heading', { level: 2 })}
+                  isDisabled={isDisabled}
+                  icon={H2Icon}
+                  title="Heading 2"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                  isActive={editor.isActive('heading', { level: 3 })}
+                  isDisabled={isDisabled}
+                  icon={H3Icon}
+                  title="Heading 3"
+                />
+                
+                <ToolbarSeparator />
+                
+                {/* Quote */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                  isActive={editor.isActive('blockquote')}
+                  isDisabled={isDisabled}
+                  icon={ChatBubbleBottomCenterTextIcon}
+                  title="Quote"
+                />
+                
+                <ToolbarSeparator />
+                
+                {/* Links */}
+                <ToolbarButton
+                  onClick={openLinkDialog}
+                  isActive={editor.isActive('link')}
+                  isDisabled={isDisabled}
+                  icon={LinkIcon}
+                  title="Add Link"
+                />
+                
+                <ToolbarSeparator />
+                
+                {/* Lists */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                  isActive={editor.isActive('bulletList')}
+                  isDisabled={isDisabled}
+                  icon={ListBulletIcon}
+                  title="Bullet List"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                  isActive={editor.isActive('orderedList')}
+                  isDisabled={isDisabled}
+                  icon={NumberedListIcon}
+                  title="Numbered List"
+                />
+                
+                <ToolbarSeparator />
+                
+                {/* History */}
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().undo().run()}
+                  isDisabled={isDisabled || !canUndo}
+                  icon={ArrowUturnLeftIcon}
+                  title="Undo"
+                />
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().redo().run()}
+                  isDisabled={isDisabled || !canRedo}
+                  icon={ArrowUturnRightIcon}
+                  title="Redo"
+                />
+              </div>
+              
+              {/* Close button */}
+              <ToolbarButton
+                onClick={toggleFullscreen}
+                isActive={false}
+                isDisabled={false}
+                icon={XMarkIcon}
+                title="Exit Fullscreen"
+              />
+            </div>
+          </div>
+          
+          {/* Fullscreen Editor Container */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 tiptap-editor-container">
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                  .tiptap-editor-container .ProseMirror h1 {
+                    font-size: 1.875rem !important;
+                    font-weight: 700 !important;
+                    margin-bottom: 1rem !important;
+                    margin-top: 0.5rem !important;
+                    line-height: 1.2 !important;
+                  }
+                  .tiptap-editor-container .ProseMirror h2 {
+                    font-size: 1.5rem !important;
+                    font-weight: 600 !important;
+                    margin-bottom: 0.75rem !important;
+                    margin-top: 0.5rem !important;
+                    line-height: 1.3 !important;
+                  }
+                  .tiptap-editor-container .ProseMirror h3 {
+                    font-size: 1.25rem !important;
+                    font-weight: 600 !important;
+                    margin-bottom: 0.5rem !important;
+                    margin-top: 0.5rem !important;
+                    line-height: 1.4 !important;
+                  }
+                  .tiptap-editor-container .ProseMirror blockquote {
+                    border-left: 3px solid #d1d5db !important;
+                    padding-left: 1rem !important;
+                    margin-left: 0 !important;
+                    margin-right: 0 !important;
+                    margin-top: 0.5rem !important;
+                    margin-bottom: 0.5rem !important;
+                    font-style: italic !important;
+                  }
+                  .dark .tiptap-editor-container .ProseMirror blockquote {
+                    border-left-color: #4b5563 !important;
+                  }
+                  .tiptap-editor-container .ProseMirror ul {
+                    list-style-type: disc !important;
+                    padding-left: 1.5rem !important;
+                    margin-top: 0.5rem !important;
+                    margin-bottom: 0.5rem !important;
+                  }
+                  .tiptap-editor-container .ProseMirror ol {
+                    list-style-type: decimal !important;
+                    padding-left: 1.5rem !important;
+                    margin-top: 0.5rem !important;
+                    margin-bottom: 0.5rem !important;
+                  }
+                  .tiptap-editor-container .ProseMirror li {
+                    margin-bottom: 0.25rem !important;
+                  }
+                  .tiptap-editor-container .ProseMirror {
+                    outline: none !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                  }
+                  .tiptap-editor-container .ProseMirror:focus {
+                    outline: none !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                  }
+                `
+              }} />
+              <EditorContent 
+                key="editor-content"
+                editor={editor}
+                className="prose prose-sm dark:prose-invert max-w-none p-8 h-full overflow-y-auto text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:h-full [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
+              />
+            </div>
+          </div>
+          
+          {/* Fullscreen Footer with stats */}
+          {options.showStats && (
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 flex-shrink-0">
+              <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-6">
+                  <span>{stats.words} words</span>
+                  <span>{stats.characters}{characterLimit ? ` / ${characterLimit}` : ''} characters</span>
+                  <span>{stats.readTime} min read</span>
+                </div>
+                {characterLimit && stats.characters > characterLimit && (
+                  <div className="text-red-500 dark:text-red-400">
+                    Exceeds character limit
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
