@@ -10,6 +10,7 @@ import {
   DocumentTextIcon,
   PhotoIcon,
   ClockIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { Modal } from '@/components/ui/Modal';
 import { useApiClient } from '@/hooks/useApiClient';
@@ -263,6 +264,12 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
     performSearch(recentQuery);
   };
 
+  // Clear recent searches
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem('trokky_recent_searches');
+  };
+
   // Handle close
   const handleClose = () => {
     setQuery('');
@@ -325,9 +332,19 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
           {/* Recent Searches */}
           {showRecentSearches && (
             <div className="p-4">
-              <div className="flex items-center mb-3">
-                <ClockIcon className="w-4 h-4 text-gray-400 mr-2" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Recent searches</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <ClockIcon className="w-4 h-4 text-gray-400 mr-2" />
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Recent searches</span>
+                </div>
+                <button
+                  onClick={clearRecentSearches}
+                  className="flex items-center text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                  title="Clear search history"
+                >
+                  <TrashIcon className="w-3 h-3 mr-1" />
+                  Clear
+                </button>
               </div>
               <div className="space-y-1">
                 {recentSearches.map((recentQuery, index) => (
