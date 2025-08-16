@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  CheckCircleIcon, 
+  CheckIcon, 
   ExclamationTriangleIcon, 
   InformationCircleIcon, 
-  XCircleIcon,
   XMarkIcon 
 } from '@heroicons/react/24/outline';
 
@@ -20,59 +19,65 @@ interface ToastProps {
 }
 
 const ToastComponent: React.FC<ToastProps> = ({ toast, onRemove }) => {
-  const { id, message, type, duration = 5000 } = toast;
+  const { id, message, type, duration = 3000 } = toast; // Shorter duration for discrete toasts
 
   useEffect(() => {
     const timer = setTimeout(() => {
       onRemove(id);
     }, duration);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [id, duration, onRemove]);
 
   const getIcon = () => {
     switch (type) {
       case 'success':
-        return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
+        return <CheckIcon className="w-4 h-4 text-green-500" />;
       case 'error':
-        return <XCircleIcon className="w-5 h-5 text-red-500" />;
+        return <XMarkIcon className="w-4 h-4 text-red-500" />;
       case 'warning':
-        return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />;
+        return <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" />;
       case 'info':
       default:
-        return <InformationCircleIcon className="w-5 h-5 text-blue-500" />;
+        return <InformationCircleIcon className="w-4 h-4 text-blue-500" />;
     }
   };
 
   const getStyles = () => {
     switch (type) {
       case 'success':
-        return 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/50 dark:border-green-800 dark:text-green-200';
+        return 'bg-white dark:bg-gray-800 border-green-200 dark:border-green-800 text-gray-800 dark:text-gray-200';
       case 'error':
-        return 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/50 dark:border-red-800 dark:text-red-200';
+        return 'bg-white dark:bg-gray-800 border-red-200 dark:border-red-800 text-gray-800 dark:text-gray-200';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/50 dark:border-yellow-800 dark:text-yellow-200';
+        return 'bg-white dark:bg-gray-800 border-amber-200 dark:border-amber-800 text-gray-800 dark:text-gray-200';
       case 'info':
       default:
-        return 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/50 dark:border-blue-800 dark:text-blue-200';
+        return 'bg-white dark:bg-gray-800 border-blue-200 dark:border-blue-800 text-gray-800 dark:text-gray-200';
     }
   };
 
   return (
     <div
-      className={`flex items-center p-4 rounded-lg border shadow-sm transition-all duration-300 ${getStyles()}`}
+      className={`
+        flex items-center px-3 py-2 rounded-lg border shadow-lg backdrop-blur-sm
+        transition-all duration-300 ease-in-out transform animate-in slide-in-from-top-2
+        ${getStyles()}
+      `}
       role="alert"
     >
       {getIcon()}
-      <div className="ml-3 flex-1">
+      <div className="ml-2 flex-1">
         <p className="text-sm font-medium">{message}</p>
       </div>
       <button
         onClick={() => onRemove(id)}
-        className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        className="ml-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors opacity-60 hover:opacity-100"
         aria-label="Close notification"
       >
-        <XMarkIcon className="w-4 h-4" />
+        <XMarkIcon className="w-3 h-3" />
       </button>
     </div>
   );
@@ -90,10 +95,14 @@ export const ToastContainer: React.FC = () => {
         id,
         message,
         type,
-        duration: type === 'error' ? 7000 : 5000 // Error messages stay longer
+        duration: type === 'error' ? 4000 : 3000 // Shorter durations for discrete toasts
       };
 
-      setToasts(prev => [...prev, newToast]);
+      setToasts(prev => {
+        // Limit to 3 toasts max and remove oldest if needed
+        const updatedToasts = [...prev, newToast];
+        return updatedToasts.slice(-3);
+      });
     };
 
     window.addEventListener('studio:toast', handleToast as EventListener);
@@ -103,9 +112,9 @@ export const ToastContainer: React.FC = () => {
     };
   }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
   if (toasts.length === 0) {
     return null;
@@ -113,16 +122,20 @@ export const ToastContainer: React.FC = () => {
 
   return (
     <div 
-      className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full"
+      className="fixed bottom-4 right-4 z-50 space-y-2 max-w-xs w-full pointer-events-none"
       aria-live="polite"
       aria-label="Notifications"
     >
       {toasts.map((toast) => (
-        <ToastComponent
+        <div 
           key={toast.id}
-          toast={toast}
-          onRemove={removeToast}
-        />
+          className="pointer-events-auto"
+        >
+          <ToastComponent
+            toast={toast}
+            onRemove={removeToast}
+          />
+        </div>
       ))}
     </div>
   );

@@ -341,7 +341,7 @@ export function DocumentEditor({
         setHasUnsavedChanges(false);
 
         // Show success toast
-        showToast('Document saved successfully', 'success');
+        showToast('Saved', 'success');
 
         // Call external save handler if provided
         onSave?.(savedDoc);

@@ -368,7 +368,10 @@ export function MediaPage() {
         ? `Successfully uploaded "${files[0].name}"` 
         : `Successfully uploaded ${files.length} files`;
       logger.info(successMessage);
-      studioContext?.utils.showToast(successMessage, 'success');
+      
+      // Show discrete success message
+      const toastMessage = files.length === 1 ? 'Uploaded' : `${files.length} files uploaded`;
+      studioContext?.utils.showToast(toastMessage, 'success');
     } catch (error) {
       // Note: HTTP 400 errors from fetch() are automatically logged by the browser.
       // This is expected behavior for upload validation errors and cannot be suppressed.
