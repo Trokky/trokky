@@ -1038,7 +1038,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
-        <div className="tiptap-editor-container relative" ref={editorContainerRef}>
+        <div className="tiptap-editor-container relative min-h-[300px]" ref={editorContainerRef}>
           <style dangerouslySetInnerHTML={{
             __html: `
               .tiptap-editor-container .ProseMirror h1 {
