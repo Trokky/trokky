@@ -136,7 +136,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
           queryParams.append('excludeId', excludeId);
         }
 
-        const response = await studioContext.apiClient.get(`/api/slugs/check-unique?${queryParams}`);
+        const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
         
         if (response.success && response.data) {
           const isUnique = response.data.unique;
@@ -281,7 +281,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
               queryParams.append('excludeId', excludeId);
             }
 
-            const response = await studioContext.apiClient.get(`/api/slugs/check-unique?${queryParams}`);
+            const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
             return response.success && response.data?.unique;
           } catch {
             return true; // If check fails, assume it's unique

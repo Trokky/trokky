@@ -274,7 +274,7 @@ function UsersContext() {
 
   const loadUserStats = async () => {
     try {
-      const response = await apiClient.get('/api/users');
+      const response = await apiClient.get('/users');
       if (response.success && response.data && (response.data as any).users) {
         const users = (response.data as any).users;
         

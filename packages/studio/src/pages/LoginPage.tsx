@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
+import { storageService, STORAGE_KEYS } from '@/utils/storage';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface LoginPageProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -17,6 +19,31 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [backendUrl, setBackendUrl] = useState('');
+
+  useEffect(() => {
+    // Check if backend URL is configured via server injection or build time
+    const config = (window as any).TROKKY_CONFIG;
+    const injectedBackendUrl = config?.backendUrl;
+    const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL;
+    
+    if (injectedBackendUrl || buildTimeBackendUrl) {
+      // Hide advanced section since backend is pre-configured
+      setBackendUrl(injectedBackendUrl || buildTimeBackendUrl);
+    } else {
+      // Show advanced section and load from localStorage or default
+      const savedUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL);
+      if (savedUrl) {
+        setBackendUrl(savedUrl);
+        setShowAdvanced(true); // Show advanced since user has customized it
+      } else {
+        // Default to current origin with /api
+        const defaultUrl = `${window.location.origin}/api`;
+        setBackendUrl(defaultUrl);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,32 +51,27 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     setError(null);
 
     try {
-      const response = await apiClient.post('/api/auth/login', {
-        credentials: {
-          username: credentials.username,
-          password: credentials.password
-        }
-      });
+      // Save backend URL to localStorage and reinitialize API client (only if not pre-configured)
+      const config = (window as any).TROKKY_CONFIG;
+      const isPreConfigured = import.meta.env.VITE_BACKEND_URL || config?.backendUrl;
+      
+      if (backendUrl && !isPreConfigured) {
+        storageService.set(STORAGE_KEYS.BACKEND_URL, backendUrl);
+        // Reinitialize API client with new backend URL
+        apiClient.setBackendUrl(backendUrl);
+      }
+      const response = await apiClient.login(credentials.username, credentials.password);
       
       if (response.success && response.data) {
-        // Handle nested response structure from API
-        const actualData = (response.data as any).data || response.data;
+        // The login method already returns the correct structure
+        const loginData = response.data;
         
-        if (typeof actualData === 'object' && 
-            'token' in actualData && 
-            'user' in actualData) {
-          const loginData = actualData as {
-            token: string;
-            user: any;
-          };
-          
-          // Store token in localStorage
-          localStorage.setItem('trokky_auth_token', loginData.token);
-          
+        if (loginData.token && loginData.user) {
+          // Token is already stored by the login method
           // Call success callback
           onLoginSuccess(loginData.token, loginData.user);
         } else {
-          setError(response.error?.message || 'Login failed');
+          setError('Invalid login response');
         }
       } else {
         setError(response.error?.message || 'Login failed');
@@ -153,6 +175,49 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
             )}
           </Button>
         </form>
+
+        {/* Only show advanced settings if no backend URL is configured */}
+        {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            >
+              {showAdvanced ? (
+                <ChevronDownIcon className="h-4 w-4 mr-1" />
+              ) : (
+                <ChevronRightIcon className="h-4 w-4 mr-1" />
+              )}
+              Advanced Settings
+            </button>
+            
+            {showAdvanced && (
+              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Backend URL
+                </label>
+                <Input
+                  type="url"
+                  value={backendUrl}
+                  onChange={(e) => setBackendUrl(e.target.value)}
+                  placeholder="https://example.com/cms-api"
+                  disabled={isLoading}
+                  className="text-sm"
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Enter the full backend API URL including the API path.
+                  Example: https://example.com/cms-api
+                </p>
+                {backendUrl && backendUrl !== `${window.location.origin}/api` && (
+                  <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                    Connecting to: {backendUrl}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
           <p className="text-xs text-gray-500 dark:text-gray-400 text-center">

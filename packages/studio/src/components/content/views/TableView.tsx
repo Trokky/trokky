@@ -219,7 +219,7 @@ export function TableView({
                   {columns.map((column) => (
                     <label key={column.key} className="flex items-center">
                       <Checkbox
-                        checked={column.visible !== false}
+                        checked={column.visible === true}
                         onChange={(checked) => onColumnVisibilityChange?.(column.key, checked)}
                         className="mr-2"
                       />

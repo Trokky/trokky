@@ -41,6 +41,7 @@ interface MediaFile {
 interface MediaBrowserAPI {
   getMedia: (options?: any) => Promise<any>;
   getMediaById?: (id: string) => Promise<any>;
+  getMediaUrl?: (assetRef: string, variant?: string) => string;
   uploadMedia?: (file: File, collection?: string, metadata?: any) => Promise<any>;
   deleteMedia?: (id: string) => Promise<any>;
   updateMedia?: (id: string, metadata: any) => Promise<any>;
@@ -122,14 +123,23 @@ function getMediaTypeIcon(mediaType: string): React.ReactElement {
   }
 }
 
-function getImageUrl(media: MediaFile, variant: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'original'): string {
+function getImageUrl(
+  media: MediaFile, 
+  variant: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'original',
+  apiClient?: MediaBrowserAPI
+): string {
   // Check for specific variant in imageVariants metadata
   if (variant !== 'original' && media.metadata?.imageVariants?.[variant]) {
     return media.metadata.imageVariants[variant].url;
   }
   
-  // Fallback to main URL or API endpoint
-  return media.url || `/api/media/${media.id}/file`;
+  // Use API client if available to get proper media URL
+  if (apiClient && typeof apiClient.getMediaUrl === 'function') {
+    return apiClient.getMediaUrl(media.id);
+  }
+  
+  // Fallback to main URL or relative path (without /api prefix)
+  return media.url || `/media/${media.id}/file`;
 }
 
 function formatFileSize(bytes: number): string {
@@ -337,7 +347,7 @@ export function MediaBrowserContent({
                       if (mediaType === 'image') {
                         const previewUrl = selectedVariant === 'original' 
                           ? selectedMedia.url 
-                          : getImageUrl(selectedMedia, selectedVariant as any);
+                          : getImageUrl(selectedMedia, selectedVariant as any, apiClient);
                         
                         return (
                           <img
@@ -491,7 +501,7 @@ export function MediaBrowserContent({
                 if (mediaType === 'image') {
                   return (
                     <img
-                      src={getImageUrl(selectedMedia, 'thumbnail')}
+                      src={getImageUrl(selectedMedia, 'thumbnail', apiClient)}
                       alt={selectedMedia.filename}
                       className="w-full h-full object-cover"
                     />
@@ -627,7 +637,7 @@ export function MediaBrowserContent({
                     if (mediaType === 'image') {
                       return (
                         <img
-                          src={getImageUrl(media, 'thumbnail')}
+                          src={getImageUrl(media, 'thumbnail', apiClient)}
                           alt={media.metadata?.title || media.filename}
                           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                         />

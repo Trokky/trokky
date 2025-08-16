@@ -39,7 +39,7 @@ export class StudioConfigService {
 
     try {
       // Try to fetch from API
-      const response = await this.client.get('/api/config/studio')
+      const response = await this.client.get('/config/studio')
       
       if (response.success && response.data && (response.data as any).studioConfig) {
         const apiConfig = (response.data as any).studioConfig

@@ -10,6 +10,7 @@ import type {
   SearchResponse
 } from '@/types';
 import { createStudioLogger } from '../utils/logger';
+import { storageService, STORAGE_KEYS } from '@/utils/storage';
 
 export class ApiClientError extends Error {
   constructor(
@@ -24,14 +25,14 @@ export class ApiClientError extends Error {
 }
 
 export class ApiClient {
-  private baseUrl: string = '';
+  private backendUrl: string = '';
   private capabilities: BackendCapabilities | null = null;
   private authToken: string | null = null;
   private logger = createStudioLogger('ApiClient');
 
-  constructor(baseUrl?: string) {
-    if (baseUrl) {
-      this.baseUrl = baseUrl;
+  constructor(backendUrl?: string) {
+    if (backendUrl) {
+      this.backendUrl = backendUrl;
     }
   }
 
@@ -39,39 +40,81 @@ export class ApiClient {
    * Initialize the API client with configuration
    */
   initialize(): void {
-    // Check for Studio configuration
+    // Priority order for backend URL:
+    // 1. Saved URL from localStorage (user's custom setting)
+    // 2. Injected backend URL from server (integrated deployment)
+    // 3. Build-time environment variable (VITE_BACKEND_URL)
+    
+    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL);
     const config = (window as any).TROKKY_CONFIG;
-    if (!config) {
-      throw new Error('Studio configuration not found. TROKKY_CONFIG not found.');
-    }
+    const injectedBackendUrl = config?.backendUrl;
+    const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL;
     
-    // In development mode, Studio runs on Vite dev server (5173) but API is on main server
-    // In production mode, both Studio and API are served from the same origin
-    if (config.mode === 'development' || window.location.port === '5173') {
-      // Development mode: Use VITE_API_URL environment variable or default
-      this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    if (savedBackendUrl) {
+      // Use saved backend URL from localStorage
+      this.setBackendUrl(savedBackendUrl);
+      console.log('🚀 Using saved backend URL:', savedBackendUrl);
+    } else if (injectedBackendUrl) {
+      // Use server-injected backend URL (integrated deployment)
+      this.setBackendUrl(injectedBackendUrl);
+      console.log('🚀 Using injected backend URL (integrated):', injectedBackendUrl);
+    } else if (buildTimeBackendUrl) {
+      // Use build-time configured backend URL
+      this.setBackendUrl(buildTimeBackendUrl);
+      console.log('🚀 Using build-time backend URL:', buildTimeBackendUrl);
     } else {
-      // Production mode: API is on same origin
-      this.baseUrl = window.location.origin;
+      // No backend URL configured - this is an error
+      throw new Error(
+        'No backend URL configured. Please provide one of:\n' +
+        '1. Set backend URL in Studio login form\n' +
+        '2. Configure TROKKY_CONFIG.backendUrl (integrated mode)\n' +
+        '3. Set VITE_BACKEND_URL environment variable'
+      );
     }
     
-    // Get API base path from config (defaults to '/api' for backward compatibility)
-    const apiBasePath = config.apiBasePath || '/api';
+    // Restore auth token from localStorage if available
+    this.restoreAuthToken();
     
+    this.logger.info('Studio initialized', { 
+      backendUrl: this.backendUrl,
+      hasAuthToken: !!this.authToken
+    });
+  }
+
+  /**
+   * Set a custom backend URL
+   * The URL should be the complete API endpoint (e.g., http://localhost:3000/cms-api)
+   */
+  setBackendUrl(url: string): void {
+    // Remove trailing slash if present
+    this.backendUrl = url.replace(/\/$/, '');
+
+    // Update capabilities with new endpoints
+    this.updateCapabilities();
+
+    this.logger.info('Backend URL set', {
+      backendUrl: this.backendUrl
+    });
+  }
+
+  /**
+   * Update capabilities after backend URL change
+   */
+  private updateCapabilities(): void {
     this.capabilities = {
       version: '2.0.0',
       features: {
         search: false,
-        media: true, // Enable media features
+        media: true,
         auth: true,
         structure: true,
         workflows: false
       },
       endpoints: {
-        documents: `${this.baseUrl}${apiBasePath}/collections`,
-        auth: `${this.baseUrl}${apiBasePath}/auth`,
-        structure: `${this.baseUrl}${apiBasePath}/structure`,
-        slugs: `${this.baseUrl}${apiBasePath}/slugs`
+        documents: '/collections',
+        auth: '/auth',
+        structure: '/structure',
+        slugs: '/slugs'
       },
       limits: {
         maxUploadSize: 100 * 1024 * 1024,
@@ -79,21 +122,13 @@ export class ApiClient {
         requestRate: 1000
       }
     };
-    
-    // Restore auth token from localStorage if available
-    this.restoreAuthToken();
-    
-    this.logger.info('Studio initialized', { 
-      baseUrl: this.baseUrl,
-      hasAuthToken: !!this.authToken
-    });
   }
 
   /**
    * Check if the client is initialized
    */
   get isInitialized(): boolean {
-    return !!this.baseUrl && !!this.capabilities;
+    return !!this.backendUrl && !!this.capabilities;
   }
 
   /**
@@ -157,7 +192,8 @@ export class ApiClient {
     options: RequestInit = {},
     skipAuth = false
   ): Promise<ApiResponse<T>> {
-    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+    // Build the full URL
+    const url = this.buildUrl(endpoint);
     
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -202,7 +238,7 @@ export class ApiClient {
             // Try to validate stored token to potentially refresh it
             const storedToken = localStorage.getItem('trokky_auth_token');
             if (storedToken) {
-              const validateResponse = await this.post('/api/auth/validate', { token: storedToken });
+              const validateResponse = await this.post('/auth/validate', { token: storedToken });
               if (validateResponse.success && 
                   validateResponse.data && 
                   typeof validateResponse.data === 'object' && 
@@ -249,12 +285,35 @@ export class ApiClient {
   }
 
   /**
+   * Build full URL from relative endpoint
+   */
+  private buildUrl(endpoint: string): string {
+    // If endpoint is already a full URL, return as-is
+    if (endpoint.startsWith('http')) {
+      return endpoint;
+    }
+
+    // Remove leading slash from endpoint to ensure proper joining
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    
+    // Join backendUrl with the clean endpoint
+    const url = cleanEndpoint ? `${this.backendUrl}/${cleanEndpoint}` : this.backendUrl;
+    
+    this.logger.debug('Building URL:', { 
+      originalEndpoint: endpoint,
+      cleanEndpoint,
+      backendUrl: this.backendUrl,
+      finalUrl: url
+    });
+    
+    return url;
+  }
+
+  /**
    * GET request helper
    */
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
-    // Remove leading slash to ensure proper URL joining with baseUrl
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    const url = new URL(cleanEndpoint, this.baseUrl.endsWith('/') ? this.baseUrl : this.baseUrl + '/');
+    const url = new URL(this.buildUrl(endpoint));
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -270,10 +329,7 @@ export class ApiClient {
    * POST request helper
    */
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    // Remove leading slash to ensure proper URL joining with baseUrl
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
-    return this.request<T>(fullEndpoint, {
+    return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined
     });
@@ -283,10 +339,7 @@ export class ApiClient {
    * PUT request helper
    */
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    // Remove leading slash to ensure proper URL joining with baseUrl
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
-    return this.request<T>(fullEndpoint, {
+    return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined
     });
@@ -296,10 +349,7 @@ export class ApiClient {
    * DELETE request helper
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    // Remove leading slash to ensure proper URL joining with baseUrl
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    const fullEndpoint = this.baseUrl.endsWith('/') ? this.baseUrl + cleanEndpoint : this.baseUrl + '/' + cleanEndpoint;
-    return this.request<T>(fullEndpoint, { method: 'DELETE' });
+    return this.request<T>(endpoint, { method: 'DELETE' });
   }
 
   // ========================================
@@ -310,7 +360,7 @@ export class ApiClient {
    * Get all schemas
    */
   async getSchemas(): Promise<ApiResponse<Schema[]>> {
-    const response = await this.get<{ collections: Schema[] }>('/api/collections');
+    const response = await this.get<{ collections: Schema[] }>('/collections');
     if (response.success && response.data?.collections) {
       return {
         success: true,
@@ -325,42 +375,42 @@ export class ApiClient {
    * Get schema by name
    */
   async getSchema(name: string): Promise<ApiResponse<SchemaApiResponse>> {
-    return this.get<SchemaApiResponse>(`/api/schemas/${name}`);
+    return this.get<SchemaApiResponse>(`/schemas/${name}`);
   }
 
   /**
    * Get documents for a schema
    */
   async getDocuments(schemaName: string, options: QueryOptions = {}): Promise<ApiResponse<{ documents: Document[]; total: number }>> {
-    return this.get<{ documents: Document[]; total: number }>(`/api/collections/${schemaName}`, options);
+    return this.get<{ documents: Document[]; total: number }>(`/collections/${schemaName}`, options);
   }
 
   /**
    * Get single document
    */
   async getDocument(schemaName: string, id: string): Promise<ApiResponse<Document>> {
-    return this.get<Document>(`/api/collections/${schemaName}/${id}`);
+    return this.get<Document>(`/collections/${schemaName}/${id}`);
   }
 
   /**
    * Create document
    */
   async createDocument(schemaName: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.post<Document>(`/api/collections/${schemaName}`, { data });
+    return this.post<Document>(`/collections/${schemaName}`, { data });
   }
 
   /**
    * Update document
    */
   async updateDocument(schemaName: string, id: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.put<Document>(`/api/collections/${schemaName}/${id}`, { data });
+    return this.put<Document>(`/collections/${schemaName}/${id}`, { data });
   }
 
   /**
    * Delete document
    */
   async deleteDocument(schemaName: string, id: string): Promise<ApiResponse<void>> {
-    return this.delete<void>(`/api/collections/${schemaName}/${id}`);
+    return this.delete<void>(`/collections/${schemaName}/${id}`);
   }
 
   // ========================================
@@ -374,7 +424,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.get<MediaFile[]>('/api/media', options);
+    return this.get<MediaFile[]>('/media', options);
   }
 
   /**
@@ -384,7 +434,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.get<{ file: MediaFile }>(`/api/media/${id}`);
+    return this.get<{ file: MediaFile }>(`/media/${id}`);
   }
 
   /**
@@ -414,7 +464,7 @@ export class ApiClient {
       formData.append('metadata', JSON.stringify(finalMetadata));
     }
 
-    return this.request<MediaFile>('/api/media/upload', {
+    return this.request<MediaFile>('/media/upload', {
       method: 'POST',
       body: formData
     });
@@ -427,7 +477,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.put<{ file: MediaFile }>(`/api/media/${id}`, { metadata });
+    return this.put<{ file: MediaFile }>(`/media/${id}`, { metadata });
   }
 
   /**
@@ -437,7 +487,7 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.delete<void>(`/api/media/${id}`);
+    return this.delete<void>(`/media/${id}`);
   }
 
   /**
@@ -447,7 +497,33 @@ export class ApiClient {
     if (!this.hasFeature('media')) {
       throw new ApiClientError('Media feature not available');
     }
-    return this.post<{ message: string; file: MediaFile }>(`/api/media/${id}/regenerate-variants`, {});
+    return this.post<{ message: string; file: MediaFile }>(`/media/${id}/regenerate-variants`, {});
+  }
+
+  /**
+   * Construct media URL for asset reference
+   * This properly handles the configurable API base path
+   */
+  getMediaUrl(assetRef: string, variant: string = 'thumbnail'): string {
+    if (!assetRef) {
+      return '';
+    }
+    return `${this.backendUrl}/media/${assetRef}/variants/${variant}`;
+  }
+
+  /**
+   * Get the backend URL (useful for external URL construction)
+   */
+  getBackendUrl(): string {
+    return this.backendUrl;
+  }
+
+  /**
+   * Get the API base path (backward compatibility)
+   * @deprecated Use getBackendUrl() instead
+   */
+  getApiBasePath(): string {
+    return this.backendUrl;
   }
 
   // ========================================
@@ -488,7 +564,7 @@ export class ApiClient {
       });
     }
     
-    const url = `${this.baseUrl}/api/collections/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const endpoint = `/collections/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.get<{
       documents: Document[];
       pagination: {
@@ -497,7 +573,7 @@ export class ApiClient {
         total: number;
         pages: number;
       };
-    }>(url);
+    }>(endpoint);
   }
 
   /**
@@ -513,7 +589,6 @@ export class ApiClient {
       lastUpdated: string;
     };
   }>> {
-    const url = `${this.baseUrl}/api/stats/${schemaName}`;
     return this.get<{
       stats: {
         collection: string;
@@ -523,7 +598,7 @@ export class ApiClient {
         recentDocuments: number;
         lastUpdated: string;
       };
-    }>(url);
+    }>(`/stats/${schemaName}`);
   }
 
   // ========================================
@@ -603,7 +678,7 @@ export class ApiClient {
     if (!this.hasFeature('auth')) {
       throw new ApiClientError('Auth feature not available');
     }
-    return this.get<User>('/api/auth/me');
+    return this.get<User>('/auth/me');
   }
 
   /**
@@ -614,7 +689,7 @@ export class ApiClient {
       throw new ApiClientError('Auth feature not available');
     }
     
-    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/api/auth/login', { username, password });
+    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/auth/login', { username, password });
     
     if (response.success && response.data?.token) {
       this.setAuthToken(response.data.token);
@@ -629,7 +704,7 @@ export class ApiClient {
   async logout(): Promise<ApiResponse<void>> {
     if (this.hasFeature('auth')) {
       try {
-        await this.post('/api/auth/logout');
+        await this.post('/auth/logout');
       } catch (error) {
         // Continue with local logout even if server logout fails
         console.warn('Server logout failed:', error);
@@ -662,13 +737,7 @@ export class ApiClient {
       queryParams.append('excludeId', excludeId);
     }
 
-    // Use the configured slugs endpoint instead of hardcoded path
-    const endpoint = this.capabilities?.endpoints.slugs;
-    if (!endpoint) {
-      throw new ApiClientError('Slug API endpoint not configured');
-    }
-
-    return this.get(`${endpoint}/check-unique?${queryParams}`);
+    return this.get(`/slugs/check-unique?${queryParams}`);
   }
 
   // ========================================
@@ -682,7 +751,7 @@ export class ApiClient {
     if (!this.hasFeature('structure')) {
       return { success: true, data: null };
     }
-    return this.get('/api/structure');
+    return this.get('/structure');
   }
 }
 

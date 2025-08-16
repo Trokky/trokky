@@ -31,7 +31,7 @@ export class StructureService {
     if (!this.cachedStructure) {
       // Priority 1: Try to fetch dynamic structure from API endpoint
       try {
-        const response = await this.client.get('/api/config/structure')
+        const response = await this.client.get('/config/structure')
         if (response.success && response.data) {
           this.cachedStructure = (response.data as any).structure
           logger.debug('Structure loaded from API endpoint', {
@@ -99,7 +99,7 @@ export class StructureService {
    */
   async refreshFromEndpoint(): Promise<StudioStructure | null> {
     try {
-      const response = await this.client.get('/api/config/structure', { 
+      const response = await this.client.get('/config/structure', { 
         // Add cache-busting parameter
         _refresh: Date.now() 
       })

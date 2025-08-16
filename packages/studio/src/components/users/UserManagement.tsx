@@ -425,7 +425,7 @@ export function UserManagement() {
   const loadUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/users');
+      const response = await apiClient.get('/users');
       if (response.success && response.data && (response.data as any).users) {
         setUsers((response.data as any).users);
       }
@@ -470,7 +470,7 @@ export function UserManagement() {
         }
       } else {
         // Create new user
-        const response = await apiClient.post('/api/users', userData);
+        const response = await apiClient.post('/users', userData);
         if (response.success) {
           await loadUsers();
         }

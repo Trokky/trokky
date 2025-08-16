@@ -57,7 +57,12 @@ export interface StudioContext {
   // Studio utilities
   utils: {
     showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-    showConfirm: (message: string) => Promise<boolean>;
+    showConfirm: (message: string, options?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      variant?: 'default' | 'danger';
+    }) => Promise<boolean>;
     openModal: (component: React.ComponentType, props?: any) => void;
     closeModal: () => void;
   };

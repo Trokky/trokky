@@ -1438,23 +1438,17 @@ export class TrokkyRoutes {
         throw new InvalidInputError('Request body is required', 'body')
       }
 
-      const body = request.body as Record<string, unknown>
-      if (!('credentials' in body) || !body.credentials || typeof body.credentials !== 'object') {
-        throw new InvalidInputError('Login credentials are required', 'credentials')
-      }
-
-      const { credentials } = body as unknown as LoginRequest
-      const { rememberMe } = body as { rememberMe?: boolean }
+      const body = request.body as LoginRequest
       
-      // Validate credentials format
-      if (!credentials.username || !credentials.password) {
-        throw new InvalidInputError('Username and password are required', 'credentials')
+      // Validate required fields
+      if (!body.username || !body.password) {
+        throw new InvalidInputError('Username and password are required', 'body')
       }
 
-      SecurityValidator.validateUsername(credentials.username)
+      SecurityValidator.validateUsername(body.username)
 
       // Use core engine's authentication method (handles all validation internally)
-      const authResult = await this.core.authenticateUser(credentials.username, credentials.password, { rememberMe })
+      const authResult = await this.core.authenticateUser(body.username, body.password, { rememberMe: body.rememberMe })
       if (!authResult) {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }

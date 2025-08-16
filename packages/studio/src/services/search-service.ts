@@ -235,7 +235,7 @@ export class SearchService {
 
   async searchMedia(query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
     try {
-      const response = await this.client.get('/api/media', {
+      const response = await this.client.get('/media', {
         limit: 100, // Get more files to search through
       });
 

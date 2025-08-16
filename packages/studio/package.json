@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 5173",
     "dev:server": "tsc src/index.ts src/server/assets.ts src/utils/logger.ts --outDir dist --module esnext --target es2020 --skipLibCheck --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop --declaration --watch",
-    "build": "tsc && vite build",
+    "build": "vite build && npm run build:server",
     "build:single": "vite build --config vite.single.config.ts",
     "build:server": "tsc src/index.ts src/server/assets.ts src/utils/logger.ts --outDir dist --module esnext --target es2020 --skipLibCheck --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop --declaration",
     "preview": "vite preview",
@@ -63,6 +63,10 @@
     "./standalone": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./dist/server/assets.js": {
+      "import": "./dist/server/assets.js",
+      "types": "./dist/server/assets.d.ts"
     }
   },
   "files": [

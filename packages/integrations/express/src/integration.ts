@@ -18,6 +18,8 @@ export class TrokkyExpress {
   private middleware: TrokkyExpressMiddleware
   private config: ExpressIntegrationConfig
   private logger = createLogger('express', 'TrokkyExpress')
+  private mountedApiPath: string | null = null  // Track the mounted API path
+  private mountedStudioPath: string | null = null  // Track the mounted Studio path
 
   constructor(config: ExpressIntegrationConfig) {
     this.config = config
@@ -58,6 +60,16 @@ export class TrokkyExpress {
       const apiPath = options?.apiPath ?? '/api'
       const studioPath = options?.studioPath ?? '/studio'
       
+      // Store the mounted paths for Studio config and external access
+      this.mountedApiPath = apiPath
+      this.mountedStudioPath = studioPath
+      
+      // Update Studio config with correct apiBasePath if Studio is enabled
+      if (this.config.studio?.enabled && (global as any).__TROKKY_STUDIO_CONFIG__) {
+        (global as any).__TROKKY_STUDIO_CONFIG__.apiBasePath = apiPath
+        this.logger.debug('Updated Studio config with apiBasePath', { apiBasePath: apiPath })
+      }
+      
       this.logger.info('Auto-mounting Trokky routers', { apiPath, studioPath, hasStudio: !!studioRouter })
       
       // Mount API routes
@@ -78,7 +90,10 @@ export class TrokkyExpress {
       studioRouter,
       middleware,
       config: this.config,
-      mount
+      mount,
+      getMountedApiPath: () => this.getMountedApiPath(),
+      getMountedStudioPath: () => this.getMountedStudioPath(),
+      getMountedPaths: () => this.getMountedPaths()
     }
   }
 
@@ -161,9 +176,60 @@ export class TrokkyExpress {
       return undefined
     }
 
-    // Studio temporarily disabled during build issues
-    this.logger.warn('Studio integration temporarily disabled')
-    return undefined
+    this.logger.info('Creating Studio router with dynamic config injection')
+    const router = Router()
+    
+    try {
+      // Import Studio assets utilities
+      const { getStudioHTML, getStudioAsset } = await import('@trokky/studio/dist/server/assets.js')
+      
+      // Serve Studio HTML with dynamic config injection
+      router.get('/', (req, res) => {
+        try {
+          const studioConfig = {
+            mode: 'production' as const,
+            apiBasePath: this.getMountedApiPath(), // Use dynamic API path
+            basePath: this.getMountedStudioPath(), // Set the base path for routing
+            backendUrl: req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
+            schemas: this.config.core.getAllSchemas() || [],
+            branding: this.config.studio?.branding,
+            structure: this.config.studio?.structure,
+            config: this.config.studio?.config || {},
+            customFields: this.config.studio?.customFields || []
+          }
+          
+          const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
+          res.setHeader('Content-Type', 'text/html')
+          res.send(html)
+        } catch (error) {
+          this.logger.error('Failed to serve Studio HTML', error)
+          res.status(500).send('Studio temporarily unavailable')
+        }
+      })
+      
+      // Serve Studio assets
+      router.get('/assets/:filename', (req, res) => {
+        try {
+          const asset = getStudioAsset(req.params.filename)
+          if (!asset) {
+            return res.status(404).send('Asset not found')
+          }
+          
+          res.setHeader('Content-Type', asset.contentType)
+          res.send(asset.content)
+        } catch (error) {
+          this.logger.error('Failed to serve Studio asset', error)
+          res.status(500).send('Asset unavailable')
+        }
+      })
+      
+      
+      return router
+      
+    } catch (error) {
+      this.logger.error('Failed to create Studio router - Studio assets not available', error)
+      return undefined
+    }
   }
 
   /**
@@ -178,6 +244,30 @@ export class TrokkyExpress {
    */
   public static getErrorHandler() {
     return TrokkyExpressMiddleware.createErrorHandler()
+  }
+
+  /**
+   * Get the currently mounted API path (useful for dynamic URL construction)
+   */
+  public getMountedApiPath(): string {
+    return this.mountedApiPath || '/api'
+  }
+
+  /**
+   * Get the currently mounted Studio path
+   */
+  public getMountedStudioPath(): string {
+    return this.mountedStudioPath || '/studio'
+  }
+
+  /**
+   * Get both mounted paths for easy access
+   */
+  public getMountedPaths(): { apiPath: string; studioPath: string } {
+    return {
+      apiPath: this.getMountedApiPath(),
+      studioPath: this.getMountedStudioPath()
+    }
   }
 
 

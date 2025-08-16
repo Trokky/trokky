@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('🚀 Starting session refresh...');
       logger.info('Refreshing session automatically');
       
-      const response = await apiClient.post('/api/auth/refresh', { 
+      const response = await apiClient.post('/auth/refresh', { 
         refreshToken: refreshTokenRef.current 
       });
       
@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Validate token with server
       logger.info('Validating stored token with server');
-      const response = await apiClient.post('/api/auth/validate', { token: storedToken });
+      const response = await apiClient.post('/auth/validate', { token: storedToken });
       
       logger.info('Token validation response', { 
         success: response.success, 
@@ -223,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token invalid, try to refresh if we have a refresh token
         if (storedRefreshToken) {
           try {
-            const refreshResponse = await apiClient.post('/api/auth/refresh', { 
+            const refreshResponse = await apiClient.post('/auth/refresh', { 
               refreshToken: storedRefreshToken 
             });
             
@@ -304,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string, rememberMe = false): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await apiClient.post('/api/auth/login', { 
+      const response = await apiClient.post('/auth/login', { 
         username, 
         password, 
         rememberMe 
@@ -381,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Attempt server logout
       if (authState.refreshToken) {
-        await apiClient.post('/api/auth/logout', { refreshToken: authState.refreshToken });
+        await apiClient.post('/auth/logout', { refreshToken: authState.refreshToken });
       }
       logger.info('User logout successful');
     } catch (error) {

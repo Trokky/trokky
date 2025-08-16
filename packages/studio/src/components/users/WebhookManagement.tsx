@@ -552,7 +552,7 @@ export function WebhookManagement() {
   const loadWebhooks = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/webhooks');
+      const response = await apiClient.get('/webhooks');
       if (response.success && response.data) {
         setWebhooks((response.data as any).webhooks || []);
       }
@@ -569,7 +569,7 @@ export function WebhookManagement() {
 
   const handleCreateWebhook = async (webhookData: WebhookFormData) => {
     try {
-      const response = await apiClient.post('/api/webhooks', { webhookData });
+      const response = await apiClient.post('/webhooks', { webhookData });
       if (response.success) {
         await loadWebhooks();
       }

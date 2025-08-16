@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { storage } from '@/utils/storage';
 import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
 import type { Document } from '@/types';
@@ -18,6 +19,8 @@ import { DocumentEditor } from '@/components/document';
 // Import view components
 import { ContentViewControls, type ViewType, type ViewConfig, type FilterConfig, type SortConfig } from '@/components/content/ContentViewControls';
 import { ListView, getDefaultColumns, type ListColumn } from '@/components/content/views/ListView';
+import { GridView } from '@/components/content/views/GridView';
+import { TableView } from '@/components/content/views/TableView';
 import { Pagination } from '@/components/content/Pagination';
 
 const logger = createStudioLogger('ContentPage');
@@ -90,11 +93,35 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   
-  // View state
-  const [currentView, setCurrentView] = useState<ViewType>('list');
+  // View state with localStorage persistence
+  const [currentView, setCurrentView] = useState<ViewType>(() => 
+    storage.getContentView(schemaName, 'list') as ViewType
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
   const [currentSort, setCurrentSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
+  
+  // Column visibility state for table view - initialize with all columns visible by default
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    const saved = storage.getColumnVisibility(schemaName, {});
+    // Initialize any missing columns as visible
+    const defaultColumns = getDefaultColumns();
+    const initialized = { ...saved };
+    defaultColumns.forEach(col => {
+      if (initialized[col.key] === undefined) {
+        initialized[col.key] = true; // Default to visible
+      }
+    });
+    return initialized;
+  });
+  
+  // Grid and table settings (for future enhancement)
+  const [gridSettings] = useState(() => 
+    storage.getGridSettings(schemaName, { cardSize: 'medium', columnsPerRow: null })
+  );
+  const [tableSettings] = useState(() => 
+    storage.getTableSettings(schemaName, { density: 'comfortable', columnWidths: {} })
+  );
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -182,17 +209,17 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
             const duplicateData = { ...originalDoc };
             
             // Remove system fields
-            delete duplicateData._id;
-            delete duplicateData.id;
-            delete duplicateData._createdAt;
-            delete duplicateData._updatedAt;
+            delete (duplicateData as any)._id;
+            delete (duplicateData as any).id;
+            delete (duplicateData as any)._createdAt;
+            delete (duplicateData as any)._updatedAt;
             delete duplicateData._revision;
             delete duplicateData._collection;
             delete duplicateData._status;
             
             // Remove reference fields that might cause validation issues
-            delete duplicateData.author;
-            delete duplicateData.category;
+            delete (duplicateData as any).author;
+            delete (duplicateData as any).category;
             
             // Set as draft
             duplicateData._state = 'draft';
@@ -245,9 +272,38 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     setCurrentSort({ field, direction });
   };
   
+  // Handle view change with persistence
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
+    storage.setContentView(schemaName, view);
+  };
+  
+  // Handle column visibility change with persistence
+  const handleColumnVisibilityChange = (columnKey: string, visible: boolean) => {
+    const newVisibility = { ...columnVisibility, [columnKey]: visible };
+    setColumnVisibility(newVisibility);
+    storage.setColumnVisibility(schemaName, newVisibility);
+  };
+  
+  // Handle grid settings change with persistence (future use)
+  // const handleGridSettingsChange = (newSettings: any) => {
+  //   const updatedSettings = { ...gridSettings, ...newSettings };
+  //   setGridSettings(updatedSettings);
+  //   storage.setGridSettings(schemaName, updatedSettings);
+  // };
+  
+  // Handle table settings change with persistence (future use)
+  // const handleTableSettingsChange = (newSettings: any) => {
+  //   const updatedSettings = { ...tableSettings, ...newSettings };
+  //   setTableSettings(updatedSettings);
+  //   storage.setTableSettings(schemaName, updatedSettings);
+  // };
+  
   // Get view configurations
   const viewConfigs: ViewConfig[] = [
-    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true }
+    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true },
+    { type: 'grid', title: 'Grid View', icon: DocumentTextIcon, enabled: true },
+    { type: 'table', title: 'Table View', icon: DocumentDuplicateIcon, enabled: true }
   ];
   
   const filterConfigs: FilterConfig[] = [
@@ -320,7 +376,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       <ContentViewControls
         availableViews={viewConfigs}
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={`Search ${schemaName}...`}
@@ -331,8 +387,6 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         availableSorts={sortConfigs}
         currentSort={currentSort}
         onSortChange={handleSort}
-        onCreateNew={() => navigate(`/content/${schemaName}/new`)}
-        createNewLabel={`Create ${getSchemaDisplayName(schemaName)}`}
         totalItems={totalItems}
         selectedItems={selectedItems.length}
         bulkActions={bulkActions}
@@ -362,19 +416,60 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       {/* Content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto p-6">
-          <ListView
-            documents={documents}
-            columns={columns as ListColumn[]}
-            schemaName={schemaName}
-            loading={loading}
-            selectedItems={selectedItems}
-            onItemSelect={handleItemSelect}
-            onSelectAll={handleSelectAll}
-            sortField={currentSort?.field}
-            sortDirection={currentSort?.direction}
-            onSort={handleSort}
-            onDocumentAction={handleDocumentAction}
-          />
+          {currentView === 'list' && (
+            <ListView
+              documents={documents}
+              columns={columns as ListColumn[]}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onSelectAll={handleSelectAll}
+              sortField={currentSort?.field}
+              sortDirection={currentSort?.direction}
+              onSort={handleSort}
+              onDocumentAction={handleDocumentAction}
+            />
+          )}
+          
+          {currentView === 'grid' && (
+            <GridView
+              documents={documents}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onDocumentAction={handleDocumentAction}
+              cardSize={(gridSettings?.cardSize as any) || 'medium'}
+              columnsPerRow={gridSettings?.columnsPerRow || undefined}
+            />
+          )}
+          
+          {currentView === 'table' && (
+            <TableView
+              documents={documents}
+              columns={columns.map(col => ({
+                key: col.key,
+                title: col.title,
+                sortable: col.sortable,
+                render: col.render,
+                visible: columnVisibility[col.key] === true, // Use explicit boolean from state
+                resizable: true,
+                minWidth: 100
+              }))}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onSelectAll={handleSelectAll}
+              sortField={currentSort?.field}
+              sortDirection={currentSort?.direction}
+              onSort={handleSort}
+              onDocumentAction={handleDocumentAction}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
+              density={(tableSettings?.density as any) || 'comfortable'}
+            />
+          )}
         </div>
         
         {/* Pagination */}

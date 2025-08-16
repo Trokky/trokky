@@ -115,7 +115,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
     setIsLoading(true);
     try {
       // Use the new server-side search endpoint
-      const searchResponse = await client.get('/api/search', { 
+      const searchResponse = await client.get('/search', { 
         q: searchQuery,
         limit: 10 
       });

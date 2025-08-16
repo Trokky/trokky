@@ -307,7 +307,7 @@ export function AppTokenManagement() {
   const loadTokens = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/tokens');
+      const response = await apiClient.get('/tokens');
       if (response.success && response.data) {
         setTokens(response.data as AppToken[]);
       }
@@ -324,7 +324,7 @@ export function AppTokenManagement() {
 
   const handleCreateToken = async (tokenData: TokenFormData) => {
     try {
-      const response = await apiClient.post('/api/tokens', tokenData);
+      const response = await apiClient.post('/tokens', tokenData);
       if (response.success && response.data) {
         setNewToken((response.data as any).token);
         await loadTokens();
