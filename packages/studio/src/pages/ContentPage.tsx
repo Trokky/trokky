@@ -59,8 +59,8 @@ export function ContentPage() {
 
   // Handle document editing
   if (documentId) {
-    // Prevent creation of new documents entirely (view-only mode)
-    if (documentId === 'new') {
+    // Prevent creation of new singleton documents only
+    if (documentId === 'new' && structureItem.item?.type === 'singleton') {
       return <NoCreateRedirect schemaName={schemaName!} />;
     }
     
@@ -382,9 +382,18 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
               {structureItem?.item?.title || `${getSchemaDisplayName(schemaName)} Documents`}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              View existing documents
+              {structureItem?.item?.type === 'singleton' 
+                ? 'View existing documents' 
+                : 'Manage your documents'}
             </p>
           </div>
+          {/* Create button - only for regular collections, not singletons */}
+          {structureItem?.item?.type !== 'singleton' && (
+            <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create {getSchemaDisplayName(schemaName)}
+            </Button>
+          )}
         </div>
       </div>
       
