@@ -223,6 +223,31 @@ export class TrokkyExpress {
         }
       })
       
+      // SPA catch-all route - serve Studio HTML for any unmatched Studio routes
+      // This enables client-side routing to work on page refresh
+      router.get('*', (req, res) => {
+        try {
+          const studioConfig = {
+            mode: 'production' as const,
+            apiBasePath: this.getMountedApiPath(), // Use dynamic API path
+            basePath: this.getMountedStudioPath(), // Set the base path for routing
+            backendUrl: req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
+            schemas: this.config.core.getAllSchemas() || [],
+            branding: this.config.studio?.branding,
+            structure: this.config.studio?.structure,
+            config: this.config.studio?.config || {},
+            customFields: this.config.studio?.customFields || []
+          }
+          
+          const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
+          res.setHeader('Content-Type', 'text/html')
+          res.send(html)
+        } catch (error) {
+          this.logger.error('Failed to serve Studio HTML for SPA route', error)
+          res.status(500).send('Studio temporarily unavailable')
+        }
+      })
+      
       
       return router
       
