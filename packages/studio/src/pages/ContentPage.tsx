@@ -13,6 +13,7 @@ import { createStudioLogger } from '@/utils/logger';
 import { storage } from '@/utils/storage';
 import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
+import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
@@ -44,9 +45,25 @@ export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
   const structureItem = useStructureItem(schemaName || '');
+  const contextSidebar = useContextSidebar();
+
+  useEffect(() => {
+    // Hide context sidebar on content page
+    contextSidebar.hide();
+    
+    return () => {
+      // Show it back when leaving the page
+      contextSidebar.show();
+    };
+  }, [contextSidebar]);
 
   // Handle document editing
   if (documentId) {
+    // Prevent creation of new documents entirely (view-only mode)
+    if (documentId === 'new') {
+      return <NoCreateRedirect schemaName={schemaName!} />;
+    }
+    
     return (
       <DocumentEditor 
         schemaName={schemaName!}
@@ -63,12 +80,12 @@ export function ContentPage() {
       const singleton = structureItem.item;
       const singletonDocumentId = singleton.documentId || schemaName;
       
-      // For singletons, redirect directly to edit the document
+      // For singletons, only view existing documents, don't auto-create
       return (
         <SingletonHandler
           schemaName={schemaName}
           documentId={singletonDocumentId}
-          autoCreate={singleton.options?.autoCreate}
+          autoCreate={false}
           onCancel={() => navigate('/content')}
         />
       );
@@ -364,11 +381,10 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {structureItem?.item?.title || `${getSchemaDisplayName(schemaName)} Documents`}
             </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              View existing documents
+            </p>
           </div>
-          <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create {getSchemaDisplayName(schemaName)}
-          </Button>
         </div>
       </div>
       
@@ -526,7 +542,7 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       } else if (autoCreate) {
         await createSingletonDocument();
       } else {
-        setError(`Singleton document '${documentId}' not found and auto-creation is disabled.`);
+        setError(`Document '${documentId}' not found. Only existing documents can be viewed.`);
       }
     } catch (err) {
       logger.error('Failed to check singleton document', err);
@@ -534,7 +550,9 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       if (autoCreate && err instanceof ApiClientError && err.status === 404) {
         await createSingletonDocument();
       } else {
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load singleton document');
+        setError(err instanceof ApiClientError ? 
+          `Document not found. Only existing documents can be viewed.` : 
+          'Failed to load document');
       }
     } finally {
       setLoading(false);
@@ -578,14 +596,14 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
     return (
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="text-red-500 mb-4">
+          <div className="text-amber-500 mb-4">
             <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
-            <h3 className="text-lg font-medium">Singleton Error</h3>
+            <h3 className="text-lg font-medium">Document Not Found</h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
           <div className="flex justify-center space-x-4">
             <Button onClick={checkSingletonDocument}>Try Again</Button>
-            <Button variant="outline" onClick={onCancel}>Back</Button>
+            <Button variant="outline" onClick={onCancel}>Back to Content</Button>
           </div>
         </div>
       </div>
@@ -748,22 +766,34 @@ function ContentOverview() {
               <div className="flex space-x-2">
                 <Button 
                   size="sm" 
-                  variant="outline"
                   onClick={() => navigate(`/content/${collection.name}`)}
                 >
                   View Documents
-                </Button>
-                <Button 
-                  size="sm"
-                  onClick={() => navigate(`/content/${collection.name}/new`)}
-                >
-                  <PlusIcon className="h-4 w-4 mr-1" />
-                  Create
                 </Button>
               </div>
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Component to handle redirecting from /new routes
+function NoCreateRedirect({ schemaName }: { schemaName: string }) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect immediately
+    navigate(`/content/${schemaName}`, { replace: true });
+  }, [navigate, schemaName]);
+
+  // Show a brief loading state
+  return (
+    <div className="p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">Redirecting...</p>
       </div>
     </div>
   );

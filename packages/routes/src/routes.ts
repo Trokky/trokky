@@ -510,6 +510,9 @@ export class TrokkyRoutes {
 
       this.logger.debug('Creating document', { collection, data, id })
       
+      // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
+      await this.validateSingletonCreation(collection, id)
+      
       // Check validation before saving to get detailed error info
       const validation = this.core.validateDocument(collection, { ...data, id })
       if (!validation.valid) {
@@ -2164,6 +2167,95 @@ export class TrokkyRoutes {
     } catch (error) {
       this.logger.error('Failed to auto-create singleton', { collection, documentId, error })
       return null
+    }
+  }
+
+  /**
+   * Validate singleton creation to prevent duplicates
+   */
+  private async validateSingletonCreation(collection: string, requestedId?: string): Promise<void> {
+    try {
+      // Get the custom structure function to check for singletons
+      const customStructure = this.getCustomStructureFunction()
+      
+      let isSingleton = false
+      let singletonDocumentId: string | null = null
+      
+      if (customStructure && typeof customStructure === 'function') {
+        // Execute structure function to get singleton info
+        const user = null // TODO: Get current user from auth context
+        const schemas = this.core.getAllSchemas()
+        const context = { user, schemas, core: this.core, config: this.config }
+        
+        const structure = await Promise.resolve(customStructure(context))
+        
+        // Find if this collection is a singleton
+        const findSingleton = (items: any[]): any => {
+          for (const item of items) {
+            if (item.type === 'singleton' && item.schemaType === collection) {
+              return item
+            } else if (item.items && Array.isArray(item.items)) {
+              const found = findSingleton(item.items)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        
+        const singletonConfig = findSingleton(structure.items || [])
+        if (singletonConfig) {
+          isSingleton = true
+          singletonDocumentId = singletonConfig.documentId || collection
+        }
+      } else {
+        // Fallback: check common singleton patterns
+        const singletonPatterns = [
+          { collection: 'homePage', documentId: 'home' },
+          { collection: 'settings', documentId: 'site-settings' },
+          { collection: 'config', documentId: 'main' },
+          { collection: 'siteSettings', documentId: 'main' }
+        ]
+        
+        const pattern = singletonPatterns.find(p => p.collection === collection)
+        if (pattern) {
+          isSingleton = true
+          singletonDocumentId = pattern.documentId
+        }
+      }
+      
+      if (isSingleton && singletonDocumentId) {
+        // Check if a singleton document already exists for this collection
+        const existingDocuments = await this.core.listDocuments(collection, { limit: 1 })
+        
+        if (existingDocuments && existingDocuments.length > 0) {
+          this.logger.warn('Attempted to create duplicate singleton document', {
+            collection,
+            requestedId,
+            singletonDocumentId,
+            existingDocument: existingDocuments[0].id || existingDocuments[0]._id
+          })
+          
+          throw new InvalidInputError(
+            `Singleton document already exists for collection '${collection}'. Only one document is allowed.`,
+            'singleton_duplicate'
+          )
+        }
+      }
+    } catch (error) {
+      // Re-throw InvalidInputError as-is, wrap other errors
+      if (error instanceof InvalidInputError) {
+        throw error
+      }
+      
+      this.logger.error('Failed to validate singleton creation', { 
+        collection, 
+        requestedId, 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      
+      // Don't fail the creation if validation fails, just log the error
+      // This ensures backward compatibility
+      return
     }
   }
 
