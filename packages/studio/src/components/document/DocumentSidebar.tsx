@@ -46,6 +46,7 @@ export function DocumentSidebar() {
   
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
 
   // Save collapsed state to localStorage whenever it changes
   const toggleCollapsed = (collapsed: boolean) => {
@@ -57,12 +58,18 @@ export function DocumentSidebar() {
     }
   };
 
-  // Load document relationships
+  // Load document relationships and URL
   useEffect(() => {
     if (!isNewDocument && document?.id) {
       loadRelationships();
+      loadDocumentUrl();
     }
   }, [document?.id, document?.author, document?.category, isNewDocument]);
+
+  const loadDocumentUrl = async () => {
+    const url = await getDocumentUrl();
+    setDocumentUrl(url);
+  };
 
   const loadRelationships = async () => {
     if (!document?.id) return;
@@ -186,28 +193,48 @@ export function DocumentSidebar() {
     });
   };
 
-  const getDocumentUrl = () => {
+  const getDocumentUrl = async (): Promise<string | null> => {
     if (!document || isNewDocument) return null;
     
-    // Get public URL from settings or fallback to current domain
-    // TODO: Get this from actual settings when settings persistence is implemented
-    let publicUrl = localStorage.getItem('trokky_public_url') || window.location.origin;
-    
-    // Remove trailing slash to avoid double slashes
-    publicUrl = publicUrl.replace(/\/$/, '');
-    
-    // Generate the public URL for the document
-    const slug = document.slug || document.id;
-    
-    // Handle different URL patterns based on schema and document structure
-    if (schema?.name === 'page' || schema?.type === 'singleton') {
-      // For pages and singletons, use the slug directly
-      return slug === 'homepage' || slug === 'home' 
-        ? publicUrl 
-        : `${publicUrl}/${slug}`;
-    } else {
-      // For regular collections, use schema name + slug
-      return `${publicUrl}/${schema?.name}/${slug}`;
+    try {
+      // Get public URL from settings API
+      const response = await apiClient.get('/config/settings');
+      let publicUrl = window.location.origin; // fallback
+      
+      if (response.success && response.data?.settings?.publicUrl) {
+        publicUrl = response.data.settings.publicUrl;
+      }
+      
+      // Remove trailing slash to avoid double slashes
+      publicUrl = publicUrl.replace(/\/$/, '');
+      
+      // Generate the public URL for the document
+      const slug = document.slug || document.id;
+      
+      // Handle different URL patterns based on schema and document structure
+      if (schema?.name === 'page' || schema?.type === 'singleton') {
+        // For pages and singletons, use the slug directly
+        return slug === 'homepage' || slug === 'home' 
+          ? publicUrl 
+          : `${publicUrl}/${slug}`;
+      } else {
+        // For regular collections, use schema name + slug
+        return `${publicUrl}/${schema?.name}/${slug}`;
+      }
+    } catch (error) {
+      logger.warn('Failed to get settings for document URL, using fallback', error);
+      
+      // Fallback to current origin
+      const publicUrl = window.location.origin.replace(/\/$/, '');
+      const slug = document.slug || document.id;
+      
+      if (schema?.name === 'page' || schema?.type === 'singleton') {
+        return slug === 'homepage' || slug === 'home' 
+          ? publicUrl 
+          : `${publicUrl}/${slug}`;
+      } else {
+        return `${publicUrl}/${schema?.name}/${slug}`;
+      }
     }
   };
 
@@ -346,7 +373,7 @@ export function DocumentSidebar() {
           </div>
 
           {/* Public URL */}
-          {documentState === 'published' && getDocumentUrl() && (
+          {documentState === 'published' && documentUrl && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 Public URL
@@ -354,7 +381,7 @@ export function DocumentSidebar() {
               <div className="flex items-center">
                 <LinkIcon className="h-4 w-4 mr-2 text-gray-400" />
                 <a
-                  href={getDocumentUrl()!}
+                  href={documentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"

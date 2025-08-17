@@ -16,6 +16,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
@@ -34,7 +35,8 @@ export function Header({
   showMedia = true,
   showUserMenu = true
 }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { user, loading: userLoading } = useCurrentUser();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -278,23 +280,29 @@ export function Header({
                 className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
               >
                 {/* User avatar */}
-                {(user as any)?.profileImage ? (
+                {userLoading ? (
+                  <div className="h-6 w-6 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse" />
+                ) : user?.profileImage ? (
                   <img 
-                    src={(user as any).profileImage} 
+                    src={user.profileImage} 
                     alt="Profile" 
                     className="h-6 w-6 rounded-full object-cover"
                   />
                 ) : (
                   <div className="h-6 w-6 rounded-full bg-primary-600 flex items-center justify-center">
                     <span className="text-white font-medium text-xs">
-                      {((user as any)?.firstName?.[0] || (user as any)?.username?.[0] || (user as any)?.name?.[0] || 'U').toUpperCase()}
+                      {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
                     </span>
                   </div>
                 )}
                 
                 {/* Username - show on larger screens */}
                 <span className="hidden sm:block text-sm font-medium truncate max-w-24">
-                  {(user as any)?.firstName || (user as any)?.username || (user as any)?.name || 'User'}
+                  {userLoading ? (
+                    <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  ) : (
+                    user?.firstName || user?.username || 'User'
+                  )}
                 </span>
                 
                 {/* Dropdown arrow */}
@@ -308,14 +316,23 @@ export function Header({
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                   {/* Compact user info */}
                   <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {(user as any)?.firstName && (user as any)?.lastName 
-                        ? `${(user as any).firstName} ${(user as any).lastName}`
-                        : (user as any)?.username || (user as any)?.name || 'Studio User'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {(user as any)?.email || 'user@example.com'}
-                    </p>
+                    {userLoading ? (
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {user?.firstName && user?.lastName 
+                            ? `${user.firstName} ${user.lastName}`
+                            : user?.username || 'Studio User'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {user?.email || 'No email'}
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {/* Menu items */}

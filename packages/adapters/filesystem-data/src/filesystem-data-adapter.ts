@@ -19,12 +19,13 @@ import {
   UpdateAppTokenData,
   WebhookConfig,
   WebhookListOptions,
+  SettingsConfig,
   createLogger
 } from '@trokky/core'
 import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile } from './types'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
-  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir'>> & { webhooksDir: string }
+  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir'>> & { webhooksDir: string; settingsDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
   // Security limits
@@ -36,6 +37,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       usersDir: config.usersDir || './users',
       tokensDir: config.tokensDir || './tokens',
       webhooksDir: config.webhooksDir || './webhooks',
+      settingsDir: config.settingsDir || './settings',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -65,6 +67,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.tokensDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.settingsDir, { mode: this.config.dirMode })
     } catch (error) {
       if (!this.config.silent) {
         this.logger.error('Failed to initialize directories', error)
@@ -991,6 +994,83 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     
     if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
       throw new InvalidInputError('Path traversal attempt detected', 'path')
+    }
+  }
+
+  // ==========================================================================
+  // SETTINGS OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Get studio settings
+   */
+  public async getSettings(): Promise<SettingsConfig | null> {
+    try {
+      const settingsPath = path.join(this.config.settingsDir, 'studio.json')
+      
+      // Check if settings file exists
+      try {
+        await fs.access(settingsPath, constants.F_OK)
+      } catch {
+        // Settings file doesn't exist
+        return null
+      }
+
+      const fileData = await fs.readFile(settingsPath, 'utf-8')
+      const parsed = JSON.parse(fileData, this.dateReviver)
+      
+      this.logger.debug('Settings loaded', { path: settingsPath })
+      return parsed as SettingsConfig
+    } catch (error) {
+      this.logger.error('Failed to load settings', { error })
+      throw new InvalidInputError(`Failed to load settings: ${error}`, 'settings')
+    }
+  }
+
+  /**
+   * Save studio settings
+   */
+  public async saveSettings(settings: SettingsConfig): Promise<void> {
+    try {
+      // Validate settings object
+      if (!settings || typeof settings !== 'object') {
+        throw new InvalidInputError('Settings must be a valid object', 'settings')
+      }
+
+      if (!settings.id || !settings.publicUrl || !settings.studioTitle || !settings.defaultTheme) {
+        throw new InvalidInputError('Settings missing required fields', 'settings')
+      }
+
+      const settingsPath = path.join(this.config.settingsDir, 'studio.json')
+      
+      // Ensure settings directory exists
+      await fsExtra.ensureDir(this.config.settingsDir, { mode: this.config.dirMode })
+
+      // Validate secure path
+      this.validateSecurePath(settingsPath, this.config.settingsDir)
+
+      const jsonData = this.formatJson(settings)
+      
+      if (this.config.syncWrites) {
+        await fs.writeFile(settingsPath, jsonData, { 
+          encoding: 'utf-8', 
+          mode: this.config.fileMode,
+          flag: 'w'
+        })
+      } else {
+        await fs.writeFile(settingsPath, jsonData, { 
+          encoding: 'utf-8', 
+          mode: this.config.fileMode 
+        })
+      }
+
+      this.logger.info('Settings saved', { 
+        path: settingsPath,
+        settingsId: settings.id 
+      })
+    } catch (error) {
+      this.logger.error('Failed to save settings', { error, settingsId: settings.id })
+      throw new InvalidInputError(`Failed to save settings: ${error}`, 'settings')
     }
   }
 }

@@ -441,7 +441,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
     
     try {
       setIsLoading(true);
-      const response = await apiClient.get(`/api/webhooks/${webhook.id}/deliveries`);
+      const response = await apiClient.get(`/webhooks/${webhook.id}/deliveries`);
       if (response.success && response.data) {
         setDeliveries((response.data as any).deliveries || []);
       }
@@ -583,7 +583,7 @@ export function WebhookManagement() {
     if (!editingWebhook) return;
     
     try {
-      const response = await apiClient.put(`/api/webhooks/${editingWebhook.id}`, { webhookData });
+      const response = await apiClient.put(`/webhooks/${editingWebhook.id}`, { webhookData });
       if (response.success) {
         await loadWebhooks();
         setEditingWebhook(undefined);
@@ -600,7 +600,7 @@ export function WebhookManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/webhooks/${webhook.id}`);
+      const response = await apiClient.delete(`/webhooks/${webhook.id}`);
       if (response.success) {
         await loadWebhooks();
       }
@@ -612,7 +612,7 @@ export function WebhookManagement() {
   const handleTestWebhook = async (webhook: WebhookConfig) => {
     try {
       setTestingWebhook(webhook.id);
-      const response = await apiClient.post(`/api/webhooks/${webhook.id}/test`, {
+      const response = await apiClient.post(`/webhooks/${webhook.id}/test`, {
         eventType: 'system.test'
       });
       if (response.success) {

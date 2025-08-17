@@ -300,5 +300,6 @@ export type {
   MediaVariant,
   SplitStorageConfig,
   TrokkyStorageAdapters,
-  WebhookListOptions
+  WebhookListOptions,
+  SettingsConfig
 } from './storage-adapters.js'

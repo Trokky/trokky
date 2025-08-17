@@ -145,7 +145,8 @@ export type {
   MediaVariant,
   SplitStorageConfig,
   TrokkyStorageAdapters,
-  WebhookListOptions
+  WebhookListOptions,
+  SettingsConfig
 } from './types/index.js'
 
 export { ROLE_PERMISSIONS } from './types/index.js'

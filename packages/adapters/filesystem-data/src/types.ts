@@ -24,6 +24,12 @@ export interface FilesystemDataAdapterConfig {
   webhooksDir?: string
 
   /**
+   * Base directory for settings storage (system entities)
+   * @default './settings'
+   */
+  settingsDir?: string
+
+  /**
    * Whether to create directories if they don't exist
    * @default true
    */

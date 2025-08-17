@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, type SettingsConfig } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -95,6 +95,7 @@ export class TrokkyRoutes {
     // Authentication routes (public)
     this.addRoute('POST', `${basePath}/auth/login`, this.login.bind(this))
     this.addRoute('POST', `${basePath}/auth/logout`, this.logout.bind(this))
+    this.addRoute('GET', `${basePath}/auth/me`, this.getMe.bind(this))
     this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
     this.addRoute('POST', `${basePath}/auth/refresh`, this.refreshToken.bind(this))
 
@@ -120,6 +121,8 @@ export class TrokkyRoutes {
     // Configuration routes
     this.addRoute('GET', `${basePath}/config/structure`, this.getStructure.bind(this))
     this.addRoute('GET', `${basePath}/config/studio`, this.getStudioConfig.bind(this))
+    this.addRoute('GET', `${basePath}/config/settings`, this.getSettings.bind(this))
+    this.addRoute('PUT', `${basePath}/config/settings`, this.updateSettings.bind(this))
 
     // Slug validation routes
     this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
@@ -1502,6 +1505,32 @@ export class TrokkyRoutes {
     }
   }
 
+  private async getMe(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and get current user session
+      await this.validateAuthentication(request)
+      const sessionUser = await this.getCurrentUser(request)
+      
+      if (!sessionUser) {
+        throw new Error('User session not found')
+      }
+      
+      // Fetch full user data from storage using the user ID from session
+      const fullUser = await this.core.getUser(sessionUser.id)
+      
+      if (!fullUser) {
+        throw new Error('User not found in database')
+      }
+      
+      // Remove password hash from response for security
+      const { passwordHash, ...safeUser } = fullUser
+      
+      return this.successResponse(safeUser)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
   private async validateToken(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate request body structure
@@ -1954,6 +1983,190 @@ export class TrokkyRoutes {
       return this.successResponse({ studioConfig })
     } catch (error) {
       this.logger.error('Failed to get studio config', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get studio settings
+   */
+  private async getSettings(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+
+      // Get settings from storage
+      const dataStorage = this.core.getDataStorageAdapter()
+      if (!dataStorage || !dataStorage.getSettings) {
+        // Return default settings if storage doesn't support settings
+        const defaultSettings = {
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const
+        }
+        
+        this.logger.debug('Returning default settings (storage not available)')
+        return this.successResponse({ settings: defaultSettings })
+      }
+
+      let settings = await dataStorage.getSettings()
+      
+      if (!settings) {
+        // Create default settings if none exist
+        const defaultSettings = {
+          id: 'studio-settings',
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const,
+          _createdAt: new Date().toISOString(),
+          _updatedAt: new Date().toISOString()
+        }
+        
+        // Save default settings if storage supports it
+        if (dataStorage.saveSettings) {
+          await dataStorage.saveSettings(defaultSettings)
+        }
+        settings = defaultSettings
+        
+        this.logger.info('Created default settings')
+      }
+
+      this.logger.debug('Serving settings', { 
+        publicUrl: settings.publicUrl,
+        studioTitle: settings.studioTitle 
+      })
+
+      return this.successResponse({ settings })
+    } catch (error) {
+      this.logger.error('Failed to get settings', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Update studio settings (admin only)
+   */
+  private async updateSettings(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin access
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      // SECURITY: Validate request body
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('settings' in body) || !body.settings || typeof body.settings !== 'object') {
+        throw new InvalidInputError('Settings data is required', 'settings')
+      }
+
+      const newSettings = body.settings as Record<string, any>
+
+      // Get data storage
+      const dataStorage = this.core.getDataStorageAdapter()
+      if (!dataStorage || !dataStorage.getSettings || !dataStorage.saveSettings) {
+        return this.errorResponse(new Error('Settings storage not available'), 503)
+      }
+
+      // Get current settings
+      let currentSettings = await dataStorage.getSettings()
+      if (!currentSettings) {
+        // Create new settings if none exist
+        currentSettings = {
+          id: 'studio-settings',
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const,
+          _createdAt: new Date().toISOString()
+        }
+      }
+
+      // Get current user for audit trail
+      const currentUser = await this.getCurrentUser(request)
+      
+      // Merge settings with metadata, ensuring required fields are present
+      const updatedSettings: SettingsConfig = {
+        id: 'studio-settings', // Ensure ID is consistent
+        publicUrl: newSettings.publicUrl || currentSettings.publicUrl,
+        studioTitle: newSettings.studioTitle || currentSettings.studioTitle,
+        defaultTheme: newSettings.defaultTheme || currentSettings.defaultTheme,
+        _createdAt: currentSettings._createdAt,
+        _updatedAt: new Date().toISOString(),
+        _updatedBy: currentUser?.username || 'system'
+      }
+
+      // Save to storage
+      await dataStorage.saveSettings(updatedSettings)
+
+      // Get event bus for emitting events
+      const eventBus = this.core.getEventBus()
+      if (eventBus) {
+        // Emit general settings updated event
+        await eventBus.emitEvent({
+          type: 'settings.updated',
+          data: {
+            settings: updatedSettings,
+            changes: newSettings,
+            updatedBy: currentUser?.username || 'system'
+          },
+          source: 'api'
+        })
+
+        // Emit specific events for major changes
+        if (newSettings.publicUrl && newSettings.publicUrl !== currentSettings.publicUrl) {
+          await eventBus.emitEvent({
+            type: 'settings.publicUrl.changed',
+            data: {
+              oldUrl: currentSettings.publicUrl,
+              newUrl: newSettings.publicUrl,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+
+        if (newSettings.studioTitle && newSettings.studioTitle !== currentSettings.studioTitle) {
+          await eventBus.emitEvent({
+            type: 'settings.branding.changed',
+            data: {
+              oldTitle: currentSettings.studioTitle,
+              newTitle: newSettings.studioTitle,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+
+        if (newSettings.defaultTheme && newSettings.defaultTheme !== currentSettings.defaultTheme) {
+          await eventBus.emitEvent({
+            type: 'settings.theme.changed',
+            data: {
+              oldTheme: currentSettings.defaultTheme,
+              newTheme: newSettings.defaultTheme,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+      }
+
+      this.logger.info('Settings updated', {
+        changes: Object.keys(newSettings),
+        updatedBy: currentUser?.username || 'system',
+        eventsEmitted: !!eventBus
+      })
+
+      return this.successResponse({ 
+        settings: updatedSettings,
+        message: 'Settings updated successfully'
+      })
+    } catch (error) {
+      this.logger.error('Failed to update settings', { 
         error: error instanceof Error ? error.message : String(error) 
       })
       return this.errorResponse(error)

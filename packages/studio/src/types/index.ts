@@ -256,7 +256,12 @@ export type Permission =
   // App token management
   | 'tokens:read'
   | 'tokens:write'
-  | 'tokens:delete';
+  | 'tokens:delete'
+  // Webhook management
+  | 'webhooks:read'
+  | 'webhooks:write'
+  | 'webhooks:delete'
+  | 'webhooks:test';
 
 // Default permissions for each role
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -266,12 +271,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'users:read', 'users:write', 'users:delete', 'users:invite',
     'settings:read', 'settings:write',
     'studio:access',
-    'tokens:read', 'tokens:write', 'tokens:delete'
+    'tokens:read', 'tokens:write', 'tokens:delete',
+    'webhooks:read', 'webhooks:write', 'webhooks:delete', 'webhooks:test'
   ],
   editor: [
     'content:read', 'content:write', 'content:delete', 'content:publish',
     'media:read', 'media:upload', 'media:edit', 'media:delete',
-    'studio:access'
+    'studio:access',
+    'webhooks:read', 'webhooks:test'
   ],
   author: [
     'content:read', 'content:write', 'content:publish',

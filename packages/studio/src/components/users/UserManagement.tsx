@@ -46,7 +46,11 @@ const PERMISSIONS: { value: Permission; label: string; group: string }[] = [
   { value: 'studio:access', label: 'Studio Access', group: 'Access' },
   { value: 'tokens:read', label: 'View API Tokens', group: 'Tokens' },
   { value: 'tokens:write', label: 'Create API Tokens', group: 'Tokens' },
-  { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' }
+  { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' },
+  { value: 'webhooks:read', label: 'View Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:write', label: 'Create/Edit Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:delete', label: 'Delete Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:test', label: 'Test Webhooks', group: 'Webhooks' }
 ];
 
 interface UserFormData {
@@ -464,9 +468,17 @@ export function UserManagement() {
     try {
       if (selectedUser) {
         // Update existing user
-        const response = await apiClient.put(`/api/users/${selectedUser.id}`, userData);
-        if (response.success) {
+        const response = await apiClient.put(`/users/${selectedUser.id}`, userData);
+        if (response.success && response.data) {
           await loadUsers();
+          
+          // If updating current user, emit event to update header
+          if (currentUser?.id === selectedUser.id) {
+            window.dispatchEvent(new CustomEvent('trokky:user:updated', {
+              detail: { user: response.data }
+            }));
+            logger.debug('Emitted user update event for current user');
+          }
         }
       } else {
         // Create new user
@@ -487,7 +499,7 @@ export function UserManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/users/${user.id}`);
+      const response = await apiClient.delete(`/users/${user.id}`);
       if (response.success) {
         await loadUsers();
       }

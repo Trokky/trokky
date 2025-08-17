@@ -343,7 +343,7 @@ export function AppTokenManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/tokens/${token.id}`);
+      const response = await apiClient.delete(`/tokens/${token.id}`);
       if (response.success) {
         await loadTokens();
       }

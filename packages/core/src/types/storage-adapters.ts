@@ -30,6 +30,30 @@ import type {
 import type { WebhookConfig } from '../events/types.js'
 
 // =============================================================================
+// SETTINGS TYPES
+// =============================================================================
+
+/**
+ * Studio settings configuration
+ */
+export interface SettingsConfig {
+  /** Unique identifier for settings */
+  id: string
+  /** Public website URL for "View Live" links */
+  publicUrl: string
+  /** Studio title displayed in interface */
+  studioTitle: string
+  /** Default theme for new users */
+  defaultTheme: 'light' | 'dark' | 'system'
+  /** Settings creation timestamp */
+  _createdAt?: string
+  /** Settings last update timestamp */
+  _updatedAt?: string
+  /** User who last updated settings */
+  _updatedBy?: string
+}
+
+// =============================================================================
 // DATA STORAGE ADAPTER - Structured Data (Documents, Users, App Tokens)
 // =============================================================================
 
@@ -247,6 +271,24 @@ export interface DataStorageAdapter {
    * @throws Error if webhook doesn't exist or storage fails
    */
   deleteWebhook?(id: string): Promise<void>
+  
+  // ==========================================================================
+  // SETTINGS OPERATIONS
+  // ==========================================================================
+  
+  /**
+   * Retrieve studio settings
+   * @returns The settings configuration or null if not found
+   * @throws Error if storage fails
+   */
+  getSettings?(): Promise<SettingsConfig | null>
+  
+  /**
+   * Create or update studio settings
+   * @param settings - The settings configuration
+   * @throws Error if validation fails or storage fails
+   */
+  saveSettings?(settings: SettingsConfig): Promise<void>
   
   // ==========================================================================
   // UTILITY OPERATIONS

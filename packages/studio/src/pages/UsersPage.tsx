@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { UserManagement } from '@/components/users/UserManagement';
 import { AppTokenManagement } from '@/components/users/AppTokenManagement';
 import { WebhookManagement } from '@/components/users/WebhookManagement';
 
 export function UsersPage() {
   const [activeTab, setActiveTab] = useState<'users' | 'tokens' | 'webhooks'>('users');
+  const contextSidebar = useContextSidebar();
+  
+  // Hide context sidebar for users page
+  useEffect(() => {
+    contextSidebar.hide();
+  }, [contextSidebar]);
 
   return (
     <div className="p-6">
