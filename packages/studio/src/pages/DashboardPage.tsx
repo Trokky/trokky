@@ -24,7 +24,7 @@ export function DashboardPage() {
   useEffect(() => {
     // Set dashboard context sidebar content
     contextSidebar.setContent(<DashboardContextSidebar />);
-  }, [contextSidebar]);
+  }, [contextSidebar.setContent]);
 
   return (
     <div className="min-h-full bg-gray-50 dark:bg-gray-900">

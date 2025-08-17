@@ -57,7 +57,7 @@ export function ContentPage() {
   useEffect(() => {
     // Set content context sidebar content
     contextSidebar.setContent(<ContentContext />);
-  }, [contextSidebar]);
+  }, [contextSidebar.setContent]);
 
 
   // Handle document editing

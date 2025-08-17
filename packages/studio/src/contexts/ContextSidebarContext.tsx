@@ -273,7 +273,15 @@ export function useContextSidebar(config?: ContextSidebarPageConfig): ContextSid
     if (config) {
       configure(config);
     }
-  }, [config, configure]);
+  }, [
+    config?.page,
+    config?.title, 
+    config?.defaultVisible,
+    config?.defaultCollapsed,
+    config?.defaultWidth,
+    config?.defaultPosition,
+    configure
+  ]);
   
   return context;
 }
