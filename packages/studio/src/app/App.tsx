@@ -10,6 +10,7 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
 import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import '@/utils/debug'; // Load debug utilities
 
 // Create a client
@@ -26,6 +27,9 @@ function AppContent() {
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const logger = createStudioLogger('AppContent');
   const lastStateRef = useRef<{ isAuthenticated?: boolean; isLoading?: boolean }>({});
+  
+  // Update document title from settings when authenticated
+  useDocumentTitle(isAuthenticated);
 
   // Only log when auth state actually changes, not on every render
   useEffect(() => {

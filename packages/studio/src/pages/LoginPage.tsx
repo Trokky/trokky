@@ -23,6 +23,29 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [backendUrl, setBackendUrl] = useState('');
 
   useEffect(() => {
+    // Auto-detect system theme preference
+    const detectTheme = () => {
+      const savedTheme = localStorage.getItem('theme');
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    detectTheme();
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = () => {
+      if (!localStorage.getItem('theme')) {
+        detectTheme();
+      }
+    };
+    mediaQuery.addEventListener('change', handleThemeChange);
+
     // Check if backend URL is configured via server injection or build time
     const config = (window as any).TROKKY_CONFIG;
     const injectedBackendUrl = config?.backendUrl;
@@ -32,17 +55,20 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       // Hide advanced section since backend is pre-configured
       setBackendUrl(injectedBackendUrl || buildTimeBackendUrl);
     } else {
-      // Show advanced section and load from localStorage or default
+      // Load from localStorage or default but keep panel closed
       const savedUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL);
       if (savedUrl) {
         setBackendUrl(savedUrl);
-        setShowAdvanced(true); // Show advanced since user has customized it
       } else {
         // Default to current origin with /api
         const defaultUrl = `${window.location.origin}/api`;
         setBackendUrl(defaultUrl);
       }
     }
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleThemeChange);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,133 +121,113 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const branding = config?.branding || { title: 'Trokky Studio' };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
-        <div className="text-center mb-8">
-          <div className="h-12 w-12 rounded-lg bg-primary-600 flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-xl">T</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {branding.title}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Sign in to access your content management system
-          </p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4">
+      <div className="w-full max-w-sm">
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          </div>
-        )}
+        <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20 p-8 shadow-xl">
+          {error && (
+            <div className="mb-6 p-3 bg-red-50/80 dark:bg-red-900/20 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {error}
+              </p>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Email or Username
-            </label>
-            <Input
-              type="text"
-              value={credentials.username}
-              onChange={handleInputChange('username')}
-              placeholder="admin@example.com"
-              required
-              disabled={isLoading}
-              autoComplete="username"
-              autoFocus
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <Input
+                  type="text"
+                  value={credentials.username}
+                  onChange={handleInputChange('username')}
+                  placeholder="Email or username"
+                  required
+                  disabled={isLoading}
+                  autoComplete="username"
+                  autoFocus
+                  className="w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 rounded-none px-4 py-3 text-base placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-0 transition-colors"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Password
-            </label>
-            <Input
-              type="password"
-              value={credentials.password}
-              onChange={handleInputChange('password')}
-              placeholder="Enter your password"
-              required
-              disabled={isLoading}
-              autoComplete="current-password"
-            />
-          </div>
+              <div>
+                <Input
+                  type="password"
+                  value={credentials.password}
+                  onChange={handleInputChange('password')}
+                  placeholder="Password"
+                  required
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  className="w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 rounded-none px-4 py-3 text-base placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-0 transition-colors"
+                />
+              </div>
+            </div>
 
-          <div className="flex items-center">
-            <Checkbox
-              id="remember-me"
-              checked={rememberMe}
-              onChange={setRememberMe}
-            />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-              Remember me for 7 days
-            </label>
-          </div>
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center">
+                <Checkbox
+                  id="remember-me"
+                  checked={rememberMe}
+                  onChange={setRememberMe}
+                  className="mr-2"
+                />
+                <span className="text-gray-600 dark:text-gray-400">Stay signed in</span>
+              </label>
 
-          <Button 
-            type="submit" 
-            className="w-full"
-            disabled={isLoading || !credentials.username || !credentials.password}
-          >
-            {isLoading ? (
-              <>
-                <LoadingSpinner size="sm" className="mr-2" />
-                Signing in...
-              </>
-            ) : (
-              'Sign In'
-            )}
-          </Button>
-        </form>
-
-        {/* Only show advanced settings if no backend URL is configured */}
-        {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && (
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-            >
-              {showAdvanced ? (
-                <ChevronDownIcon className="h-4 w-4 mr-1" />
-              ) : (
-                <ChevronRightIcon className="h-4 w-4 mr-1" />
+              {/* Only show advanced settings if no backend URL is configured */}
+              {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                >
+                  {showAdvanced ? (
+                    <ChevronDownIcon className="h-3 w-3 mr-1" />
+                  ) : (
+                    <ChevronRightIcon className="h-3 w-3 mr-1" />
+                  )}
+                  Advanced
+                </button>
               )}
-              Advanced Settings
-            </button>
-            
-            {showAdvanced && (
-              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-700">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Backend URL
-                </label>
+            </div>
+
+            {/* Advanced settings panel */}
+            {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && showAdvanced && (
+              <div className="mt-4 p-4 bg-gray-50/50 dark:bg-gray-900/30 rounded-lg border border-gray-200/30 dark:border-gray-700/30">
                 <Input
                   type="url"
                   value={backendUrl}
                   onChange={(e) => setBackendUrl(e.target.value)}
-                  placeholder="https://example.com/cms-api"
+                  placeholder="Backend URL"
                   disabled={isLoading}
-                  className="text-sm"
+                  className="text-sm bg-transparent border-gray-300 dark:border-gray-600 px-4 py-2"
                 />
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Enter the full backend API URL including the API path.
-                  Example: https://example.com/cms-api
+                  Custom backend API endpoint
                 </p>
-                {backendUrl && backendUrl !== `${window.location.origin}/api` && (
-                  <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                    Connecting to: {backendUrl}
-                  </p>
-                )}
               </div>
             )}
-          </div>
-        )}
 
-        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            Trokky Studio - Integrated Content Management
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium text-base transition-colors"
+              disabled={isLoading || !credentials.username || !credentials.password}
+            >
+              {isLoading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+        </div>
+
+        <div className="mt-8 text-center">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Trokky Studio
           </p>
         </div>
       </div>
