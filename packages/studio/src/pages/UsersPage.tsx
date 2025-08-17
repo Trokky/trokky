@@ -19,15 +19,22 @@ export function UsersPage() {
   
   const hasAnyAccess = canReadUsers || canReadTokens || canReadWebhooks;
 
-  // Set default active tab based on permissions
-  const getDefaultTab = (): 'users' | 'tokens' | 'webhooks' => {
-    if (canReadUsers) return 'users';
-    if (canReadTokens) return 'tokens';
-    if (canReadWebhooks) return 'webhooks';
-    return 'users'; // fallback
-  };
-
-  const [activeTab, setActiveTab] = useState<'users' | 'tokens' | 'webhooks'>(getDefaultTab());
+  const [activeTab, setActiveTab] = useState<'users' | 'tokens' | 'webhooks'>('users');
+  const [hasSetDefaultTab, setHasSetDefaultTab] = useState(false);
+  
+  // Set default active tab based on permissions (only once)
+  useEffect(() => {
+    if (!hasSetDefaultTab) {
+      if (canReadUsers) {
+        setActiveTab('users');
+      } else if (canReadTokens) {
+        setActiveTab('tokens');
+      } else if (canReadWebhooks) {
+        setActiveTab('webhooks');
+      }
+      setHasSetDefaultTab(true);
+    }
+  }, [canReadUsers, canReadTokens, canReadWebhooks, hasSetDefaultTab]);
   
   // Hide context sidebar for users page
   useEffect(() => {

@@ -1409,17 +1409,39 @@ export class TrokkyCore {
   public async verifyAuthToken(token: string): Promise<UserSession | null> {
     const decoded = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret)
     
-    if (!decoded || !decoded.userId || !decoded.username || !decoded.role || !decoded.permissions) {
+    if (!decoded || !decoded.userId || !decoded.username) {
       return null
     }
 
-    return {
-      userId: decoded.userId,
-      username: decoded.username,
-      role: decoded.role,
-      permissions: decoded.permissions,
-      loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-      expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+    // Fetch fresh user data from storage to get current permissions
+    try {
+      const currentUser = await this.getUser(decoded.userId)
+      if (!currentUser || !currentUser.isActive) {
+        return null // User no longer exists or is inactive
+      }
+
+      return {
+        userId: decoded.userId,
+        username: decoded.username,
+        role: currentUser.role, // Use fresh role from storage
+        permissions: currentUser.permissions, // Use fresh permissions from storage  
+        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+      }
+    } catch (error) {
+      // If we can't fetch user data, fall back to JWT payload for backwards compatibility
+      if (!decoded.role || !decoded.permissions) {
+        return null
+      }
+      
+      return {
+        userId: decoded.userId,
+        username: decoded.username,
+        role: decoded.role,
+        permissions: decoded.permissions,
+        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+      }
     }
   }
 

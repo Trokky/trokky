@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePermissions } from '@/hooks/usePermissions';
-import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
+import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
@@ -244,8 +244,8 @@ export function Header({
                   </Link>
                 )}
 
-                {/* Users option */}
-                {hasPermission(USER_PERMISSIONS.READ) && (
+                {/* Users & Access option - show if user has access to any Users/Tokens/Webhooks features */}
+                {hasAnyPermission([USER_PERMISSIONS.READ, TOKEN_PERMISSIONS.READ, WEBHOOK_PERMISSIONS.READ]) && (
                   <Link
                     to="/users"
                     onClick={() => setSettingsMenuOpen(false)}

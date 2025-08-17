@@ -1246,9 +1246,9 @@ export class TrokkyRoutes {
   // User management handlers
   private async listUsers(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateUserReadAccess(request)
 
       const { role, isActive, limit, offset } = request.query
 
@@ -1311,9 +1311,9 @@ export class TrokkyRoutes {
 
   private async getUser(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateUserReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)
@@ -1560,6 +1560,64 @@ export class TrokkyRoutes {
   }
 
   // Helper methods for user management
+  private async validateUserReadAccess(request: HttpRequest): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or users:read permission
+    const hasReadAccess = session.role === 'admin' || session.permissions.includes('users:read')
+    if (!hasReadAccess) {
+      throw new InvalidInputError('Insufficient permissions for user management operations', 'permissions')
+    }
+  }
+
+  private async validateWebhookReadAccess(request: HttpRequest): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or webhooks:read permission
+    const hasReadAccess = session.role === 'admin' || session.permissions.includes('webhooks:read')
+    if (!hasReadAccess) {
+      throw new InvalidInputError('Insufficient permissions for webhook management operations', 'permissions')
+    }
+  }
+
   private async validateAdminAccess(request: HttpRequest): Promise<void> {
     const auth = this.config.authentication
     if (!auth?.enabled) {
@@ -2504,9 +2562,9 @@ export class TrokkyRoutes {
    */
   private async listWebhooks(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { active, limit, offset } = request.query
 
@@ -2638,9 +2696,9 @@ export class TrokkyRoutes {
    */
   private async getWebhook(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)
@@ -2760,9 +2818,9 @@ export class TrokkyRoutes {
    */
   private async getWebhookDeliveries(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)

@@ -75,6 +75,10 @@ export type Permission =
   | 'tokens:read'
   | 'tokens:write'
   | 'tokens:delete'
+  // Webhook management
+  | 'webhooks:read'
+  | 'webhooks:write'
+  | 'webhooks:delete'
 
 export interface UserPreferences {
   theme?: 'light' | 'dark'

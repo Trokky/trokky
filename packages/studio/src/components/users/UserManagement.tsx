@@ -15,6 +15,8 @@ import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
+import { USER_PERMISSIONS } from '@/constants/permissions';
 import { ROLE_PERMISSIONS, type UserRole, type Permission, type User } from '@/types';
 import { generateWebSecurePassword } from '@/utils/web-crypto';
 
@@ -419,12 +421,18 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
+  const { hasPermission } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Permission checks
+  const canCreateUser = hasPermission(USER_PERMISSIONS.WRITE) || hasPermission(USER_PERMISSIONS.INVITE);
+  const canEditUser = hasPermission(USER_PERMISSIONS.WRITE);
+  const canDeleteUser = hasPermission(USER_PERMISSIONS.DELETE);
 
   const loadUsers = async () => {
     try {
@@ -541,10 +549,12 @@ export function UserManagement() {
             Manage user accounts, roles, and permissions
           </p>
         </div>
-        <Button onClick={handleCreateUser}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
+        {canCreateUser && (
+          <Button onClick={handleCreateUser}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -624,14 +634,16 @@ export function UserManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditUser(user)}
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </Button>
-                        {currentUser?.id !== user.id && (
+                        {canEditUser && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditUser(user)}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDeleteUser && currentUser?.id !== user.id && (
                           <Button
                             size="sm"
                             variant="ghost"

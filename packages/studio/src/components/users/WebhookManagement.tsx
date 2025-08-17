@@ -17,6 +17,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { usePermissions } from '@/hooks/usePermissions';
+import { WEBHOOK_PERMISSIONS } from '@/constants/permissions';
 
 const logger = createStudioLogger('WebhookManagement');
 
@@ -540,6 +542,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
 }
 
 export function WebhookManagement() {
+  const { hasPermission } = usePermissions();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showWebhookModal, setShowWebhookModal] = useState(false);
@@ -548,6 +551,11 @@ export function WebhookManagement() {
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookConfig | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
+
+  // Permission checks
+  const canCreateWebhook = hasPermission(WEBHOOK_PERMISSIONS.WRITE);
+  const canEditWebhook = hasPermission(WEBHOOK_PERMISSIONS.WRITE);
+  const canDeleteWebhook = hasPermission(WEBHOOK_PERMISSIONS.DELETE);
 
   const loadWebhooks = async () => {
     try {
@@ -668,10 +676,12 @@ export function WebhookManagement() {
             Receive real-time notifications when events occur
           </p>
         </div>
-        <Button onClick={() => setShowWebhookModal(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Create Webhook
-        </Button>
+        {canCreateWebhook && (
+          <Button onClick={() => setShowWebhookModal(true)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Create Webhook
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -697,10 +707,12 @@ export function WebhookManagement() {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Create your first webhook to receive real-time notifications when events occur.
           </p>
-          <Button onClick={() => setShowWebhookModal(true)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create Webhook
-          </Button>
+          {canCreateWebhook && (
+            <Button onClick={() => setShowWebhookModal(true)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Webhook
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -777,23 +789,27 @@ export function WebhookManagement() {
                       >
                         <EyeIcon className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEditModal(webhook)}
-                        title="Edit webhook"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteWebhook(webhook)}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        title="Delete webhook"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
+                      {canEditWebhook && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditModal(webhook)}
+                          title="Edit webhook"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDeleteWebhook && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteWebhook(webhook)}
+                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          title="Delete webhook"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
