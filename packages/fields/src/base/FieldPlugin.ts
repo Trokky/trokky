@@ -65,6 +65,7 @@ export interface StudioContext {
     }) => Promise<boolean>;
     openModal: (component: React.ComponentType, props?: any) => void;
     closeModal: () => void;
+    showMediaBrowser: (config: import('@trokky/types').MediaBrowserConfig) => void;
   };
   
   // Studio logger for field components

@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import type { MediaFieldValue, MediaType } from './definition.js';
+import type { MediaFieldValue, MediaType } from '../types.js';
 import { MediaBrowserContent } from './MediaBrowserContent.js';
 
 // Custom modal component with proper backdrop

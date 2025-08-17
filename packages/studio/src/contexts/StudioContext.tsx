@@ -3,10 +3,12 @@
  * Provides field components access to Studio capabilities
  */
 
-import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect, useState } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import type { StudioContext } from '@trokky/fields';
+import type { MediaBrowserConfig } from '@trokky/types/media';
+import { MediaBrowser } from '@/components/media/MediaBrowser';
 
 const StudioContextInstance = createContext<StudioContext | null>(null);
 
@@ -91,6 +93,15 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   // Create a dedicated logger for field components
   const fieldLogger = useMemo(() => createStudioLogger('Fields'), []);
   
+  // Media browser state
+  const [mediaBrowserState, setMediaBrowserState] = useState<{
+    isOpen: boolean;
+    config: MediaBrowserConfig | null;
+  }>({
+    isOpen: false,
+    config: null
+  });
+  
   // Only log once when provider is first created
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
@@ -140,6 +151,21 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 
   const closeModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('studio:closeModal'));
+  }, []);
+
+  // Media browser utilities
+  const showMediaBrowser = useCallback((config: MediaBrowserConfig) => {
+    setMediaBrowserState({
+      isOpen: true,
+      config
+    });
+  }, []);
+
+  const closeMediaBrowser = useCallback(() => {
+    setMediaBrowserState({
+      isOpen: false,
+      config: null
+    });
   }, []);
 
   // Create the studio context value
@@ -207,6 +233,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         showConfirm,
         openModal,
         closeModal,
+        showMediaBrowser,
       },
       
       logger: {
@@ -216,11 +243,26 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         error: fieldLogger.error.bind(fieldLogger),
       },
     };
-  }, [showToast, showConfirm, openModal, closeModal, fieldLogger]);
+  }, [showToast, showConfirm, openModal, closeModal, showMediaBrowser, fieldLogger]);
 
   return (
     <StudioContextInstance.Provider value={studioContext}>
       {children}
+      
+      {/* Media Browser Modal */}
+      {mediaBrowserState.isOpen && mediaBrowserState.config && (
+        <MediaBrowser
+          isOpen={mediaBrowserState.isOpen}
+          onClose={closeMediaBrowser}
+          onSelect={(value) => {
+            mediaBrowserState.config?.onSelect(value);
+            closeMediaBrowser();
+          }}
+          mediaTypeFilter={mediaBrowserState.config.mediaTypeFilter}
+          showVariantSelector={mediaBrowserState.config.showVariantSelector}
+          context={mediaBrowserState.config.context}
+        />
+      )}
     </StudioContextInstance.Provider>
   );
 }

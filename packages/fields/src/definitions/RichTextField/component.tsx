@@ -51,8 +51,7 @@ const TrashIcon = ({ className }: { className?: string }) => (
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { RichTextFieldDefinition } from './definition';
 import { createStudioLogger } from '../../utils/logger';
-import { MediaBrowser } from '../MediaField/MediaBrowser';
-import type { MediaFieldValue } from '../MediaField/definition';
+import type { MediaFieldValue } from '@trokky/types';
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer';
 
 const logger = createStudioLogger('RichTextField');
@@ -197,7 +196,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Image browser state
-  const [showImageBrowser, setShowImageBrowser] = useState(false);
   
   // Image toolbar state
   const [selectedImageNode, setSelectedImageNode] = useState<any>(null);
@@ -661,8 +659,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     } else {
       logger.warn('No Studio context available for image URL resolution');
     }
-    
-    setShowImageBrowser(false);
   }, [editor, studioContext?.apiClient, logger]);
   
   // Handle variant change for selected image
@@ -836,7 +832,16 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             
             {/* Images */}
             <ToolbarButton
-              onClick={() => setShowImageBrowser(true)}
+              onClick={() => {
+                if (studioContext?.utils?.showMediaBrowser) {
+                  studioContext.utils.showMediaBrowser({
+                    onSelect: handleImageSelected,
+                    mediaTypeFilter: 'image',
+                    showVariantSelector: true,
+                    context: 'richtext-image'
+                  });
+                }
+              }}
               isActive={false}
               isDisabled={isDisabled}
               icon={PhotoIcon}
@@ -1512,7 +1517,16 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 
                 {/* Images */}
                 <ToolbarButton
-                  onClick={() => setShowImageBrowser(true)}
+                  onClick={() => {
+                    if (studioContext?.utils?.showMediaBrowser) {
+                      studioContext.utils.showMediaBrowser({
+                        onSelect: handleImageSelected,
+                        mediaTypeFilter: 'image',
+                        showVariantSelector: true,
+                        context: 'richtext-image'
+                      });
+                    }
+                  }}
                   isActive={false}
                   isDisabled={isDisabled}
                   icon={PhotoIcon}
@@ -1790,19 +1804,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         </div>
       )}
       
-      {/* Image Browser Modal */}
-      {showImageBrowser && (
-        <MediaBrowser
-          isOpen={showImageBrowser}
-          onClose={() => setShowImageBrowser(false)}
-          onSelect={handleImageSelected}
-          mediaTypeFilter="image"
-          showVariantSelector={true}
-          context="richtext-image"
-          apiClient={studioContext?.apiClient}
-          logger={studioContext?.logger}
-        />
-      )}
+      {/* Image Browser Modal - Now handled by Studio */}
       
     </>
   );

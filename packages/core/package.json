@@ -36,7 +36,7 @@
     "access": "restricted"
   },
   "dependencies": {
-    "@trokky/fields": "^0.1.0",
+    "@trokky/types": "file:../types",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/sharp": "^0.31.1",

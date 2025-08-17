@@ -4,6 +4,10 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import type { FieldComponentProps } from '../../base/FieldPlugin.js';
+import type { MediaFieldDefinition } from './definition.js';
+import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types';
+
 // TODO: Add proper icon imports when Studio icons are available
 // Using placeholder icons for now
 const PhotoIcon = ({ className }: { className?: string }) => <div className={className}>📷</div>;
@@ -21,9 +25,6 @@ const EyeIcon = ({ className }: { className?: string }) => <div className={class
 const PencilIcon = ({ className }: { className?: string }) => <div className={className}>✏️</div>;
 const CloudArrowUpIcon = ({ className }: { className?: string }) => <div className={className}>☁️</div>;
 const FolderOpenIcon = ({ className }: { className?: string }) => <div className={className}>📁</div>;
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition.js';
-import { MediaBrowser } from './MediaBrowser.js';
 
 type MediaFieldComponentProps = FieldComponentProps;
 
@@ -59,39 +60,7 @@ function formatFileSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-// Media asset interface (from Studio API)
-interface MediaAsset {
-  id: string;
-  filename: string;
-  originalFilename?: string;
-  contentType: string;
-  size: number;
-  url: string;
-  uploadedAt: string;
-  title?: string;
-  description?: string;
-  metadata?: {
-    width?: number;
-    height?: number;
-    duration?: number;
-    title?: string;
-    alt?: string;
-    credit?: string;
-    author?: string;
-    tags?: string[];
-    imageVariants?: Record<string, {
-      url: string;
-      width: number;
-      height: number;
-      format: string;
-      size: number;
-    }>;
-    originalDimensions?: {
-      width: number;
-      height: number;
-    };
-  };
-}
+// MediaAsset is now imported from @trokky/core
 
 export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const {
@@ -113,7 +82,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [showBrowser, setShowBrowser] = useState(false);
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
@@ -309,16 +277,17 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
   // Handle browse media
   const handleBrowseClick = useCallback(() => {
-    if (options.enableBrowse) {
-      setShowBrowser(true);
+    if (options.enableBrowse && studioContext?.utils?.showMediaBrowser) {
+      studioContext.utils.showMediaBrowser({
+        onSelect: (selectedValue: MediaFieldValue) => {
+          onChange(selectedValue);
+        },
+        mediaTypeFilter: validation.restrictToMediaType,
+        showVariantSelector: options.showVariantSelector,
+        context: fieldId
+      });
     }
-  }, [options.enableBrowse]);
-
-  // Handle media selection from browser
-  const handleMediaSelected = useCallback((selectedValue: MediaFieldValue) => {
-    onChange(selectedValue);
-    setShowBrowser(false);
-  }, [onChange]);
+  }, [options.enableBrowse, studioContext, onChange, validation.restrictToMediaType, options.showVariantSelector, fieldId]);
 
   // Handle remove media
   const handleRemove = useCallback(() => {
@@ -652,17 +621,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       {/* Render upload area or preview */}
       {value ? renderMediaPreview() : renderUploadArea()}
-
-      {/* Media Browser Modal */}
-      <MediaBrowser
-        isOpen={showBrowser}
-        onClose={() => setShowBrowser(false)}
-        onSelect={handleMediaSelected}
-        mediaTypeFilter={validation.restrictToMediaType}
-        showVariantSelector={options.showVariantSelector}
-        apiClient={studioContext?.apiClient}
-        logger={studioContext?.logger}
-      />
 
       {/* TODO: Add metadata editor modal */}
     </div>

@@ -39,6 +39,7 @@
     "@tiptap/extension-table-cell": "^2.10.6",
     "@tiptap/extension-gapcursor": "^2.10.6",
     "@tiptap/extension-code-block-lowlight": "^2.10.6",
+    "@trokky/types": "file:../types",
     "lowlight": "^3.1.0"
   },
   "peerDependencies": {

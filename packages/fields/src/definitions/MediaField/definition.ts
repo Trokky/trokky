@@ -4,26 +4,10 @@
  */
 
 import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition.js';
+import type { MediaAssetReference, MediaFieldValue, MediaType } from '@trokky/types';
 
-// Media asset reference structure (matches legacy pattern)
-export interface MediaAssetReference {
-  _ref: string;
-  _type: 'mediaAsset';
-}
-
-// Media field value structure
-export interface MediaFieldValue {
-  _type: 'media';
-  asset: MediaAssetReference;
-  // Instance-specific metadata (usage-specific)
-  alt?: string;
-  caption?: string;
-  title?: string; // Override asset title for this usage
-  variant?: string; // Selected variant name (e.g., 'thumbnail', 'preview', 'hero')
-}
-
-// Supported media types
-export type MediaType = 'image' | 'video' | 'audio' | 'document' | 'archive';
+// Re-export for backward compatibility
+export type { MediaAssetReference, MediaFieldValue, MediaType };
 
 // File validation constraints
 export interface MediaValidation extends BaseValidation {
