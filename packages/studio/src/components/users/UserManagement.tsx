@@ -456,19 +456,23 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                   // Check if content:* is enabled to disable individual content permissions
                   const hasContentWildcard = formData.permissions.includes('content:*');
                   const isContentGroup = group === 'Content';
+                  const isDynamicContentGroup = group.endsWith('(Content)'); // Dynamic schema groups
                   
                   return (
                     <div key={group} className="mb-3 last:mb-0">
                       <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
                         {group}
-                        {isContentGroup && hasContentWildcard && (
-                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(All Content Operations enabled)</span>
+                        {(isContentGroup || isDynamicContentGroup) && hasContentWildcard && (
+                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                            {isContentGroup ? '(All Content Operations enabled)' : '(Covered by All Content Operations)'}
+                          </span>
                         )}
                       </h4>
                       <div className="grid grid-cols-1 gap-1">
                         {permissions.map(permission => {
                           // Disable content permissions when content:* is checked (except content:* itself)
-                          const isDisabled = isContentGroup && hasContentWildcard && permission.value !== 'content:*';
+                          // This includes both the main Content group AND all dynamic schema groups
+                          const isDisabled = (isContentGroup || isDynamicContentGroup) && hasContentWildcard && permission.value !== 'content:*';
                           
                           return (
                             <label key={permission.value} className={`flex items-center ${isDisabled ? 'opacity-50' : ''}`}>
