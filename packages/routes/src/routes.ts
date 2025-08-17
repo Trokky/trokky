@@ -1649,11 +1649,13 @@ export class TrokkyRoutes {
     const permission = `${schemaName}:${action}`
     const schemaWildcard = `${schemaName}:*`
     const contentWildcard = 'content:*'
+    const globalPermission = `content:${action}` // Global content permissions
     
     const hasAccess = session.role === 'admin' || 
                      session.permissions.includes(permission) ||
                      session.permissions.includes(schemaWildcard) ||
-                     session.permissions.includes(contentWildcard)
+                     session.permissions.includes(contentWildcard) ||
+                     session.permissions.includes(globalPermission) // Add global content permission check
     
     if (!hasAccess) {
       throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
