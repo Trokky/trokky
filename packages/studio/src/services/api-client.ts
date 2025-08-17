@@ -63,13 +63,8 @@ export class ApiClient {
       this.setBackendUrl(buildTimeBackendUrl);
       console.log('🚀 Using build-time backend URL:', buildTimeBackendUrl);
     } else {
-      // No backend URL configured - this is an error
-      throw new Error(
-        'No backend URL configured. Please provide one of:\n' +
-        '1. Set backend URL in Studio login form\n' +
-        '2. Configure TROKKY_CONFIG.backendUrl (integrated mode)\n' +
-        '3. Set VITE_BACKEND_URL environment variable'
-      );
+      // No backend URL configured - Studio will show login form to set it
+      this.logger.info('No backend URL configured. User will need to set it in login form.');
     }
     
     // Restore auth token from localStorage if available
@@ -192,6 +187,17 @@ export class ApiClient {
     options: RequestInit = {},
     skipAuth = false
   ): Promise<ApiResponse<T>> {
+    // Check if backend URL is configured
+    if (!this.backendUrl) {
+      return {
+        success: false,
+        error: {
+          message: 'Backend URL not configured. Please configure it in the login form.',
+          code: 'NO_BACKEND_URL'
+        }
+      };
+    }
+    
     // Build the full URL
     const url = this.buildUrl(endpoint);
     

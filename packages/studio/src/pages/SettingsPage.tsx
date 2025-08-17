@@ -18,14 +18,28 @@ export function SettingsPage() {
   const studioContext = useStudioContext();
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   
+  // All hooks must be called before any conditional logic
+  const [publicUrl, setPublicUrl] = useState('');
+  const [studioTitle, setStudioTitle] = useState('');
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Check if user has settings access
+  const canReadSettings = hasPermission(SETTINGS_PERMISSIONS.READ);
+  const canWriteSettings = hasPermission(SETTINGS_PERMISSIONS.WRITE);
+
   // Hide context sidebar for settings page
   useEffect(() => {
     contextSidebar.hide();
   }, [contextSidebar]);
 
-  // Check if user has settings access
-  const canReadSettings = hasPermission(SETTINGS_PERMISSIONS.READ);
-  const canWriteSettings = hasPermission(SETTINGS_PERMISSIONS.WRITE);
+  // Load settings from API on mount
+  useEffect(() => {
+    if (canReadSettings) {
+      loadSettings();
+    }
+  }, [canReadSettings]);
 
   if (!canReadSettings) {
     return (
@@ -55,17 +69,6 @@ export function SettingsPage() {
       </div>
     );
   }
-
-  const [publicUrl, setPublicUrl] = useState('');
-  const [studioTitle, setStudioTitle] = useState('');
-  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // Load settings from API on mount
-  useEffect(() => {
-    loadSettings();
-  }, []);
 
   const loadSettings = async () => {
     try {
