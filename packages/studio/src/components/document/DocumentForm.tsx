@@ -303,8 +303,8 @@ export function DocumentForm() {
         key={field.name}
         fieldId={field.name}
         value={value}
-        onChange={isReadOnly ? undefined : (newValue: any) => handleFieldChange(field.name, newValue)}
-        onBlur={isReadOnly ? undefined : () => handleFieldBlur(field.name, field)}
+        onChange={isReadOnly ? () => {} : (newValue: any) => handleFieldChange(field.name, newValue)}
+        onBlur={isReadOnly ? () => {} : () => handleFieldBlur(field.name, field)}
         definition={field}
         hasError={!!error}
         error={error}
