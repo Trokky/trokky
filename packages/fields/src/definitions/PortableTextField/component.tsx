@@ -31,7 +31,7 @@ interface DragState {
 }
 
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
   
   if (definition.type !== 'portable') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected portable field</div>;
@@ -40,6 +40,9 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const portableDefinition = definition as PortableTextFieldDefinition;
   const options = portableDefinition.options || {};
   const validation = portableDefinition.validation || {};
+  
+  // Check if we're in read-only mode
+  const isViewMode = mode === 'preview' || isReadonly || isDisabled;
   
   const sanitizedValue = useMemo(() => 
     sanitizePortableTextValue(value), 
@@ -72,6 +75,131 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     getPortableTextStats(sanitizedValue),
     [sanitizedValue]
   );
+
+  // Render portable text content for read-only view
+  const renderPortableTextContent = (blocks: PortableTextBlock[]) => {
+    if (!blocks || blocks.length === 0) {
+      return <span className="text-gray-500 dark:text-gray-400 italic text-sm">No content</span>;
+    }
+
+    return (
+      <div className="space-y-3">
+        {blocks.map((block) => {
+          const text = block.children?.[0]?.text || '';
+          const marks = block.children?.[0]?.marks || [];
+          
+          // Determine element type based on block style
+          let BlockElement: keyof React.JSX.IntrinsicElements = 'p';
+          let blockClasses = '';
+          
+          switch (block.style) {
+            case 'h1':
+              BlockElement = 'h1';
+              blockClasses = 'text-3xl font-bold mb-4 mt-6';
+              break;
+            case 'h2':
+              BlockElement = 'h2';
+              blockClasses = 'text-2xl font-semibold mb-3 mt-5';
+              break;
+            case 'h3':
+              BlockElement = 'h3';
+              blockClasses = 'text-xl font-semibold mb-2 mt-4';
+              break;
+            case 'h4':
+              BlockElement = 'h4';
+              blockClasses = 'text-lg font-medium mb-2 mt-3';
+              break;
+            case 'h5':
+              BlockElement = 'h5';
+              blockClasses = 'text-base font-medium mb-1 mt-2';
+              break;
+            case 'h6':
+              BlockElement = 'h6';
+              blockClasses = 'text-sm font-medium mb-1 mt-2';
+              break;
+            case 'blockquote':
+              BlockElement = 'blockquote';
+              blockClasses = 'border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-4';
+              break;
+            default:
+              blockClasses = 'mb-2';
+          }
+          
+          // Apply text marks
+          let markClasses = '';
+          if (marks.includes('strong')) markClasses += ' font-semibold';
+          if (marks.includes('em')) markClasses += ' italic';
+          if (marks.includes('underline')) markClasses += ' underline';
+          if (marks.includes('strike')) markClasses += ' line-through';
+          if (marks.includes('code')) markClasses += ' font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm';
+          
+          // Handle links
+          const linkMark = block.markDefs?.find(mark => mark._type === 'link' && marks.includes(mark._key));
+          const isLink = linkMark && linkMark.href;
+          
+          const content = text || <em className="text-gray-400">Empty block</em>;
+          
+          return (
+            <BlockElement 
+              key={block._key} 
+              className={`text-gray-900 dark:text-gray-100 ${blockClasses}${markClasses}`}
+            >
+              {isLink ? (
+                <a 
+                  href={linkMark.href}
+                  className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {content}
+                </a>
+              ) : (
+                content
+              )}
+            </BlockElement>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        {normalizedContent.blocks && normalizedContent.blocks.length > 0 ? (
+          <div className="space-y-4">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+              {renderPortableTextContent(normalizedContent.blocks)}
+            </div>
+            
+            {/* Stats display in read-only mode */}
+            {(options.showBlockCount || options.showCharacterCount || options.showWordCount) && (
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                {options.showBlockCount && (
+                  <span>
+                    <span className="font-medium">Blocks:</span> {contentStats.blocks}
+                  </span>
+                )}
+                {options.showCharacterCount && (
+                  <span>
+                    <span className="font-medium">Characters:</span> {contentStats.characters}
+                  </span>
+                )}
+                {options.showWordCount && (
+                  <span>
+                    <span className="font-medium">Words:</span> {contentStats.words}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">No content</span>
+        )}
+      </div>
+    );
+  }
   
   // Close block menu when clicking outside
   useEffect(() => {
@@ -107,6 +235,8 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   
   // Update content with new blocks
   const updateContent = useCallback((newBlocks: PortableTextBlock[]) => {
+    if (isViewMode || !onChange) return;
+    
     const plainText = getPlainTextFromPortableText({ blocks: newBlocks });
     const updatedContent: PortableTextContent = {
       blocks: newBlocks,
@@ -125,7 +255,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     });
     
     onChange(sanitizePortableTextValue(updatedContent));
-  }, [onChange, fieldId]);
+  }, [onChange, fieldId, isViewMode]);
   
   // Handle text input in a block (preserve existing marks, only update text)
   const handleBlockInput = useCallback((blockKey: string, element: HTMLElement) => {

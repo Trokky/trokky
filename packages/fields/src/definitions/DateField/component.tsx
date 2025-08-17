@@ -10,7 +10,9 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
   hasError,
   error,
   isDisabled,
-  isReadonly
+  isReadonly,
+  mode,
+  ...props
 }) => {
   const fieldDef = definition as DateFieldDefinition;
   const options = { ...DATE_FIELD_DEFAULTS, ...fieldDef.options };
@@ -24,6 +26,9 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
   });
   const inputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  
+  // Check if we're in read-only mode
+  const isViewMode = mode === 'preview' || isReadonly || isDisabled;
 
   // Format date for input display
   const formatDateForInput = (date: Date | null): string => {
@@ -43,8 +48,31 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
     }
   };
 
+  // Format date for read-only display
+  const formatDateForDisplay = (date: Date | null): string => {
+    if (!date || isNaN(date.getTime())) return '';
+    
+    if (options.includeTime) {
+      return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } else {
+      return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  };
+
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isViewMode || !onChange) return;
+    
     const newValue = e.target.value;
     if (!newValue) {
       setSelectedDate(null);
@@ -60,6 +88,8 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
 
   // Handle clear
   const handleClear = () => {
+    if (isViewMode || !onChange) return;
+    
     setSelectedDate(null);
     onChange(null);
     if (inputRef.current) {
@@ -106,6 +136,31 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
   };
 
   const inputType = options.includeTime ? 'datetime-local' : 'date';
+
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        {selectedDate ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-900 dark:text-gray-100">
+              {formatDateForDisplay(selectedDate)}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              ({options.includeTime ? 'Date & Time' : 'Date'})
+            </span>
+          </div>
+        ) : (
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">No date set</span>
+        )}
+        {fieldDef.description && (
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {fieldDef.description}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="date-field">

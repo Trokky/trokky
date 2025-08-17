@@ -19,6 +19,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     hasError,
     isDisabled,
     isReadonly,
+    mode,
     onFocus,
     onBlur,
     onKeyPress,
@@ -30,6 +31,121 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
   const stringDefinition = definition as StringFieldDefinition;
   const options = stringDefinition.options || {};
   const validation = stringDefinition.validation || {};
+
+  // Check if we're in read-only mode (consistent with other field components)
+  const isViewMode = mode === 'preview' || isReadonly || isDisabled;
+
+  // Read-only mode: render as display text
+  if (isViewMode) {
+    const displayValue = (value as string) || '';
+    
+    // Handle empty values
+    if (!displayValue || displayValue.trim() === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
+          No value
+        </div>
+      );
+    }
+
+    // Handle dropdown/select fields - show the selected option title
+    if (options.list && options.list.length > 0) {
+      // Normalize list options to find the selected title
+      const normalizedOptions = options.list.map(item => {
+        if (typeof item === 'string') {
+          return { title: item, value: item };
+        }
+        return item as StringListOption;
+      });
+
+      const selectedOption = normalizedOptions.find(option => option.value === displayValue);
+      const displayTitle = selectedOption ? selectedOption.title : displayValue;
+
+      return (
+        <div className="py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-900 dark:text-gray-100 text-sm">
+              {displayTitle}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              (Selection)
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // Handle password fields (from inputType or field name)
+    if (options.inputType === 'password') {
+      return (
+        <div className="text-gray-500 dark:text-gray-400 font-mono text-sm py-2">
+          {'•'.repeat(Math.min(displayValue.length, 8))}
+        </div>
+      );
+    }
+
+    // Handle email fields
+    if (options.inputType === 'email' || validation.email) {
+      return (
+        <div className="py-2">
+          <a 
+            href={`mailto:${displayValue}`}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {displayValue}
+          </a>
+        </div>
+      );
+    }
+
+    // Handle URL fields
+    if (options.inputType === 'url' || validation.url) {
+      return (
+        <div className="py-2">
+          <a 
+            href={displayValue}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+          >
+            {displayValue}
+          </a>
+        </div>
+      );
+    }
+
+    // Handle phone number fields
+    if (options.inputType === 'tel') {
+      return (
+        <div className="py-2">
+          <a 
+            href={`tel:${displayValue}`}
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+          >
+            {displayValue}
+          </a>
+        </div>
+      );
+    }
+
+    // Handle multiline text
+    if (options.multiline && displayValue.includes('\n')) {
+      return (
+        <div className="text-gray-900 dark:text-gray-100 text-sm py-2 whitespace-pre-wrap">
+          {displayValue}
+        </div>
+      );
+    }
+
+    // Default text display
+    return (
+      <div className="text-gray-900 dark:text-gray-100 text-sm py-2">
+        {displayValue}
+      </div>
+    );
+  }
 
   // Handle value transformation
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

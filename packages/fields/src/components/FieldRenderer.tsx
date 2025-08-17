@@ -122,6 +122,7 @@ export function FieldRenderer({
         validationState={validationState}
         isDisabled={isDisabled}
         isReadonly={isReadonly}
+        mode={mode}
         documentContext={documentContext}
         onValidationChange={onValidationChange}
         onFocus={onFocus}
