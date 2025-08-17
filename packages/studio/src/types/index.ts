@@ -266,7 +266,7 @@ export type Permission =
 // Default permissions for each role
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
-    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'content:*', // 🆕 Full content access to all schemas
     'media:read', 'media:upload', 'media:edit', 'media:delete',
     'users:read', 'users:write', 'users:delete', 'users:invite',
     'settings:read', 'settings:write',
@@ -275,18 +275,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'webhooks:read', 'webhooks:write', 'webhooks:delete', 'webhooks:test'
   ],
   editor: [
-    'content:read', 'content:write', 'content:delete', 'content:publish',
+    'content:*', // 🆕 Full content access to all schemas  
     'media:read', 'media:upload', 'media:edit', 'media:delete',
     'studio:access',
     'webhooks:read', 'webhooks:test'
   ],
   author: [
-    'content:read', 'content:write', 'content:publish',
+    'content:read', 'content:write', 'content:publish', // Can access all content but not delete
     'media:read', 'media:upload',
     'studio:access'
   ],
   viewer: [
-    'content:read',
+    'content:read', // 🆕 Can view all content across all schemas
     'media:read',
     'studio:access'
   ]
