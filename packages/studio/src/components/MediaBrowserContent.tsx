@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { MediaFieldValue, MediaType } from '../types.js';
+import type { MediaFieldValue, MediaType } from '../types';
 
 // Types for Studio API integration
 interface MediaFile {

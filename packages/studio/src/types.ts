@@ -3,4 +3,4 @@
  */
 
 // Re-export all types from the main types index
-export * from './types/index.js';
+export * from './types/index';
