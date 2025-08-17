@@ -2,18 +2,71 @@
 import { useState, useEffect } from 'react';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
+import { useStudioContext } from '@/contexts/StudioContext';
+import { apiClient } from '@/services/api-client';
+import { createStudioLogger } from '@/utils/logger';
+
+const logger = createStudioLogger('SettingsPage');
 
 export function SettingsPage() {
   const contextSidebar = useContextSidebar();
   const { branding } = useStudioBranding();
+  const studioContext = useStudioContext();
+  const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   
   // Hide context sidebar for settings page
   useEffect(() => {
     contextSidebar.hide();
   }, [contextSidebar]);
 
-  // Get current domain for default public URL
-  const [publicUrl, setPublicUrl] = useState(() => {
+  const [publicUrl, setPublicUrl] = useState('');
+  const [studioTitle, setStudioTitle] = useState('');
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Load settings from API on mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      logger.debug('Loading settings from API');
+      
+      const response = await apiClient.get('/config/settings');
+      
+      if (response.success && response.data?.settings) {
+        const settings = response.data.settings;
+        setPublicUrl(settings.publicUrl || getDefaultPublicUrl());
+        setStudioTitle(settings.studioTitle || 'Trokky Studio');
+        setTheme(settings.defaultTheme || 'system');
+        
+        logger.info('Settings loaded successfully', { settings });
+      } else {
+        // Use defaults if no settings found
+        setPublicUrl(getDefaultPublicUrl());
+        setStudioTitle(branding?.title || 'Trokky Studio');
+        setTheme('system');
+        
+        logger.warn('No settings found, using defaults');
+      }
+    } catch (error) {
+      logger.error('Failed to load settings', error);
+      
+      // Fallback to defaults
+      setPublicUrl(getDefaultPublicUrl());
+      setStudioTitle(branding?.title || 'Trokky Studio');
+      setTheme('system');
+      
+      showToast('Failed to load settings. Using defaults.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getDefaultPublicUrl = () => {
     // Infer from current domain, removing /studio if present
     const currentOrigin = window.location.origin;
     const currentPath = window.location.pathname;
@@ -24,39 +77,71 @@ export function SettingsPage() {
     }
     
     return currentOrigin;
-  });
+  };
 
-  const [studioTitle, setStudioTitle] = useState(branding?.title || 'Trokky Studio');
-  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
-
-  const handleSave = () => {
-    // Save settings to localStorage for now
-    // TODO: Implement proper settings persistence to backend
+  const handleSave = async () => {
     try {
+      setSaving(true);
+      
       // Normalize the public URL by removing trailing slash
       const normalizedPublicUrl = publicUrl.replace(/\/$/, '');
       
-      localStorage.setItem('trokky_studio_title', studioTitle);
-      localStorage.setItem('trokky_public_url', normalizedPublicUrl);
-      localStorage.setItem('trokky_default_theme', theme);
-      
-      // Update state with normalized URL
-      setPublicUrl(normalizedPublicUrl);
-      
-      // Show success message (you could add a toast notification here)
-      console.log('Settings saved successfully:', {
-        studioTitle,
+      const settingsData = {
         publicUrl: normalizedPublicUrl,
-        theme
+        studioTitle,
+        defaultTheme: theme
+      };
+      
+      logger.debug('Saving settings via API', settingsData);
+      
+      const response = await apiClient.put('/config/settings', {
+        settings: settingsData
       });
       
-      // TODO: Add toast notification for user feedback
-      alert('Settings saved successfully!');
+      if (response.success) {
+        // Update state with normalized URL
+        setPublicUrl(normalizedPublicUrl);
+        
+        // Emit custom event for other components to react to settings changes
+        window.dispatchEvent(new CustomEvent('trokky:settings:updated', {
+          detail: { settings: settingsData }
+        }));
+        
+        logger.info('Settings saved successfully', { settings: settingsData });
+        showToast('Settings saved successfully!', 'success');
+      } else {
+        throw new Error(response.error?.message || 'Failed to save settings');
+      }
     } catch (error) {
-      console.error('Failed to save settings:', error);
-      alert('Failed to save settings. Please try again.');
+      logger.error('Failed to save settings', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save settings';
+      showToast(`Failed to save settings: ${errorMessage}`, 'error');
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Settings
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Configure your Trokky Studio and content management
+          </p>
+        </div>
+        <div className="max-w-4xl">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500 dark:text-gray-400">Loading settings...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -130,9 +215,10 @@ export function SettingsPage() {
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
               <button 
                 onClick={handleSave}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+                disabled={saving}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Changes
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
