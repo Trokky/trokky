@@ -9,7 +9,12 @@ import { WebhookManagement } from '@/components/users/WebhookManagement';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export function UsersPage() {
-  const contextSidebar = useContextSidebar();
+  // Declarative context sidebar configuration for users page
+  const contextSidebar = useContextSidebar({
+    page: 'users',
+    defaultVisible: false,
+    defaultPosition: 'left'
+  });
   const { hasPermission } = usePermissions();
   
   // Check if user has access to any users functionality
@@ -37,9 +42,6 @@ export function UsersPage() {
   }, [canReadUsers, canReadTokens, canReadWebhooks, hasSetDefaultTab]);
   
   // Hide context sidebar for users page
-  useEffect(() => {
-    contextSidebar.hide();
-  }, [contextSidebar]);
 
   if (!hasAnyAccess) {
     return (

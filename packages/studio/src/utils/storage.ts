@@ -34,10 +34,11 @@ export const STORAGE_KEYS = {
   // Media
   MEDIA_VIEW_MODE: 'trokky_media_view_mode',
   
-  // Context
-  CONTEXT_SIDEBAR_COLLAPSED: 'trokky_context_sidebar_collapsed',
-  CONTEXT_SIDEBAR_WIDTH: 'trokky_context_sidebar_width',
-  CONTEXT_SIDEBAR_POSITION: 'trokky_context_sidebar_position',
+  // Context (page-specific)
+  CONTEXT_SIDEBAR_VISIBLE: (page: string) => `trokky_context_sidebar_${page}_visible`,
+  CONTEXT_SIDEBAR_COLLAPSED: (page: string) => `trokky_context_sidebar_${page}_collapsed`,
+  CONTEXT_SIDEBAR_WIDTH: (page: string) => `trokky_context_sidebar_${page}_width`,
+  CONTEXT_SIDEBAR_POSITION: (page: string) => `trokky_context_sidebar_${page}_position`,
   
   // Documents
   DOCUMENT_SIDEBAR_COLLAPSED: 'trokky_document_sidebar_collapsed',

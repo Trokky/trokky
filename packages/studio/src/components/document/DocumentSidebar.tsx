@@ -19,6 +19,7 @@ import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { DocumentHistoryPanel } from './DocumentHistoryPanel';
 
 const logger = createStudioLogger('DocumentSidebar');
 
@@ -541,6 +542,17 @@ export function DocumentSidebar() {
             </div>
           </div>
         </div>
+
+        {/* Document history */}
+        {!isNewDocument && (
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <DocumentHistoryPanel
+              documentId={document?.id || ''}
+              collection={schema?.name || ''}
+              isVisible={true}
+            />
+          </div>
+        )}
 
         {/* Danger zone - Delete document */}
         {!isNewDocument && (

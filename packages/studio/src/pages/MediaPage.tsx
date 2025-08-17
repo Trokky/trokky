@@ -68,7 +68,12 @@ interface MediaTypeInfo {
 }
 
 export function MediaPage() {
-  const contextSidebar = useContextSidebar();
+  // Declarative context sidebar configuration for media page
+  const contextSidebar = useContextSidebar({
+    page: 'media',
+    defaultVisible: false,
+    defaultPosition: 'left'
+  });
   const studioContext = useStudioContext();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MediaFile[]>([]);
@@ -260,12 +265,6 @@ export function MediaPage() {
   }, []); // Empty dependency array - only run on mount
 
   // Hide context sidebar for Media Page (filters are in main area)
-  useEffect(() => {
-    contextSidebar.hide();
-    
-    // Show it again when leaving the page
-    return () => contextSidebar.show();
-  }, []); // Remove contextSidebar dependency to prevent infinite re-renders
 
   // Handle URL parameter for opening specific file
   useEffect(() => {

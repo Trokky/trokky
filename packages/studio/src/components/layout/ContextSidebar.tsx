@@ -70,39 +70,13 @@ export function ContextSidebar({
   };
 
   const getContextContent = () => {
-    // If custom content is set via API, use that instead
+    // Only show content if explicitly set via API
     if (contextAPI.content) {
       return contextAPI.content;
     }
     
-    // Otherwise, use route-based content (default behavior)
-    const path = location.pathname;
-    
-    if (path === '/') {
-      return <DashboardContext />;
-    }
-    
-    if (path.startsWith('/content')) {
-      return <ContentContext />;
-    }
-    
-    if (path.startsWith('/media')) {
-      return <MediaContext />;
-    }
-    
-    if (path.startsWith('/users')) {
-      return <UsersContext />;
-    }
-    
-    if (path.startsWith('/settings')) {
-      return <SettingsContext />;
-    }
-    
-    if (path.startsWith('/fields-demo')) {
-      return <FieldsDemoContext />;
-    }
-    
-    return <DefaultContext />;
+    // By default, show no content (empty sidebar)
+    return null;
   };
 
   // Hide the entire sidebar if not visible

@@ -45,17 +45,13 @@ export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
   const structureItem = useStructureItem(schemaName || '');
-  const contextSidebar = useContextSidebar();
+  // Declarative context sidebar configuration for content page
+  const contextSidebar = useContextSidebar({
+    page: 'content',
+    defaultVisible: false,
+    defaultPosition: 'left'
+  });
 
-  useEffect(() => {
-    // Hide context sidebar on content page
-    contextSidebar.hide();
-    
-    return () => {
-      // Show it back when leaving the page
-      contextSidebar.show();
-    };
-  }, [contextSidebar]);
 
   // Handle document editing
   if (documentId) {
