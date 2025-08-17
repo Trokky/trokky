@@ -17,6 +17,8 @@ import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
@@ -37,6 +39,7 @@ export function Header({
 }: HeaderProps) {
   const { logout } = useAuth();
   const { user, loading: userLoading } = useCurrentUser();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -201,7 +204,7 @@ export function Header({
           </div>
 
           {/* Media button */}
-          {showMedia && (
+          {showMedia && hasPermission(MEDIA_PERMISSIONS.READ) && (
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link to="/media">
                 <PhotoIcon className="h-4 w-4 mr-1" />
@@ -210,36 +213,39 @@ export function Header({
             </Button>
           )}
 
-          {/* Settings dropdown */}
-          <div className="hidden sm:block relative">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-              className="inline-flex items-center"
-            >
-              <Cog6ToothIcon className="h-4 w-4 mr-1" />
-              Settings
-              <ChevronDownIcon className="h-3 w-3 ml-1" />
-            </Button>
+          {/* Settings dropdown - only show if user has access to any settings features */}
+          {hasAnyPermission(SETTINGS_MENU_PERMISSIONS) && (
+            <div className="hidden sm:block relative">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+                className="inline-flex items-center"
+              >
+                <Cog6ToothIcon className="h-4 w-4 mr-1" />
+                Settings
+                <ChevronDownIcon className="h-3 w-3 ml-1" />
+              </Button>
 
             {settingsMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                 {/* Settings option */}
-                <Link
-                  to="/settings"
-                  onClick={() => setSettingsMenuOpen(false)}
-                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
-                  <div className="flex-1 text-left">
-                    <div className="font-medium">Settings</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
-                  </div>
-                </Link>
+                {hasPermission(SETTINGS_PERMISSIONS.READ) && (
+                  <Link
+                    to="/settings"
+                    onClick={() => setSettingsMenuOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">Settings</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
+                    </div>
+                  </Link>
+                )}
 
-                {/* Users option - admin only */}
-                {user?.role === 'admin' && (
+                {/* Users option */}
+                {hasPermission(USER_PERMISSIONS.READ) && (
                   <Link
                     to="/users"
                     onClick={() => setSettingsMenuOpen(false)}
@@ -256,21 +262,24 @@ export function Header({
                 {/* Separator */}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
-                {/* Fields Demo option */}
-                <Link
-                  to="/fields-demo"
-                  onClick={() => setSettingsMenuOpen(false)}
-                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
-                  <div className="flex-1 text-left">
-                    <div className="font-medium">Fields Demo</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
-                  </div>
-                </Link>
+                {/* Fields Demo option - admin only */}
+                {hasPermission(SETTINGS_PERMISSIONS.WRITE) && (
+                  <Link
+                    to="/fields-demo"
+                    onClick={() => setSettingsMenuOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">Fields Demo</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
+                    </div>
+                  </Link>
+                )}
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* User menu */}
           {showUserMenu && (

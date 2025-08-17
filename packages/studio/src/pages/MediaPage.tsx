@@ -28,6 +28,8 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useApiClient } from '@/hooks/useApiClient';
 import { createStudioLogger } from '@/utils/logger';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MEDIA_PERMISSIONS } from '@/constants/permissions';
 
 interface MediaFile {
   id: string;
@@ -90,7 +92,11 @@ export function MediaPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
-  const [hasPermission] = useState(true);
+  const { hasPermission } = usePermissions();
+  const canRead = hasPermission(MEDIA_PERMISSIONS.READ);
+  const canUpload = hasPermission(MEDIA_PERMISSIONS.UPLOAD);
+  const canEdit = hasPermission(MEDIA_PERMISSIONS.EDIT);
+  const canDelete = hasPermission(MEDIA_PERMISSIONS.DELETE);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
@@ -315,7 +321,7 @@ export function MediaPage() {
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!hasPermission || !apiClient.hasFeature('media')) return;
+    if (!canUpload || !apiClient.hasFeature('media')) return;
     setIsDragging(true);
   };
 
@@ -335,7 +341,7 @@ export function MediaPage() {
     e.preventDefault();
     setIsDragging(false);
     
-    if (!hasPermission || !apiClient.hasFeature('media')) return;
+    if (!canUpload || !apiClient.hasFeature('media')) return;
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
@@ -345,7 +351,7 @@ export function MediaPage() {
 
   // File upload
   const uploadFiles = async (files: File[]) => {
-    if (!hasPermission) {
+    if (!canUpload) {
       studioContext?.utils.showToast('You do not have permission to upload files', 'error');
       return;
     }
@@ -405,7 +411,7 @@ export function MediaPage() {
   };
 
   const handleUploadClick = () => {
-    if (!hasPermission) {
+    if (!canUpload) {
       studioContext?.utils.showToast('You do not have permission to upload files', 'error');
       return;
     }
@@ -473,7 +479,7 @@ export function MediaPage() {
   };
 
   const confirmDelete = async () => {
-    if (!editingFile || !hasPermission) return;
+    if (!editingFile || !canDelete) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Delete attempted but media feature not available');
@@ -497,7 +503,7 @@ export function MediaPage() {
   };
 
   const saveEdit = async () => {
-    if (!editingFile || !hasPermission) return;
+    if (!editingFile || !canEdit) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Edit save attempted but media feature not available');
@@ -538,7 +544,7 @@ export function MediaPage() {
   };
 
   const handleRegenerateVariants = async (file: MediaFile) => {
-    if (!hasPermission) return;
+    if (!canDelete) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Regenerate variants attempted but media feature not available');
@@ -651,28 +657,32 @@ export function MediaPage() {
               >
                 <EyeIcon className="h-4 w-4" />
               </Button>
-              {hasPermission && (
+              {(canEdit || canDelete) && (
                 <>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(file);
-                    }}
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(file);
-                    }}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(file);
+                      }}
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(file);
+                      }}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -727,28 +737,32 @@ export function MediaPage() {
             )}
           </div>
           
-          {hasPermission && (
+          {(canEdit || canDelete) && (
             <div className="flex space-x-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(file);
-                }}
-              >
-                <PencilIcon className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(file);
-                }}
-              >
-                <TrashIcon className="h-4 w-4" />
-              </Button>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(file);
+                  }}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(file);
+                  }}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -769,7 +783,7 @@ export function MediaPage() {
       </div>
 
       {/* Upload area */}
-      {hasPermission && apiClient.hasFeature('media') && (
+      {canUpload && apiClient.hasFeature('media') && (
         <div className="mb-8">
           <div
             className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -943,7 +957,7 @@ export function MediaPage() {
                   : 'Upload your first media files to get started.'
                 }
               </p>
-              {hasPermission && apiClient.hasFeature('media') && (!searchQuery && selectedType === 'all') && (
+              {canUpload && apiClient.hasFeature('media') && (!searchQuery && selectedType === 'all') && (
                 <Button onClick={handleUploadClick}>
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Upload Files
@@ -1014,19 +1028,21 @@ export function MediaPage() {
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
                 </Button>
-                {hasPermission && (
+                {(canEdit || canDelete) && (
                   <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleEdit(selectedFile);
-                        setIsViewerOpen(false);
-                      }}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </Button>
-                    {selectedFile.contentType.startsWith('image/') && (
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          handleEdit(selectedFile);
+                          setIsViewerOpen(false);
+                        }}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && selectedFile.contentType.startsWith('image/') && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1036,16 +1052,18 @@ export function MediaPage() {
                         <ArrowPathIcon className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleDelete(selectedFile);
-                        setIsViewerOpen(false);
-                      }}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          handleDelete(selectedFile);
+                          setIsViewerOpen(false);
+                        }}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button
@@ -1114,7 +1132,7 @@ export function MediaPage() {
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                         Image Variants
                       </h3>
-                      {hasPermission && (
+                      {canEdit && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1189,7 +1207,7 @@ export function MediaPage() {
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                         No variants generated for this image.
                       </p>
-                      {hasPermission && (
+                      {canEdit && (
                         <Button
                           variant="primary"
                           size="sm"
