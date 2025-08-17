@@ -495,92 +495,66 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                 })}
               </div>
               
-              {/* Custom Permissions */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Custom Schema Permissions
-                  {formData.permissions.includes('content:*') && (
-                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(Disabled - All Content Operations enabled)</span>
-                  )}
-                </label>
-                <div className="space-y-2">
-                  {/* Add Custom Permission */}
-                  <div className={`flex gap-2 ${formData.permissions.includes('content:*') ? 'opacity-50' : ''}`}>
-                    <input
-                      type="text"
-                      value={customPermission}
-                      onChange={(e) => setCustomPermission(e.target.value)}
-                      placeholder="e.g., custom:read, external:write, special:*"
-                      className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      onKeyPress={(e) => e.key === 'Enter' && addCustomPermission()}
-                      disabled={formData.permissions.includes('content:*')}
-                    />
-                    <Button 
-                      type="button"
-                      size="sm" 
-                      onClick={addCustomPermission}
-                      disabled={!customPermission.trim() || formData.permissions.includes('content:*')}
-                    >
-                      Add
-                    </Button>
-                  </div>
-                  
-                  {/* Display Custom Permissions */}
-                  {formData.permissions.filter(p => !allPermissions.some(perm => perm.value === p)).length > 0 && (
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Custom permissions:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {formData.permissions
-                          .filter(p => !allPermissions.some(perm => perm.value === p))
-                          .map(permission => {
-                            // Check if this permission is redundant due to content:*
-                            const hasContentWildcard = formData.permissions.includes('content:*');
-                            // All schema permissions (anything with schema:action pattern) are redundant when content:* is enabled
-                            // except for non-content permissions like media:*, users:*, webhooks:*, etc.
-                            const isSchemaPermission = permission.includes(':') && 
-                              !permission.startsWith('media:') && 
-                              !permission.startsWith('users:') && 
-                              !permission.startsWith('settings:') && 
-                              !permission.startsWith('tokens:') && 
-                              !permission.startsWith('webhooks:') &&
-                              !permission.startsWith('studio:');
-                            const isRedundant = hasContentWildcard && isSchemaPermission;
-                            
-                            return (
+              {/* Custom Permissions - only show when content:* is not enabled */}
+              {!formData.permissions.includes('content:*') && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Custom Schema Permissions
+                  </label>
+                  <div className="space-y-2">
+                    {/* Add Custom Permission */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customPermission}
+                        onChange={(e) => setCustomPermission(e.target.value)}
+                        placeholder="e.g., custom:read, external:write, special:*"
+                        className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        onKeyPress={(e) => e.key === 'Enter' && addCustomPermission()}
+                      />
+                      <Button 
+                        type="button"
+                        size="sm" 
+                        onClick={addCustomPermission}
+                        disabled={!customPermission.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    
+                    {/* Display Custom Permissions */}
+                    {formData.permissions.filter(p => !allPermissions.some(perm => perm.value === p)).length > 0 && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Custom permissions:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {formData.permissions
+                            .filter(p => !allPermissions.some(perm => perm.value === p))
+                            .map(permission => (
                               <span 
                                 key={permission}
-                                className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded ${
-                                  isRedundant 
-                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 line-through' 
-                                    : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                                }`}
-                                title={isRedundant ? 'Redundant - covered by All Content Operations' : ''}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded"
                               >
                                 {permission}
                                 <button
                                   type="button"
                                   onClick={() => removeCustomPermission(permission)}
-                                  className={`${
-                                    isRedundant 
-                                      ? 'hover:text-gray-400 dark:hover:text-gray-500' 
-                                      : 'hover:text-blue-600 dark:hover:text-blue-300'
-                                  }`}
+                                  className="hover:text-blue-600 dark:hover:text-blue-300"
                                 >
                                   ×
                                 </button>
                               </span>
-                            );
-                          })
-                        }
+                            ))
+                          }
+                        </div>
                       </div>
+                    )}
+                    
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Format: <code>schema:action</code> (e.g., custom:read, external:write, special:*). Schema permissions are auto-generated above.
                     </div>
-                  )}
-                  
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    Format: <code>schema:action</code> (e.g., custom:read, external:write, special:*). Schema permissions are auto-generated above.
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
           
