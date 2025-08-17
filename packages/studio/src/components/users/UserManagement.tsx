@@ -240,10 +240,16 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 
 
-  // Combine static permissions with dynamic schema permissions
+  // Organize permissions: Content first, then dynamic schemas, then system permissions
+  const contentPermissions = PERMISSIONS.filter(perm => perm.group === 'Content');
+  const systemPermissions = PERMISSIONS.filter(perm => 
+    perm.group !== 'Content' && perm.value !== 'studio:access' // Exclude studio:access (handled separately)
+  );
+  
   const allPermissions = [
-    ...PERMISSIONS.filter(perm => perm.value !== 'studio:access'), // Exclude studio:access (handled separately)
-    ...dynamicPermissions // Add dynamic schema permissions
+    ...contentPermissions,     // Global content permissions first
+    ...dynamicPermissions,     // Then dynamic schema permissions  
+    ...systemPermissions       // Then system permissions (Media, Users, etc.)
   ];
   
   // Group permissions by category
