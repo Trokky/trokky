@@ -12,12 +12,14 @@ interface ContextSidebarProps {
   defaultWidth?: number;
   minWidth?: number;
   maxWidth?: number;
+  position?: 'left' | 'right';
 }
 
 export function ContextSidebar({
   defaultWidth = 256,
   minWidth = 200,
-  maxWidth = 500
+  maxWidth = 500,
+  position = 'left'
 }: ContextSidebarProps) {
   const location = useLocation();
   const contextAPI = useContextSidebar();
@@ -37,7 +39,10 @@ export function ContextSidebar({
     
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - startX;
-      const newWidth = startWidth + deltaX;
+      // For right sidebar, reverse the delta calculation
+      const newWidth = position === 'right' 
+        ? startWidth - deltaX 
+        : startWidth + deltaX;
       
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         contextAPI.setWidth(newWidth);
@@ -107,14 +112,21 @@ export function ContextSidebar({
 
   if (isCollapsed) {
     return (
-      <div className="w-12 h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className={cn(
+        "w-12 h-full bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 flex flex-col",
+        position === 'left' ? 'border-r' : 'border-l'
+      )}>
         <div className="p-2">
           <button
             onClick={toggleCollapsed}
             className="w-8 h-8 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 flex items-center justify-center"
             title="Expand context sidebar"
           >
-            <ChevronRightIcon className="h-4 w-4" />
+            {position === 'left' ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <ChevronLeftIcon className="h-4 w-4" />
+            )}
           </button>
         </div>
       </div>
@@ -124,7 +136,8 @@ export function ContextSidebar({
   return (
     <div 
       className={cn(
-        'h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative',
+        'h-full bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 flex flex-col relative',
+        position === 'left' ? 'border-r' : 'border-l',
         isResizing && 'select-none'
       )}
       style={{ width: `${width}px` }}
@@ -139,7 +152,11 @@ export function ContextSidebar({
           className="p-1 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
           title="Collapse context sidebar"
         >
-          <ChevronLeftIcon className="h-4 w-4" />
+          {position === 'left' ? (
+            <ChevronLeftIcon className="h-4 w-4" />
+          ) : (
+            <ChevronRightIcon className="h-4 w-4" />
+          )}
         </button>
       </div>
 
@@ -150,7 +167,10 @@ export function ContextSidebar({
 
       {/* Resize handle */}
       <div
-        className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 hover:w-1.5 transition-all duration-150"
+        className={cn(
+          "absolute top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 hover:w-1.5 transition-all duration-150",
+          position === 'left' ? 'right-0' : 'left-0'
+        )}
         onMouseDown={handleMouseDown}
         title="Drag to resize sidebar"
       />

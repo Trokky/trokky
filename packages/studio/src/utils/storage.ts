@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   // Context
   CONTEXT_SIDEBAR_COLLAPSED: 'trokky_context_sidebar_collapsed',
   CONTEXT_SIDEBAR_WIDTH: 'trokky_context_sidebar_width',
+  CONTEXT_SIDEBAR_POSITION: 'trokky_context_sidebar_position',
   
   // Documents
   DOCUMENT_SIDEBAR_COLLAPSED: 'trokky_document_sidebar_collapsed',

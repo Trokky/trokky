@@ -15,12 +15,12 @@ export function DashboardPage() {
   const contextSidebar = useContextSidebar();
 
   useEffect(() => {
-    // Hide context sidebar on dashboard page
-    contextSidebar.hide();
+    // Position context sidebar on the right for dashboard
+    contextSidebar.setPosition('right');
     
     return () => {
-      // Show it back when leaving the page
-      contextSidebar.show();
+      // Reset to left when leaving dashboard
+      contextSidebar.setPosition('left');
     };
   }, [contextSidebar]);
 

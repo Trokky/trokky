@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
+import { storageService, STORAGE_KEYS } from '@/utils/storage';
 
 interface ContextSidebarState {
   isVisible: boolean;
   isCollapsed: boolean;
   width: number;
+  position: 'left' | 'right';
   content: ReactNode | null;
 }
 
@@ -21,6 +23,9 @@ interface ContextSidebarAPI {
   // Width control
   setWidth: (width: number) => void;
   
+  // Position control
+  setPosition: (position: 'left' | 'right') => void;
+  
   // Content control
   setContent: (content: ReactNode) => void;
   clearContent: () => void;
@@ -29,6 +34,7 @@ interface ContextSidebarAPI {
   isVisible: boolean;
   isCollapsed: boolean;
   width: number;
+  position: 'left' | 'right';
   content: ReactNode | null;
 }
 
@@ -39,86 +45,77 @@ interface ContextSidebarProviderProps {
   defaultVisible?: boolean;
   defaultCollapsed?: boolean;
   defaultWidth?: number;
+  defaultPosition?: 'left' | 'right';
 }
 
 export function ContextSidebarProvider({
   children,
   defaultVisible = true,
   defaultCollapsed = false,
-  defaultWidth = 256
+  defaultWidth = 256,
+  defaultPosition = 'left'
 }: ContextSidebarProviderProps) {
-  // Load persisted state from localStorage
+  // Load persisted state from storage service
   const [state, setState] = useState<ContextSidebarState>(() => {
-    try {
-      const savedCollapsed = localStorage.getItem('trokky_context_sidebar_collapsed');
-      const savedWidth = localStorage.getItem('trokky_context_sidebar_width');
-      const savedVisible = localStorage.getItem('trokky_context_sidebar_visible');
-      
-      return {
-        isVisible: savedVisible !== null ? savedVisible === 'true' : defaultVisible,
-        isCollapsed: savedCollapsed !== null ? savedCollapsed === 'true' : defaultCollapsed,
-        width: savedWidth ? parseInt(savedWidth, 10) : defaultWidth,
-        content: null
-      };
-    } catch {
-      return {
-        isVisible: defaultVisible,
-        isCollapsed: defaultCollapsed,
-        width: defaultWidth,
-        content: null
-      };
-    }
+    return {
+      isVisible: storageService.get('trokky_context_sidebar_visible', defaultVisible),
+      isCollapsed: storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED, defaultCollapsed),
+      width: storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_WIDTH, defaultWidth),
+      position: storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_POSITION, defaultPosition),
+      content: null
+    };
   });
 
-  // Helper function to save to localStorage
-  const saveToStorage = useCallback((key: string, value: string) => {
-    try {
-      localStorage.setItem(key, value);
-    } catch (error) {
-      console.warn('Failed to save context sidebar state:', error);
-    }
+  // Helper function to save to storage service
+  const saveToStorage = useCallback((key: string, value: any) => {
+    storageService.set(key, value);
   }, []);
 
-  // Memoize all the action functions with localStorage persistence
+  // Memoize all the action functions with storage persistence
   const show = useCallback(() => {
     setState(prev => ({ ...prev, isVisible: true }));
-    saveToStorage('trokky_context_sidebar_visible', 'true');
+    saveToStorage('trokky_context_sidebar_visible', true);
   }, [saveToStorage]);
   
   const hide = useCallback(() => {
     setState(prev => ({ ...prev, isVisible: false }));
-    saveToStorage('trokky_context_sidebar_visible', 'false');
+    saveToStorage('trokky_context_sidebar_visible', false);
   }, [saveToStorage]);
   
   const toggle = useCallback(() => {
     setState(prev => {
       const newVisible = !prev.isVisible;
-      saveToStorage('trokky_context_sidebar_visible', String(newVisible));
+      saveToStorage('trokky_context_sidebar_visible', newVisible);
       return { ...prev, isVisible: newVisible };
     });
   }, [saveToStorage]);
   
   const collapse = useCallback(() => {
     setState(prev => ({ ...prev, isCollapsed: true }));
-    saveToStorage('trokky_context_sidebar_collapsed', 'true');
+    saveToStorage(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED, true);
   }, [saveToStorage]);
   
   const expand = useCallback(() => {
     setState(prev => ({ ...prev, isCollapsed: false }));
-    saveToStorage('trokky_context_sidebar_collapsed', 'false');
+    saveToStorage(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED, false);
   }, [saveToStorage]);
   
   const toggleCollapse = useCallback(() => {
     setState(prev => {
       const newCollapsed = !prev.isCollapsed;
-      saveToStorage('trokky_context_sidebar_collapsed', String(newCollapsed));
+      saveToStorage(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED, newCollapsed);
       return { ...prev, isCollapsed: newCollapsed };
     });
   }, [saveToStorage]);
   
   const setWidth = useCallback((width: number) => {
     setState(prev => ({ ...prev, width }));
-    saveToStorage('trokky_context_sidebar_width', String(width));
+    saveToStorage(STORAGE_KEYS.CONTEXT_SIDEBAR_WIDTH, width);
+  }, [saveToStorage]);
+  
+  const setPosition = useCallback((position: 'left' | 'right') => {
+    setState(prev => ({ ...prev, position }));
+    saveToStorage(STORAGE_KEYS.CONTEXT_SIDEBAR_POSITION, position);
   }, [saveToStorage]);
   
   const setContent = useCallback((content: ReactNode) => setState(prev => ({ ...prev, content })), []);
@@ -139,6 +136,9 @@ export function ContextSidebarProvider({
     // Width control (stable reference)
     setWidth,
     
+    // Position control (stable reference)
+    setPosition,
+    
     // Content control (stable references)
     setContent,
     clearContent,
@@ -147,12 +147,13 @@ export function ContextSidebarProvider({
     isVisible: state.isVisible,
     isCollapsed: state.isCollapsed,
     width: state.width,
+    position: state.position,
     content: state.content
   }), [
     show, hide, toggle,
     collapse, expand, toggleCollapse,
-    setWidth, setContent, clearContent,
-    state.isVisible, state.isCollapsed, state.width, state.content
+    setWidth, setPosition, setContent, clearContent,
+    state.isVisible, state.isCollapsed, state.width, state.position, state.content
   ]);
 
   return (
