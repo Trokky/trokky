@@ -384,11 +384,13 @@ export const getDefaultColumns = (): ListColumn[] => {
       render: (value, doc) => value || doc.name || doc.slug || 'Untitled'
     },
     {
-      key: 'published',
+      key: '_status',
       title: 'Status',
       sortable: true,
       render: (value, doc) => {
-        const isPublished = value || doc._status === 'published';
+        // Use _status as the single source of truth
+        const status = value || 'draft';
+        const isPublished = status === 'published';
         return (
           <span className={cn(
             "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
@@ -396,7 +398,7 @@ export const getDefaultColumns = (): ListColumn[] => {
               ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
               : "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100"
           )}>
-            {isPublished ? 'Published' : 'Draft'}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         );
       }
