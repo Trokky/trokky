@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronUpIcon, 
@@ -6,6 +7,8 @@ import {
   EllipsisHorizontalIcon 
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { useStudioContext } from '@/contexts/StudioContext';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -44,10 +47,33 @@ export function ListView({
   onDocumentAction
 }: ListViewProps) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
   
   const allSelected = documents.length > 0 && selectedItems.length === documents.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < documents.length;
+  
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is outside the specific dropdown that's open
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        console.log('Click outside dropdown detected, closing dropdown');
+        setActionsOpen(null);
+      }
+    };
+
+    if (actionsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [actionsOpen]);
   
   const handleSort = (column: ListColumn) => {
     if (!column.sortable || !onSort) return;
@@ -118,32 +144,33 @@ export function ListView({
   }
   
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+    <div ref={listRef} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="overflow-x-auto overflow-y-visible">
+        <table className="w-full table-fixed">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               {/* Selection column */}
-              <th className="px-6 py-3 text-left w-12">
-                <input
-                  type="checkbox"
+              <th className="px-3 py-3 text-left w-8">
+                <Checkbox
                   checked={allSelected}
-                  ref={(input) => {
-                    if (input) input.indeterminate = someSelected;
-                  }}
-                  onChange={(e) => onSelectAll(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  indeterminate={someSelected}
+                  onChange={onSelectAll}
                 />
               </th>
               
               {/* Data columns */}
-              {columns.map((column) => (
+              {columns.map((column, index) => (
                 <th
                   key={column.key}
                   className={cn(
                     "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider",
                     column.sortable && "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600",
-                    column.width && `w-${column.width}`
+                    column.width && `w-${column.width}`,
+                    // Set specific widths for columns
+                    index === 0 && "w-96", // Title column gets more space
+                    index === 1 && "w-24", // Status column
+                    index === 2 && "w-24", // Created column
+                    index === 3 && "w-24"  // Updated column
                   )}
                   onClick={() => handleSort(column)}
                 >
@@ -174,7 +201,7 @@ export function ListView({
               ))}
               
               {/* Actions column */}
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
                 Actions
               </th>
             </tr>
@@ -193,12 +220,10 @@ export function ListView({
                   )}
                 >
                   {/* Selection cell */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
+                  <td className="px-3 py-4 whitespace-nowrap">
+                    <Checkbox
                       checked={isSelected}
-                      onChange={(e) => onItemSelect(docId, e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onChange={(checked) => onItemSelect(docId, checked)}
                     />
                   </td>
                   
@@ -208,17 +233,17 @@ export function ListView({
                     const isFirstColumn = column === columns[0];
                     
                     return (
-                      <td key={column.key} className="px-6 py-4 whitespace-nowrap">
+                      <td key={column.key} className={cn("px-6 py-4", isFirstColumn ? "max-w-xs" : "whitespace-nowrap")}>
                         {isFirstColumn ? (
                           <button
                             onClick={() => navigate(`/content/${schemaName}/${docId}`)}
-                            className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-full"
                           >
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate" title={String(formatValue(value, column, doc))}>
                               {formatValue(value, column, doc)}
                             </div>
                             {doc.slug && (
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                              <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={`/${doc.slug}`}>
                                 /{doc.slug}
                               </div>
                             )}
@@ -236,57 +261,39 @@ export function ListView({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="relative">
                       <button
-                        onClick={() => setActionsOpen(actionsOpen === docId ? null : docId)}
+                        ref={actionButtonRef}
+                        onClick={(e) => {
+                          if (actionsOpen === docId) {
+                            setActionsOpen(null);
+                            setDropdownPosition(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 200; // Approximate height of dropdown
+                            const dropdownWidth = 192; // w-48 = 192px
+                            
+                            // Calculate position, ensuring it stays within viewport
+                            let top = rect.bottom + window.scrollY + 4;
+                            let left = rect.right + window.scrollX - dropdownWidth;
+                            
+                            // Adjust if dropdown would go below viewport
+                            if (rect.bottom + dropdownHeight > window.innerHeight) {
+                              top = rect.top + window.scrollY - dropdownHeight - 4;
+                            }
+                            
+                            // Adjust if dropdown would go beyond left edge
+                            if (left < 0) {
+                              left = rect.left + window.scrollX;
+                            }
+                            
+                            setDropdownPosition({ top, left });
+                            setActionsOpen(docId);
+                          }
+                        }}
                         className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <EllipsisHorizontalIcon className="h-5 w-5" />
                       </button>
                       
-                      {actionsOpen === docId && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
-                          <div className="py-1">
-                            <button
-                              onClick={() => {
-                                navigate(`/content/${schemaName}/${docId}`);
-                                setActionsOpen(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(docId);
-                                setActionsOpen(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            >
-                              Copy ID
-                            </button>
-                            <button
-                              onClick={() => {
-                                onDocumentAction?.(docId, 'duplicate');
-                                setActionsOpen(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            >
-                              Duplicate
-                            </button>
-                            <hr className="my-1 border-gray-200 dark:border-gray-600" />
-                            <button
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this document?')) {
-                                  onDocumentAction?.(docId, 'delete');
-                                }
-                                setActionsOpen(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -295,6 +302,74 @@ export function ListView({
           </tbody>
         </table>
       </div>
+      
+      {/* Portal dropdown */}
+      {actionsOpen && dropdownPosition && createPortal(
+        <div 
+          ref={dropdownRef}
+          className="absolute w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left
+          }}
+        >
+          <div className="py-1 flex flex-col">
+            <button
+              onClick={() => {
+                navigate(`/content/${schemaName}/${actionsOpen}`);
+                setActionsOpen(null);
+                setDropdownPosition(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(actionsOpen);
+                setActionsOpen(null);
+                setDropdownPosition(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Copy ID
+            </button>
+            <button
+              onClick={() => {
+                onDocumentAction?.(actionsOpen, 'duplicate');
+                setActionsOpen(null);
+                setDropdownPosition(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Duplicate
+            </button>
+            <hr className="my-1 border-gray-200 dark:border-gray-600" />
+            <button
+              onClick={async () => {
+                const confirmed = await studioContext?.utils?.showConfirm?.(
+                  'Are you sure you want to delete this document? This action cannot be undone.',
+                  {
+                    title: 'Delete Document',
+                    confirmText: 'Delete',
+                    cancelText: 'Cancel',
+                    variant: 'danger'
+                  }
+                );
+                if (confirmed) {
+                  onDocumentAction?.(actionsOpen, 'delete');
+                }
+                setActionsOpen(null);
+                setDropdownPosition(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              Delete
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import type { Document } from '@/types';
 
 export interface KanbanColumn {
@@ -280,15 +281,15 @@ export function KanbanView({
                   >
                     {/* Selection checkbox */}
                     <div className="flex items-start justify-between mb-2">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          onItemSelect(docId, e.target.checked);
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
-                      />
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={(checked) => {
+                            onItemSelect(docId, checked);
+                          }}
+                          className="mt-0.5"
+                        />
+                      </div>
                       
                       {/* Actions menu */}
                       <div className="relative">

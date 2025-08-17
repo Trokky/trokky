@@ -8,7 +8,7 @@ import { calculatePasswordStrength, generatePassword } from './validation.js';
 type PasswordFieldComponentProps = FieldComponentProps;
 
 export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
-  const { definition, value, onChange } = props;
+  const { definition, value, onChange, isReadonly, isDisabled } = props;
   const [showPassword, setShowPassword] = useState(false);
   
   // Ensure password-specific properties are set
@@ -17,6 +17,27 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
   const showStrength = passwordDefinition.options?.showStrength === true;
   const showGenerator = passwordDefinition.options?.showGenerator === true;
   const disableAutocomplete = passwordDefinition.options?.disableAutocomplete !== false; // Default true
+
+  // Read-only mode: render as masked display text
+  if (isReadonly && !isDisabled) {
+    const displayValue = (value as string) || '';
+    
+    // Handle empty values
+    if (!displayValue || displayValue.trim() === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
+          No value
+        </div>
+      );
+    }
+
+    // Display as masked password
+    return (
+      <div className="text-gray-500 dark:text-gray-400 font-mono text-sm py-2">
+        {'•'.repeat(Math.min(displayValue.length, 12))}
+      </div>
+    );
+  }
   
   const enhancedDefinition = {
     ...passwordDefinition,

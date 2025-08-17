@@ -13,10 +13,10 @@ const getSessionConfig = () => {
   return {
     // Auto-refresh token 30 seconds before expiry
     REFRESH_BUFFER_MS: sessionConfig?.refreshBufferMs || 30 * 1000,
-    // Warn user 5 minutes before expiry
-    WARNING_BUFFER_MS: sessionConfig?.warningBufferMs || 5 * 60 * 1000,
-    // Check session every 5 seconds
-    CHECK_INTERVAL_MS: sessionConfig?.checkIntervalMs || 5 * 1000,
+    // Disable session warning - let auto-refresh handle expiry silently
+    WARNING_BUFFER_MS: sessionConfig?.warningBufferMs || 0,
+    // Check session every 30 seconds (less aggressive)
+    CHECK_INTERVAL_MS: sessionConfig?.checkIntervalMs || 30 * 1000,
     // Session timeout for content management (2 hours)
     DEFAULT_TIMEOUT_MS: sessionConfig?.defaultTimeoutMs || 2 * 60 * 60 * 1000,
     // Extended session for "Remember Me" (7 days)
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('🚀 Starting session refresh...');
       logger.info('Refreshing session automatically');
       
-      const response = await apiClient.post('/api/auth/refresh', { 
+      const response = await apiClient.post('/auth/refresh', { 
         refreshToken: refreshTokenRef.current 
       });
       
@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Validate token with server
       logger.info('Validating stored token with server');
-      const response = await apiClient.post('/api/auth/validate', { token: storedToken });
+      const response = await apiClient.post('/auth/validate', { token: storedToken });
       
       logger.info('Token validation response', { 
         success: response.success, 
@@ -223,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token invalid, try to refresh if we have a refresh token
         if (storedRefreshToken) {
           try {
-            const refreshResponse = await apiClient.post('/api/auth/refresh', { 
+            const refreshResponse = await apiClient.post('/auth/refresh', { 
               refreshToken: storedRefreshToken 
             });
             
@@ -304,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string, rememberMe = false): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await apiClient.post('/api/auth/login', { 
+      const response = await apiClient.post('/auth/login', { 
         username, 
         password, 
         rememberMe 
@@ -381,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Attempt server logout
       if (authState.refreshToken) {
-        await apiClient.post('/api/auth/logout', { refreshToken: authState.refreshToken });
+        await apiClient.post('/auth/logout', { refreshToken: authState.refreshToken });
       }
       logger.info('User logout successful');
     } catch (error) {
@@ -426,11 +426,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const timeUntilExpiry = expiresAt.getTime() - now.getTime();
       const currentAuthState = authStateRef.current;
       
-      // Show warning if close to expiry
-      if (timeUntilExpiry <= sessionConfig.WARNING_BUFFER_MS && !currentAuthState.showTimeoutWarning) {
-        setAuthState(prev => ({ ...prev, showTimeoutWarning: true }));
-        logger.warn('Session expiring soon, showing warning');
-      }
+      // Skip warning - let auto-refresh handle expiry silently
+      // Warning disabled to prevent user disruption
       
       // Auto-refresh if within refresh buffer
       if (timeUntilExpiry <= sessionConfig.REFRESH_BUFFER_MS && timeUntilExpiry > 0) {

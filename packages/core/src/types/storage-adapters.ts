@@ -13,6 +13,7 @@
 
 import type {
   Document,
+  AuditLog,
   DocumentData,
   ListOptions,
   MediaFile,
@@ -25,9 +26,34 @@ import type {
   AppToken,
   AppTokenListOptions,
   CreateAppTokenData,
-  UpdateAppTokenData
+  UpdateAppTokenData,
+  AuditContext
 } from './index.js'
 import type { WebhookConfig } from '../events/types.js'
+
+// =============================================================================
+// SETTINGS TYPES
+// =============================================================================
+
+/**
+ * Studio settings configuration
+ */
+export interface SettingsConfig {
+  /** Unique identifier for settings */
+  id: string
+  /** Public website URL for "View Live" links */
+  publicUrl: string
+  /** Studio title displayed in interface */
+  studioTitle: string
+  /** Default theme for new users */
+  defaultTheme: 'light' | 'dark' | 'system'
+  /** Settings creation timestamp */
+  _createdAt?: string
+  /** Settings last update timestamp */
+  _updatedAt?: string
+  /** User who last updated settings */
+  _updatedBy?: string
+}
 
 // =============================================================================
 // DATA STORAGE ADAPTER - Structured Data (Documents, Users, App Tokens)
@@ -64,10 +90,11 @@ export interface DataStorageAdapter {
    * @param collection - The collection name
    * @param id - The document ID
    * @param data - The document data (without metadata)
+   * @param auditContext - Optional audit context with user information
    * @returns The saved document with metadata
    * @throws Error if validation fails or storage fails
    */
-  saveDocument(collection: string, id: string, data: DocumentData): Promise<Document>
+  saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document>
   
   /**
    * List documents in a collection with filtering, sorting, and pagination
@@ -101,6 +128,42 @@ export interface DataStorageAdapter {
    * @returns Number of matching documents
    */
   countDocuments?(collection: string, filter?: Record<string, unknown>): Promise<number>
+  
+  // ==========================================================================
+  // AUDIT LOG OPERATIONS
+  // ==========================================================================
+  
+  /**
+   * Create an audit log entry
+   * @param auditLog - The audit log data
+   * @returns The created audit log entry
+   * @throws Error if storage fails
+   */
+  createAuditLog?(auditLog: Omit<AuditLog, 'id'>): Promise<AuditLog>
+  
+  /**
+   * Get audit logs for a specific document
+   * @param documentId - The document ID
+   * @param options - Query options (limit, offset)
+   * @returns Array of audit log entries
+   */
+  getDocumentAuditLogs?(documentId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]>
+  
+  /**
+   * Get audit logs for a collection
+   * @param collection - The collection name
+   * @param options - Query options (limit, offset)
+   * @returns Array of audit log entries
+   */
+  getCollectionAuditLogs?(collection: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]>
+  
+  /**
+   * Get audit logs by actor
+   * @param actorId - The actor ID
+   * @param options - Query options (limit, offset)
+   * @returns Array of audit log entries
+   */
+  getActorAuditLogs?(actorId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]>
   
   // ==========================================================================
   // USER OPERATIONS
@@ -247,6 +310,24 @@ export interface DataStorageAdapter {
    * @throws Error if webhook doesn't exist or storage fails
    */
   deleteWebhook?(id: string): Promise<void>
+  
+  // ==========================================================================
+  // SETTINGS OPERATIONS
+  // ==========================================================================
+  
+  /**
+   * Retrieve studio settings
+   * @returns The settings configuration or null if not found
+   * @throws Error if storage fails
+   */
+  getSettings?(): Promise<SettingsConfig | null>
+  
+  /**
+   * Create or update studio settings
+   * @param settings - The settings configuration
+   * @throws Error if validation fails or storage fails
+   */
+  saveSettings?(settings: SettingsConfig): Promise<void>
   
   // ==========================================================================
   // UTILITY OPERATIONS

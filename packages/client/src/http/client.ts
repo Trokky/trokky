@@ -87,7 +87,7 @@ export class HttpClient {
   async authenticate(credentials: AuthConfig): Promise<AuthTokens> {
     const response = await this.request<any>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ credentials }), // Wrap credentials in object
+      body: JSON.stringify(credentials), // Send credentials directly
       headers: {
         'Content-Type': 'application/json'
       }

@@ -24,8 +24,8 @@ export function Button({
   const variantClasses = {
     primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
     secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
-    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-primary-500',
+    outline: 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:ring-primary-500',
+    ghost: 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-primary-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
   };
   
@@ -37,17 +37,18 @@ export function Button({
 
   // If asChild is true, render children directly (assumes children is a single React element)
   if (asChild) {
-    return React.cloneElement(children as React.ReactElement, {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
       className: cn(
         baseClasses,
         variantClasses[variant],
         sizeClasses[size],
-        (children as React.ReactElement).props.className,
+        child.props.className,
         className
       ),
       disabled: disabled || loading,
       ...props
-    });
+    } as any);
   }
 
   return (

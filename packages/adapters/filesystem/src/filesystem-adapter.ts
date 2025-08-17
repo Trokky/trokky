@@ -16,10 +16,31 @@ import {
   AppToken,
   AppTokenListOptions,
   WebhookConfig,
-  WebhookListOptions
+  WebhookListOptions,
+  AuditContext,
+  AuditActorType
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
+/**
+ * @deprecated FilesystemAdapter is deprecated. Use the split storage architecture instead:
+ * 
+ * ```ts
+ * // Old way (deprecated)
+ * const adapter = new FilesystemAdapter({ contentDir: './content', mediaDir: './media' })
+ * 
+ * // New way (recommended)
+ * const trokky = await TrokkyExpress.create({
+ *   storage: {
+ *     data: { adapter: 'filesystem-data', options: { contentDir: './data/content' } },
+ *     media: { adapter: 'filesystem-media', options: { mediaDir: './data/media' } }
+ *   }
+ * })
+ * ```
+ * 
+ * This provides better separation of concerns, improved scalability, and clearer configuration.
+ * See migration guide in docs for more details.
+ */
 export class FilesystemAdapter implements StorageAdapter {
   private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl' | 'tokensDir' | 'webhooksDir'>> & { 
     mediaBaseUrl?: string; 
@@ -32,6 +53,15 @@ export class FilesystemAdapter implements StorageAdapter {
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
 
   constructor(config: FilesystemAdapterConfig = {}) {
+    // Show deprecation warning
+    if (!config.silent) {
+      console.warn(
+        '⚠️  [DEPRECATED] FilesystemAdapter is deprecated. Please migrate to the split storage architecture:\n' +
+        '   Use TrokkyExpress.create() with storage.data and storage.media adapters.\n' +
+        '   See migration guide: https://docs.trokky.dev/migration/split-storage'
+      )
+    }
+    
     this.config = {
       contentDir: config.contentDir || './content',
       mediaDir: config.mediaDir || './media',
@@ -97,7 +127,11 @@ export class FilesystemAdapter implements StorageAdapter {
         _createdAt: documentFile.metadata.createdAt instanceof Date ? documentFile.metadata.createdAt : new Date(documentFile.metadata.createdAt),
         _updatedAt: documentFile.metadata.updatedAt instanceof Date ? documentFile.metadata.updatedAt : new Date(documentFile.metadata.updatedAt),
         _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status
+        _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined
       }
 
       return document
@@ -106,7 +140,7 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
-  public async saveDocument(collection: string, id: string, data: DocumentData): Promise<Document> {
+  public async saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document> {
     try {
       // Validate document data
       SecurityValidator.validateDocumentData(data)
@@ -143,7 +177,12 @@ export class FilesystemAdapter implements StorageAdapter {
           createdAt: isUpdate ? existingDoc!._createdAt : now,
           updatedAt: now,
           revision: isUpdate ? (existingDoc!._revision || 0) + 1 : 1,
-          status: existingDoc?._status
+          status: existingDoc?._status,
+          // Add audit metadata
+          createdBy: isUpdate ? existingDoc!._createdBy : auditContext?.userId,
+          updatedBy: auditContext?.userId,
+          createdByType: isUpdate ? existingDoc!._createdByType : auditContext?.userType,
+          updatedByType: auditContext?.userType
         }
       }
 
@@ -169,7 +208,11 @@ export class FilesystemAdapter implements StorageAdapter {
         _createdAt: documentFile.metadata.createdAt,
         _updatedAt: documentFile.metadata.updatedAt,
         _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status
+        _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined
       }
 
       return document
@@ -292,14 +335,8 @@ export class FilesystemAdapter implements StorageAdapter {
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${metadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: metadata.id,
-        url: fileUrl,
         filename: metadata.filename,
         contentType: metadata.contentType,
         size: metadata.size,
@@ -344,14 +381,8 @@ export class FilesystemAdapter implements StorageAdapter {
 
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${fileMetadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: fileMetadata.id,
-        url: fileUrl,
         filename: fileMetadata.filename,
         contentType: fileMetadata.contentType,
         size: fileMetadata.size,
@@ -424,14 +455,8 @@ export class FilesystemAdapter implements StorageAdapter {
       const filePath = this.getMediaPath(id, updatedMetadata.extension)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${updatedMetadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: updatedMetadata.id,
-        url: fileUrl,
         filename: updatedMetadata.filename,
         contentType: updatedMetadata.contentType,
         size: updatedMetadata.size,
@@ -1403,8 +1428,8 @@ export class FilesystemAdapter implements StorageAdapter {
   }
 
   public getVariantUrl(parentId: string, variantName: string): string {
-    // Generate API-based URL for controlled variant access
-    return `${this.config.mediaBaseUrl}/api/media/${parentId}/variants/${variantName}`
+    // No URL generation - let frontend handle URL construction
+    return ''
   }
 
   private updateVariantUrls(imageVariants: Record<string, any>, parentId: string): Record<string, any> {

@@ -7,7 +7,7 @@ import { convertToBoolean } from './validation.js';
 type BooleanFieldComponentProps = FieldComponentProps;
 
 export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
   
   // Type guard for boolean field definition
   if (definition.type !== 'boolean') {
@@ -25,11 +25,15 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   const trueText = options.trueText || 'Yes';
   const falseText = options.falseText || 'No';
   
+  // Check if we're in read-only mode
+  const isViewMode = mode === 'preview' || isReadonly || isDisabled;
+  
   // Convert value to boolean with null fallback
   const boolValue = convertToBoolean(value) ?? false;
   const isChecked = boolValue === true;
   
   const handleChange = (newValue: boolean) => {
+    if (isViewMode || !onChange) return;
     onChange(newValue);
   };
   
@@ -56,6 +60,67 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   const currentSize = sizeClasses[size];
   const currentColor = colorClasses[sanitizedColor];
   
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        <div className="flex items-center gap-2">
+          {style === 'toggle' ? (
+            <div className={`
+              relative inline-flex items-center h-6 rounded-full w-11 transition-colors duration-200 opacity-60
+              ${isChecked ? currentColor.bg : 'bg-gray-200 dark:bg-gray-700'}
+            `}>
+              <span className={`
+                inline-block w-4 h-4 transform transition-transform duration-200 bg-white rounded-full shadow-lg ring-0
+                ${isChecked ? 'translate-x-6' : 'translate-x-1'}
+              `} />
+            </div>
+          ) : (
+            <div className={`
+              ${currentSize.control} rounded border-2 transition-all duration-200 relative
+              ${isChecked 
+                ? `${currentColor.bg} ${currentColor.border}` 
+                : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+              }
+              opacity-60
+            `}>
+              {/* Checkmark for checked state */}
+              {isChecked && style === 'checkbox' && (
+                <svg
+                  className="w-full h-full text-white pointer-events-none p-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+          )}
+          
+          <span className={`${currentSize.text} text-gray-700 dark:text-gray-300`}>
+            {label && label}
+            {!label && (isChecked ? trueText : falseText)}
+          </span>
+        </div>
+        
+        {/* Show Yes/No for styles that don't have labels */}
+        {(style === 'radio' || style === 'button') && (
+          <div className="mt-1">
+            <span className={`text-sm ${currentColor.bg.replace('bg-', 'text-')} font-medium`}>
+              {isChecked ? trueText : falseText}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
   // Common classes for controls
   const baseControlClasses = `
     ${currentSize.control}
@@ -66,7 +131,7 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   
   const errorClasses = hasError 
     ? 'border-red-400 focus:ring-red-500'
-    : 'border-gray-300 dark:border-gray-600';
+    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700';
   
   // Render different styles
   const renderControl = () => {
@@ -164,17 +229,50 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
         
       default: // checkbox
         return (
-          <input
-            type="checkbox"
-            id={fieldId}
-            checked={isChecked}
-            disabled={isDisabled || isReadonly}
-            onChange={(e) => handleChange(e.target.checked)}
-            className={`
-              ${baseControlClasses} rounded
-              ${isChecked ? `${currentColor.bg} ${currentColor.border}` : errorClasses}
-            `.trim()}
-          />
+          <div className="relative inline-block">
+            <input
+              type="checkbox"
+              id={fieldId}
+              checked={isChecked}
+              disabled={isDisabled || isReadonly}
+              onChange={(e) => handleChange(e.target.checked)}
+              className="sr-only"
+            />
+            <div
+              className={`
+                ${currentSize.control} rounded border-2 transition-all duration-200 relative cursor-pointer
+                ${hasError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}
+                ${isChecked 
+                  ? `${currentColor.bg} ${currentColor.border}` 
+                  : 'bg-white dark:bg-gray-700'
+                }
+                ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-400 dark:hover:border-gray-500'}
+                focus-within:ring-2 focus-within:ring-offset-2 ${currentColor.ring}
+              `.trim()}
+              onClick={() => {
+                if (!isDisabled && !isReadonly) {
+                  handleChange(!isChecked);
+                }
+              }}
+            >
+              {/* Checkmark */}
+              {isChecked && (
+                <svg
+                  className="absolute inset-0 w-full h-full text-white pointer-events-none p-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+          </div>
         );
     }
   };

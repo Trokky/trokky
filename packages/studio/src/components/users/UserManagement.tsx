@@ -15,6 +15,9 @@ import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
+import { USER_PERMISSIONS } from '@/constants/permissions';
 import { ROLE_PERMISSIONS, type UserRole, type Permission, type User } from '@/types';
 import { generateWebSecurePassword } from '@/utils/web-crypto';
 
@@ -29,24 +32,45 @@ const USER_ROLES: { value: UserRole; label: string; description: string }[] = [
 ];
 
 const PERMISSIONS: { value: Permission; label: string; group: string }[] = [
-  { value: 'content:read', label: 'View Content', group: 'Content' },
-  { value: 'content:write', label: 'Edit Content', group: 'Content' },
-  { value: 'content:delete', label: 'Delete Content', group: 'Content' },
-  { value: 'content:publish', label: 'Publish Content', group: 'Content' },
+  // Global Content Permissions
+  { value: 'content:*', label: 'All Content Operations', group: 'Content' },
+  { value: 'content:read', label: 'View All Content', group: 'Content' },
+  { value: 'content:write', label: 'Edit All Content', group: 'Content' },
+  { value: 'content:delete', label: 'Delete All Content', group: 'Content' },
+  { value: 'content:publish', label: 'Publish All Content', group: 'Content' },
+  
+  // Note: Dynamic schema permissions are handled via the custom permission input below
+  // Individual schema permissions like 'articles:read', 'products:write' etc. are added as custom permissions
+  
+  // Media permissions
   { value: 'media:read', label: 'View Media', group: 'Media' },
   { value: 'media:upload', label: 'Upload Media', group: 'Media' },
   { value: 'media:edit', label: 'Edit Media', group: 'Media' },
   { value: 'media:delete', label: 'Delete Media', group: 'Media' },
+  
+  // User management permissions
   { value: 'users:read', label: 'View Users', group: 'Users' },
   { value: 'users:write', label: 'Edit Users', group: 'Users' },
   { value: 'users:delete', label: 'Delete Users', group: 'Users' },
   { value: 'users:invite', label: 'Invite Users', group: 'Users' },
+  
+  // Settings permissions
   { value: 'settings:read', label: 'View Settings', group: 'Settings' },
   { value: 'settings:write', label: 'Edit Settings', group: 'Settings' },
+  
+  // Studio access
   { value: 'studio:access', label: 'Studio Access', group: 'Access' },
+  
+  // API Tokens
   { value: 'tokens:read', label: 'View API Tokens', group: 'Tokens' },
   { value: 'tokens:write', label: 'Create API Tokens', group: 'Tokens' },
-  { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' }
+  { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' },
+  
+  // Webhooks
+  { value: 'webhooks:read', label: 'View Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:write', label: 'Create/Edit Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:delete', label: 'Delete Webhooks', group: 'Webhooks' },
+  { value: 'webhooks:test', label: 'Test Webhooks', group: 'Webhooks' }
 ];
 
 interface UserFormData {
@@ -78,7 +102,11 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Load dynamic schema permissions
+  const { dynamicPermissions, loading: permissionsLoading, error: permissionsError } = useDynamicPermissions();
   const [hasCustomPermissions, setHasCustomPermissions] = useState(false);
+  const [customPermission, setCustomPermission] = useState('');
 
   // Check if current permissions match the role's default permissions
   const checkCustomPermissions = (role: UserRole, permissions: Permission[]) => {
@@ -122,6 +150,36 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
     const rolePermissions = ROLE_PERMISSIONS[formData.role] || [];
     setFormData(prev => ({ ...prev, permissions: rolePermissions }));
     setHasCustomPermissions(false);
+  };
+
+  // Add custom permission
+  const addCustomPermission = () => {
+    if (!customPermission.trim()) return;
+    
+    // Validate permission format (schema:action)
+    const permissionRegex = /^[a-z][a-z0-9_-]*:(read|write|delete|\*)$/i;
+    if (!permissionRegex.test(customPermission.trim())) {
+      alert('Permission must be in format "schema:action" (e.g., "articles:read", "products:write", "events:*")');
+      return;
+    }
+    
+    const permission = customPermission.trim() as Permission;
+    if (!formData.permissions.includes(permission)) {
+      setFormData(prev => ({ 
+        ...prev, 
+        permissions: [...prev.permissions, permission] 
+      }));
+      setHasCustomPermissions(true);
+    }
+    setCustomPermission('');
+  };
+
+  // Remove custom permission
+  const removeCustomPermission = (permission: Permission) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      permissions: prev.permissions.filter(p => p !== permission) 
+    }));
   };
 
   // Generate secure password
@@ -182,14 +240,24 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 
 
-  // Group permissions by category, excluding studio:access which is handled separately
-  const groupedPermissions = PERMISSIONS
-    .filter(perm => perm.value !== 'studio:access')
-    .reduce((acc, perm) => {
-      if (!acc[perm.group]) acc[perm.group] = [];
-      acc[perm.group].push(perm);
-      return acc;
-    }, {} as Record<string, typeof PERMISSIONS>);
+  // Organize permissions: Content first, then dynamic schemas, then system permissions
+  const contentPermissions = PERMISSIONS.filter(perm => perm.group === 'Content');
+  const systemPermissions = PERMISSIONS.filter(perm => 
+    perm.group !== 'Content' && perm.value !== 'studio:access' // Exclude studio:access (handled separately)
+  );
+  
+  const allPermissions = [
+    ...contentPermissions,     // Global content permissions first
+    ...dynamicPermissions,     // Then dynamic schema permissions  
+    ...systemPermissions       // Then system permissions (Media, Users, etc.)
+  ];
+  
+  // Group permissions by category
+  const groupedPermissions = allPermissions.reduce((acc, perm) => {
+    if (!acc[perm.group]) acc[perm.group] = [];
+    acc[perm.group].push(perm);
+    return acc;
+  }, {} as Record<string, typeof allPermissions>);
 
   if (!isOpen) return null;
 
@@ -331,7 +399,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                       type="checkbox"
                       checked={formData.active}
                       onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                       Active user account
@@ -343,7 +411,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                       type="checkbox"
                       checked={formData.permissions.includes('studio:access')}
                       onChange={() => handlePermissionToggle('studio:access')}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                       Studio Access
@@ -366,29 +434,127 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
               
               {/* Permissions */}
               <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 max-h-80 overflow-y-auto">
-                {Object.entries(groupedPermissions).map(([group, permissions]) => (
-                  <div key={group} className="mb-3 last:mb-0">
-                    <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
-                      {group}
-                    </h4>
-                    <div className="grid grid-cols-1 gap-1">
-                      {permissions.map(permission => (
-                        <label key={permission.value} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={formData.permissions.includes(permission.value)}
-                            onChange={() => handlePermissionToggle(permission.value)}
-                            className="h-3 w-3 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
-                            {permission.label}
-                          </span>
-                        </label>
-                      ))}
+                {permissionsLoading && (
+                  <div className="flex items-center justify-center py-4">
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Loading schema permissions...</span>
+                  </div>
+                )}
+                
+                {permissionsError && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md mb-3">
+                    <div className="flex items-center">
+                      <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2" />
+                      <span className="text-xs text-amber-800 dark:text-amber-200">
+                        Failed to load schema permissions: {permissionsError}
+                      </span>
                     </div>
                   </div>
-                ))}
+                )}
+                
+                {!permissionsLoading && Object.entries(groupedPermissions).map(([group, permissions]) => {
+                  // Check if content:* is enabled to disable individual content permissions
+                  const hasContentWildcard = formData.permissions.includes('content:*');
+                  const isContentGroup = group === 'Content';
+                  const isDynamicContentGroup = group.endsWith('(Content)'); // Dynamic schema groups
+                  
+                  return (
+                    <div key={group} className="mb-3 last:mb-0">
+                      <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                        {group}
+                        {(isContentGroup || isDynamicContentGroup) && hasContentWildcard && (
+                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                            {isContentGroup ? '(All Content Operations enabled)' : '(Covered by All Content Operations)'}
+                          </span>
+                        )}
+                      </h4>
+                      <div className="grid grid-cols-1 gap-1">
+                        {permissions.map(permission => {
+                          // Disable content permissions when content:* is checked (except content:* itself)
+                          // This includes both the main Content group AND all dynamic schema groups
+                          const isDisabled = (isContentGroup || isDynamicContentGroup) && hasContentWildcard && permission.value !== 'content:*';
+                          
+                          return (
+                            <label key={permission.value} className={`flex items-center ${isDisabled ? 'opacity-50' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={formData.permissions.includes(permission.value)}
+                                onChange={() => handlePermissionToggle(permission.value)}
+                                disabled={isDisabled}
+                                className="h-3 w-3 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+                              <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
+                                {permission.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              
+              {/* Custom Permissions - only show when content:* is not enabled */}
+              {!formData.permissions.includes('content:*') && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Custom Schema Permissions
+                  </label>
+                  <div className="space-y-2">
+                    {/* Add Custom Permission */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customPermission}
+                        onChange={(e) => setCustomPermission(e.target.value)}
+                        placeholder="e.g., custom:read, external:write, special:*"
+                        className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        onKeyPress={(e) => e.key === 'Enter' && addCustomPermission()}
+                      />
+                      <Button 
+                        type="button"
+                        size="sm" 
+                        onClick={addCustomPermission}
+                        disabled={!customPermission.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    
+                    {/* Display Custom Permissions */}
+                    {formData.permissions.filter(p => !allPermissions.some(perm => perm.value === p)).length > 0 && (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Custom permissions:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {formData.permissions
+                            .filter(p => !allPermissions.some(perm => perm.value === p))
+                            .map(permission => (
+                              <span 
+                                key={permission}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded"
+                              >
+                                {permission}
+                                <button
+                                  type="button"
+                                  onClick={() => removeCustomPermission(permission)}
+                                  className="hover:text-blue-600 dark:hover:text-blue-300"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Format: <code>schema:action</code> (e.g., custom:read, external:write, special:*). Schema permissions are auto-generated above.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
@@ -415,6 +581,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
+  const { hasPermission } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -422,10 +589,15 @@ export function UserManagement() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Permission checks
+  const canCreateUser = hasPermission(USER_PERMISSIONS.WRITE) || hasPermission(USER_PERMISSIONS.INVITE);
+  const canEditUser = hasPermission(USER_PERMISSIONS.WRITE);
+  const canDeleteUser = hasPermission(USER_PERMISSIONS.DELETE);
+
   const loadUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/users');
+      const response = await apiClient.get('/users');
       if (response.success && response.data && (response.data as any).users) {
         setUsers((response.data as any).users);
       }
@@ -464,13 +636,21 @@ export function UserManagement() {
     try {
       if (selectedUser) {
         // Update existing user
-        const response = await apiClient.put(`/api/users/${selectedUser.id}`, userData);
-        if (response.success) {
+        const response = await apiClient.put(`/users/${selectedUser.id}`, userData);
+        if (response.success && response.data) {
           await loadUsers();
+          
+          // If updating current user, emit event to update header
+          if (currentUser?.id === selectedUser.id) {
+            window.dispatchEvent(new CustomEvent('trokky:user:updated', {
+              detail: { user: response.data }
+            }));
+            logger.debug('Emitted user update event for current user');
+          }
         }
       } else {
         // Create new user
-        const response = await apiClient.post('/api/users', userData);
+        const response = await apiClient.post('/users', userData);
         if (response.success) {
           await loadUsers();
         }
@@ -487,7 +667,7 @@ export function UserManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/users/${user.id}`);
+      const response = await apiClient.delete(`/users/${user.id}`);
       if (response.success) {
         await loadUsers();
       }
@@ -529,10 +709,12 @@ export function UserManagement() {
             Manage user accounts, roles, and permissions
           </p>
         </div>
-        <Button onClick={handleCreateUser}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
+        {canCreateUser && (
+          <Button onClick={handleCreateUser}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -612,14 +794,16 @@ export function UserManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditUser(user)}
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </Button>
-                        {currentUser?.id !== user.id && (
+                        {canEditUser && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditUser(user)}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDeleteUser && currentUser?.id !== user.id && (
                           <Button
                             size="sm"
                             variant="ghost"

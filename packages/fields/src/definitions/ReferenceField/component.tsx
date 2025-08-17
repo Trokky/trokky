@@ -81,9 +81,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
   
   // Performance refs
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentSearchRef = useRef<string>('');
-  const abortControllerRef = useRef<AbortController>();
+  const abortControllerRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const isMultiple = validation.multiple || false;
@@ -463,7 +463,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               placeholder={options.searchPlaceholder || 'Search documents...'}
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
               autoFocus
             />
             
@@ -471,7 +471,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               <select
                 value={selectedTypeFilter}
                 onChange={(e) => setSelectedTypeFilter(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">All types</option>
                 {targetTypes.map(type => (

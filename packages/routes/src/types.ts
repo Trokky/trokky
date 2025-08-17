@@ -8,7 +8,6 @@ import type {
   CreateUserData,
   UpdateUserData,
   UserListOptions,
-  LoginCredentials,
   WebhookConfig,
   WebhookDeliveryResult
 } from '@trokky/core'
@@ -189,7 +188,9 @@ export interface GetUserByEmailRequest {
 
 // Authentication endpoints request/response types
 export interface LoginRequest {
-  credentials: LoginCredentials
+  username: string
+  password: string
+  rememberMe?: boolean
 }
 
 export interface LoginResponse {

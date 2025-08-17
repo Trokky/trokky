@@ -11,7 +11,7 @@ import {
   InvalidInputError,
   createLogger
 } from '@trokky/core'
-import { FilesystemMediaAdapterConfig, FileMetadata } from './types.js'
+import { FilesystemMediaAdapterConfig, FileMetadata } from './types'
 
 export class FilesystemMediaAdapter implements MediaStorageAdapter {
   private config: Required<Omit<FilesystemMediaAdapterConfig, 'mediaBaseUrl'>> & { 
@@ -107,14 +107,8 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       // Generate file URL (relative path for portability)
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${metadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: metadata.id,
-        url: fileUrl,
         filename: metadata.filename,
         contentType: metadata.contentType,
         size: metadata.size,
@@ -170,14 +164,8 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
 
       const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
 
-      // Generate API-based URL for controlled access
-      const fileUrl = this.config.mediaBaseUrl 
-        ? `${this.config.mediaBaseUrl}/api/media/${fileMetadata.id}/file`
-        : `file://${path.resolve(filePath)}`
-
       const mediaFile: MediaFile = {
         id: fileMetadata.id,
-        url: fileUrl,
         filename: fileMetadata.filename,
         contentType: fileMetadata.contentType,
         size: fileMetadata.size,
@@ -628,7 +616,7 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       SecurityValidator.validateDocumentId(variantName)
       
       if (this.config.mediaBaseUrl) {
-        return `${this.config.mediaBaseUrl}/api/media/${parentId}/variants/${variantName}`
+        return '' // No URL generation - let frontend handle URL construction
       }
       return `file://${path.resolve(this.config.mediaDir, 'variants', parentId, variantName)}`
     } catch (error) {

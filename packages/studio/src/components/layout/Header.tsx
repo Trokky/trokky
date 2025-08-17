@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
   Cog6ToothIcon,
-  UserCircleIcon,
   SunIcon,
   MoonIcon,
   ComputerDesktopIcon,
@@ -17,10 +16,13 @@ import {
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
 import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
-import { GlobalSearchModal } from '@/components/search';
+import { SimpleSearchModal } from '@/components/SimpleSearchModal';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -35,15 +37,18 @@ export function Header({
   showMedia = true,
   showUserMenu = true
 }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { user, loading: userLoading } = useCurrentUser();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   
-  // Get available document types for create dropdown
-  const { documentTypes, singletonTypes, loading: typesLoading } = useDocumentTypes();
+  // Get available document types for create dropdown (excluding singletons)
+  const { documentTypes, loading: typesLoading } = useDocumentTypes();
+  
 
   // Get branding from API or fallback to window config
   const { branding } = useStudioBranding();
@@ -51,15 +56,22 @@ export function Header({
   // Global search functionality
   const { isOpen: searchOpen, openSearch, closeSearch } = useGlobalSearch();
 
-  const handleCreateDocument = (schemaName: string, isSingleton: boolean = false) => {
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [openSearch]);
+
+  const handleCreateDocument = (schemaName: string) => {
     setCreateMenuOpen(false);
-    if (isSingleton) {
-      // For singletons, navigate directly to the document (they have fixed IDs)
-      navigate(`/content/${schemaName}/${schemaName}`);
-    } else {
-      // For regular documents, navigate to create new
-      navigate(`/content/${schemaName}/new`);
-    }
+    // Only allow creation of regular documents, not singletons
+    navigate(`/content/${schemaName}/new`);
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -118,21 +130,16 @@ export function Header({
 
         {/* Center section - Search */}
         {showSearch && (
-          <div className="hidden md:block flex-1 max-w-lg mx-8">
+          <div className="hidden lg:block flex-1 max-w-sm mx-4">
             <button
               onClick={openSearch}
-              className="w-full flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
             >
-              <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
-              <span className="flex-1">Search everything...</span>
-              <div className="flex items-center space-x-1">
-                <kbd className="px-1.5 py-0.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-                  ⌘
-                </kbd>
-                <kbd className="px-1.5 py-0.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-                  K
-                </kbd>
-              </div>
+              <MagnifyingGlassIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span className="flex-1 truncate">Search...</span>
+              <kbd className="hidden xl:inline-flex px-1.5 py-0.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+                ⌘K
+              </kbd>
             </button>
           </div>
         )}
@@ -149,7 +156,7 @@ export function Header({
             </button>
           )}
 
-          {/* Create dropdown */}
+          {/* Create dropdown - only for regular documents, not singletons */}
           <div className="hidden sm:block relative">
             <Button 
               variant="ghost" 
@@ -165,16 +172,16 @@ export function Header({
 
             {createMenuOpen && !typesLoading && (
               <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                {/* Regular document types */}
-                {documentTypes.length > 0 && (
+                {/* Regular document types only */}
+                {documentTypes.length > 0 ? (
                   <div className="px-3 py-2">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                      Document Types
+                      Create New Document
                     </div>
                     {documentTypes.map((docType) => (
                       <button
                         key={docType.schemaType || docType.id}
-                        onClick={() => handleCreateDocument(docType.schemaType, false)}
+                        onClick={() => handleCreateDocument(docType.schemaType)}
                         className="flex items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                       >
                         <PlusIcon className="h-4 w-4 mr-2 text-gray-400" />
@@ -187,41 +194,9 @@ export function Header({
                       </button>
                     ))}
                   </div>
-                )}
-
-                {/* Singleton types */}
-                {singletonTypes.length > 0 && (
-                  <>
-                    {documentTypes.length > 0 && (
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                    )}
-                    <div className="px-3 py-2">
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                        Settings & Pages
-                      </div>
-                      {singletonTypes.map((singletonType) => (
-                        <button
-                          key={singletonType.schemaType || singletonType.id}
-                          onClick={() => handleCreateDocument(singletonType.schemaType, true)}
-                          className="flex items-center w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                        >
-                          <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
-                          <div className="flex-1 text-left">
-                            <div className="font-medium">{singletonType.title}</div>
-                            {singletonType.description && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">{singletonType.description}</div>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Empty state */}
-                {documentTypes.length === 0 && singletonTypes.length === 0 && (
+                ) : (
                   <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                    No document types available
+                    No document types available for creation
                   </div>
                 )}
               </div>
@@ -229,7 +204,7 @@ export function Header({
           </div>
 
           {/* Media button */}
-          {showMedia && (
+          {showMedia && hasPermission(MEDIA_PERMISSIONS.READ) && (
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link to="/media">
                 <PhotoIcon className="h-4 w-4 mr-1" />
@@ -238,36 +213,39 @@ export function Header({
             </Button>
           )}
 
-          {/* Settings dropdown */}
-          <div className="hidden sm:block relative">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-              className="inline-flex items-center"
-            >
-              <Cog6ToothIcon className="h-4 w-4 mr-1" />
-              Settings
-              <ChevronDownIcon className="h-3 w-3 ml-1" />
-            </Button>
+          {/* Settings dropdown - only show if user has access to any settings features */}
+          {hasAnyPermission(SETTINGS_MENU_PERMISSIONS) && (
+            <div className="hidden sm:block relative">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+                className="inline-flex items-center"
+              >
+                <Cog6ToothIcon className="h-4 w-4 mr-1" />
+                Settings
+                <ChevronDownIcon className="h-3 w-3 ml-1" />
+              </Button>
 
             {settingsMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                 {/* Settings option */}
-                <Link
-                  to="/settings"
-                  onClick={() => setSettingsMenuOpen(false)}
-                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
-                  <div className="flex-1 text-left">
-                    <div className="font-medium">Settings</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
-                  </div>
-                </Link>
+                {hasPermission(SETTINGS_PERMISSIONS.READ) && (
+                  <Link
+                    to="/settings"
+                    onClick={() => setSettingsMenuOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">Settings</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
+                    </div>
+                  </Link>
+                )}
 
-                {/* Users option - admin only */}
-                {user?.role === 'admin' && (
+                {/* Users & Access option - show if user has access to any Users/Tokens/Webhooks features */}
+                {hasAnyPermission([USER_PERMISSIONS.READ, TOKEN_PERMISSIONS.READ, WEBHOOK_PERMISSIONS.READ]) && (
                   <Link
                     to="/users"
                     onClick={() => setSettingsMenuOpen(false)}
@@ -284,119 +262,138 @@ export function Header({
                 {/* Separator */}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
-                {/* Fields Demo option */}
-                <Link
-                  to="/fields-demo"
-                  onClick={() => setSettingsMenuOpen(false)}
-                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
-                  <div className="flex-1 text-left">
-                    <div className="font-medium">Fields Demo</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
-                  </div>
-                </Link>
+                {/* Fields Demo option - admin only */}
+                {hasPermission(SETTINGS_PERMISSIONS.WRITE) && (
+                  <Link
+                    to="/fields-demo"
+                    onClick={() => setSettingsMenuOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">Fields Demo</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
+                    </div>
+                  </Link>
+                )}
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* User menu */}
           {showUserMenu && (
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center space-x-2 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!text-gray-100 hover:!bg-transparent dark:hover:!bg-transparent"
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
               >
-                <UserCircleIcon className="h-6 w-6" />
+                {/* User avatar */}
+                {userLoading ? (
+                  <div className="h-6 w-6 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse" />
+                ) : user?.profileImage ? (
+                  <img 
+                    src={user.profileImage} 
+                    alt="Profile" 
+                    className="h-6 w-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-6 w-6 rounded-full bg-primary-600 flex items-center justify-center">
+                    <span className="text-white font-medium text-xs">
+                      {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Username - show on larger screens */}
+                <span className="hidden sm:block text-sm font-medium truncate max-w-24">
+                  {userLoading ? (
+                    <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  ) : (
+                    user?.firstName || user?.username || 'User'
+                  )}
+                </span>
+                
+                {/* Dropdown arrow */}
+                <ChevronDownIcon className={cn(
+                  "h-4 w-4 transition-transform",
+                  userMenuOpen && "rotate-180"
+                )} />
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                  {/* User info */}
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center space-x-3">
-                      {(user as any)?.profileImage ? (
-                        <img 
-                          src={(user as any).profileImage} 
-                          alt="Profile" 
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
-                          <span className="text-white font-medium text-sm">
-                            {((user as any)?.firstName?.[0] || (user as any)?.username?.[0] || (user as any)?.name?.[0] || 'U').toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {(user as any)?.firstName && (user as any)?.lastName 
-                            ? `${(user as any).firstName} ${(user as any).lastName}`
-                            : (user as any)?.username || (user as any)?.name || 'Studio User'}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                          {(user as any)?.email || 'user@example.com'}
-                        </p>
-                        {user?.role && (
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full mt-1 ${
-                            user.role === 'admin' 
-                              ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                              : user.role === 'editor'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-                              : user.role === 'author'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                          }`}>
-                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                          </span>
-                        )}
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                  {/* Compact user info */}
+                  <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                    {userLoading ? (
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Theme selector */}
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                      Theme
-                    </p>
-                    <div className="flex space-x-1">
-                      {themeOptions.map(({ key, label, icon: Icon }) => (
-                        <button
-                          key={key}
-                          onClick={() => {
-                            handleThemeChange(key);
-                            setUserMenuOpen(false);
-                          }}
-                          className={cn(
-                            'flex items-center justify-center w-8 h-8 rounded transition-colors',
-                            theme === key
-                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                              : 'text-gray-500 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent'
-                          )}
-                          title={label}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </button>
-                      ))}
-                    </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {user?.firstName && user?.lastName 
+                            ? `${user.firstName} ${user.lastName}`
+                            : user?.username || 'Studio User'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {user?.email || 'No email'}
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {/* Menu items */}
                   <div className="py-1">
                     <Link
                       to="/user/preferences"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent"
+                      className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => setUserMenuOpen(false)}
                     >
+                      <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
                       Preferences
                     </Link>
+                    
+                    {/* Theme submenu */}
+                    <div className="px-3 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Theme</span>
+                      </div>
+                      <div className="flex space-x-1">
+                        {themeOptions.map(({ key, label, icon: Icon }) => (
+                          <button
+                            key={key}
+                            onClick={() => {
+                              handleThemeChange(key);
+                              setUserMenuOpen(false);
+                            }}
+                            className={cn(
+                              'flex items-center justify-center w-6 h-6 rounded transition-colors',
+                              theme === key
+                                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                                : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            )}
+                            title={label}
+                          >
+                            <Icon className="h-3 w-3" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    
                     <button
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:!text-gray-100 dark:hover:!bg-transparent"
+                      className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                       onClick={async () => {
                         setUserMenuOpen(false);
                         await logout();
                       }}
                     >
+                      <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
                       Sign out
                     </button>
                   </div>
@@ -419,8 +416,8 @@ export function Header({
         />
       )}
 
-      {/* Global Search Modal */}
-      <GlobalSearchModal 
+      {/* Simple Search Modal */}
+      <SimpleSearchModal 
         isOpen={searchOpen} 
         onClose={closeSearch} 
       />

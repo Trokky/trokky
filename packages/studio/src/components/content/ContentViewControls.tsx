@@ -250,24 +250,26 @@ export function ContentViewControls({
               </div>
             )}
             
-            {/* View switcher */}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-              {availableViews.filter(v => v.enabled).map((view) => (
-                <button
-                  key={view.type}
-                  onClick={() => onViewChange(view.type)}
-                  className={cn(
-                    "p-2 rounded-md transition-colors",
-                    currentView === view.type
-                      ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                  )}
-                  title={view.title}
-                >
-                  <view.icon className="h-4 w-4" />
-                </button>
-              ))}
-            </div>
+            {/* View switcher - only show when there are multiple views */}
+            {availableViews.filter(v => v.enabled).length > 1 && (
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                {availableViews.filter(v => v.enabled).map((view) => (
+                  <button
+                    key={view.type}
+                    onClick={() => onViewChange(view.type)}
+                    className={cn(
+                      "p-2 rounded-md transition-colors",
+                      currentView === view.type
+                        ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                    )}
+                    title={view.title}
+                  >
+                    <view.icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            )}
             
             {/* Create new button */}
             {onCreateNew && (

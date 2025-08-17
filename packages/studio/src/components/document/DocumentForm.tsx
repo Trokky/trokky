@@ -35,7 +35,8 @@ export function DocumentForm() {
     onDocumentChange,
     onValidationChange,
     saving,
-    isNewDocument
+    isNewDocument,
+    isReadOnly
   } = useDocumentEditor();
   
   const studioContext = useStudioContext();
@@ -302,12 +303,13 @@ export function DocumentForm() {
         key={field.name}
         fieldId={field.name}
         value={value}
-        onChange={(newValue: any) => handleFieldChange(field.name, newValue)}
-        onBlur={() => handleFieldBlur(field.name, field)}
+        onChange={isReadOnly ? () => {} : (newValue: any) => handleFieldChange(field.name, newValue)}
+        onBlur={isReadOnly ? () => {} : () => handleFieldBlur(field.name, field)}
         definition={field}
         hasError={!!error}
         error={error}
-        mode="edit"
+        mode={isReadOnly ? "view" : "edit"}
+        disabled={isReadOnly}
         studioContext={studioContext || undefined}
         documentContext={documentContext}
       />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronUpIcon, 
@@ -8,6 +8,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { useStudioContext } from '@/contexts/StudioContext';
 import type { Document } from '@/types';
 
 export interface TableColumn {
@@ -55,13 +57,30 @@ export function TableView({
   density = 'comfortable'
 }: TableViewProps) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
   
   const allSelected = documents.length > 0 && selectedItems.length === documents.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < documents.length;
   const visibleColumns = columns.filter(col => col.visible !== false);
+  
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tableRef.current && !tableRef.current.contains(event.target as Node)) {
+        setActionsOpen(null);
+        setColumnsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   const getDensityClasses = () => {
     switch (density) {
@@ -173,7 +192,7 @@ export function TableView({
   }
   
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div ref={tableRef} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Table controls */}
       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
         <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -199,11 +218,10 @@ export function TableView({
                 <div className="space-y-2">
                   {columns.map((column) => (
                     <label key={column.key} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={column.visible !== false}
-                        onChange={(e) => onColumnVisibilityChange?.(column.key, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                      <Checkbox
+                        checked={column.visible === true}
+                        onChange={(checked) => onColumnVisibilityChange?.(column.key, checked)}
+                        className="mr-2"
                       />
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {column.title}
@@ -218,20 +236,16 @@ export function TableView({
       </div>
       
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-visible">
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               {/* Selection column */}
               <th className="px-4 py-3 text-left w-12">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={allSelected}
-                  ref={(input) => {
-                    if (input) input.indeterminate = someSelected;
-                  }}
-                  onChange={(e) => onSelectAll(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  indeterminate={someSelected}
+                  onChange={onSelectAll}
                 />
               </th>
               
@@ -312,11 +326,9 @@ export function TableView({
                 >
                   {/* Selection cell */}
                   <td className={cn("px-4 whitespace-nowrap", getDensityClasses())}>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={isSelected}
-                      onChange={(e) => onItemSelect(docId, e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onChange={(checked) => onItemSelect(docId, checked)}
                     />
                   </td>
                   
@@ -368,7 +380,7 @@ export function TableView({
                       </button>
                       
                       {actionsOpen === docId && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-max">
                           <div className="py-1">
                             <button
                               onClick={() => {
@@ -399,8 +411,17 @@ export function TableView({
                             </button>
                             <hr className="my-1 border-gray-200 dark:border-gray-600" />
                             <button
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this document?')) {
+                              onClick={async () => {
+                                const confirmed = await studioContext?.utils?.showConfirm?.(
+                                  'Are you sure you want to delete this document? This action cannot be undone.',
+                                  {
+                                    title: 'Delete Document',
+                                    confirmText: 'Delete',
+                                    cancelText: 'Cancel',
+                                    variant: 'danger'
+                                  }
+                                );
+                                if (confirmed) {
                                   onDocumentAction?.(docId, 'delete');
                                 }
                                 setActionsOpen(null);

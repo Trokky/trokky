@@ -26,6 +26,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     onKeyDown,
     studioContext,
     documentContext,
+    mode,
     ...restProps
   } = props;
 
@@ -78,7 +79,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Auto-generate slug when source fields change (real-time)
   useEffect(() => {
-    if (!autoGenerate || readOnly) {
+    if (!autoGenerate || readOnly || isViewMode || !onChange) {
       return;
     }
 
@@ -136,7 +137,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
           queryParams.append('excludeId', excludeId);
         }
 
-        const response = await studioContext.apiClient.get(`/api/slugs/check-unique?${queryParams}`);
+        const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
         
         if (response.success && response.data) {
           const isUnique = response.data.unique;
@@ -194,6 +195,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Handle focus - auto-generate if empty
   const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (isViewMode || !onChange) return;
+    
     const isEmpty = !value || value.trim() === '';
 
     if (isEmpty && !readOnly && autoGenerate) {
@@ -222,6 +225,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Handle paste events to sanitize pasted content
   const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    if (isViewMode || !onChange) return;
+    
     event.preventDefault();
     const pastedText = event.clipboardData.getData('text');
     
@@ -241,6 +246,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Handle manual input changes
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isViewMode || !onChange) return;
+    
     const rawValue = event.target.value;
     
     // Additional sanitization as backup (in case of paste operations)
@@ -281,7 +288,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
               queryParams.append('excludeId', excludeId);
             }
 
-            const response = await studioContext.apiClient.get(`/api/slugs/check-unique?${queryParams}`);
+            const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
             return response.success && response.data?.unique;
           } catch {
             return true; // If check fails, assume it's unique
@@ -336,6 +343,9 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   const isExistingDocumentWithSlug = !documentContext?.isNewDocument && value && value.trim();
   const shouldBeReadOnly = isExistingDocumentWithSlug && !isInEditMode;
 
+  // Check if we're in read-only mode
+  const isViewMode = mode === 'preview' || isReadonly || isDisabled;
+  
   // Use hasError from field renderer system for styling, also consider uniqueness
   const hasValidationError = hasError || (uniquenessStatus === 'taken');
   const showUniquenessError = uniquenessStatus === 'taken' && !hasError;
@@ -371,6 +381,31 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
       boxShadow: '0 0 0 1px rgba(248, 113, 113, 0.3)'
     } : undefined
   };
+
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        {value ? (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border">
+              {value}
+            </span>
+            {slugDefinition.unique && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">(unique)</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">No slug set</span>
+        )}
+        {slugDefinition.source && slugDefinition.autoGenerate && (
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Auto-generated from: {Array.isArray(slugDefinition.source) ? slugDefinition.source.join(', ') : slugDefinition.source}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

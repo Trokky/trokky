@@ -56,6 +56,7 @@ export type Permission =
   | 'content:write'
   | 'content:delete'
   | 'content:publish'
+  | 'content:*' // Wildcard for all content operations
   // Media permissions
   | 'media:read'
   | 'media:upload'
@@ -75,6 +76,12 @@ export type Permission =
   | 'tokens:read'
   | 'tokens:write'
   | 'tokens:delete'
+  // Webhook management
+  | 'webhooks:read'
+  | 'webhooks:write'
+  | 'webhooks:delete'
+  // Dynamic schema permissions (runtime pattern matching)
+  | string // Allows dynamic permissions like "articles:read", "products:write", etc.
 
 export interface UserPreferences {
   theme?: 'light' | 'dark'

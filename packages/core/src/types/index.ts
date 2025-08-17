@@ -12,6 +12,67 @@ import type {
   AuthenticatedAppToken
 } from './user.js'
 
+// Audit actor types
+export const AUDIT_ACTOR_TYPES = {
+  USER: 'user',
+  API: 'api',
+  SYSTEM: 'system',
+  WEBHOOK: 'webhook'
+} as const;
+
+export type AuditActorType = typeof AUDIT_ACTOR_TYPES[keyof typeof AUDIT_ACTOR_TYPES];
+
+// Audit context for tracking who is performing actions
+export interface AuditContext {
+  userId: string
+  userType: AuditActorType
+  username?: string
+  ipAddress?: string
+  userAgent?: string
+}
+
+// Audit log operations
+export const AUDIT_OPERATIONS = {
+  CREATE: 'create',
+  UPDATE: 'update',
+  DELETE: 'delete',
+  PUBLISH: 'publish',
+  UNPUBLISH: 'unpublish',
+  RESTORE: 'restore'
+} as const;
+
+export type AuditOperation = typeof AUDIT_OPERATIONS[keyof typeof AUDIT_OPERATIONS];
+
+// Comprehensive audit log entry
+export interface AuditLog {
+  id: string
+  documentId: string
+  collection: string
+  operation: AuditOperation
+  
+  // Actor information
+  actorId: string
+  actorType: AuditActorType
+  actorUsername?: string
+  
+  // Change details
+  changes?: {
+    before?: Record<string, unknown>
+    after?: Record<string, unknown>
+    fields?: string[] // List of changed field names
+  }
+  
+  // Metadata
+  timestamp: Date
+  revision: number
+  ipAddress?: string
+  userAgent?: string
+  sessionId?: string
+  
+  // Additional context
+  metadata?: Record<string, unknown>
+}
+
 // Base document structure
 export interface Document {
   id: string
@@ -20,6 +81,10 @@ export interface Document {
   _updatedAt: Date
   _revision?: number
   _status?: 'draft' | 'published'
+  _createdBy?: string  // User ID who created the document
+  _updatedBy?: string  // User ID who last updated the document
+  _createdByType?: AuditActorType  // Type of actor who created
+  _updatedByType?: AuditActorType  // Type of actor who updated
 }
 
 // Document with user content
@@ -156,7 +221,7 @@ export interface ValidationErrorDetail {
 // Media file structure
 export interface MediaFile {
   id: string
-  url: string
+  url?: string  // Optional - frontend will construct URLs
   filename: string
   contentType: string
   size: number
@@ -184,7 +249,7 @@ export interface Migration {
 export interface StorageAdapter {
   // Document operations
   getDocument(collection: string, id: string): Promise<Document | null>
-  saveDocument(collection: string, id: string, data: DocumentData): Promise<Document>
+  saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document>
   listDocuments(collection: string, options?: ListOptions): Promise<Document[]>
   deleteDocument(collection: string, id: string): Promise<void>
 
@@ -300,5 +365,6 @@ export type {
   MediaVariant,
   SplitStorageConfig,
   TrokkyStorageAdapters,
-  WebhookListOptions
+  WebhookListOptions,
+  SettingsConfig
 } from './storage-adapters.js'

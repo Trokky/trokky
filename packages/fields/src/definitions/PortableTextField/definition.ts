@@ -25,6 +25,15 @@ export interface PortableTextFieldOptions extends BaseFieldOptions {
   collapsible?: boolean;
   defaultBlockType?: string;
   maxNestingDepth?: number;
+  
+  // Paste security options
+  pasteSecurity?: {
+    mode?: 'strict' | 'safe' | 'permissive'; // strict = plain text only, safe = sanitized HTML, permissive = minimal sanitization
+    allowedDomains?: string[]; // For links in permissive mode
+    stripFormatting?: boolean; // Remove all formatting from pasted content
+    maxPasteLength?: number; // Limit pasted content length
+    warnOnUnsafeContent?: boolean; // Show warning when dangerous content is detected
+  };
 }
 
 // Portable text block structure

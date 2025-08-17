@@ -19,7 +19,10 @@ interface UserPreferences {
 
 export function UserPreferencesPage() {
   const { user } = useAuth();
-  const contextSidebar = useContextSidebar();
+  const contextSidebar = useContextSidebar({
+    page: 'user-preferences',
+    title: 'User Preferences'
+  });
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',
     language: 'en',
@@ -160,7 +163,7 @@ export function UserPreferencesPage() {
                 type="checkbox"
                 checked={preferences.emailNotifications}
                 onChange={(e) => setPreferences(prev => ({ ...prev, emailNotifications: e.target.checked }))}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
               />
             </div>
             
@@ -173,7 +176,7 @@ export function UserPreferencesPage() {
                 type="checkbox"
                 checked={preferences.pushNotifications}
                 onChange={(e) => setPreferences(prev => ({ ...prev, pushNotifications: e.target.checked }))}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
               />
             </div>
           </div>

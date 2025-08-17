@@ -11,15 +11,21 @@ import {
   TagIcon,
   LinkIcon,
   ChevronRightIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 import { useDocumentEditor } from './DocumentEditorContext';
+import { useStudioContext } from '@/contexts/StudioContext';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { DocumentHistoryPanel } from './DocumentHistoryPanel';
 
 const logger = createStudioLogger('DocumentSidebar');
 
 export function DocumentSidebar() {
+  const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const {
     schema,
     document,
@@ -41,6 +47,7 @@ export function DocumentSidebar() {
   
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
 
   // Save collapsed state to localStorage whenever it changes
   const toggleCollapsed = (collapsed: boolean) => {
@@ -52,12 +59,18 @@ export function DocumentSidebar() {
     }
   };
 
-  // Load document relationships
+  // Load document relationships and URL
   useEffect(() => {
     if (!isNewDocument && document?.id) {
       loadRelationships();
+      loadDocumentUrl();
     }
   }, [document?.id, document?.author, document?.category, isNewDocument]);
+
+  const loadDocumentUrl = async () => {
+    const url = await getDocumentUrl();
+    setDocumentUrl(url);
+  };
 
   const loadRelationships = async () => {
     if (!document?.id) return;
@@ -181,13 +194,95 @@ export function DocumentSidebar() {
     });
   };
 
-  const getDocumentUrl = () => {
+  const getDocumentUrl = async (): Promise<string | null> => {
     if (!document || isNewDocument) return null;
     
-    // This would generate the public URL for the document
-    const baseUrl = window.location.origin;
-    const slug = document.slug || document.id;
-    return `${baseUrl}/${schema?.name}/${slug}`;
+    try {
+      // Get public URL from settings API
+      const response = await apiClient.get('/config/settings');
+      let publicUrl = window.location.origin; // fallback
+      
+      if (response.success && response.data?.settings?.publicUrl) {
+        publicUrl = response.data.settings.publicUrl;
+      }
+      
+      // Remove trailing slash to avoid double slashes
+      publicUrl = publicUrl.replace(/\/$/, '');
+      
+      // Generate the public URL for the document
+      const slug = document.slug || document.id;
+      
+      // Handle different URL patterns based on schema and document structure
+      if (schema?.name === 'page' || schema?.type === 'singleton') {
+        // For pages and singletons, use the slug directly
+        return slug === 'homepage' || slug === 'home' 
+          ? publicUrl 
+          : `${publicUrl}/${slug}`;
+      } else {
+        // For regular collections, use schema name + slug
+        return `${publicUrl}/${schema?.name}/${slug}`;
+      }
+    } catch (error) {
+      logger.warn('Failed to get settings for document URL, using fallback', error);
+      
+      // Fallback to current origin
+      const publicUrl = window.location.origin.replace(/\/$/, '');
+      const slug = document.slug || document.id;
+      
+      if (schema?.name === 'page' || schema?.type === 'singleton') {
+        return slug === 'homepage' || slug === 'home' 
+          ? publicUrl 
+          : `${publicUrl}/${slug}`;
+      } else {
+        return `${publicUrl}/${schema?.name}/${slug}`;
+      }
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!document || !schema || isNewDocument) return;
+
+    const documentTitle = document.title || document.name || 'this document';
+    
+    // Confirm deletion
+    const confirmed = await studioContext?.utils?.showConfirm?.(
+      `Are you sure you want to delete "${documentTitle}"? This action cannot be undone.`,
+      {
+        title: 'Delete Document',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        variant: 'danger'
+      }
+    );
+
+    if (!confirmed) return;
+
+    try {
+      logger.info('Deleting document', { 
+        schema: schema.name, 
+        documentId: document.id,
+        title: documentTitle 
+      });
+
+      const response = await apiClient.deleteDocument(schema.name, document.id);
+      
+      if (response.success) {
+        studioContext?.utils?.showToast?.('Document deleted', 'success');
+        logger.info('Document deleted successfully', { 
+          schema: schema.name, 
+          documentId: document.id 
+        });
+        
+        // Navigate back to collection list
+        navigate(`/content/${schema.name}`);
+      } else {
+        throw new Error(response.error?.message || 'Failed to delete document');
+      }
+    } catch (error) {
+      logger.error('Failed to delete document', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete document';
+      studioContext?.utils?.showToast?.(errorMessage, 'error');
+    }
   };
 
   if (isCollapsed) {
@@ -279,7 +374,7 @@ export function DocumentSidebar() {
           </div>
 
           {/* Public URL */}
-          {documentState === 'published' && getDocumentUrl() && (
+          {documentState === 'published' && documentUrl && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 Public URL
@@ -287,7 +382,7 @@ export function DocumentSidebar() {
               <div className="flex items-center">
                 <LinkIcon className="h-4 w-4 mr-2 text-gray-400" />
                 <a
-                  href={getDocumentUrl()!}
+                  href={documentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
@@ -447,6 +542,37 @@ export function DocumentSidebar() {
             </div>
           </div>
         </div>
+
+        {/* Document history */}
+        {!isNewDocument && (
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <DocumentHistoryPanel
+              documentId={document?.id || ''}
+              collection={schema?.name || ''}
+              isVisible={true}
+            />
+          </div>
+        )}
+
+        {/* Danger zone - Delete document */}
+        {!isNewDocument && (
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Danger Zone
+            </h4>
+            <button
+              onClick={handleDeleteDocument}
+              className="w-full flex items-center justify-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-sm font-medium text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+              title="Delete this document permanently"
+            >
+              <TrashIcon className="h-4 w-4 mr-2" />
+              Delete Document
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              This action cannot be undone.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -17,6 +17,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { usePermissions } from '@/hooks/usePermissions';
+import { WEBHOOK_PERMISSIONS } from '@/constants/permissions';
 
 const logger = createStudioLogger('WebhookManagement');
 
@@ -257,7 +259,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
                         type="checkbox"
                         checked={formData.events.includes(event.value)}
                         onChange={() => toggleEvent(event.value)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                       />
                       <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                         {event.label}
@@ -441,7 +443,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
     
     try {
       setIsLoading(true);
-      const response = await apiClient.get(`/api/webhooks/${webhook.id}/deliveries`);
+      const response = await apiClient.get(`/webhooks/${webhook.id}/deliveries`);
       if (response.success && response.data) {
         setDeliveries((response.data as any).deliveries || []);
       }
@@ -540,6 +542,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
 }
 
 export function WebhookManagement() {
+  const { hasPermission } = usePermissions();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showWebhookModal, setShowWebhookModal] = useState(false);
@@ -549,10 +552,15 @@ export function WebhookManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
 
+  // Permission checks
+  const canCreateWebhook = hasPermission(WEBHOOK_PERMISSIONS.WRITE);
+  const canEditWebhook = hasPermission(WEBHOOK_PERMISSIONS.WRITE);
+  const canDeleteWebhook = hasPermission(WEBHOOK_PERMISSIONS.DELETE);
+
   const loadWebhooks = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/webhooks');
+      const response = await apiClient.get('/webhooks');
       if (response.success && response.data) {
         setWebhooks((response.data as any).webhooks || []);
       }
@@ -569,7 +577,7 @@ export function WebhookManagement() {
 
   const handleCreateWebhook = async (webhookData: WebhookFormData) => {
     try {
-      const response = await apiClient.post('/api/webhooks', { webhookData });
+      const response = await apiClient.post('/webhooks', { webhookData });
       if (response.success) {
         await loadWebhooks();
       }
@@ -583,7 +591,7 @@ export function WebhookManagement() {
     if (!editingWebhook) return;
     
     try {
-      const response = await apiClient.put(`/api/webhooks/${editingWebhook.id}`, { webhookData });
+      const response = await apiClient.put(`/webhooks/${editingWebhook.id}`, { webhookData });
       if (response.success) {
         await loadWebhooks();
         setEditingWebhook(undefined);
@@ -600,7 +608,7 @@ export function WebhookManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/webhooks/${webhook.id}`);
+      const response = await apiClient.delete(`/webhooks/${webhook.id}`);
       if (response.success) {
         await loadWebhooks();
       }
@@ -612,7 +620,7 @@ export function WebhookManagement() {
   const handleTestWebhook = async (webhook: WebhookConfig) => {
     try {
       setTestingWebhook(webhook.id);
-      const response = await apiClient.post(`/api/webhooks/${webhook.id}/test`, {
+      const response = await apiClient.post(`/webhooks/${webhook.id}/test`, {
         eventType: 'system.test'
       });
       if (response.success) {
@@ -668,10 +676,12 @@ export function WebhookManagement() {
             Receive real-time notifications when events occur
           </p>
         </div>
-        <Button onClick={() => setShowWebhookModal(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Create Webhook
-        </Button>
+        {canCreateWebhook && (
+          <Button onClick={() => setShowWebhookModal(true)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Create Webhook
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -697,10 +707,12 @@ export function WebhookManagement() {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Create your first webhook to receive real-time notifications when events occur.
           </p>
-          <Button onClick={() => setShowWebhookModal(true)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create Webhook
-          </Button>
+          {canCreateWebhook && (
+            <Button onClick={() => setShowWebhookModal(true)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Webhook
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -777,23 +789,27 @@ export function WebhookManagement() {
                       >
                         <EyeIcon className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEditModal(webhook)}
-                        title="Edit webhook"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteWebhook(webhook)}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        title="Delete webhook"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
+                      {canEditWebhook && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditModal(webhook)}
+                          title="Edit webhook"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDeleteWebhook && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteWebhook(webhook)}
+                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          title="Delete webhook"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

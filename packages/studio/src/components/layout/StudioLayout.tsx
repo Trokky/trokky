@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { MainSidebar } from './MainSidebar';
 import { ContextSidebar } from './ContextSidebar';
-import { ContextSidebarProvider } from '@/contexts/ContextSidebarContext';
+import { ContextSidebarProvider, useContextSidebar } from '@/contexts/ContextSidebarContext';
 
 interface StudioLayoutProps {
   showSearch?: boolean;
@@ -11,13 +11,14 @@ interface StudioLayoutProps {
   showUserMenu?: boolean;
 }
 
-export function StudioLayout({
+function StudioLayoutInner({
   showSearch = true,
   showMedia = true,
   showUserMenu = true
 }: StudioLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const contextSidebar = useContextSidebar();
 
   const handleOpenMobileMenu = () => {
     setMobileMenuOpen(true);
@@ -36,8 +37,7 @@ export function StudioLayout({
   };
 
   return (
-    <ContextSidebarProvider>
-      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <Header
         onOpenMobileMenu={handleOpenMobileMenu}
@@ -53,15 +53,24 @@ export function StudioLayout({
           <MainSidebar />
         </div>
 
-        {/* Context sidebar - after main sidebar */}
-        <div className="flex">
-          <ContextSidebar />
-        </div>
+        {/* Context sidebar - left position */}
+        {contextSidebar.position === 'left' && (
+          <div className="flex">
+            <ContextSidebar position="left" />
+          </div>
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-auto bg-white dark:bg-gray-800">
           <Outlet />
         </main>
+
+        {/* Context sidebar - right position */}
+        {contextSidebar.position === 'right' && (
+          <div className="flex">
+            <ContextSidebar position="right" />
+          </div>
+        )}
       </div>
 
       {/* Mobile menu overlay */}
@@ -121,6 +130,13 @@ export function StudioLayout({
         </div>
       )}
       </div>
+  );
+}
+
+export function StudioLayout(props: StudioLayoutProps) {
+  return (
+    <ContextSidebarProvider>
+      <StudioLayoutInner {...props} />
     </ContextSidebarProvider>
   );
 }

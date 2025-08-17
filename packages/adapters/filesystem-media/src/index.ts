@@ -1,13 +1,13 @@
-export { FilesystemMediaAdapter } from './filesystem-media-adapter.js'
+export { FilesystemMediaAdapter } from './filesystem-media-adapter'
 export type { 
   FilesystemMediaAdapterConfig, 
   FileMetadata 
-} from './types.js'
+} from './types'
 
 // Auto-register adapter in global registry when imported
 import { registerAdapter } from '@trokky/core'
-import { FilesystemMediaAdapter } from './filesystem-media-adapter.js'
-import type { FilesystemMediaAdapterConfig } from './types.js'
+import { FilesystemMediaAdapter } from './filesystem-media-adapter'
+import type { FilesystemMediaAdapterConfig } from './types'
 
 registerAdapter({
   name: 'filesystem-media',

@@ -30,6 +30,27 @@ export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
   const options = textareaDefinition.options || {};
   const validation = textareaDefinition.validation || {};
 
+  // Read-only mode: render as display text
+  if (isReadonly && !isDisabled) {
+    const displayValue = (value as string) || '';
+    
+    // Handle empty values
+    if (!displayValue || displayValue.trim() === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2 min-h-[80px] flex items-start">
+          No value
+        </div>
+      );
+    }
+
+    // Display multiline text with preserved formatting
+    return (
+      <div className="text-gray-900 dark:text-gray-100 text-sm py-2 whitespace-pre-wrap border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-gray-50 dark:bg-gray-800 min-h-[80px]">
+        {displayValue}
+      </div>
+    );
+  }
+
   // Auto-resize functionality
   const adjustHeight = () => {
     const textarea = textareaRef.current;

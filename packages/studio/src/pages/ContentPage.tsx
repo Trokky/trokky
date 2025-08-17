@@ -10,13 +10,19 @@ import {
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { storage } from '@/utils/storage';
 import { useStructureItem } from '@/hooks/useStructure';
+import { useStudioContext } from '@/contexts/StudioContext';
+import { ContentContext } from '@/components/context/ContentContext';
+import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
 // Import view components
 import { ContentViewControls, type ViewType, type ViewConfig, type FilterConfig, type SortConfig } from '@/components/content/ContentViewControls';
 import { ListView, getDefaultColumns, type ListColumn } from '@/components/content/views/ListView';
+import { GridView } from '@/components/content/views/GridView';
+import { TableView } from '@/components/content/views/TableView';
 import { Pagination } from '@/components/content/Pagination';
 
 const logger = createStudioLogger('ContentPage');
@@ -40,9 +46,27 @@ export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
   const structureItem = useStructureItem(schemaName || '');
+  // Declarative context sidebar configuration for content page
+  const contextSidebar = useContextSidebar({
+    page: 'content',
+    title: 'Content Info',
+    defaultVisible: false,
+    defaultPosition: 'left'
+  });
+
+  useEffect(() => {
+    // Set content context sidebar content
+    contextSidebar.setContent(<ContentContext />);
+  }, [contextSidebar.setContent]);
+
 
   // Handle document editing
   if (documentId) {
+    // Prevent creation of new singleton documents only
+    if (documentId === 'new' && structureItem.item?.type === 'singleton') {
+      return <NoCreateRedirect schemaName={schemaName!} />;
+    }
+    
     return (
       <DocumentEditor 
         schemaName={schemaName!}
@@ -59,12 +83,12 @@ export function ContentPage() {
       const singleton = structureItem.item;
       const singletonDocumentId = singleton.documentId || schemaName;
       
-      // For singletons, redirect directly to edit the document
+      // For singletons, only view existing documents, don't auto-create
       return (
         <SingletonHandler
           schemaName={schemaName}
           documentId={singletonDocumentId}
-          autoCreate={singleton.options?.autoCreate}
+          autoCreate={false}
           onCancel={() => navigate('/content')}
         />
       );
@@ -80,6 +104,7 @@ export function ContentPage() {
 // Enhanced Content List Page Component
 function ContentListPage({ schemaName }: { schemaName: string }) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
   const structureItem = useStructureItem(schemaName);
   
   // State management
@@ -88,11 +113,35 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   
-  // View state
-  const [currentView, setCurrentView] = useState<ViewType>('list');
+  // View state with localStorage persistence
+  const [currentView, setCurrentView] = useState<ViewType>(() => 
+    storage.getContentView(schemaName, 'list') as ViewType
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
   const [currentSort, setCurrentSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
+  
+  // Column visibility state for table view - initialize with all columns visible by default
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    const saved = storage.getColumnVisibility(schemaName, {});
+    // Initialize any missing columns as visible
+    const defaultColumns = getDefaultColumns();
+    const initialized = { ...saved };
+    defaultColumns.forEach(col => {
+      if (initialized[col.key] === undefined) {
+        initialized[col.key] = true; // Default to visible
+      }
+    });
+    return initialized;
+  });
+  
+  // Grid and table settings (for future enhancement)
+  const [gridSettings] = useState(() => 
+    storage.getGridSettings(schemaName, { cardSize: 'medium', columnsPerRow: null })
+  );
+  const [tableSettings] = useState(() => 
+    storage.getTableSettings(schemaName, { density: 'comfortable', columnWidths: {} })
+  );
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -155,7 +204,16 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     try {
       switch (action) {
         case 'delete':
-          if (!confirm('Are you sure you want to delete this document?')) return;
+          const confirmed = await studioContext?.utils?.showConfirm?.(
+            'Are you sure you want to delete this document? This action cannot be undone.',
+            {
+              title: 'Delete Document',
+              confirmText: 'Delete',
+              cancelText: 'Cancel',
+              variant: 'danger'
+            }
+          );
+          if (!confirmed) return;
           await apiClient.deleteDocument(schemaName, documentId);
           logger.info('Document deleted', { schema: schemaName, id: documentId });
           await loadDocuments();
@@ -166,15 +224,29 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           const docResponse = await apiClient.getDocument(schemaName, documentId);
           if (docResponse.success && docResponse.data) {
             const originalDoc = docResponse.data;
-            const duplicateData = {
-              ...originalDoc,
-              title: `${originalDoc.title || 'Document'} (Copy)`,
-              slug: undefined,
-              _id: undefined,
-              id: undefined,
-              _createdAt: undefined,
-              _updatedAt: undefined
-            };
+            
+            // Clean up the document for duplication - remove system fields and problematic references
+            const duplicateData = { ...originalDoc };
+            
+            // Remove system fields
+            delete (duplicateData as any)._id;
+            delete (duplicateData as any).id;
+            delete (duplicateData as any)._createdAt;
+            delete (duplicateData as any)._updatedAt;
+            delete duplicateData._revision;
+            delete duplicateData._collection;
+            delete duplicateData._status;
+            
+            // Remove reference fields that might cause validation issues
+            delete (duplicateData as any).author;
+            delete (duplicateData as any).category;
+            
+            // Set as draft
+            duplicateData._state = 'draft';
+            duplicateData.published = false;
+            duplicateData.publishedAt = null;
+            duplicateData.title = `${originalDoc.title || 'Document'} (Copy)`;
+            duplicateData.slug = undefined;
             
             const createResponse = await apiClient.createDocument(schemaName, duplicateData);
             if (createResponse.success) {
@@ -220,9 +292,38 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     setCurrentSort({ field, direction });
   };
   
+  // Handle view change with persistence
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
+    storage.setContentView(schemaName, view);
+  };
+  
+  // Handle column visibility change with persistence
+  const handleColumnVisibilityChange = (columnKey: string, visible: boolean) => {
+    const newVisibility = { ...columnVisibility, [columnKey]: visible };
+    setColumnVisibility(newVisibility);
+    storage.setColumnVisibility(schemaName, newVisibility);
+  };
+  
+  // Handle grid settings change with persistence (future use)
+  // const handleGridSettingsChange = (newSettings: any) => {
+  //   const updatedSettings = { ...gridSettings, ...newSettings };
+  //   setGridSettings(updatedSettings);
+  //   storage.setGridSettings(schemaName, updatedSettings);
+  // };
+  
+  // Handle table settings change with persistence (future use)
+  // const handleTableSettingsChange = (newSettings: any) => {
+  //   const updatedSettings = { ...tableSettings, ...newSettings };
+  //   setTableSettings(updatedSettings);
+  //   storage.setTableSettings(schemaName, updatedSettings);
+  // };
+  
   // Get view configurations
   const viewConfigs: ViewConfig[] = [
-    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true }
+    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true },
+    { type: 'grid', title: 'Grid View', icon: DocumentTextIcon, enabled: true },
+    { type: 'table', title: 'Table View', icon: DocumentDuplicateIcon, enabled: true }
   ];
   
   const filterConfigs: FilterConfig[] = [
@@ -283,11 +384,19 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {structureItem?.item?.title || `${getSchemaDisplayName(schemaName)} Documents`}
             </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              {structureItem?.item?.type === 'singleton' 
+                ? 'View existing documents' 
+                : 'Manage your documents'}
+            </p>
           </div>
-          <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create {getSchemaDisplayName(schemaName)}
-          </Button>
+          {/* Create button - only for regular collections, not singletons */}
+          {structureItem?.item?.type !== 'singleton' && (
+            <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create {getSchemaDisplayName(schemaName)}
+            </Button>
+          )}
         </div>
       </div>
       
@@ -295,7 +404,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       <ContentViewControls
         availableViews={viewConfigs}
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={`Search ${schemaName}...`}
@@ -306,8 +415,6 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         availableSorts={sortConfigs}
         currentSort={currentSort}
         onSortChange={handleSort}
-        onCreateNew={() => navigate(`/content/${schemaName}/new`)}
-        createNewLabel={`Create ${getSchemaDisplayName(schemaName)}`}
         totalItems={totalItems}
         selectedItems={selectedItems.length}
         bulkActions={bulkActions}
@@ -316,7 +423,16 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           
           switch (actionId) {
             case 'delete':
-              if (!confirm(`Are you sure you want to delete ${selectedItems.length} documents?`)) return;
+              const confirmed = await studioContext?.utils?.showConfirm?.(
+                `Are you sure you want to delete ${selectedItems.length} document${selectedItems.length === 1 ? '' : 's'}? This action cannot be undone.`,
+                {
+                  title: 'Delete Documents',
+                  confirmText: 'Delete All',
+                  cancelText: 'Cancel',
+                  variant: 'danger'
+                }
+              );
+              if (!confirmed) return;
               await Promise.all(selectedItems.map(id => apiClient.deleteDocument(schemaName, id)));
               setSelectedItems([]);
               await loadDocuments();
@@ -328,19 +444,60 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       {/* Content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto p-6">
-          <ListView
-            documents={documents}
-            columns={columns as ListColumn[]}
-            schemaName={schemaName}
-            loading={loading}
-            selectedItems={selectedItems}
-            onItemSelect={handleItemSelect}
-            onSelectAll={handleSelectAll}
-            sortField={currentSort?.field}
-            sortDirection={currentSort?.direction}
-            onSort={handleSort}
-            onDocumentAction={handleDocumentAction}
-          />
+          {currentView === 'list' && (
+            <ListView
+              documents={documents}
+              columns={columns as ListColumn[]}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onSelectAll={handleSelectAll}
+              sortField={currentSort?.field}
+              sortDirection={currentSort?.direction}
+              onSort={handleSort}
+              onDocumentAction={handleDocumentAction}
+            />
+          )}
+          
+          {currentView === 'grid' && (
+            <GridView
+              documents={documents}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onDocumentAction={handleDocumentAction}
+              cardSize={(gridSettings?.cardSize as any) || 'medium'}
+              columnsPerRow={gridSettings?.columnsPerRow || undefined}
+            />
+          )}
+          
+          {currentView === 'table' && (
+            <TableView
+              documents={documents}
+              columns={columns.map(col => ({
+                key: col.key,
+                title: col.title,
+                sortable: col.sortable,
+                render: col.render,
+                visible: columnVisibility[col.key] === true, // Use explicit boolean from state
+                resizable: true,
+                minWidth: 100
+              }))}
+              schemaName={schemaName}
+              loading={loading}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              onSelectAll={handleSelectAll}
+              sortField={currentSort?.field}
+              sortDirection={currentSort?.direction}
+              onSort={handleSort}
+              onDocumentAction={handleDocumentAction}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
+              density={(tableSettings?.density as any) || 'comfortable'}
+            />
+          )}
         </div>
         
         {/* Pagination */}
@@ -397,7 +554,7 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       } else if (autoCreate) {
         await createSingletonDocument();
       } else {
-        setError(`Singleton document '${documentId}' not found and auto-creation is disabled.`);
+        setError(`Document '${documentId}' not found. Only existing documents can be viewed.`);
       }
     } catch (err) {
       logger.error('Failed to check singleton document', err);
@@ -405,7 +562,9 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       if (autoCreate && err instanceof ApiClientError && err.status === 404) {
         await createSingletonDocument();
       } else {
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load singleton document');
+        setError(err instanceof ApiClientError ? 
+          `Document not found. Only existing documents can be viewed.` : 
+          'Failed to load document');
       }
     } finally {
       setLoading(false);
@@ -449,14 +608,14 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
     return (
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <div className="text-red-500 mb-4">
+          <div className="text-amber-500 mb-4">
             <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
-            <h3 className="text-lg font-medium">Singleton Error</h3>
+            <h3 className="text-lg font-medium">Document Not Found</h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
           <div className="flex justify-center space-x-4">
             <Button onClick={checkSingletonDocument}>Try Again</Button>
-            <Button variant="outline" onClick={onCancel}>Back</Button>
+            <Button variant="outline" onClick={onCancel}>Back to Content</Button>
           </div>
         </div>
       </div>
@@ -619,22 +778,34 @@ function ContentOverview() {
               <div className="flex space-x-2">
                 <Button 
                   size="sm" 
-                  variant="outline"
                   onClick={() => navigate(`/content/${collection.name}`)}
                 >
                   View Documents
-                </Button>
-                <Button 
-                  size="sm"
-                  onClick={() => navigate(`/content/${collection.name}/new`)}
-                >
-                  <PlusIcon className="h-4 w-4 mr-1" />
-                  Create
                 </Button>
               </div>
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Component to handle redirecting from /new routes
+function NoCreateRedirect({ schemaName }: { schemaName: string }) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect immediately
+    navigate(`/content/${schemaName}`, { replace: true });
+  }, [navigate, schemaName]);
+
+  // Show a brief loading state
+  return (
+    <div className="p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">Redirecting...</p>
       </div>
     </div>
   );

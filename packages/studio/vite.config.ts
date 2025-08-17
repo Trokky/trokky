@@ -19,8 +19,6 @@ export default defineConfig({
     <script>
       window.TROKKY_CONFIG = {
         mode: 'development',
-        apiUrl: '/api',
-        apiBaseUrl: '/api',
         basePath: '',
         branding: {
           title: 'Trokky Studio (Dev)',
@@ -70,23 +68,8 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    proxy: {
-      // Auto-proxy API calls to demo backend during development
-      '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3000',
-        changeOrigin: true,
-        configure: (proxy, options) => {
-          // Log proxy requests for debugging
-          const targetUrl = process.env.VITE_API_URL || 'http://localhost:3000';
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log(`Proxying ${req.method} ${req.url} to backend at ${targetUrl}`);
-          });
-          proxy.on('error', (err, req, res) => {
-            console.log('Proxy error:', err.message);
-          });
-        }
-      }
-    }
+    // No proxy needed - we use absolute URLs with complete backend URL
+    // The API client now handles full URLs like http://localhost:3000/cms-api/auth/login
   },
   
   build: {

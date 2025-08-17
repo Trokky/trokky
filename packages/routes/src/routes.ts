@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, type SettingsConfig, type AuditContext, AUDIT_ACTOR_TYPES } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -65,6 +65,9 @@ export class TrokkyRoutes {
     this.addRoute('PUT', `${basePath}/collections/:collection/:id`, this.updateDocument.bind(this))
     this.addRoute('DELETE', `${basePath}/collections/:collection/:id`, this.deleteDocument.bind(this))
 
+    // Search routes
+    this.addRoute('GET', `${basePath}/search`, this.searchContent.bind(this))
+
     // Removed duplicate document routes - use /collections endpoints instead
 
     // Statistics routes
@@ -92,6 +95,7 @@ export class TrokkyRoutes {
     // Authentication routes (public)
     this.addRoute('POST', `${basePath}/auth/login`, this.login.bind(this))
     this.addRoute('POST', `${basePath}/auth/logout`, this.logout.bind(this))
+    this.addRoute('GET', `${basePath}/auth/me`, this.getMe.bind(this))
     this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
     this.addRoute('POST', `${basePath}/auth/refresh`, this.refreshToken.bind(this))
 
@@ -101,6 +105,11 @@ export class TrokkyRoutes {
     this.addRoute('GET', `${basePath}/tokens/:id`, this.getToken.bind(this))
     this.addRoute('PUT', `${basePath}/tokens/:id`, this.updateToken.bind(this))
     this.addRoute('DELETE', `${basePath}/tokens/:id`, this.deleteToken.bind(this))
+
+    // Audit log routes (admin/user - read only)
+    this.addRoute('GET', `${basePath}/audit-logs/documents/:documentId`, this.getDocumentAuditLogs.bind(this))
+    this.addRoute('GET', `${basePath}/audit-logs/collections/:collection`, this.getCollectionAuditLogs.bind(this))
+    this.addRoute('GET', `${basePath}/audit-logs/actors/:actorId`, this.getActorAuditLogs.bind(this))
 
     // Webhook management routes (admin only)
     this.addRoute('GET', `${basePath}/webhooks`, this.listWebhooks.bind(this))
@@ -117,6 +126,8 @@ export class TrokkyRoutes {
     // Configuration routes
     this.addRoute('GET', `${basePath}/config/structure`, this.getStructure.bind(this))
     this.addRoute('GET', `${basePath}/config/studio`, this.getStudioConfig.bind(this))
+    this.addRoute('GET', `${basePath}/config/settings`, this.getSettings.bind(this))
+    this.addRoute('PUT', `${basePath}/config/settings`, this.updateSettings.bind(this))
 
     // Slug validation routes
     this.addRoute('GET', `${basePath}/slugs/check-unique`, this.checkSlugUniqueness.bind(this))
@@ -421,9 +432,10 @@ export class TrokkyRoutes {
 
   private async listDocuments(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema read permissions
       await this.validateAuthentication(request)
       const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
       const { limit, offset, filter, sort, page } = request.query
 
       // Validate collection name
@@ -485,9 +497,20 @@ export class TrokkyRoutes {
 
   private async createDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema write permissions
       await this.validateAuthentication(request)
       const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'write')
+      
+      // Get current user for audit context
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
       
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
@@ -505,18 +528,41 @@ export class TrokkyRoutes {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentData(data)
 
-      const document = await this.core.saveDocument(collection, { ...data, id })
+      this.logger.debug('Creating document', { collection, data, id })
+      
+      // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
+      await this.validateSingletonCreation(collection, id)
+      
+      // Check validation before saving to get detailed error info
+      const validation = this.core.validateDocument(collection, { ...data, id })
+      if (!validation.valid) {
+        this.logger.error('Document validation failed', {
+          collection,
+          errors: validation.errors,
+          data: { ...data, id }
+        })
+        throw new Error(`Document validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`)
+      }
+      
+      const document = await this.core.saveDocument(collection, { ...data, id }, auditContext)
       return this.successResponse({ document }, 201)
     } catch (error) {
+      this.logger.error('Failed to create document', { 
+        collection: request.params.collection, 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        requestBody: request.body
+      })
       return this.errorResponse(error)
     }
   }
 
   private async getDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema read permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
 
       // Validate inputs
       SecurityValidator.validateCollectionName(collection)
@@ -542,9 +588,20 @@ export class TrokkyRoutes {
 
   private async updateDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema write permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'write')
+      
+      // Get current user for audit context
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
       
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
@@ -569,11 +626,11 @@ export class TrokkyRoutes {
         return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
       }
 
-      // Merge data (excluding system fields)
-      const { _id, _collection, _createdAt, _updatedAt, _revision, _status, ...existingData } = existingDoc
+      // Merge data (excluding system fields including audit fields)
+      const { _id, _collection, _createdAt, _updatedAt, _revision, _status, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
       const mergedData = { ...existingData, ...data }
 
-      const document = await this.core.saveDocument(collection, { ...mergedData, id })
+      const document = await this.core.saveDocument(collection, { ...mergedData, id }, auditContext)
       return this.successResponse({ document })
     } catch (error) {
       return this.errorResponse(error)
@@ -582,15 +639,26 @@ export class TrokkyRoutes {
 
   private async deleteDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema delete permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'delete')
 
       // Validate inputs
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentId(id)
 
-      await this.core.deleteDocument(collection, id)
+      // Get audit context from current user
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
+
+      await this.core.deleteDocument(collection, id, auditContext)
       return this.successResponse({ message: 'Document deleted successfully' })
     } catch (error) {
       return this.errorResponse(error)
@@ -636,6 +704,159 @@ export class TrokkyRoutes {
 
       return this.successResponse({ stats })
     } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async searchContent(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+      
+      // Parse query parameters from URL without relying on hardcoded base URL
+      const urlParts = request.url.split('?')
+      const searchParams = new URLSearchParams(urlParts[1] || '')
+      const query = searchParams.get('q')
+      const limit = parseInt(searchParams.get('limit') || '10', 10)
+      const offset = parseInt(searchParams.get('offset') || '0', 10)
+      
+      if (!query || query.length < 2) {
+        return this.errorResponse(new InvalidInputError('Search query must be at least 2 characters'))
+      }
+
+      this.logger.debug('Searching content', { query, limit, offset })
+
+      const results: any[] = []
+      const lowerQuery = query.toLowerCase()
+
+      this.logger.debug('Starting search operation')
+
+      // Get all schemas
+      const schemas = this.core.getAllSchemas()
+      this.logger.debug('Found schemas', { count: schemas.length, schemas: schemas.map(s => s.name) })
+      
+      // Search documents in each schema
+      for (const schema of schemas) {
+        try {
+          this.logger.debug('Searching schema', { schemaName: schema.name })
+          
+          // Get searchable fields for this schema
+          const searchableFields = this.getSearchableFields(schema)
+          this.logger.debug('Found searchable fields', { schema: schema.name, fields: searchableFields })
+          
+          // Get documents with limited fields to improve performance
+          const documents = await this.core.listDocuments(schema.name, { 
+            limit: limit * 2, // Get a bit more to ensure we have enough results after filtering
+            offset: 0 
+          })
+
+          for (const doc of documents) {
+            // Check if any searchable field matches
+            let matched = false
+            let matchedField = ''
+            let excerpt = ''
+
+            for (const field of searchableFields) {
+              const value = (doc as any)[field]
+              if (value && typeof value === 'string' && value.toLowerCase().includes(lowerQuery)) {
+                matched = true
+                matchedField = field
+                // Create excerpt around the match
+                const index = value.toLowerCase().indexOf(lowerQuery)
+                const start = Math.max(0, index - 75)
+                const end = Math.min(value.length, index + 75)
+                excerpt = value.substring(start, end)
+                if (start > 0) excerpt = '...' + excerpt
+                if (end < value.length) excerpt = excerpt + '...'
+                break
+              }
+            }
+
+            if (matched) {
+              results.push({
+                id: doc.id,
+                type: 'document',
+                collection: schema.name,
+                title: (doc as any).title || (doc as any).name || (doc as any).slug || 'Untitled',
+                url: `/content/${schema.name}/${doc.id}`,
+                excerpt: excerpt || '',
+                metadata: {
+                  schemaType: schema.title || schema.name,
+                  createdAt: doc._createdAt,
+                  updatedAt: doc._updatedAt,
+                  matchedField
+                }
+              })
+            }
+          }
+        } catch (schemaError) {
+          this.logger.warn('Failed to search schema', { schema: schema.name, error: schemaError })
+        }
+      }
+
+      // Search media files
+      try {
+        this.logger.debug('Starting media search')
+        const mediaFiles = await this.core.listMedia({ limit: limit * 2 })
+        this.logger.debug('Found media files', { count: mediaFiles.length })
+        
+        for (const file of mediaFiles) {
+          const title = file.filename || 'Untitled'
+          const description = (file.metadata as any)?.description || (file.metadata as any)?.alt || ''
+          
+          if (title.toLowerCase().includes(lowerQuery) || 
+              file.id.toLowerCase().includes(lowerQuery) ||
+              description.toLowerCase().includes(lowerQuery)) {
+            
+            results.push({
+              id: file.id,
+              type: 'media',
+              title,
+              url: `/media?file=${file.id}`,
+              excerpt: description || '',
+              metadata: {
+                contentType: file.contentType,
+                size: file.size,
+                createdAt: file._createdAt
+              }
+            })
+          }
+        }
+      } catch (mediaError) {
+        this.logger.error('Failed to search media', { 
+          error: mediaError instanceof Error ? mediaError.message : String(mediaError),
+          stack: mediaError instanceof Error ? mediaError.stack : undefined
+        })
+      }
+
+      // Sort by relevance (exact title matches first, then other matches)
+      results.sort((a, b) => {
+        const aExactTitle = a.title.toLowerCase() === lowerQuery
+        const bExactTitle = b.title.toLowerCase() === lowerQuery
+        if (aExactTitle && !bExactTitle) return -1
+        if (!aExactTitle && bExactTitle) return 1
+        
+        // Then by creation date (newest first)
+        const aDate = new Date(a.metadata.createdAt || 0)
+        const bDate = new Date(b.metadata.createdAt || 0)
+        return bDate.getTime() - aDate.getTime()
+      })
+
+      // Apply pagination
+      const paginatedResults = results.slice(offset, offset + limit)
+
+      return this.successResponse({
+        results: paginatedResults,
+        total: results.length,
+        query,
+        limit,
+        offset
+      })
+    } catch (error) {
+      this.logger.error('Search failed with error', { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
       return this.errorResponse(error)
     }
   }
@@ -1065,9 +1286,9 @@ export class TrokkyRoutes {
   // User management handlers
   private async listUsers(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateUserReadAccess(request)
 
       const { role, isActive, limit, offset } = request.query
 
@@ -1130,9 +1351,9 @@ export class TrokkyRoutes {
 
   private async getUser(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateUserReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)
@@ -1263,23 +1484,17 @@ export class TrokkyRoutes {
         throw new InvalidInputError('Request body is required', 'body')
       }
 
-      const body = request.body as Record<string, unknown>
-      if (!('credentials' in body) || !body.credentials || typeof body.credentials !== 'object') {
-        throw new InvalidInputError('Login credentials are required', 'credentials')
-      }
-
-      const { credentials } = body as unknown as LoginRequest
-      const { rememberMe } = body as { rememberMe?: boolean }
+      const body = request.body as LoginRequest
       
-      // Validate credentials format
-      if (!credentials.username || !credentials.password) {
-        throw new InvalidInputError('Username and password are required', 'credentials')
+      // Validate required fields
+      if (!body.username || !body.password) {
+        throw new InvalidInputError('Username and password are required', 'body')
       }
 
-      SecurityValidator.validateUsername(credentials.username)
+      SecurityValidator.validateUsername(body.username)
 
       // Use core engine's authentication method (handles all validation internally)
-      const authResult = await this.core.authenticateUser(credentials.username, credentials.password, { rememberMe })
+      const authResult = await this.core.authenticateUser(body.username, body.password, { rememberMe: body.rememberMe })
       if (!authResult) {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }
@@ -1330,6 +1545,32 @@ export class TrokkyRoutes {
     }
   }
 
+  private async getMe(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and get current user session
+      await this.validateAuthentication(request)
+      const sessionUser = await this.getCurrentUser(request)
+      
+      if (!sessionUser) {
+        throw new Error('User session not found')
+      }
+      
+      // Fetch full user data from storage using the user ID from session
+      const fullUser = await this.core.getUser(sessionUser.id)
+      
+      if (!fullUser) {
+        throw new Error('User not found in database')
+      }
+      
+      // Remove password hash from response for security
+      const { passwordHash, ...safeUser } = fullUser
+      
+      return this.successResponse(safeUser)
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
   private async validateToken(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate request body structure
@@ -1359,6 +1600,103 @@ export class TrokkyRoutes {
   }
 
   // Helper methods for user management
+  private async validateUserReadAccess(request: HttpRequest): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or users:read permission
+    const hasReadAccess = session.role === 'admin' || session.permissions.includes('users:read')
+    if (!hasReadAccess) {
+      throw new InvalidInputError('Insufficient permissions for user management operations', 'permissions')
+    }
+  }
+
+  private async validateWebhookReadAccess(request: HttpRequest): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or webhooks:read permission
+    const hasReadAccess = session.role === 'admin' || session.permissions.includes('webhooks:read')
+    if (!hasReadAccess) {
+      throw new InvalidInputError('Insufficient permissions for webhook management operations', 'permissions')
+    }
+  }
+
+  private async validateSchemaAccess(request: HttpRequest, schemaName: string, action: 'read' | 'write' | 'delete'): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or schema-specific permission
+    const permission = `${schemaName}:${action}`
+    const schemaWildcard = `${schemaName}:*`
+    const contentWildcard = 'content:*'
+    const globalPermission = `content:${action}` // Global content permissions
+    
+    const hasAccess = session.role === 'admin' || 
+                     session.permissions.includes(permission) ||
+                     session.permissions.includes(schemaWildcard) ||
+                     session.permissions.includes(contentWildcard) ||
+                     session.permissions.includes(globalPermission) // Add global content permission check
+    
+    if (!hasAccess) {
+      throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
+    }
+  }
+
   private async validateAdminAccess(request: HttpRequest): Promise<void> {
     const auth = this.config.authentication
     if (!auth?.enabled) {
@@ -1788,6 +2126,190 @@ export class TrokkyRoutes {
     }
   }
 
+  /**
+   * Get studio settings
+   */
+  private async getSettings(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      await this.validateAuthentication(request)
+
+      // Get settings from storage
+      const dataStorage = this.core.getDataStorageAdapter()
+      if (!dataStorage || !dataStorage.getSettings) {
+        // Return default settings if storage doesn't support settings
+        const defaultSettings = {
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const
+        }
+        
+        this.logger.debug('Returning default settings (storage not available)')
+        return this.successResponse({ settings: defaultSettings })
+      }
+
+      let settings = await dataStorage.getSettings()
+      
+      if (!settings) {
+        // Create default settings if none exist
+        const defaultSettings = {
+          id: 'studio-settings',
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const,
+          _createdAt: new Date().toISOString(),
+          _updatedAt: new Date().toISOString()
+        }
+        
+        // Save default settings if storage supports it
+        if (dataStorage.saveSettings) {
+          await dataStorage.saveSettings(defaultSettings)
+        }
+        settings = defaultSettings
+        
+        this.logger.info('Created default settings')
+      }
+
+      this.logger.debug('Serving settings', { 
+        publicUrl: settings.publicUrl,
+        studioTitle: settings.studioTitle 
+      })
+
+      return this.successResponse({ settings })
+    } catch (error) {
+      this.logger.error('Failed to get settings', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Update studio settings (admin only)
+   */
+  private async updateSettings(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and admin access
+      await this.validateAuthentication(request)
+      await this.validateAdminAccess(request)
+
+      // SECURITY: Validate request body
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as Record<string, unknown>
+      if (!('settings' in body) || !body.settings || typeof body.settings !== 'object') {
+        throw new InvalidInputError('Settings data is required', 'settings')
+      }
+
+      const newSettings = body.settings as Record<string, any>
+
+      // Get data storage
+      const dataStorage = this.core.getDataStorageAdapter()
+      if (!dataStorage || !dataStorage.getSettings || !dataStorage.saveSettings) {
+        return this.errorResponse(new Error('Settings storage not available'), 503)
+      }
+
+      // Get current settings
+      let currentSettings = await dataStorage.getSettings()
+      if (!currentSettings) {
+        // Create new settings if none exist
+        currentSettings = {
+          id: 'studio-settings',
+          publicUrl: 'http://localhost:3000',
+          studioTitle: 'Trokky Studio',
+          defaultTheme: 'system' as const,
+          _createdAt: new Date().toISOString()
+        }
+      }
+
+      // Get current user for audit trail
+      const currentUser = await this.getCurrentUser(request)
+      
+      // Merge settings with metadata, ensuring required fields are present
+      const updatedSettings: SettingsConfig = {
+        id: 'studio-settings', // Ensure ID is consistent
+        publicUrl: newSettings.publicUrl || currentSettings.publicUrl,
+        studioTitle: newSettings.studioTitle || currentSettings.studioTitle,
+        defaultTheme: newSettings.defaultTheme || currentSettings.defaultTheme,
+        _createdAt: currentSettings._createdAt,
+        _updatedAt: new Date().toISOString(),
+        _updatedBy: currentUser?.username || 'system'
+      }
+
+      // Save to storage
+      await dataStorage.saveSettings(updatedSettings)
+
+      // Get event bus for emitting events
+      const eventBus = this.core.getEventBus()
+      if (eventBus) {
+        // Emit general settings updated event
+        await eventBus.emitEvent({
+          type: 'settings.updated',
+          data: {
+            settings: updatedSettings,
+            changes: newSettings,
+            updatedBy: currentUser?.username || 'system'
+          },
+          source: 'api'
+        })
+
+        // Emit specific events for major changes
+        if (newSettings.publicUrl && newSettings.publicUrl !== currentSettings.publicUrl) {
+          await eventBus.emitEvent({
+            type: 'settings.publicUrl.changed',
+            data: {
+              oldUrl: currentSettings.publicUrl,
+              newUrl: newSettings.publicUrl,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+
+        if (newSettings.studioTitle && newSettings.studioTitle !== currentSettings.studioTitle) {
+          await eventBus.emitEvent({
+            type: 'settings.branding.changed',
+            data: {
+              oldTitle: currentSettings.studioTitle,
+              newTitle: newSettings.studioTitle,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+
+        if (newSettings.defaultTheme && newSettings.defaultTheme !== currentSettings.defaultTheme) {
+          await eventBus.emitEvent({
+            type: 'settings.theme.changed',
+            data: {
+              oldTheme: currentSettings.defaultTheme,
+              newTheme: newSettings.defaultTheme,
+              updatedBy: currentUser?.username || 'system'
+            },
+            source: 'api'
+          })
+        }
+      }
+
+      this.logger.info('Settings updated', {
+        changes: Object.keys(newSettings),
+        updatedBy: currentUser?.username || 'system',
+        eventsEmitted: !!eventBus
+      })
+
+      return this.successResponse({ 
+        settings: updatedSettings,
+        message: 'Settings updated successfully'
+      })
+    } catch (error) {
+      this.logger.error('Failed to update settings', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return this.errorResponse(error)
+    }
+  }
+
   private getCustomStructureFunction(): any {
     // In Express integration, custom structure is passed through config
     // This will be available via the core config or a separate structure registry
@@ -1985,7 +2507,13 @@ export class TrokkyRoutes {
           ...this.getDefaultSingletonData(collection, documentId)
         }
         
-        const document = await this.core.saveDocument(collection, singletonData)
+        // Auto-created singleton uses system context
+        const systemContext: AuditContext = {
+          userId: 'system',
+          userType: AUDIT_ACTOR_TYPES.SYSTEM,
+          username: 'system'
+        }
+        const document = await this.core.saveDocument(collection, singletonData, systemContext)
         this.logger.info('Singleton document auto-created', { collection, documentId })
         
         return document
@@ -1999,6 +2527,95 @@ export class TrokkyRoutes {
   }
 
   /**
+   * Validate singleton creation to prevent duplicates
+   */
+  private async validateSingletonCreation(collection: string, requestedId?: string): Promise<void> {
+    try {
+      // Get the custom structure function to check for singletons
+      const customStructure = this.getCustomStructureFunction()
+      
+      let isSingleton = false
+      let singletonDocumentId: string | null = null
+      
+      if (customStructure && typeof customStructure === 'function') {
+        // Execute structure function to get singleton info
+        const user = null // TODO: Get current user from auth context
+        const schemas = this.core.getAllSchemas()
+        const context = { user, schemas, core: this.core, config: this.config }
+        
+        const structure = await Promise.resolve(customStructure(context))
+        
+        // Find if this collection is a singleton
+        const findSingleton = (items: any[]): any => {
+          for (const item of items) {
+            if (item.type === 'singleton' && item.schemaType === collection) {
+              return item
+            } else if (item.items && Array.isArray(item.items)) {
+              const found = findSingleton(item.items)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        
+        const singletonConfig = findSingleton(structure.items || [])
+        if (singletonConfig) {
+          isSingleton = true
+          singletonDocumentId = singletonConfig.documentId || collection
+        }
+      } else {
+        // Fallback: check common singleton patterns
+        const singletonPatterns = [
+          { collection: 'homePage', documentId: 'home' },
+          { collection: 'settings', documentId: 'site-settings' },
+          { collection: 'config', documentId: 'main' },
+          { collection: 'siteSettings', documentId: 'main' }
+        ]
+        
+        const pattern = singletonPatterns.find(p => p.collection === collection)
+        if (pattern) {
+          isSingleton = true
+          singletonDocumentId = pattern.documentId
+        }
+      }
+      
+      if (isSingleton && singletonDocumentId) {
+        // Check if a singleton document already exists for this collection
+        const existingDocuments = await this.core.listDocuments(collection, { limit: 1 })
+        
+        if (existingDocuments && existingDocuments.length > 0) {
+          this.logger.warn('Attempted to create duplicate singleton document', {
+            collection,
+            requestedId,
+            singletonDocumentId,
+            existingDocument: existingDocuments[0].id || existingDocuments[0]._id
+          })
+          
+          throw new InvalidInputError(
+            `Singleton document already exists for collection '${collection}'. Only one document is allowed.`,
+            'singleton_duplicate'
+          )
+        }
+      }
+    } catch (error) {
+      // Re-throw InvalidInputError as-is, wrap other errors
+      if (error instanceof InvalidInputError) {
+        throw error
+      }
+      
+      this.logger.error('Failed to validate singleton creation', { 
+        collection, 
+        requestedId, 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      
+      // Don't fail the creation if validation fails, just log the error
+      // This ensures backward compatibility
+      return
+    }
+  }
+
+  /**
    * Get default data for specific singleton types
    */
   private getDefaultSingletonData(collection: string, documentId: string): Record<string, any> {
@@ -2007,6 +2624,7 @@ export class TrokkyRoutes {
         return {
           title: 'Home Page',
           description: 'Welcome to our website',
+          content: '<p>Welcome to our website! This is the homepage content.</p>',
           slug: 'home'
         }
       case 'settings':
@@ -2029,9 +2647,9 @@ export class TrokkyRoutes {
    */
   private async listWebhooks(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { active, limit, offset } = request.query
 
@@ -2163,9 +2781,9 @@ export class TrokkyRoutes {
    */
   private async getWebhook(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)
@@ -2285,9 +2903,9 @@ export class TrokkyRoutes {
    */
   private async getWebhookDeliveries(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and admin privileges
+      // SECURITY: Validate authentication and read permissions
       await this.validateAuthentication(request)
-      await this.validateAdminAccess(request)
+      await this.validateWebhookReadAccess(request)
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)
@@ -2395,6 +3013,136 @@ export class TrokkyRoutes {
         eventId,
         eventType: testEvent.type,
         webhookUrl: webhook.url
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // ==========================================================================
+  // AUDIT LOG ROUTES
+  // ==========================================================================
+
+  /**
+   * Get audit logs for a specific document
+   */
+  private async getDocumentAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and basic read permissions
+      await this.validateAuthentication(request)
+      const currentUser = await this.getCurrentUser(request)
+      
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const { documentId } = request.params
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // Validate inputs
+      SecurityValidator.validateDocumentId(documentId)
+
+      const auditLogs = await this.core.getDocumentAuditLogs(documentId, { limit, offset })
+
+      this.logger.info('Document audit logs retrieved', { 
+        documentId, 
+        userId: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get audit logs for a collection
+   */
+  private async getCollectionAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and schema read permissions
+      await this.validateAuthentication(request)
+      const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
+
+      const currentUser = await this.getCurrentUser(request)
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // Validate inputs
+      SecurityValidator.validateCollectionName(collection)
+
+      const auditLogs = await this.core.getCollectionAuditLogs(collection, { limit, offset })
+
+      this.logger.info('Collection audit logs retrieved', { 
+        collection, 
+        userId: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get audit logs for a specific actor (user/api/system)
+   */
+  private async getActorAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication
+      await this.validateAuthentication(request)
+      const currentUser = await this.getCurrentUser(request)
+      
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const { actorId } = request.params
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // SECURITY: Users can only view their own audit logs unless they're admin
+      if (actorId !== currentUser.id && currentUser.role !== 'admin') {
+        return this.errorResponse(new Error('Forbidden: Can only view your own audit logs'), 403)
+      }
+
+      const auditLogs = await this.core.getActorAuditLogs(actorId, { limit, offset })
+
+      this.logger.info('Actor audit logs retrieved', { 
+        actorId, 
+        requestedBy: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
       })
     } catch (error) {
       return this.errorResponse(error)

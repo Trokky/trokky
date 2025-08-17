@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStructureItem } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
+import { useApiClient } from '@/hooks/useApiClient';
 import { cn } from '@/utils/cn';
 
 interface ContextWidget {
@@ -467,6 +468,7 @@ function QuickActionsWidget({ widget }: { widget: ContextWidget }) {
 // Recent Documents Widget
 function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
   const navigate = useNavigate();
+  const client = useApiClient();
 
   if (loading) {
     return (
@@ -518,7 +520,7 @@ function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
               {/* Thumbnail */}
               {doc.featuredImage && (() => {
                 const imageRef = doc.featuredImage.asset?._ref || doc.featuredImage._ref;
-                const imageUrl = `/api/media/${imageRef}/variants/thumbnail`;
+                const imageUrl = client.getMediaUrl(imageRef, 'thumbnail');
                 return (
                 <div className="flex-shrink-0 w-10 h-10 rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
                   <img

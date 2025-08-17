@@ -12,12 +12,14 @@ interface ContextSidebarProps {
   defaultWidth?: number;
   minWidth?: number;
   maxWidth?: number;
+  position?: 'left' | 'right';
 }
 
 export function ContextSidebar({
   defaultWidth = 256,
   minWidth = 200,
-  maxWidth = 500
+  maxWidth = 500,
+  position = 'left'
 }: ContextSidebarProps) {
   const location = useLocation();
   const contextAPI = useContextSidebar();
@@ -37,7 +39,10 @@ export function ContextSidebar({
     
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - startX;
-      const newWidth = startWidth + deltaX;
+      // For right sidebar, reverse the delta calculation
+      const newWidth = position === 'right' 
+        ? startWidth - deltaX 
+        : startWidth + deltaX;
       
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         contextAPI.setWidth(newWidth);
@@ -65,39 +70,13 @@ export function ContextSidebar({
   };
 
   const getContextContent = () => {
-    // If custom content is set via API, use that instead
+    // Only show content if explicitly set via API
     if (contextAPI.content) {
       return contextAPI.content;
     }
     
-    // Otherwise, use route-based content (default behavior)
-    const path = location.pathname;
-    
-    if (path === '/') {
-      return <DashboardContext />;
-    }
-    
-    if (path.startsWith('/content')) {
-      return <ContentContext />;
-    }
-    
-    if (path.startsWith('/media')) {
-      return <MediaContext />;
-    }
-    
-    if (path.startsWith('/users')) {
-      return <UsersContext />;
-    }
-    
-    if (path.startsWith('/settings')) {
-      return <SettingsContext />;
-    }
-    
-    if (path.startsWith('/fields-demo')) {
-      return <FieldsDemoContext />;
-    }
-    
-    return <DefaultContext />;
+    // By default, show no content (empty sidebar)
+    return null;
   };
 
   // Hide the entire sidebar if not visible
@@ -107,15 +86,38 @@ export function ContextSidebar({
 
   if (isCollapsed) {
     return (
-      <div className="w-12 h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-        <div className="p-2">
+      <div className={cn(
+        "w-12 h-full bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 flex flex-col",
+        position === 'left' ? 'border-r' : 'border-l'
+      )}>
+        {/* Expand button */}
+        <div className="p-2 flex-shrink-0">
           <button
             onClick={toggleCollapsed}
             className="w-8 h-8 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 flex items-center justify-center"
             title="Expand context sidebar"
           >
-            <ChevronRightIcon className="h-4 w-4" />
+            {position === 'left' ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <ChevronLeftIcon className="h-4 w-4" />
+            )}
           </button>
+        </div>
+        
+        {/* Vertical title */}
+        <div className="flex-1 flex items-center justify-center py-4">
+          <div
+            className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap"
+            style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              transform: 'rotate(180deg)'
+            }}
+            title={contextAPI.title}
+          >
+            {contextAPI.title}
+          </div>
         </div>
       </div>
     );
@@ -124,7 +126,8 @@ export function ContextSidebar({
   return (
     <div 
       className={cn(
-        'h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative',
+        'h-full bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 flex flex-col relative',
+        position === 'left' ? 'border-r' : 'border-l',
         isResizing && 'select-none'
       )}
       style={{ width: `${width}px` }}
@@ -132,14 +135,18 @@ export function ContextSidebar({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <h2 className="text-sm font-medium text-gray-900 dark:text-white">
-          Context
+          {contextAPI.title}
         </h2>
         <button
           onClick={toggleCollapsed}
           className="p-1 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
           title="Collapse context sidebar"
         >
-          <ChevronLeftIcon className="h-4 w-4" />
+          {position === 'left' ? (
+            <ChevronLeftIcon className="h-4 w-4" />
+          ) : (
+            <ChevronRightIcon className="h-4 w-4" />
+          )}
         </button>
       </div>
 
@@ -150,7 +157,10 @@ export function ContextSidebar({
 
       {/* Resize handle */}
       <div
-        className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 hover:w-1.5 transition-all duration-150"
+        className={cn(
+          "absolute top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 hover:w-1.5 transition-all duration-150",
+          position === 'left' ? 'right-0' : 'left-0'
+        )}
         onMouseDown={handleMouseDown}
         title="Drag to resize sidebar"
       />
@@ -274,7 +284,7 @@ function UsersContext() {
 
   const loadUserStats = async () => {
     try {
-      const response = await apiClient.get('/api/users');
+      const response = await apiClient.get('/users');
       if (response.success && response.data && (response.data as any).users) {
         const users = (response.data as any).users;
         

@@ -118,5 +118,9 @@ export interface DocumentFile {
     updatedAt: Date
     revision: number
     status?: 'draft' | 'published'
+    createdBy?: string
+    updatedBy?: string
+    createdByType?: string
+    updatedByType?: string
   }
 }

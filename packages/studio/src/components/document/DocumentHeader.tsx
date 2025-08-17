@@ -23,6 +23,7 @@ export function DocumentHeader() {
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
+    isReadOnly,
     saving,
     onStateChange,
     onModeChange,
@@ -66,8 +67,13 @@ export function DocumentHeader() {
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             {getDocumentTitle()}
           </h1>
-          {(hasUnsavedChanges || hasValidationErrors) && (
+          {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
             <div className="flex items-center space-x-2 mt-0.5">
+              {isReadOnly && (
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  • Read only mode
+                </span>
+              )}
               {hasUnsavedChanges && (
                 <span className="text-xs text-amber-600 dark:text-amber-400">
                   • Unsaved changes
@@ -166,10 +172,11 @@ export function DocumentHeader() {
               <Button
                 onClick={onSave}
                 loading={saving}
-                disabled={saving || !hasUnsavedChanges || hasValidationErrors}
+                disabled={isReadOnly || saving || !hasUnsavedChanges || hasValidationErrors}
+                title={isReadOnly ? "You don't have permission to edit this document" : undefined}
               >
                 <CloudArrowUpIcon className="h-4 w-4 mr-1.5" />
-                {isNewDocument ? 'Create' : 'Save'}
+                {isReadOnly ? 'Read Only' : (isNewDocument ? 'Create' : 'Save')}
               </Button>
             </div>
           </div>

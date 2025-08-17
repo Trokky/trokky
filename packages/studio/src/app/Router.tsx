@@ -46,7 +46,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'content/:schemaName/:documentId',
-        element: <DocumentEditorPage />
+        element: <ContentPage />
       },
       {
         path: 'media',

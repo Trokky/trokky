@@ -24,6 +24,18 @@ export interface FilesystemDataAdapterConfig {
   webhooksDir?: string
 
   /**
+   * Base directory for settings storage (system entities)
+   * @default './settings'
+   */
+  settingsDir?: string
+
+  /**
+   * Base directory for audit log storage (system entities)
+   * @default './audit-logs'
+   */
+  auditLogsDir?: string
+
+  /**
    * Whether to create directories if they don't exist
    * @default true
    */
@@ -75,6 +87,10 @@ export interface DocumentFile {
     updatedAt: Date
     revision: number
     status?: 'draft' | 'published'
+    createdBy?: string
+    updatedBy?: string
+    createdByType?: import('@trokky/core').AuditActorType
+    updatedByType?: import('@trokky/core').AuditActorType
   }
 }
 
@@ -108,4 +124,33 @@ export interface AppTokenFile {
   expiresAt?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface AuditLogFile {
+  id: string
+  documentId: string
+  collection: string
+  operation: import('@trokky/core').AuditOperation
+  
+  // Actor information
+  actorId: string
+  actorType: import('@trokky/core').AuditActorType
+  actorUsername?: string
+  
+  // Change details
+  changes?: {
+    before?: Record<string, unknown>
+    after?: Record<string, unknown>
+    fields?: string[]
+  }
+  
+  // Metadata
+  timestamp: string // ISO string for JSON storage
+  revision: number
+  ipAddress?: string
+  userAgent?: string
+  sessionId?: string
+  
+  // Additional context
+  metadata?: Record<string, unknown>
 }

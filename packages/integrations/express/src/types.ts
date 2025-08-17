@@ -119,4 +119,13 @@ export interface ExpressIntegration {
     apiPath?: string
     studioPath?: string
   }) => void
+  
+  /** Get the currently mounted API path */
+  getMountedApiPath: () => string
+  
+  /** Get the currently mounted Studio path */
+  getMountedStudioPath: () => string
+  
+  /** Get both mounted paths */
+  getMountedPaths: () => { apiPath: string; studioPath: string }
 }

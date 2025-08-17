@@ -12,7 +12,35 @@ import type { EmailFieldDefinition } from './definition.js';
 type EmailFieldComponentProps = FieldComponentProps;
 
 export function EmailFieldComponent(props: EmailFieldComponentProps) {
-  const { definition } = props;
+  const { definition, value, isReadonly, isDisabled } = props;
+  
+  // Read-only mode: render as display text with email link
+  if (isReadonly && !isDisabled) {
+    const displayValue = (value as string) || '';
+    
+    // Handle empty values
+    if (!displayValue || displayValue.trim() === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
+          No value
+        </div>
+      );
+    }
+
+    // Display as clickable email link
+    return (
+      <div className="py-2">
+        <a 
+          href={`mailto:${displayValue}`}
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline text-sm"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {displayValue}
+        </a>
+      </div>
+    );
+  }
   
   // Ensure email-specific properties are set
   const emailDefinition = definition as EmailFieldDefinition;

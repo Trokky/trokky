@@ -1,4 +1,4 @@
-import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition.js';
+import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition';
 
 export interface RichTextValidation extends BaseValidation {
   minLength?: number;
@@ -11,22 +11,32 @@ export interface RichTextValidation extends BaseValidation {
 }
 
 export interface RichTextFieldOptions extends BaseFieldOptions {
-  toolbar?: Array<string | ToolbarGroup>;
-  spellCheck?: boolean;
+  /** Toolbar items to show */
+  toolbar?: string[];
+  /** Heading levels to allow (e.g., [1, 2, 3] for H1, H2, H3) */
+  headingLevels?: number[];
+  /** Editor theme */
   theme?: 'light' | 'dark' | 'auto';
-  markdownShortcuts?: boolean;
-  autoSave?: number;
+  /** Enable spell check */
+  spellCheck?: boolean;
+  /** Show content statistics */
+  showStats?: boolean;
   showCharacterCount?: boolean;
   showWordCount?: boolean;
   showReadTime?: boolean;
+  /** Enable media uploads */
   enableMediaUpload?: boolean;
-  enableLinkEditing?: boolean;
-  enableTables?: boolean;
-  enableCodeHighlighting?: boolean;
+  /** Enable full-screen mode */
+  enableFullscreen?: boolean;
+  /** Editor height constraints */
   maxHeight?: string;
   minHeight?: string;
-  enableFullscreen?: boolean;
+  /** Custom CSS classes */
   editorClasses?: string;
+  /** Placeholder text */
+  placeholder?: string;
+  /** Paste security configuration */
+  pasteSecurity?: PasteSecurityConfig;
 }
 
 export interface ToolbarGroup {
@@ -34,10 +44,13 @@ export interface ToolbarGroup {
   items: string[];
 }
 
+// Simple rich text content (just HTML)
 export interface RichTextContent {
-  html?: string;
-  text?: string;
-  blocks?: RichTextBlock[];
+  /** HTML content */
+  html: string;
+  /** Plain text content (auto-generated) */
+  text: string;
+  /** Content metadata */
   metadata?: {
     wordCount?: number;
     characterCount?: number;
@@ -46,19 +59,6 @@ export interface RichTextContent {
   };
 }
 
-export interface RichTextBlock {
-  type: 'paragraph' | 'heading' | 'list' | 'quote' | 'code' | 'image' | 'video' | 'divider';
-  content?: string;
-  attrs?: Record<string, any>;
-  children?: RichTextBlock[];
-}
-
-export interface RichTextFieldDefinition extends BaseFieldDefinition {
-  type: 'richtext';
-  validation?: RichTextValidation;
-  options?: RichTextFieldOptions;
-  default?: string | RichTextContent;
-}
 
 export const RICHTEXT_FIELD_DEFAULTS = {
   validation: {
@@ -82,37 +82,68 @@ export const RICHTEXT_FIELD_DEFAULTS = {
       '|',
       'undo', 'redo'
     ],
+    theme: 'auto',
     spellCheck: true,
-    theme: 'light',
-    markdownShortcuts: true,
-    autoSave: 5000,
     showCharacterCount: true,
     showWordCount: true,
     showReadTime: false,
-    enableMediaUpload: true,
-    enableLinkEditing: true,
-    enableTables: false,
-    enableCodeHighlighting: true,
+    enableFullscreen: true,
     minHeight: '200px',
     maxHeight: '600px',
-    enableFullscreen: true,
-    editorClasses: ''
+    editorClasses: '',
+    pasteSecurity: {
+      mode: 'safe',
+      maxPasteLength: 10000,
+      allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'pre'],
+      allowedAttributes: {
+        'a': ['href', 'title', 'target', 'rel', 'class'],
+        'table': ['class'],
+        'th': ['colspan', 'rowspan', 'class'],
+        'td': ['colspan', 'rowspan', 'class'],
+        'tr': ['class'],
+        'thead': ['class'],
+        'tbody': ['class'],
+        'pre': ['class'],
+        'code': ['class']
+      },
+      linkPolicy: 'sanitize',
+      allowedDomains: [],
+      imagePolicy: 'strip',
+      showSanitizationWarning: true,
+      stripFormatting: false
+    }
   } as RichTextFieldOptions,
   
-  default: '' as string
+  default: ''
 };
 
-export interface RichTextOperations {
-  insertText: (text: string) => void;
-  insertHTML: (html: string) => void;
-  insertMedia: (url: string, type: 'image' | 'video', alt?: string) => void;
-  formatText: (format: string, value?: any) => void;
-  toggleFormat: (format: string) => void;
-  getHTML: () => string;
-  getText: () => string;
-  getStats: () => { words: number; characters: number; readTime: number };
-  focus: () => void;
-  clear: () => void;
-  undo: () => void;
-  redo: () => void;
+// Simple rich text field interface (HTML-based)
+export interface RichTextFieldDefinition extends BaseFieldDefinition {
+  type: 'richtext';
+  validation?: RichTextValidation;
+  options?: RichTextFieldOptions;
+  default?: string; // Simple HTML string for now
 }
+
+// Paste security configuration
+export interface PasteSecurityConfig {
+  /** Security mode: strict = text only, safe = basic HTML, permissive = advanced HTML */
+  mode?: 'strict' | 'safe' | 'permissive';
+  /** Maximum length of pasted content */
+  maxPasteLength?: number;
+  /** Allowed HTML tags (safe/permissive modes) */
+  allowedTags?: string[];
+  /** Allowed HTML attributes per tag */
+  allowedAttributes?: Record<string, string[]>;
+  /** How to handle links: strip, sanitize, validate */
+  linkPolicy?: 'strip' | 'sanitize' | 'validate';
+  /** Allowed link domains (validate mode) */
+  allowedDomains?: string[];
+  /** How to handle images: strip, proxy, allow */
+  imagePolicy?: 'strip' | 'proxy' | 'allow';
+  /** Show warning when content is sanitized */
+  showSanitizationWarning?: boolean;
+  /** Strip all formatting from pasted content */
+  stripFormatting?: boolean;
+}
+

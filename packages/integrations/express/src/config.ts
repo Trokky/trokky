@@ -20,6 +20,9 @@ export interface StorageConfig {
       contentDir?: string
       usersDir?: string
       tokensDir?: string
+      webhooksDir?: string
+      settingsDir?: string
+      auditLogsDir?: string
       createDirs?: boolean
       prettyJson?: boolean
       jsonSpaces?: number

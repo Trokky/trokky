@@ -10,6 +10,9 @@ export { DocumentStates, createCustomStateSystem } from './DocumentStates';
 export { DocumentHeader } from './DocumentHeader';
 export { DocumentForm } from './DocumentForm';
 export { DocumentSidebar } from './DocumentSidebar';
+export { DocumentHistoryPanel } from './DocumentHistoryPanel';
+export { AuditLogEntry } from './AuditLogEntry';
+export { ChangesDiff } from './ChangesDiff';
 
 export type { DocumentEditorProps } from './DocumentEditor';
 export type { DocumentEditorContextType } from './DocumentEditorContext';

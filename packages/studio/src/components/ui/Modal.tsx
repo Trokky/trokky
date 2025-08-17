@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 
@@ -19,6 +19,20 @@ export function Modal({
   children,
   closeOnOverlayClick = true
 }: ModalProps) {
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const sizeClasses = {
@@ -37,16 +51,17 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop with click handler */}
       <div 
-        className="flex min-h-screen items-center justify-center p-4"
+        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
         onClick={handleOverlayClick}
-      >
-        {/* Backdrop */}
-        <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
-        
+      />
+      
+      {/* Modal container - no click handler */}
+      <div className="flex min-h-screen items-center justify-center p-4 pointer-events-none">
         {/* Modal */}
         <div className={cn(
-          'relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full',
+          'relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full pointer-events-auto',
           'animate-in fade-in slide-in-from-bottom duration-200',
           sizeClasses[size]
         )}>

@@ -107,8 +107,27 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   }, []);
 
   // Confirm dialog
-  const showConfirm = useCallback(async (message: string): Promise<boolean> => {
-    return window.confirm(message);
+  const showConfirm = useCallback(async (
+    message: string, 
+    options?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      variant?: 'default' | 'danger';
+    }
+  ): Promise<boolean> => {
+    return new Promise((resolve) => {
+      window.dispatchEvent(new CustomEvent('studio:confirm', {
+        detail: { 
+          message, 
+          title: options?.title,
+          confirmText: options?.confirmText,
+          cancelText: options?.cancelText,
+          variant: options?.variant,
+          resolve 
+        }
+      }));
+    });
   }, []);
 
   // Modal system (simplified - could be enhanced with a proper modal library)
@@ -158,9 +177,18 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
           const user = localStorage.getItem('currentUser');
           return user ? JSON.parse(user) : null;
         },
-        hasPermission: () => {
-          // Simple permission check - in production you'd integrate with auth system
-          return true; // For demo, allow all permissions
+        hasPermission: (permission: string) => {
+          // Get current user and check permissions properly
+          const user = localStorage.getItem('currentUser');
+          if (!user) return false;
+          
+          const userData = JSON.parse(user);
+          
+          // Admins have all permissions
+          if (userData.role === 'admin') return true;
+          
+          // Check if user has the specific permission
+          return userData.permissions?.includes(permission) || false;
         },
         getAccessToken: () => {
           return localStorage.getItem('accessToken');

@@ -18,6 +18,8 @@ const distDir = join(studioDir, 'dist')
 export interface StudioConfig {
   mode: 'production'
   apiBasePath: string
+  basePath?: string    // Base path for routing (e.g., '/studio')
+  backendUrl?: string  // Full backend URL for integrated deployments
   schemas: any[]
   branding?: {
     title?: string
@@ -41,15 +43,63 @@ export function getStudioHTML(config: StudioConfig, studioPath: string): string 
     
     let html = readFileSync(htmlPath, 'utf-8')
     
-    // Replace any existing config with our config
+    // Replace any existing config with our config (handle multi-line objects)
     html = html.replace(
-      /window\.TROKKY_CONFIG\s*=\s*{[^}]*};?/,
-      `window.TROKKY_CONFIG = ${JSON.stringify(config)};`
+      /window\.TROKKY_CONFIG\s*=\s*{[\s\S]*?};/,
+      `window.TROKKY_CONFIG = ${JSON.stringify(config)};
+      
+      // TEMPORARY FIX: Override API client path building for dynamic API paths
+      window.TROKKY_API_PATH_FIX = function() {
+        console.log('🔧 Applying temporary API path fix...');
+        
+        // Wait for the API client to be available
+        const checkApiClient = setInterval(() => {
+          if (window.TrokkyApiClient) {
+            console.log('📡 Found TrokkyApiClient, applying patch...');
+            clearInterval(checkApiClient);
+            
+            // Store original post method
+            const originalPost = window.TrokkyApiClient.post;
+            
+            // Override post method to handle dynamic API paths
+            window.TrokkyApiClient.post = function(endpoint, data) {
+              console.log('🔄 POST intercepted:', { endpoint, apiBasePath: '${config.apiBasePath}' });
+              
+              // Replace /api with the correct API base path
+              if (endpoint.startsWith('/api')) {
+                const newEndpoint = endpoint.replace('/api', '${config.apiBasePath}');
+                console.log('🚀 Path redirected:', { from: endpoint, to: newEndpoint });
+                endpoint = newEndpoint;
+              }
+              
+              return originalPost.call(this, endpoint, data);
+            };
+            
+            console.log('✅ API path fix applied successfully');
+          }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkApiClient);
+          console.log('⏰ API client patch timeout - client not found');
+        }, 5000);
+      };
+      
+      // Apply the fix after DOM loads
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', window.TROKKY_API_PATH_FIX);
+      } else {
+        window.TROKKY_API_PATH_FIX();
+      }`
     )
     
     // Update asset paths to use our Studio route
     html = html.replace(/src="\/assets\//g, `src="${studioPath}/assets/`)
     html = html.replace(/href="\/assets\//g, `href="${studioPath}/assets/`)
+    
+    // Remove favicon reference since we don't have the icon
+    html = html.replace(/<link rel="icon"[^>]*>/g, '')
     
     // Update title if provided
     if (config.branding?.title) {

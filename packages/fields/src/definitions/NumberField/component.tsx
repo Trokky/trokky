@@ -8,7 +8,7 @@ import { formatNumber, parseFormattedNumber, cleanNumberString } from './validat
 type NumberFieldComponentProps = FieldComponentProps;
 
 export function NumberFieldComponent(props: NumberFieldComponentProps) {
-  const { definition, value, onChange } = props;
+  const { definition, value, onChange, isReadonly, isDisabled } = props;
   const [displayValue, setDisplayValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   
@@ -17,6 +17,37 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
   const showSpinButtons = numberDefinition.options?.showSpinButtons !== false; // Default true
   const autoFormat = numberDefinition.options?.autoFormat !== false; // Default true
   const format = numberDefinition.options?.format || 'decimal';
+
+  // Read-only mode: render as display text
+  if (isReadonly && !isDisabled) {
+    const numValue = typeof value === 'number' ? value : parseFormattedNumber(String(value || ''), numberDefinition);
+    
+    // Handle empty values
+    if (value === null || value === undefined || value === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
+          No value
+        </div>
+      );
+    }
+
+    // Display formatted number
+    if (numValue !== null && isFinite(numValue)) {
+      const formattedValue = autoFormat ? formatNumber(numValue, numberDefinition) : numValue.toString();
+      return (
+        <div className="text-gray-900 dark:text-gray-100 text-sm py-2 font-mono">
+          {formattedValue}
+        </div>
+      );
+    } else {
+      // Display raw value if it can't be parsed as a number
+      return (
+        <div className="text-gray-500 dark:text-gray-400 text-sm py-2 font-mono">
+          {String(value)}
+        </div>
+      );
+    }
+  }
   
   // Update display value when prop value changes
   useEffect(() => {

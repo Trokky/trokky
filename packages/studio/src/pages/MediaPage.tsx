@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { 
@@ -27,6 +28,8 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useApiClient } from '@/hooks/useApiClient';
 import { createStudioLogger } from '@/utils/logger';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MEDIA_PERMISSIONS } from '@/constants/permissions';
 
 interface MediaFile {
   id: string;
@@ -65,7 +68,13 @@ interface MediaTypeInfo {
 }
 
 export function MediaPage() {
-  const contextSidebar = useContextSidebar();
+  // Declarative context sidebar configuration for media page
+  const contextSidebar = useContextSidebar({
+    page: 'media',
+    title: 'Media Library',
+    defaultVisible: false,
+    defaultPosition: 'left'
+  });
   const studioContext = useStudioContext();
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MediaFile[]>([]);
@@ -89,12 +98,17 @@ export function MediaPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
-  const [hasPermission] = useState(true);
+  const { hasPermission } = usePermissions();
+  const canRead = hasPermission(MEDIA_PERMISSIONS.READ);
+  const canUpload = hasPermission(MEDIA_PERMISSIONS.UPLOAD);
+  const canEdit = hasPermission(MEDIA_PERMISSIONS.EDIT);
+  const canDelete = hasPermission(MEDIA_PERMISSIONS.DELETE);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const apiClient = useApiClient();
   const logger = createStudioLogger('MediaPage');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Example: You can control the context sidebar from any page
   // Uncomment these to test the API:
@@ -252,12 +266,39 @@ export function MediaPage() {
   }, []); // Empty dependency array - only run on mount
 
   // Hide context sidebar for Media Page (filters are in main area)
+
+  // Handle URL parameter for opening specific file
   useEffect(() => {
-    contextSidebar.hide();
+    const fileId = searchParams.get('file');
     
-    // Show it again when leaving the page
-    return () => contextSidebar.show();
-  }, []); // Remove contextSidebar dependency to prevent infinite re-renders
+    if (fileId && mediaFiles.length > 0) {
+      const file = mediaFiles.find(f => f.id === fileId);
+      
+      if (file && (!selectedFile || selectedFile.id !== fileId)) {
+        // Only open if we don't already have this file selected
+        openViewer(file);
+        logger.debug('Opening media file from URL parameter', { fileId, filename: file.filename });
+      }
+    }
+  }, [searchParams, mediaFiles]);
+
+  // Update URL when viewer opens/closes
+  useEffect(() => {
+    if (isViewerOpen && selectedFile) {
+      // Add file parameter to URL without triggering navigation
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('file', selectedFile.id);
+      setSearchParams(newParams, { replace: true });
+    } else if (!isViewerOpen && mediaFiles.length > 0) {
+      // Remove file parameter when viewer is closed AND we have loaded files
+      // This prevents removing the parameter during initial load
+      const newParams = new URLSearchParams(searchParams);
+      if (newParams.has('file')) {
+        newParams.delete('file');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [isViewerOpen, selectedFile, mediaFiles.length]);
 
   // Keyboard navigation for viewer
   useEffect(() => {
@@ -280,7 +321,7 @@ export function MediaPage() {
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!hasPermission || !apiClient.hasFeature('media')) return;
+    if (!canUpload || !apiClient.hasFeature('media')) return;
     setIsDragging(true);
   };
 
@@ -300,7 +341,7 @@ export function MediaPage() {
     e.preventDefault();
     setIsDragging(false);
     
-    if (!hasPermission || !apiClient.hasFeature('media')) return;
+    if (!canUpload || !apiClient.hasFeature('media')) return;
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
@@ -310,7 +351,7 @@ export function MediaPage() {
 
   // File upload
   const uploadFiles = async (files: File[]) => {
-    if (!hasPermission) {
+    if (!canUpload) {
       studioContext?.utils.showToast('You do not have permission to upload files', 'error');
       return;
     }
@@ -333,7 +374,10 @@ export function MediaPage() {
         ? `Successfully uploaded "${files[0].name}"` 
         : `Successfully uploaded ${files.length} files`;
       logger.info(successMessage);
-      studioContext?.utils.showToast(successMessage, 'success');
+      
+      // Show discrete success message
+      const toastMessage = files.length === 1 ? 'Uploaded' : `${files.length} files uploaded`;
+      studioContext?.utils.showToast(toastMessage, 'success');
     } catch (error) {
       // Note: HTTP 400 errors from fetch() are automatically logged by the browser.
       // This is expected behavior for upload validation errors and cannot be suppressed.
@@ -367,7 +411,7 @@ export function MediaPage() {
   };
 
   const handleUploadClick = () => {
-    if (!hasPermission) {
+    if (!canUpload) {
       studioContext?.utils.showToast('You do not have permission to upload files', 'error');
       return;
     }
@@ -382,18 +426,31 @@ export function MediaPage() {
   // Media viewer navigation
   const openViewer = (file: MediaFile) => {
     const index = filteredFiles.findIndex(f => f.id === file.id);
-    setCurrentViewerIndex(index);
+    // If file is not in filtered list (e.g., when coming from URL), use -1
+    setCurrentViewerIndex(index >= 0 ? index : -1);
     setSelectedFile(file);
     setIsViewerOpen(true);
   };
 
   const navigateViewer = (direction: 'prev' | 'next') => {
+    // If currentViewerIndex is -1, start from beginning or end
+    if (currentViewerIndex === -1) {
+      const newIndex = direction === 'prev' ? filteredFiles.length - 1 : 0;
+      if (filteredFiles[newIndex]) {
+        setCurrentViewerIndex(newIndex);
+        setSelectedFile(filteredFiles[newIndex]);
+      }
+      return;
+    }
+    
     const newIndex = direction === 'prev' 
       ? Math.max(0, currentViewerIndex - 1)
       : Math.min(filteredFiles.length - 1, currentViewerIndex + 1);
     
-    setCurrentViewerIndex(newIndex);
-    setSelectedFile(filteredFiles[newIndex]);
+    if (filteredFiles[newIndex]) {
+      setCurrentViewerIndex(newIndex);
+      setSelectedFile(filteredFiles[newIndex]);
+    }
   };
 
   // Media actions
@@ -422,7 +479,7 @@ export function MediaPage() {
   };
 
   const confirmDelete = async () => {
-    if (!editingFile || !hasPermission) return;
+    if (!editingFile || !canDelete) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Delete attempted but media feature not available');
@@ -446,7 +503,7 @@ export function MediaPage() {
   };
 
   const saveEdit = async () => {
-    if (!editingFile || !hasPermission) return;
+    if (!editingFile || !canEdit) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Edit save attempted but media feature not available');
@@ -487,7 +544,7 @@ export function MediaPage() {
   };
 
   const handleRegenerateVariants = async (file: MediaFile) => {
-    if (!hasPermission) return;
+    if (!canDelete) return;
     
     if (!apiClient.hasFeature('media')) {
       logger.warn('Regenerate variants attempted but media feature not available');
@@ -600,28 +657,32 @@ export function MediaPage() {
               >
                 <EyeIcon className="h-4 w-4" />
               </Button>
-              {hasPermission && (
+              {(canEdit || canDelete) && (
                 <>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(file);
-                    }}
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(file);
-                    }}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(file);
+                      }}
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(file);
+                      }}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -676,28 +737,32 @@ export function MediaPage() {
             )}
           </div>
           
-          {hasPermission && (
+          {(canEdit || canDelete) && (
             <div className="flex space-x-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(file);
-                }}
-              >
-                <PencilIcon className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(file);
-                }}
-              >
-                <TrashIcon className="h-4 w-4" />
-              </Button>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(file);
+                  }}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(file);
+                  }}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -718,7 +783,7 @@ export function MediaPage() {
       </div>
 
       {/* Upload area */}
-      {hasPermission && apiClient.hasFeature('media') && (
+      {canUpload && apiClient.hasFeature('media') && (
         <div className="mb-8">
           <div
             className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -892,7 +957,7 @@ export function MediaPage() {
                   : 'Upload your first media files to get started.'
                 }
               </p>
-              {hasPermission && apiClient.hasFeature('media') && (!searchQuery && selectedType === 'all') && (
+              {canUpload && apiClient.hasFeature('media') && (!searchQuery && selectedType === 'all') && (
                 <Button onClick={handleUploadClick}>
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Upload Files
@@ -963,19 +1028,21 @@ export function MediaPage() {
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
                 </Button>
-                {hasPermission && (
+                {(canEdit || canDelete) && (
                   <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleEdit(selectedFile);
-                        setIsViewerOpen(false);
-                      }}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </Button>
-                    {selectedFile.contentType.startsWith('image/') && (
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          handleEdit(selectedFile);
+                          setIsViewerOpen(false);
+                        }}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && selectedFile.contentType.startsWith('image/') && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -985,16 +1052,18 @@ export function MediaPage() {
                         <ArrowPathIcon className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleDelete(selectedFile);
-                        setIsViewerOpen(false);
-                      }}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          handleDelete(selectedFile);
+                          setIsViewerOpen(false);
+                        }}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button
@@ -1063,7 +1132,7 @@ export function MediaPage() {
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                         Image Variants
                       </h3>
-                      {hasPermission && (
+                      {canEdit && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1138,7 +1207,7 @@ export function MediaPage() {
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                         No variants generated for this image.
                       </p>
-                      {hasPermission && (
+                      {canEdit && (
                         <Button
                           variant="primary"
                           size="sm"

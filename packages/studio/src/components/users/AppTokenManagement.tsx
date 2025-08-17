@@ -14,6 +14,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { usePermissions } from '@/hooks/usePermissions';
+import { TOKEN_PERMISSIONS } from '@/constants/permissions';
 import type { AppToken, Permission } from '@/types';
 
 const logger = createStudioLogger('AppTokenManagement');
@@ -198,7 +200,7 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
                           type="checkbox"
                           checked={formData.permissions.includes(permission.value)}
                           onChange={() => togglePermission(permission.value)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                         />
                         <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                           {permission.label}
@@ -297,6 +299,7 @@ function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
 }
 
 export function AppTokenManagement() {
+  const { hasPermission } = usePermissions();
   const [tokens, setTokens] = useState<AppToken[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTokenModal, setShowTokenModal] = useState(false);
@@ -304,10 +307,14 @@ export function AppTokenManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleTokens, setVisibleTokens] = useState<Set<string>>(new Set());
 
+  // Permission checks
+  const canCreateToken = hasPermission(TOKEN_PERMISSIONS.WRITE);
+  const canDeleteToken = hasPermission(TOKEN_PERMISSIONS.DELETE);
+
   const loadTokens = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/api/tokens');
+      const response = await apiClient.get('/tokens');
       if (response.success && response.data) {
         setTokens(response.data as AppToken[]);
       }
@@ -324,7 +331,7 @@ export function AppTokenManagement() {
 
   const handleCreateToken = async (tokenData: TokenFormData) => {
     try {
-      const response = await apiClient.post('/api/tokens', tokenData);
+      const response = await apiClient.post('/tokens', tokenData);
       if (response.success && response.data) {
         setNewToken((response.data as any).token);
         await loadTokens();
@@ -343,7 +350,7 @@ export function AppTokenManagement() {
     }
 
     try {
-      const response = await apiClient.delete(`/api/tokens/${token.id}`);
+      const response = await apiClient.delete(`/tokens/${token.id}`);
       if (response.success) {
         await loadTokens();
       }
@@ -401,10 +408,12 @@ export function AppTokenManagement() {
             Create and manage API tokens for external applications
           </p>
         </div>
-        <Button onClick={() => setShowTokenModal(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Create Token
-        </Button>
+        {canCreateToken && (
+          <Button onClick={() => setShowTokenModal(true)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Create Token
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -430,10 +439,12 @@ export function AppTokenManagement() {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Create your first API token to enable external access to your content.
           </p>
-          <Button onClick={() => setShowTokenModal(true)}>
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create Token
-          </Button>
+          {canCreateToken && (
+            <Button onClick={() => setShowTokenModal(true)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Token
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -505,14 +516,16 @@ export function AppTokenManagement() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteToken(token)}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
+                      {canDeleteToken && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteToken(token)}
+                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

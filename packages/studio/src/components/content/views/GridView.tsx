@@ -7,6 +7,9 @@ import {
   UserIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { useStudioContext } from '@/contexts/StudioContext';
+import { useApiClient } from '@/hooks/useApiClient';
 import type { Document } from '@/types';
 
 export type GridCardSize = 'small' | 'medium' | 'large';
@@ -41,7 +44,7 @@ export function GridView({
   onDocumentAction,
   cardSize = 'medium',
   columnsPerRow,
-  imageField = 'image',
+  // imageField = 'image', // Now dynamically checking multiple fields
   titleField = 'title',
   subtitleField = 'subtitle',
   descriptionField = 'description',
@@ -49,6 +52,8 @@ export function GridView({
   authorField = 'author'
 }: GridViewProps) {
   const navigate = useNavigate();
+  const studioContext = useStudioContext();
+  const apiClient = useApiClient();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
   
   const getColumnsClass = () => {
@@ -71,13 +76,13 @@ export function GridView({
   const getCardHeight = () => {
     switch (cardSize) {
       case 'small':
-        return 'h-48';
+        return 'h-56';
       case 'medium':
-        return 'h-64';
+        return 'h-72';
       case 'large':
         return 'h-80';
       default:
-        return 'h-64';
+        return 'h-72';
     }
   };
   
@@ -101,23 +106,62 @@ export function GridView({
   
   const getDocumentDescription = (doc: Document) => {
     const desc = getDocumentValue(doc, descriptionField) || doc.description || doc.excerpt;
-    if (typeof desc === 'string' && desc.length > 120) {
-      return desc.substring(0, 120) + '...';
+    if (typeof desc === 'string') {
+      // Truncate at word boundaries for better readability
+      if (desc.length > 140) {
+        const truncated = desc.substring(0, 140);
+        const lastSpace = truncated.lastIndexOf(' ');
+        return lastSpace > 100 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
+      }
+      return desc;
     }
     return desc;
   };
   
   const getDocumentImage = (doc: Document) => {
-    const imageValue = getDocumentValue(doc, imageField);
-    if (typeof imageValue === 'string') {
-      return imageValue;
+    // Try multiple possible image field names and structures
+    const possibleFields = [
+      'featuredImage', // Most common in context sidebar
+      'image',
+      'thumbnail',
+      'cover',
+      'photo',
+      'mainImage',
+      'hero'
+    ];
+    
+    for (const field of possibleFields) {
+      const imageValue = getDocumentValue(doc, field);
+      
+      if (imageValue) {
+        // Handle Sanity/CMS-style image references (using dynamic API base path)
+        if (imageValue.asset?._ref || imageValue._ref) {
+          const imageRef = imageValue.asset?._ref || imageValue._ref;
+          console.log(`Found image reference in ${field}:`, imageRef);
+          return apiClient.getMediaUrl(imageRef, 'thumbnail');
+        }
+        
+        // Handle direct URL strings
+        if (typeof imageValue === 'string' && imageValue.trim()) {
+          console.log(`Found direct image URL in ${field}:`, imageValue);
+          return imageValue;
+        }
+        
+        // Handle object with url property
+        if (imageValue?.url && typeof imageValue.url === 'string') {
+          console.log(`Found image URL in ${field}.url:`, imageValue.url);
+          return imageValue.url;
+        }
+        
+        // Handle object with src property
+        if (imageValue?.src && typeof imageValue.src === 'string') {
+          console.log(`Found image URL in ${field}.src:`, imageValue.src);
+          return imageValue.src;
+        }
+      }
     }
-    if (imageValue?.url) {
-      return imageValue.url;
-    }
-    if (imageValue?.src) {
-      return imageValue.src;
-    }
+    
+    console.log('No image found for document:', doc.title || doc.name);
     return null;
   };
   
@@ -167,6 +211,10 @@ export function GridView({
       {documents.map((doc) => {
         const docId = getDocumentId(doc);
         const isSelected = selectedItems.includes(docId);
+        
+        // Debug logging to see document structure
+        console.log('GridView document:', doc.title || doc.name, doc);
+        
         const image = getDocumentImage(doc);
         const title = getDocumentTitle(doc);
         const subtitle = getDocumentSubtitle(doc);
@@ -178,18 +226,17 @@ export function GridView({
           <div
             key={docId}
             className={cn(
-              'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden transition-all hover:shadow-lg group',
+              'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-gray-900/50 hover:-translate-y-1 group',
               getCardHeight(),
-              isSelected && 'ring-2 ring-blue-500 border-blue-500'
+              isSelected && 'ring-2 ring-blue-500 border-blue-500 shadow-lg'
             )}
           >
             {/* Selection checkbox */}
             <div className="absolute top-3 left-3 z-10">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={isSelected}
-                onChange={(e) => onItemSelect(docId, e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-white/90 backdrop-blur-sm"
+                onChange={(checked) => onItemSelect(docId, checked)}
+                className="bg-white/90 dark:bg-gray-700/90 backdrop-blur-sm"
               />
             </div>
             
@@ -235,8 +282,17 @@ export function GridView({
                       </button>
                       <hr className="my-1 border-gray-200 dark:border-gray-600" />
                       <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this document?')) {
+                        onClick={async () => {
+                          const confirmed = await studioContext?.utils?.showConfirm?.(
+                            'Are you sure you want to delete this document? This action cannot be undone.',
+                            {
+                              title: 'Delete Document',
+                              confirmText: 'Delete',
+                              cancelText: 'Cancel',
+                              variant: 'danger'
+                            }
+                          );
+                          if (confirmed) {
                             onDocumentAction?.(docId, 'delete');
                           }
                           setActionsOpen(null);
@@ -256,67 +312,81 @@ export function GridView({
               onClick={() => navigate(`/content/${schemaName}/${docId}`)}
               className="w-full h-full flex flex-col text-left"
             >
-              {/* Image area */}
-              <div className="flex-shrink-0 h-32 bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+              {/* Image/Background area */}
+              <div className="flex-shrink-0 h-40 relative overflow-hidden">
                 {image ? (
-                  <img
-                    src={image}
-                    alt={title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center');
-                      const icon = document.createElement('div');
-                      icon.innerHTML = '<svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
-                      e.currentTarget.parentElement!.appendChild(icon);
-                    }}
-                  />
+                  <div
+                    className="w-full h-full bg-cover bg-center bg-no-repeat"
+                    style={{ backgroundImage: `url(${image})` }}
+                  >
+                    {/* Gradient overlay for better text readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <DocumentTextIcon className="h-8 w-8 text-gray-400" />
+                  <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                    <DocumentTextIcon className="h-12 w-12 text-gray-400" />
                   </div>
                 )}
                 
                 {/* Status badge */}
-                <div className="absolute bottom-2 left-2">
-                  <span className={cn('inline-flex px-2 py-1 text-xs font-semibold rounded-full', getStatusColor(doc))}>
+                <div className="absolute top-3 left-3">
+                  <span className={cn('inline-flex px-2 py-1 text-xs font-semibold rounded-full backdrop-blur-sm', getStatusColor(doc))}>
                     {getStatusText(doc)}
                   </span>
                 </div>
               </div>
               
               {/* Content area */}
-              <div className="flex-1 p-4 flex flex-col">
+              <div className="flex-1 p-4 flex flex-col min-h-0">
                 {/* Title */}
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 mb-1">
+                <h3 
+                  className="text-sm font-semibold text-gray-900 dark:text-white mb-2 leading-tight overflow-hidden"
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                  title={title}
+                >
                   {title}
                 </h3>
                 
                 {/* Subtitle */}
                 {subtitle && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mb-2">
+                  <p 
+                    className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium overflow-hidden whitespace-nowrap text-ellipsis"
+                    title={subtitle}
+                  >
                     {subtitle}
                   </p>
                 )}
                 
                 {/* Description */}
                 {description && (
-                  <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-3 flex-1 mb-3">
+                  <p 
+                    className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mb-3 flex-1 overflow-hidden"
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical'
+                    }}
+                    title={description}
+                  >
                     {description}
                   </p>
                 )}
                 
                 {/* Meta info */}
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-auto">
-                  <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center space-x-3 min-w-0">
                     {author && (
-                      <div className="flex items-center space-x-1">
-                        <UserIcon className="h-3 w-3" />
-                        <span>{author}</span>
+                      <div className="flex items-center space-x-1 min-w-0">
+                        <UserIcon className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{author}</span>
                       </div>
                     )}
                     {date && (
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-1 flex-shrink-0">
                         <CalendarIcon className="h-3 w-3" />
                         <span>{date}</span>
                       </div>

@@ -203,12 +203,8 @@ function sanitizePortableTextBlock(block: any): PortableTextBlock | null {
       .filter((span: PortableTextSpan | null) => span !== null);
   }
   
-  // Don't include empty blocks
-  const hasContent = sanitized.children && sanitized.children.some(child => 
-    child.text && child.text.trim().length > 0
-  );
-  
-  return hasContent ? sanitized : null;
+  // Keep all blocks including empty ones (empty blocks are valid for editing)
+  return sanitized;
 }
 
 function sanitizePortableTextSpan(span: any): PortableTextSpan | null {
