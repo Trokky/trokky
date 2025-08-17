@@ -20,12 +20,16 @@ import {
   WebhookConfig,
   WebhookListOptions,
   SettingsConfig,
-  createLogger
+  createLogger,
+  AuditContext,
+  AuditActorType,
+  AuditLog,
+  AUDIT_OPERATIONS
 } from '@trokky/core'
-import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile } from './types'
+import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile } from './types'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
-  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir'>> & { webhooksDir: string; settingsDir: string }
+  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
   // Security limits
@@ -38,6 +42,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       tokensDir: config.tokensDir || './tokens',
       webhooksDir: config.webhooksDir || './webhooks',
       settingsDir: config.settingsDir || './settings',
+      auditLogsDir: config.auditLogsDir || './audit-logs',
       createDirs: config.createDirs ?? true,
       prettyJson: config.prettyJson ?? true,
       jsonSpaces: config.jsonSpaces ?? 2,
@@ -68,6 +73,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       await fsExtra.ensureDir(this.config.tokensDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.webhooksDir, { mode: this.config.dirMode })
       await fsExtra.ensureDir(this.config.settingsDir, { mode: this.config.dirMode })
+      await fsExtra.ensureDir(this.config.auditLogsDir, { mode: this.config.dirMode })
     } catch (error) {
       if (!this.config.silent) {
         this.logger.error('Failed to initialize directories', error)
@@ -103,6 +109,10 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         _updatedAt: new Date(documentFile.metadata.updatedAt),
         _revision: documentFile.metadata.revision,
         _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined,
         ...documentFile.data
       }
     } catch (error) {
@@ -111,7 +121,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     }
   }
 
-  public async saveDocument(collection: string, id: string, data: DocumentData): Promise<Document> {
+  public async saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document> {
     try {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentId(id)
@@ -139,7 +149,12 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             createdAt: existingDoc.metadata.createdAt,
             updatedAt: new Date(),
             revision: existingDoc.metadata.revision + 1,
-            status: existingDoc.metadata.status
+            status: existingDoc.metadata.status,
+            // Preserve original creator, update current user
+            createdBy: existingDoc.metadata.createdBy,
+            createdByType: existingDoc.metadata.createdByType,
+            updatedBy: auditContext?.userId,
+            updatedByType: auditContext?.userType
           }
         }
       } catch {
@@ -152,7 +167,11 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             createdAt: new Date(),
             updatedAt: new Date(),
             revision: 1,
-            status: 'draft'
+            status: 'draft',
+            createdBy: auditContext?.userId,
+            createdByType: auditContext?.userType,
+            updatedBy: auditContext?.userId,
+            updatedByType: auditContext?.userType
           }
         }
       }
@@ -177,6 +196,10 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         _updatedAt: documentFile.metadata.updatedAt,
         _revision: documentFile.metadata.revision,
         _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined,
         ...documentFile.data
       }
     } catch (error) {
@@ -1071,6 +1094,241 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     } catch (error) {
       this.logger.error('Failed to save settings', { error, settingsId: settings.id })
       throw new InvalidInputError(`Failed to save settings: ${error}`, 'settings')
+    }
+  }
+
+  // ==========================================================================
+  // AUDIT LOG OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Create an audit log entry
+   */
+  public async createAuditLog(auditLog: Omit<AuditLog, 'id'>): Promise<AuditLog> {
+    try {
+      const auditLogId = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+      const auditLogPath = path.join(this.config.auditLogsDir, `${auditLogId}.json`)
+      
+      // Ensure audit logs directory exists
+      await fsExtra.ensureDir(this.config.auditLogsDir, { mode: this.config.dirMode })
+
+      // Validate secure path
+      this.validateSecurePath(auditLogPath, this.config.auditLogsDir)
+
+      const auditLogFile: AuditLogFile = {
+        id: auditLogId,
+        documentId: auditLog.documentId,
+        collection: auditLog.collection,
+        operation: auditLog.operation,
+        actorId: auditLog.actorId,
+        actorType: auditLog.actorType,
+        actorUsername: auditLog.actorUsername,
+        changes: auditLog.changes,
+        timestamp: auditLog.timestamp.toISOString(),
+        revision: auditLog.revision,
+        ipAddress: auditLog.ipAddress,
+        userAgent: auditLog.userAgent,
+        sessionId: auditLog.sessionId,
+        metadata: auditLog.metadata
+      }
+
+      const jsonData = this.formatJson(auditLogFile)
+      
+      if (this.config.syncWrites) {
+        await fs.writeFile(auditLogPath, jsonData, { 
+          encoding: 'utf-8', 
+          mode: this.config.fileMode,
+          flag: 'w'
+        })
+      } else {
+        await fs.writeFile(auditLogPath, jsonData, { 
+          encoding: 'utf-8', 
+          mode: this.config.fileMode 
+        })
+      }
+
+      this.logger.debug('Audit log created', { 
+        auditLogId, 
+        documentId: auditLog.documentId,
+        operation: auditLog.operation,
+        actorId: auditLog.actorId
+      })
+
+      return {
+        ...auditLog,
+        id: auditLogId
+      }
+    } catch (error) {
+      this.logger.error('Failed to create audit log', { error, auditLog })
+      throw new InvalidInputError(`Failed to create audit log: ${error}`, 'auditLog')
+    }
+  }
+
+  /**
+   * Get audit logs for a specific document
+   */
+  public async getDocumentAuditLogs(documentId: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    try {
+      const auditLogs: AuditLog[] = []
+      const auditLogFiles = await fs.readdir(this.config.auditLogsDir)
+      
+      // Filter files by document ID (read each file to check)
+      for (const filename of auditLogFiles) {
+        if (!filename.endsWith('.json')) continue
+        
+        const auditLogPath = path.join(this.config.auditLogsDir, filename)
+        this.validateSecurePath(auditLogPath, this.config.auditLogsDir)
+        
+        try {
+          const fileContent = await fs.readFile(auditLogPath, 'utf-8')
+          const auditLogFile: AuditLogFile = JSON.parse(fileContent)
+          
+          if (auditLogFile.documentId === documentId) {
+            auditLogs.push({
+              id: auditLogFile.id,
+              documentId: auditLogFile.documentId,
+              collection: auditLogFile.collection,
+              operation: auditLogFile.operation,
+              actorId: auditLogFile.actorId,
+              actorType: auditLogFile.actorType,
+              actorUsername: auditLogFile.actorUsername,
+              changes: auditLogFile.changes,
+              timestamp: new Date(auditLogFile.timestamp),
+              revision: auditLogFile.revision,
+              ipAddress: auditLogFile.ipAddress,
+              userAgent: auditLogFile.userAgent,
+              sessionId: auditLogFile.sessionId,
+              metadata: auditLogFile.metadata
+            })
+          }
+        } catch (parseError) {
+          this.logger.warn('Failed to parse audit log file', { filename, parseError })
+        }
+      }
+      
+      // Sort by timestamp (newest first)
+      auditLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      
+      // Apply pagination
+      const offset = options.offset || 0
+      const limit = options.limit || 100
+      
+      return auditLogs.slice(offset, offset + limit)
+    } catch (error) {
+      this.logger.error('Failed to get document audit logs', { error, documentId })
+      throw new InvalidInputError(`Failed to get document audit logs: ${error}`, 'documentId')
+    }
+  }
+
+  /**
+   * Get audit logs for a collection
+   */
+  public async getCollectionAuditLogs(collection: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    try {
+      const auditLogs: AuditLog[] = []
+      const auditLogFiles = await fs.readdir(this.config.auditLogsDir)
+      
+      // Filter files by collection (read each file to check)
+      for (const filename of auditLogFiles) {
+        if (!filename.endsWith('.json')) continue
+        
+        const auditLogPath = path.join(this.config.auditLogsDir, filename)
+        this.validateSecurePath(auditLogPath, this.config.auditLogsDir)
+        
+        try {
+          const fileContent = await fs.readFile(auditLogPath, 'utf-8')
+          const auditLogFile: AuditLogFile = JSON.parse(fileContent)
+          
+          if (auditLogFile.collection === collection) {
+            auditLogs.push({
+              id: auditLogFile.id,
+              documentId: auditLogFile.documentId,
+              collection: auditLogFile.collection,
+              operation: auditLogFile.operation,
+              actorId: auditLogFile.actorId,
+              actorType: auditLogFile.actorType,
+              actorUsername: auditLogFile.actorUsername,
+              changes: auditLogFile.changes,
+              timestamp: new Date(auditLogFile.timestamp),
+              revision: auditLogFile.revision,
+              ipAddress: auditLogFile.ipAddress,
+              userAgent: auditLogFile.userAgent,
+              sessionId: auditLogFile.sessionId,
+              metadata: auditLogFile.metadata
+            })
+          }
+        } catch (parseError) {
+          this.logger.warn('Failed to parse audit log file', { filename, parseError })
+        }
+      }
+      
+      // Sort by timestamp (newest first)
+      auditLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      
+      // Apply pagination
+      const offset = options.offset || 0
+      const limit = options.limit || 100
+      
+      return auditLogs.slice(offset, offset + limit)
+    } catch (error) {
+      this.logger.error('Failed to get collection audit logs', { error, collection })
+      throw new InvalidInputError(`Failed to get collection audit logs: ${error}`, 'collection')
+    }
+  }
+
+  /**
+   * Get audit logs by actor
+   */
+  public async getActorAuditLogs(actorId: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    try {
+      const auditLogs: AuditLog[] = []
+      const auditLogFiles = await fs.readdir(this.config.auditLogsDir)
+      
+      // Filter files by actor ID (read each file to check)
+      for (const filename of auditLogFiles) {
+        if (!filename.endsWith('.json')) continue
+        
+        const auditLogPath = path.join(this.config.auditLogsDir, filename)
+        this.validateSecurePath(auditLogPath, this.config.auditLogsDir)
+        
+        try {
+          const fileContent = await fs.readFile(auditLogPath, 'utf-8')
+          const auditLogFile: AuditLogFile = JSON.parse(fileContent)
+          
+          if (auditLogFile.actorId === actorId) {
+            auditLogs.push({
+              id: auditLogFile.id,
+              documentId: auditLogFile.documentId,
+              collection: auditLogFile.collection,
+              operation: auditLogFile.operation,
+              actorId: auditLogFile.actorId,
+              actorType: auditLogFile.actorType,
+              actorUsername: auditLogFile.actorUsername,
+              changes: auditLogFile.changes,
+              timestamp: new Date(auditLogFile.timestamp),
+              revision: auditLogFile.revision,
+              ipAddress: auditLogFile.ipAddress,
+              userAgent: auditLogFile.userAgent,
+              sessionId: auditLogFile.sessionId,
+              metadata: auditLogFile.metadata
+            })
+          }
+        } catch (parseError) {
+          this.logger.warn('Failed to parse audit log file', { filename, parseError })
+        }
+      }
+      
+      // Sort by timestamp (newest first)
+      auditLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      
+      // Apply pagination
+      const offset = options.offset || 0
+      const limit = options.limit || 100
+      
+      return auditLogs.slice(offset, offset + limit)
+    } catch (error) {
+      this.logger.error('Failed to get actor audit logs', { error, actorId })
+      throw new InvalidInputError(`Failed to get actor audit logs: ${error}`, 'actorId')
     }
   }
 }

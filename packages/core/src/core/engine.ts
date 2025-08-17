@@ -54,7 +54,11 @@ import {
   UserSession,
   AppToken,
   AppTokenListOptions,
-  CreateAppTokenData
+  CreateAppTokenData,
+  AuditContext,
+  AUDIT_ACTOR_TYPES,
+  AuditLog,
+  AUDIT_OPERATIONS
 } from '../types/index.js'
 import type { AppTokenCreationResult } from '../security/auth.js'
 
@@ -345,6 +349,58 @@ export class TrokkyCore {
     }
   }
 
+  // Helper method to create audit logs
+  private async createAuditLog(
+    documentId: string,
+    collection: string,
+    operation: keyof typeof AUDIT_OPERATIONS,
+    auditContext?: AuditContext,
+    changes?: {
+      before?: Record<string, unknown>
+      after?: Record<string, unknown>
+      fields?: string[]
+    },
+    revision?: number
+  ): Promise<void> {
+    // Only create audit logs if the adapter supports it and we have audit context
+    if (!this.dataStorage.createAuditLog || !auditContext) {
+      return
+    }
+
+    try {
+      await this.dataStorage.createAuditLog({
+        documentId,
+        collection,
+        operation: AUDIT_OPERATIONS[operation],
+        actorId: auditContext.userId,
+        actorType: auditContext.userType,
+        actorUsername: auditContext.username,
+        changes,
+        timestamp: new Date(),
+        revision: revision || 1,
+        ipAddress: auditContext.ipAddress,
+        userAgent: auditContext.userAgent,
+        sessionId: undefined, // Could be added later if needed
+        metadata: undefined // Could be added later for additional context
+      })
+
+      this.auditLog.info('Audit log created', {
+        documentId,
+        collection,
+        operation: AUDIT_OPERATIONS[operation],
+        actorId: auditContext.userId,
+        actorType: auditContext.userType
+      })
+    } catch (error) {
+      this.logger.warn('Failed to create audit log', { 
+        error, 
+        documentId, 
+        collection, 
+        operation 
+      })
+    }
+  }
+
   // Document operations
   public async getDocument<T extends Record<string, unknown> = Record<string, unknown>>(
     collection: string, 
@@ -369,7 +425,8 @@ export class TrokkyCore {
 
   public async saveDocument<T extends Record<string, unknown> = Record<string, unknown>>(
     collection: string, 
-    data: DocumentData & T & { id?: string }
+    data: DocumentData & T & { id?: string },
+    auditContext?: AuditContext
   ): Promise<Document & T> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('saveDocument')
@@ -401,7 +458,37 @@ export class TrokkyCore {
     // Check if document already exists (for event emission)
     const existingDocument = await this.dataStorage.getDocument(collection, id).catch(() => null)
     
-    const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData)
+    const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData, auditContext)
+    
+    // Create audit log entry
+    if (existingDocument) {
+      // Document was updated
+      const changes = extractDocumentChanges(savedDocument, existingDocument)
+      await this.createAuditLog(
+        id,
+        collection,
+        'UPDATE',
+        auditContext,
+        {
+          before: existingDocument as unknown as Record<string, unknown>,
+          after: savedDocument as unknown as Record<string, unknown>,
+          fields: changes
+        },
+        savedDocument._revision
+      )
+    } else {
+      // Document was created
+      await this.createAuditLog(
+        id,
+        collection,
+        'CREATE',
+        auditContext,
+        {
+          after: savedDocument as unknown as Record<string, unknown>
+        },
+        savedDocument._revision
+      )
+    }
     
     // Emit document event
     if (this.eventsEnabled) {
@@ -459,7 +546,7 @@ export class TrokkyCore {
     return documents as (Document & T)[]
   }
 
-  public async deleteDocument(collection: string, id: string): Promise<void> {
+  public async deleteDocument(collection: string, id: string, auditContext?: AuditContext): Promise<void> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('deleteDocument')
     }
@@ -481,6 +568,18 @@ export class TrokkyCore {
 
     await this.dataStorage.deleteDocument(collection, id)
     
+    // Create audit log entry
+    await this.createAuditLog(
+      id,
+      collection,
+      'DELETE',
+      auditContext,
+      {
+        before: existingDocument as unknown as Record<string, unknown>
+      },
+      existingDocument._revision
+    )
+    
     // Emit document deleted event
     if (this.eventsEnabled) {
       try {
@@ -497,6 +596,74 @@ export class TrokkyCore {
         })
       }
     }
+  }
+
+  // ==========================================================================
+  // AUDIT LOG OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Get audit logs for a specific document
+   */
+  public async getDocumentAuditLogs(documentId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getDocumentAuditLogs')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(documentId)
+    }
+
+    // Only allow access if adapter supports audit logs
+    if (!this.dataStorage.getDocumentAuditLogs) {
+      throw new Error('Audit logs not supported by storage adapter')
+    }
+
+    return await this.dataStorage.getDocumentAuditLogs(documentId, options)
+  }
+
+  /**
+   * Get audit logs for a collection
+   */
+  public async getCollectionAuditLogs(collection: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getCollectionAuditLogs')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateCollectionName(collection)
+    }
+
+    if (!this.schemas.hasSchema(collection)) {
+      throw new SchemaNotFoundError(collection)
+    }
+
+    // Only allow access if adapter supports audit logs
+    if (!this.dataStorage.getCollectionAuditLogs) {
+      throw new Error('Audit logs not supported by storage adapter')
+    }
+
+    return await this.dataStorage.getCollectionAuditLogs(collection, options)
+  }
+
+  /**
+   * Get audit logs for a specific actor
+   */
+  public async getActorAuditLogs(actorId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit('getActorAuditLogs')
+    }
+
+    if (this.securityEnabled) {
+      SecurityValidator.validateDocumentId(actorId) // Reuse document ID validation for actor ID
+    }
+
+    // Only allow access if adapter supports audit logs
+    if (!this.dataStorage.getActorAuditLogs) {
+      throw new Error('Audit logs not supported by storage adapter')
+    }
+
+    return await this.dataStorage.getActorAuditLogs(actorId, options)
   }
 
   // Media operations

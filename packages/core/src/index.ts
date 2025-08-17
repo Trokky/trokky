@@ -146,10 +146,15 @@ export type {
   SplitStorageConfig,
   TrokkyStorageAdapters,
   WebhookListOptions,
-  SettingsConfig
+  SettingsConfig,
+  // Audit types
+  AuditContext,
+  AuditActorType,
+  AuditLog,
+  AuditOperation
 } from './types/index.js'
 
-export { ROLE_PERMISSIONS } from './types/index.js'
+export { ROLE_PERMISSIONS, AUDIT_ACTOR_TYPES, AUDIT_OPERATIONS } from './types/index.js'
 
 // Zod schemas for validation
 export {

@@ -1,6 +1,6 @@
-import { DocumentData, MediaMetadata } from '@trokky/core'
+import { MediaMetadata } from '@trokky/core'
 
-export const sampleBlogPost: DocumentData = {
+export const sampleBlogPost = {
   title: 'Test Blog Post',
   content: 'This is a test blog post content.',
   author: 'John Doe',
@@ -13,14 +13,14 @@ export const sampleBlogPost: DocumentData = {
   }
 }
 
-export const sampleUser: DocumentData = {
+export const sampleUser = {
   email: 'john@example.com',
   name: 'John Doe',
   bio: 'A test user',
   active: true
 }
 
-export const samplePage: DocumentData = {
+export const samplePage = {
   title: 'Home Page',
   slug: 'home',
   content: 'Welcome to our website',

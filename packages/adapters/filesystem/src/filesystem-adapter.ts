@@ -16,7 +16,9 @@ import {
   AppToken,
   AppTokenListOptions,
   WebhookConfig,
-  WebhookListOptions
+  WebhookListOptions,
+  AuditContext,
+  AuditActorType
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
@@ -97,7 +99,11 @@ export class FilesystemAdapter implements StorageAdapter {
         _createdAt: documentFile.metadata.createdAt instanceof Date ? documentFile.metadata.createdAt : new Date(documentFile.metadata.createdAt),
         _updatedAt: documentFile.metadata.updatedAt instanceof Date ? documentFile.metadata.updatedAt : new Date(documentFile.metadata.updatedAt),
         _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status
+        _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined
       }
 
       return document
@@ -106,7 +112,7 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
-  public async saveDocument(collection: string, id: string, data: DocumentData): Promise<Document> {
+  public async saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document> {
     try {
       // Validate document data
       SecurityValidator.validateDocumentData(data)
@@ -143,7 +149,12 @@ export class FilesystemAdapter implements StorageAdapter {
           createdAt: isUpdate ? existingDoc!._createdAt : now,
           updatedAt: now,
           revision: isUpdate ? (existingDoc!._revision || 0) + 1 : 1,
-          status: existingDoc?._status
+          status: existingDoc?._status,
+          // Add audit metadata
+          createdBy: isUpdate ? existingDoc!._createdBy : auditContext?.userId,
+          updatedBy: auditContext?.userId,
+          createdByType: isUpdate ? existingDoc!._createdByType : auditContext?.userType,
+          updatedByType: auditContext?.userType
         }
       }
 
@@ -169,7 +180,11 @@ export class FilesystemAdapter implements StorageAdapter {
         _createdAt: documentFile.metadata.createdAt,
         _updatedAt: documentFile.metadata.updatedAt,
         _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status
+        _status: documentFile.metadata.status,
+        _createdBy: documentFile.metadata.createdBy,
+        _updatedBy: documentFile.metadata.updatedBy,
+        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined
       }
 
       return document

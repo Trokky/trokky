@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, type SettingsConfig } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, type SettingsConfig, type AuditContext, AUDIT_ACTOR_TYPES } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -105,6 +105,11 @@ export class TrokkyRoutes {
     this.addRoute('GET', `${basePath}/tokens/:id`, this.getToken.bind(this))
     this.addRoute('PUT', `${basePath}/tokens/:id`, this.updateToken.bind(this))
     this.addRoute('DELETE', `${basePath}/tokens/:id`, this.deleteToken.bind(this))
+
+    // Audit log routes (admin/user - read only)
+    this.addRoute('GET', `${basePath}/audit-logs/documents/:documentId`, this.getDocumentAuditLogs.bind(this))
+    this.addRoute('GET', `${basePath}/audit-logs/collections/:collection`, this.getCollectionAuditLogs.bind(this))
+    this.addRoute('GET', `${basePath}/audit-logs/actors/:actorId`, this.getActorAuditLogs.bind(this))
 
     // Webhook management routes (admin only)
     this.addRoute('GET', `${basePath}/webhooks`, this.listWebhooks.bind(this))
@@ -497,6 +502,16 @@ export class TrokkyRoutes {
       const { collection } = request.params
       await this.validateSchemaAccess(request, collection, 'write')
       
+      // Get current user for audit context
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
+      
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
         throw new InvalidInputError('Request body is required', 'body')
@@ -529,7 +544,7 @@ export class TrokkyRoutes {
         throw new Error(`Document validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`)
       }
       
-      const document = await this.core.saveDocument(collection, { ...data, id })
+      const document = await this.core.saveDocument(collection, { ...data, id }, auditContext)
       return this.successResponse({ document }, 201)
     } catch (error) {
       this.logger.error('Failed to create document', { 
@@ -578,6 +593,16 @@ export class TrokkyRoutes {
       const { collection, id } = request.params
       await this.validateSchemaAccess(request, collection, 'write')
       
+      // Get current user for audit context
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
+      
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
         throw new InvalidInputError('Request body is required', 'body')
@@ -601,11 +626,11 @@ export class TrokkyRoutes {
         return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
       }
 
-      // Merge data (excluding system fields)
-      const { _id, _collection, _createdAt, _updatedAt, _revision, _status, ...existingData } = existingDoc
+      // Merge data (excluding system fields including audit fields)
+      const { _id, _collection, _createdAt, _updatedAt, _revision, _status, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
       const mergedData = { ...existingData, ...data }
 
-      const document = await this.core.saveDocument(collection, { ...mergedData, id })
+      const document = await this.core.saveDocument(collection, { ...mergedData, id }, auditContext)
       return this.successResponse({ document })
     } catch (error) {
       return this.errorResponse(error)
@@ -623,7 +648,17 @@ export class TrokkyRoutes {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentId(id)
 
-      await this.core.deleteDocument(collection, id)
+      // Get audit context from current user
+      const currentUser = await this.getCurrentUser(request)
+      const auditContext: AuditContext | undefined = currentUser ? {
+        userId: currentUser.id,
+        userType: AUDIT_ACTOR_TYPES.USER,
+        username: currentUser.username,
+        ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
+        userAgent: request.headers['user-agent'] as string
+      } : undefined
+
+      await this.core.deleteDocument(collection, id, auditContext)
       return this.successResponse({ message: 'Document deleted successfully' })
     } catch (error) {
       return this.errorResponse(error)
@@ -2472,7 +2507,13 @@ export class TrokkyRoutes {
           ...this.getDefaultSingletonData(collection, documentId)
         }
         
-        const document = await this.core.saveDocument(collection, singletonData)
+        // Auto-created singleton uses system context
+        const systemContext: AuditContext = {
+          userId: 'system',
+          userType: AUDIT_ACTOR_TYPES.SYSTEM,
+          username: 'system'
+        }
+        const document = await this.core.saveDocument(collection, singletonData, systemContext)
         this.logger.info('Singleton document auto-created', { collection, documentId })
         
         return document
@@ -2972,6 +3013,136 @@ export class TrokkyRoutes {
         eventId,
         eventType: testEvent.type,
         webhookUrl: webhook.url
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  // ==========================================================================
+  // AUDIT LOG ROUTES
+  // ==========================================================================
+
+  /**
+   * Get audit logs for a specific document
+   */
+  private async getDocumentAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and basic read permissions
+      await this.validateAuthentication(request)
+      const currentUser = await this.getCurrentUser(request)
+      
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const { documentId } = request.params
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // Validate inputs
+      SecurityValidator.validateDocumentId(documentId)
+
+      const auditLogs = await this.core.getDocumentAuditLogs(documentId, { limit, offset })
+
+      this.logger.info('Document audit logs retrieved', { 
+        documentId, 
+        userId: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get audit logs for a collection
+   */
+  private async getCollectionAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication and schema read permissions
+      await this.validateAuthentication(request)
+      const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
+
+      const currentUser = await this.getCurrentUser(request)
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // Validate inputs
+      SecurityValidator.validateCollectionName(collection)
+
+      const auditLogs = await this.core.getCollectionAuditLogs(collection, { limit, offset })
+
+      this.logger.info('Collection audit logs retrieved', { 
+        collection, 
+        userId: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Get audit logs for a specific actor (user/api/system)
+   */
+  private async getActorAuditLogs(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication
+      await this.validateAuthentication(request)
+      const currentUser = await this.getCurrentUser(request)
+      
+      if (!currentUser) {
+        return this.errorResponse(new Error('Authentication required'), 401)
+      }
+
+      const { actorId } = request.params
+      const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
+      const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
+
+      // SECURITY: Users can only view their own audit logs unless they're admin
+      if (actorId !== currentUser.id && currentUser.role !== 'admin') {
+        return this.errorResponse(new Error('Forbidden: Can only view your own audit logs'), 403)
+      }
+
+      const auditLogs = await this.core.getActorAuditLogs(actorId, { limit, offset })
+
+      this.logger.info('Actor audit logs retrieved', { 
+        actorId, 
+        requestedBy: currentUser.id,
+        count: auditLogs.length 
+      })
+
+      return this.successResponse({
+        auditLogs,
+        pagination: {
+          limit,
+          offset,
+          count: auditLogs.length
+        }
       })
     } catch (error) {
       return this.errorResponse(error)
