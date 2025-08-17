@@ -18,6 +18,7 @@ export interface DocumentEditorContextType {
   isNewDocument: boolean;
   hasUnsavedChanges: boolean;
   hasValidationErrors: boolean;
+  isReadOnly: boolean; // User doesn't have write permission
   
   // Loading states
   loading: boolean;

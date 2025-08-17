@@ -12,6 +12,7 @@ import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // Document editor context and components
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
@@ -59,8 +60,21 @@ export function DocumentEditor({
   const navigate = useNavigate();
   const contextSidebar = useContextSidebar();
   const studioContext = useStudioContext();
+  const permissions = usePermissions();
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const isNewDocument = documentId === 'new' || !documentId;
+  
+  // Check if user has write permission for this schema
+  const hasWritePermission = useMemo(() => {
+    if (!permissions) return false;
+    return permissions.hasSchemaPermission(schemaName, 'write');
+  }, [permissions, schemaName]);
+  
+  // Check if user has delete permission for this schema
+  const hasDeletePermission = useMemo(() => {
+    if (!permissions) return false;
+    return permissions.hasSchemaPermission(schemaName, 'delete');
+  }, [permissions, schemaName]);
 
   logger.debug('Initializing document editor', { 
     schemaName, 
@@ -298,6 +312,12 @@ export function DocumentEditor({
 
   const handleSave = useCallback(async () => {
     if (!document || !schema) return;
+    
+    // Check if user has write permission
+    if (!hasWritePermission) {
+      showToast(`You don't have permission to edit ${getSchemaDisplayName(schemaName)}`, 'error');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -370,7 +390,7 @@ export function DocumentEditor({
     } finally {
       setSaving(false);
     }
-  }, [document, schema, isNewDocument, schemaName, documentId, documentState, onSave, navigate]);
+  }, [document, schema, isNewDocument, schemaName, documentId, documentState, onSave, navigate, hasWritePermission, showToast]);
 
   const handleCancel = useCallback(async () => {
     if (hasUnsavedChanges) {
@@ -427,6 +447,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
+    isReadOnly: !hasWritePermission, // Set read-only when user lacks write permission
     loading,
     saving,
     error,
@@ -444,6 +465,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
+    hasWritePermission,
     loading,
     saving,
     error,
