@@ -12,7 +12,10 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 const logger = createStudioLogger('SettingsPage');
 
 export function SettingsPage() {
-  const contextSidebar = useContextSidebar();
+  const contextSidebar = useContextSidebar({
+    page: 'settings',
+    title: 'Studio Settings'
+  });
   const { hasPermission } = usePermissions();
   const { branding } = useStudioBranding();
   const studioContext = useStudioContext();

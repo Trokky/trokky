@@ -3,6 +3,7 @@ import { storageService, STORAGE_KEYS } from '@/utils/storage';
 
 interface ContextSidebarPageConfig {
   page: string;
+  title?: string;
   defaultVisible?: boolean;
   defaultCollapsed?: boolean;
   defaultWidth?: number;
@@ -11,6 +12,7 @@ interface ContextSidebarPageConfig {
 
 interface ContextSidebarState {
   currentPage: string;
+  title: string;
   isVisible: boolean;
   isCollapsed: boolean;
   width: number;
@@ -42,8 +44,12 @@ interface ContextSidebarAPI {
   setContent: (content: ReactNode) => void;
   clearContent: () => void;
   
+  // Title control
+  setTitle: (title: string) => void;
+  
   // State accessors
   currentPage: string;
+  title: string;
   isVisible: boolean;
   isCollapsed: boolean;
   width: number;
@@ -64,6 +70,7 @@ export function ContextSidebarProvider({
   const [state, setState] = useState<ContextSidebarState>(() => {
     return {
       currentPage: 'default',
+      title: 'Context',
       isVisible: true,
       isCollapsed: false,
       width: 256,
@@ -100,6 +107,7 @@ export function ContextSidebarProvider({
       return {
         ...prev,
         currentPage: page,
+        title: config.title ?? 'Context',
         isVisible: savedVisible,
         isCollapsed: savedCollapsed,
         width: savedWidth,
@@ -171,6 +179,7 @@ export function ContextSidebarProvider({
   
   const setContent = useCallback((content: ReactNode) => setState(prev => ({ ...prev, content })), []);
   const clearContent = useCallback(() => setState(prev => ({ ...prev, content: null })), []);
+  const setTitle = useCallback((title: string) => setState(prev => ({ ...prev, title })), []);
 
   // Create the API object with stable function references and current state values
   const api: ContextSidebarAPI = useMemo(() => ({
@@ -197,8 +206,12 @@ export function ContextSidebarProvider({
     setContent,
     clearContent,
     
+    // Title control (stable reference)
+    setTitle,
+    
     // State accessors (updated with current state)
     currentPage: state.currentPage,
+    title: state.title,
     isVisible: state.isVisible,
     isCollapsed: state.isCollapsed,
     width: state.width,
@@ -207,8 +220,8 @@ export function ContextSidebarProvider({
   }), [
     configure, show, hide, toggle,
     collapse, expand, toggleCollapse,
-    setWidth, setPosition, setContent, clearContent,
-    state.currentPage, state.isVisible, state.isCollapsed, state.width, state.position, state.content
+    setWidth, setPosition, setContent, clearContent, setTitle,
+    state.currentPage, state.title, state.isVisible, state.isCollapsed, state.width, state.position, state.content
   ]);
 
   return (
@@ -230,6 +243,7 @@ export function ContextSidebarProvider({
  *   // Declarative configuration - sidebar will be positioned right with user preferences
  *   const contextSidebar = useContextSidebar({
  *     page: 'dashboard',
+ *     title: 'Recent Activity',
  *     defaultPosition: 'right',
  *     defaultVisible: true,
  *     defaultWidth: 320

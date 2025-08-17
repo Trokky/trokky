@@ -12,6 +12,7 @@ export function UsersPage() {
   // Declarative context sidebar configuration for users page
   const contextSidebar = useContextSidebar({
     page: 'users',
+    title: 'User Management',
     defaultVisible: false,
     defaultPosition: 'left'
   });

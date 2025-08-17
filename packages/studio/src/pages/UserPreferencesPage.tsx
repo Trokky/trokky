@@ -19,7 +19,10 @@ interface UserPreferences {
 
 export function UserPreferencesPage() {
   const { user } = useAuth();
-  const contextSidebar = useContextSidebar();
+  const contextSidebar = useContextSidebar({
+    page: 'user-preferences',
+    title: 'User Preferences'
+  });
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',
     language: 'en',

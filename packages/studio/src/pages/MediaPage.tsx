@@ -71,6 +71,7 @@ export function MediaPage() {
   // Declarative context sidebar configuration for media page
   const contextSidebar = useContextSidebar({
     page: 'media',
+    title: 'Media Library',
     defaultVisible: false,
     defaultPosition: 'left'
   });

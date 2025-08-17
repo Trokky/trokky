@@ -90,7 +90,8 @@ export function ContextSidebar({
         "w-12 h-full bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 flex flex-col",
         position === 'left' ? 'border-r' : 'border-l'
       )}>
-        <div className="p-2">
+        {/* Expand button */}
+        <div className="p-2 flex-shrink-0">
           <button
             onClick={toggleCollapsed}
             className="w-8 h-8 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 flex items-center justify-center"
@@ -102,6 +103,21 @@ export function ContextSidebar({
               <ChevronLeftIcon className="h-4 w-4" />
             )}
           </button>
+        </div>
+        
+        {/* Vertical title */}
+        <div className="flex-1 flex items-center justify-center py-4">
+          <div
+            className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap"
+            style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              transform: 'rotate(180deg)'
+            }}
+            title={contextAPI.title}
+          >
+            {contextAPI.title}
+          </div>
         </div>
       </div>
     );
@@ -119,7 +135,7 @@ export function ContextSidebar({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <h2 className="text-sm font-medium text-gray-900 dark:text-white">
-          Context
+          {contextAPI.title}
         </h2>
         <button
           onClick={toggleCollapsed}

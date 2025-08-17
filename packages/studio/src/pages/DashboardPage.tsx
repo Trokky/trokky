@@ -15,6 +15,7 @@ export function DashboardPage() {
   // Declarative context sidebar configuration for dashboard
   const contextSidebar = useContextSidebar({
     page: 'dashboard',
+    title: 'Recent Activity',
     defaultPosition: 'right',
     defaultVisible: true,
     defaultWidth: 320
