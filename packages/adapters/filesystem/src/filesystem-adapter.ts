@@ -22,6 +22,25 @@ import {
 } from '@trokky/core'
 import { FilesystemAdapterConfig, FileMetadata, DocumentFile } from './types.js'
 
+/**
+ * @deprecated FilesystemAdapter is deprecated. Use the split storage architecture instead:
+ * 
+ * ```ts
+ * // Old way (deprecated)
+ * const adapter = new FilesystemAdapter({ contentDir: './content', mediaDir: './media' })
+ * 
+ * // New way (recommended)
+ * const trokky = await TrokkyExpress.create({
+ *   storage: {
+ *     data: { adapter: 'filesystem-data', options: { contentDir: './data/content' } },
+ *     media: { adapter: 'filesystem-media', options: { mediaDir: './data/media' } }
+ *   }
+ * })
+ * ```
+ * 
+ * This provides better separation of concerns, improved scalability, and clearer configuration.
+ * See migration guide in docs for more details.
+ */
 export class FilesystemAdapter implements StorageAdapter {
   private config: Required<Omit<FilesystemAdapterConfig, 'mediaBaseUrl' | 'tokensDir' | 'webhooksDir'>> & { 
     mediaBaseUrl?: string; 
@@ -34,6 +53,15 @@ export class FilesystemAdapter implements StorageAdapter {
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
 
   constructor(config: FilesystemAdapterConfig = {}) {
+    // Show deprecation warning
+    if (!config.silent) {
+      console.warn(
+        '⚠️  [DEPRECATED] FilesystemAdapter is deprecated. Please migrate to the split storage architecture:\n' +
+        '   Use TrokkyExpress.create() with storage.data and storage.media adapters.\n' +
+        '   See migration guide: https://docs.trokky.dev/migration/split-storage'
+      )
+    }
+    
     this.config = {
       contentDir: config.contentDir || './content',
       mediaDir: config.mediaDir || './media',
