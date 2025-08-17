@@ -78,7 +78,7 @@ export function useDynamicPermissions() {
     
     schemas.forEach(schema => {
       const { schemaType, title, type } = schema;
-      const groupName = title;
+      const groupName = `${title} (Content)`;
       
       // All schemas get read and write permissions
       permissions.push(
