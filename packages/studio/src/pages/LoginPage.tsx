@@ -60,7 +60,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
         // Reinitialize API client with new backend URL
         apiClient.setBackendUrl(backendUrl);
       }
-      const response = await apiClient.login(credentials.username, credentials.password);
+      const response = await apiClient.login(credentials.username, credentials.password, rememberMe);
       
       if (response.success && response.data) {
         // The login method already returns the correct structure

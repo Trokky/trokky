@@ -743,12 +743,12 @@ export class ApiClient {
   /**
    * Login
    */
-  async login(username: string, password: string): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
+  async login(username: string, password: string, rememberMe?: boolean): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
     if (!this.hasFeature('auth')) {
       throw new ApiClientError('Auth feature not available');
     }
     
-    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/auth/login', { username, password });
+    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/auth/login', { username, password, rememberMe });
     
     if (response.success && response.data?.token) {
       this.setAuthToken(response.data.token);
