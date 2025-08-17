@@ -427,9 +427,10 @@ export class TrokkyRoutes {
 
   private async listDocuments(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema read permissions
       await this.validateAuthentication(request)
       const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
       const { limit, offset, filter, sort, page } = request.query
 
       // Validate collection name
@@ -491,9 +492,10 @@ export class TrokkyRoutes {
 
   private async createDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema write permissions
       await this.validateAuthentication(request)
       const { collection } = request.params
+      await this.validateSchemaAccess(request, collection, 'write')
       
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
@@ -542,9 +544,10 @@ export class TrokkyRoutes {
 
   private async getDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema read permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'read')
 
       // Validate inputs
       SecurityValidator.validateCollectionName(collection)
@@ -570,9 +573,10 @@ export class TrokkyRoutes {
 
   private async updateDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema write permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'write')
       
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
@@ -610,9 +614,10 @@ export class TrokkyRoutes {
 
   private async deleteDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication before processing
+      // SECURITY: Validate authentication and schema delete permissions
       await this.validateAuthentication(request)
       const { collection, id } = request.params
+      await this.validateSchemaAccess(request, collection, 'delete')
 
       // Validate inputs
       SecurityValidator.validateCollectionName(collection)
@@ -1615,6 +1620,43 @@ export class TrokkyRoutes {
     const hasReadAccess = session.role === 'admin' || session.permissions.includes('webhooks:read')
     if (!hasReadAccess) {
       throw new InvalidInputError('Insufficient permissions for webhook management operations', 'permissions')
+    }
+  }
+
+  private async validateSchemaAccess(request: HttpRequest, schemaName: string, action: 'read' | 'write' | 'delete'): Promise<void> {
+    const auth = this.config.authentication
+    if (!auth?.enabled) {
+      return // Authentication disabled, allow access
+    }
+
+    // Extract token from Authorization header
+    const authHeader = request.headers['authorization'] || request.headers['Authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    
+    if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
+      throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
+    }
+
+    const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
+
+    // Verify token using core engine
+    const session = await this.core.verifyAuthToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    // Check if user has admin role or schema-specific permission
+    const permission = `${schemaName}:${action}`
+    const schemaWildcard = `${schemaName}:*`
+    const contentWildcard = 'content:*'
+    
+    const hasAccess = session.role === 'admin' || 
+                     session.permissions.includes(permission) ||
+                     session.permissions.includes(schemaWildcard) ||
+                     session.permissions.includes(contentWildcard)
+    
+    if (!hasAccess) {
+      throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
     }
   }
 

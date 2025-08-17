@@ -31,24 +31,49 @@ const USER_ROLES: { value: UserRole; label: string; description: string }[] = [
 ];
 
 const PERMISSIONS: { value: Permission; label: string; group: string }[] = [
-  { value: 'content:read', label: 'View Content', group: 'Content' },
-  { value: 'content:write', label: 'Edit Content', group: 'Content' },
-  { value: 'content:delete', label: 'Delete Content', group: 'Content' },
-  { value: 'content:publish', label: 'Publish Content', group: 'Content' },
+  // Global Content Permissions
+  { value: 'content:*', label: 'All Content Operations', group: 'Content' },
+  { value: 'content:read', label: 'View All Content', group: 'Content' },
+  { value: 'content:write', label: 'Edit All Content', group: 'Content' },
+  { value: 'content:delete', label: 'Delete All Content', group: 'Content' },
+  { value: 'content:publish', label: 'Publish All Content', group: 'Content' },
+  
+  // Schema-specific Content Permissions (examples - these can be dynamic)
+  { value: 'articles:read', label: 'View Articles', group: 'Articles' },
+  { value: 'articles:write', label: 'Edit Articles', group: 'Articles' },
+  { value: 'articles:delete', label: 'Delete Articles', group: 'Articles' },
+  { value: 'products:read', label: 'View Products', group: 'Products' },
+  { value: 'products:write', label: 'Edit Products', group: 'Products' },
+  { value: 'products:delete', label: 'Delete Products', group: 'Products' },
+  { value: 'events:read', label: 'View Events', group: 'Events' },
+  { value: 'events:write', label: 'Edit Events', group: 'Events' },
+  { value: 'events:delete', label: 'Delete Events', group: 'Events' },
+  
+  // Media permissions
   { value: 'media:read', label: 'View Media', group: 'Media' },
   { value: 'media:upload', label: 'Upload Media', group: 'Media' },
   { value: 'media:edit', label: 'Edit Media', group: 'Media' },
   { value: 'media:delete', label: 'Delete Media', group: 'Media' },
+  
+  // User management permissions
   { value: 'users:read', label: 'View Users', group: 'Users' },
   { value: 'users:write', label: 'Edit Users', group: 'Users' },
   { value: 'users:delete', label: 'Delete Users', group: 'Users' },
   { value: 'users:invite', label: 'Invite Users', group: 'Users' },
+  
+  // Settings permissions
   { value: 'settings:read', label: 'View Settings', group: 'Settings' },
   { value: 'settings:write', label: 'Edit Settings', group: 'Settings' },
+  
+  // Studio access
   { value: 'studio:access', label: 'Studio Access', group: 'Access' },
+  
+  // API Tokens
   { value: 'tokens:read', label: 'View API Tokens', group: 'Tokens' },
   { value: 'tokens:write', label: 'Create API Tokens', group: 'Tokens' },
   { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' },
+  
+  // Webhooks
   { value: 'webhooks:read', label: 'View Webhooks', group: 'Webhooks' },
   { value: 'webhooks:write', label: 'Create/Edit Webhooks', group: 'Webhooks' },
   { value: 'webhooks:delete', label: 'Delete Webhooks', group: 'Webhooks' },
@@ -85,6 +110,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [hasCustomPermissions, setHasCustomPermissions] = useState(false);
+  const [customPermission, setCustomPermission] = useState('');
 
   // Check if current permissions match the role's default permissions
   const checkCustomPermissions = (role: UserRole, permissions: Permission[]) => {
@@ -128,6 +154,36 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
     const rolePermissions = ROLE_PERMISSIONS[formData.role] || [];
     setFormData(prev => ({ ...prev, permissions: rolePermissions }));
     setHasCustomPermissions(false);
+  };
+
+  // Add custom permission
+  const addCustomPermission = () => {
+    if (!customPermission.trim()) return;
+    
+    // Validate permission format (schema:action)
+    const permissionRegex = /^[a-z][a-z0-9_-]*:(read|write|delete|\*)$/i;
+    if (!permissionRegex.test(customPermission.trim())) {
+      alert('Permission must be in format "schema:action" (e.g., "articles:read", "products:write", "events:*")');
+      return;
+    }
+    
+    const permission = customPermission.trim() as Permission;
+    if (!formData.permissions.includes(permission)) {
+      setFormData(prev => ({ 
+        ...prev, 
+        permissions: [...prev.permissions, permission] 
+      }));
+      setHasCustomPermissions(true);
+    }
+    setCustomPermission('');
+  };
+
+  // Remove custom permission
+  const removeCustomPermission = (permission: Permission) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      permissions: prev.permissions.filter(p => p !== permission) 
+    }));
   };
 
   // Generate secure password
@@ -394,6 +450,65 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                     </div>
                   </div>
                 ))}
+              </div>
+              
+              {/* Custom Permissions */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Custom Schema Permissions
+                </label>
+                <div className="space-y-2">
+                  {/* Add Custom Permission */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customPermission}
+                      onChange={(e) => setCustomPermission(e.target.value)}
+                      placeholder="e.g., articles:read, products:write, events:*"
+                      className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                      onKeyPress={(e) => e.key === 'Enter' && addCustomPermission()}
+                    />
+                    <Button 
+                      type="button"
+                      size="sm" 
+                      onClick={addCustomPermission}
+                      disabled={!customPermission.trim()}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  
+                  {/* Display Custom Permissions */}
+                  {formData.permissions.filter(p => !PERMISSIONS.some(perm => perm.value === p)).length > 0 && (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Custom permissions:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {formData.permissions
+                          .filter(p => !PERMISSIONS.some(perm => perm.value === p))
+                          .map(permission => (
+                            <span 
+                              key={permission}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded"
+                            >
+                              {permission}
+                              <button
+                                type="button"
+                                onClick={() => removeCustomPermission(permission)}
+                                className="hover:text-blue-600 dark:hover:text-blue-300"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Format: <code>schema:action</code> (e.g., articles:read, products:write, events:*)
+                  </div>
+                </div>
               </div>
             </div>
           </div>
