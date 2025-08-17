@@ -189,10 +189,26 @@ export function DocumentSidebar() {
   const getDocumentUrl = () => {
     if (!document || isNewDocument) return null;
     
-    // This would generate the public URL for the document
-    const baseUrl = window.location.origin;
+    // Get public URL from settings or fallback to current domain
+    // TODO: Get this from actual settings when settings persistence is implemented
+    let publicUrl = localStorage.getItem('trokky_public_url') || window.location.origin;
+    
+    // Remove trailing slash to avoid double slashes
+    publicUrl = publicUrl.replace(/\/$/, '');
+    
+    // Generate the public URL for the document
     const slug = document.slug || document.id;
-    return `${baseUrl}/${schema?.name}/${slug}`;
+    
+    // Handle different URL patterns based on schema and document structure
+    if (schema?.name === 'page' || schema?.type === 'singleton') {
+      // For pages and singletons, use the slug directly
+      return slug === 'homepage' || slug === 'home' 
+        ? publicUrl 
+        : `${publicUrl}/${slug}`;
+    } else {
+      // For regular collections, use schema name + slug
+      return `${publicUrl}/${schema?.name}/${slug}`;
+    }
   };
 
   const handleDeleteDocument = async () => {
