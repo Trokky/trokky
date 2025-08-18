@@ -1,13 +1,16 @@
 {
   "name": "@trokky/client",
   "version": "0.1.0",
-  "description": "TypeScript-native client SDK for Trokky CMS with type generation",
+  "description": "TypeScript-native client SDK for Trokky CMS with type generation and shortcode support",
   "keywords": [
     "cms",
     "client",
     "sdk",
     "typescript",
-    "type-generation"
+    "type-generation",
+    "shortcodes",
+    "media",
+    "portable-content"
   ],
   "author": "Trokky Team",
   "license": "MIT",
@@ -32,6 +35,16 @@
       "types": "./dist/generator/document-generator.d.ts",
       "import": "./dist/generator/document-generator.js",
       "require": "./dist/generator/document-generator.js"
+    },
+    "./shortcodes": {
+      "types": "./dist/shortcodes/index.d.ts",
+      "import": "./dist/shortcodes/index.js",
+      "require": "./dist/shortcodes/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.js"
     }
   },
   "files": [

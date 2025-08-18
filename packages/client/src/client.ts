@@ -7,6 +7,7 @@ import { HttpClient } from './http/client'
 import { CacheManager } from './cache/manager'
 import { DocumentClient } from './document/client'
 import { MediaHelper } from './media/helper'
+import { ShortcodeResolver } from './shortcodes/resolver'
 
 import type { 
   ClientConfig, 
@@ -24,6 +25,7 @@ export class TrokkyClient {
   public readonly cache: CacheManager
   public readonly documents: DocumentClient
   public readonly media: MediaHelper
+  public readonly shortcodes: ShortcodeResolver
 
   constructor(config: ClientConfig) {
     // Initialize core components
@@ -31,6 +33,7 @@ export class TrokkyClient {
     this.cache = new CacheManager(config.cacheMaxAge)
     this.documents = new DocumentClient(this.http, this.cache)
     this.media = new MediaHelper(this.http)
+    this.shortcodes = new ShortcodeResolver(this.http, this.media)
   }
 
   // Authentication methods (delegate to http client)
@@ -246,6 +249,38 @@ export class TrokkyClient {
    */
   async deleteApiToken(id: string): Promise<void> {
     return this.http.deleteApiToken(id)
+  }
+
+  // Content methods with shortcode support
+
+  /**
+   * Resolve shortcodes in content to HTML
+   * Converts environment-agnostic shortcodes to actual HTML for display
+   */
+  resolveContent(content: string): string {
+    return this.shortcodes.resolveContent(content)
+  }
+
+  /**
+   * Check if content contains shortcodes
+   */
+  hasShortcodes(content: string): boolean {
+    return this.shortcodes.hasShortcodes(content)
+  }
+
+  /**
+   * Extract media dependencies from content
+   * Useful for preloading or understanding content requirements
+   */
+  extractContentMedia(content: string) {
+    return this.shortcodes.extractImageShortcodes(content)
+  }
+
+  /**
+   * Preload all media in content for faster rendering
+   */
+  async preloadContentMedia(content: string): Promise<void> {
+    return this.shortcodes.preloadContentMedia(content)
   }
 
   // Utility methods
