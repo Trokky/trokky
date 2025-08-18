@@ -611,6 +611,35 @@ export function MediaPage() {
     return file.metadata?.imageVariants ? Object.keys(file.metadata.imageVariants).length : 0;
   };
 
+  // Get the best available variant for preview
+  const getBestPreviewVariant = (media: MediaFile): string | undefined => {
+    // For image media with variants, prefer thumbnail > small > original
+    if (media.metadata?.imageVariants) {
+      const variants = media.metadata.imageVariants;
+      if (variants.thumbnail) return 'thumbnail';
+      if (variants.small) return 'small';
+      // If no small variants, use original (undefined means original)
+    }
+    // For non-image media or media without variants, use original
+    return undefined;
+  };
+
+  // Get media URL using MediaUrlGenerator (similar to MediaBrowser pattern)
+  const getMediaUrl = (media: MediaFile, variant?: string): string => {
+    const mediaUrlGenerator = (studioContext as any)?.mediaUrlGenerator;
+    
+    if (mediaUrlGenerator) {
+      return mediaUrlGenerator.getMediaUrl(media.id, variant);
+    }
+    
+    // Fallback to media.url if MediaUrlGenerator not available
+    logger.warn('MediaUrlGenerator not available in MediaPage, using fallback URL', { 
+      mediaId: media.id, 
+      variant 
+    });
+    return media.url;
+  };
+
   // Render media item
   const renderMediaItem = (file: MediaFile) => {
     const FileIcon = getFileIcon(file.contentType);
@@ -627,7 +656,7 @@ export function MediaPage() {
           <div className="aspect-square flex items-center justify-center bg-gray-50 dark:bg-gray-900">
             {isImage ? (
               <img
-                src={file.url}
+                src={getMediaUrl(file, getBestPreviewVariant(file))}
                 alt={file.metadata?.alt || file.filename}
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -711,7 +740,7 @@ export function MediaPage() {
           <div className="flex-shrink-0">
             {isImage ? (
               <img
-                src={file.url}
+                src={getMediaUrl(file, getBestPreviewVariant(file))}
                 alt={file.metadata?.alt || file.filename}
                 className="w-12 h-12 object-cover rounded"
                 loading="lazy"
@@ -1019,7 +1048,7 @@ export function MediaPage() {
                   size="sm"
                   onClick={() => {
                     const link = document.createElement('a');
-                    link.href = selectedFile.url;
+                    link.href = getMediaUrl(selectedFile);
                     link.download = selectedFile.filename;
                     document.body.appendChild(link);
                     link.click();
@@ -1084,19 +1113,19 @@ export function MediaPage() {
                 <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
                   {selectedFile.contentType.startsWith('image/') ? (
                   <img
-                    src={selectedFile.url}
+                    src={getMediaUrl(selectedFile)}
                     alt={selectedFile.metadata?.alt || selectedFile.filename}
                     className="max-w-full max-h-full object-contain"
                   />
                 ) : selectedFile.contentType.startsWith('video/') ? (
                   <video
-                    src={selectedFile.url}
+                    src={getMediaUrl(selectedFile)}
                     controls
                     className="max-w-full max-h-full"
                   />
                 ) : selectedFile.contentType.startsWith('audio/') ? (
                   <audio
-                    src={selectedFile.url}
+                    src={getMediaUrl(selectedFile)}
                     controls
                     className="w-full max-w-md"
                   />
@@ -1111,7 +1140,7 @@ export function MediaPage() {
                     <Button
                       onClick={() => {
                         const link = document.createElement('a');
-                        link.href = selectedFile.url;
+                        link.href = getMediaUrl(selectedFile);
                         link.download = selectedFile.filename;
                         document.body.appendChild(link);
                         link.click();
@@ -1147,13 +1176,12 @@ export function MediaPage() {
                     </div>
                     <div className="flex space-x-3 overflow-x-auto pb-2">
                       {Object.entries(selectedFile.metadata.imageVariants).map(([variantName, variant]) => {
-                        // Use thumbnail for display in Studio, but original variant URL for copy/view actions
-                        const thumbnailUrl = selectedFile.metadata?.imageVariants?.thumbnail?.url || variant.url;
+                        // Use thumbnail variant for display in Studio
                         
                         return (
                           <div key={variantName} className="flex-shrink-0 group relative">
                             <img
-                              src={thumbnailUrl}
+                              src={getMediaUrl(selectedFile, variantName)}
                               alt={`${variantName} variant`}
                               className="w-20 h-20 object-cover rounded border border-gray-200 dark:border-gray-600"
                               loading="lazy"
@@ -1163,7 +1191,7 @@ export function MediaPage() {
                               <div className="flex space-x-1">
                                 <button
                                   onClick={() => {
-                                    navigator.clipboard.writeText(variant.url);
+                                    navigator.clipboard.writeText(getMediaUrl(selectedFile, variantName));
                                   }}
                                   className="text-[10px] bg-white bg-opacity-90 text-gray-800 px-1.5 py-0.5 rounded hover:bg-opacity-100 transition-all"
                                   title="Copy URL"
@@ -1171,7 +1199,7 @@ export function MediaPage() {
                                   Copy
                                 </button>
                                 <a
-                                  href={variant.url}
+                                  href={getMediaUrl(selectedFile, variantName)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-[10px] bg-primary-600 bg-opacity-90 text-white px-1.5 py-0.5 rounded hover:bg-opacity-100 transition-all"

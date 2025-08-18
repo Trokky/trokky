@@ -93,6 +93,58 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   // Create a dedicated logger for field components
   const fieldLogger = useMemo(() => createStudioLogger('Fields'), []);
   
+  // Get MediaUrlGenerator from API endpoint instead of global config
+  const [mediaUrlGenerator, setMediaUrlGenerator] = useState<any>(null);
+  
+  useEffect(() => {
+    // Fetch studio config from API endpoint
+    const fetchStudioConfig = async () => {
+      try {
+        console.log('🔍 Studio Context - Fetching config from API endpoint...');
+        const response = await apiClient.get('/config/studio');
+        
+        if (response.success && response.data?.studioConfig?.mediaUrlGenerator) {
+          const mediaUrlGenConfig = response.data.studioConfig.mediaUrlGenerator;
+          console.log('✅ Studio Context - MediaUrlGenerator config received:', mediaUrlGenConfig);
+          
+          // Create a MediaUrlGenerator-like object from the config
+          const generator = {
+            getMediaUrl: (mediaId: string, variant?: string) => {
+              const { options } = mediaUrlGenConfig;
+              const servingMode = options.mediaConfig?.serving?.mode || 'api';
+              const apiBasePath = options.apiBasePath || '/api';
+              const staticBasePath = options.mediaConfig?.serving?.staticBasePath || '/media';
+              
+              // Get the backend URL from apiClient (already includes /cms-api)
+              const backendUrl = apiClient.getBackendUrl?.() || 'http://localhost:3000/cms-api';
+              
+              if (servingMode === 'static') {
+                // For static serving, use base URL without API path
+                const baseUrl = backendUrl.replace(/\/[^\/]+$/, ''); // Remove /cms-api
+                const path = variant ? `${staticBasePath}/${mediaId}/${variant}` : `${staticBasePath}/${mediaId}`;
+                return `${baseUrl}${path}`;
+              } else {
+                // For API serving, backendUrl already has /cms-api, just add the media path
+                const path = variant 
+                  ? `/media/${mediaId}/variants/${variant}`
+                  : `/media/${mediaId}/file`;
+                return `${backendUrl}${path}`;
+              }
+            }
+          };
+          
+          setMediaUrlGenerator(generator);
+        } else {
+          console.warn('⚠️ Studio Context - No MediaUrlGenerator config in API response');
+        }
+      } catch (error) {
+        console.error('❌ Studio Context - Failed to fetch studio config:', error);
+      }
+    };
+    
+    fetchStudioConfig();
+  }, []);
+  
   // Media browser state
   const [mediaBrowserState, setMediaBrowserState] = useState<{
     isOpen: boolean;
@@ -242,8 +294,11 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         warn: fieldLogger.warn.bind(fieldLogger),
         error: fieldLogger.error.bind(fieldLogger),
       },
+
+      // Media URL generator for field components
+      mediaUrlGenerator,
     };
-  }, [showToast, showConfirm, openModal, closeModal, showMediaBrowser, fieldLogger]);
+  }, [showToast, showConfirm, openModal, closeModal, showMediaBrowser, fieldLogger, mediaUrlGenerator]);
 
   return (
     <StudioContextInstance.Provider value={studioContext}>
@@ -263,6 +318,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
           context={mediaBrowserState.config.context}
           apiClient={apiClient}
           logger={fieldLogger}
+          mediaUrlGenerator={mediaUrlGenerator}
         />
       )}
     </StudioContextInstance.Provider>

@@ -75,6 +75,11 @@ export interface StudioContext {
     warn: (message: string, data?: any) => void;
     error: (message: string, error?: Error | any) => void;
   };
+
+  // Media URL generator for proper URL construction across serving modes
+  mediaUrlGenerator?: {
+    getMediaUrl: (mediaId: string, variant?: string) => string;
+  } | null;
 }
 
 // Props passed to field components
