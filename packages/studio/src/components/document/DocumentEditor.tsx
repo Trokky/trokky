@@ -211,7 +211,7 @@ export function DocumentEditor({
   const initializeNewDocument = (schema: any) => {
     const doc: any = {
       _type: schemaName,
-      _state: 'draft',
+      _status: 'draft', // Use _status instead of _state for consistency
       _createdAt: new Date().toISOString(),
       _updatedAt: new Date().toISOString()
     };
@@ -248,7 +248,10 @@ export function DocumentEditor({
   };
 
   const determineDocumentState = (doc: any): DocumentState => {
-    // Check various fields that might indicate state
+    // Use _status as the primary source of truth
+    if (doc._status) return doc._status;
+    
+    // Fallback to legacy fields for backward compatibility
     if (doc._state) return doc._state;
     if (doc.status) return doc.status;
     if (doc.published === true) return 'published';
@@ -278,21 +281,24 @@ export function DocumentEditor({
     }
 
     try {
-      // Apply state change to document
+      // Apply state change to document using _status as single source of truth
       const updatedDocument = {
         ...document,
-        _state: newState,
+        _status: newState, // Use _status instead of _state
         _updatedAt: new Date().toISOString()
       };
 
-      // Add state-specific fields
+      // Add publishedAt timestamp for published documents
       if (newState === 'published') {
-        updatedDocument.published = true;
         updatedDocument.publishedAt = new Date().toISOString();
       } else if (newState === 'draft') {
-        updatedDocument.published = false;
+        // Remove publishedAt when reverting to draft
         updatedDocument.publishedAt = null;
       }
+
+      // Remove legacy fields to avoid confusion
+      delete updatedDocument._state;
+      delete updatedDocument.published;
 
       setDocument(updatedDocument);
       setDocumentState(newState);
@@ -335,9 +341,14 @@ export function DocumentEditor({
         return;
       }
 
-      // Clean document data before sending to API - remove frontend-only fields
+      // Clean document data before sending to API - remove frontend-only fields and ensure _status is set
       const cleanDocument = { ...document };
-      delete cleanDocument._state; // Remove frontend state field
+      delete cleanDocument._state; // Remove legacy frontend state field
+      
+      // Ensure _status is properly set based on current document state
+      if (!cleanDocument._status) {
+        cleanDocument._status = documentState || 'draft';
+      }
 
       let response;
       if (isNewDocument) {

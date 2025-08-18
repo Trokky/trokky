@@ -1612,6 +1612,35 @@ export class TrokkyCore {
     }
   }
 
+  /**
+   * Unified token validation that handles both JWT and API tokens
+   * Returns a consistent UserSession interface for both token types
+   */
+  public async verifyAnyToken(token: string): Promise<UserSession | null> {
+    // Check if it's a JWT token (3 parts separated by dots)
+    const parts = token.split('.')
+    if (parts.length === 3) {
+      // JWT token - use existing verification
+      return await this.verifyAuthToken(token)
+    } else if (token.length === 64 && /^[a-f0-9]{64}$/.test(token)) {
+      // API token - validate and get permissions
+      const result = await this.validateAppToken(token)
+      if (result.valid && result.appToken) {
+        // Create a session-like object for API tokens
+        return {
+          userId: result.appToken.createdBy,
+          username: `api-token-${result.appToken.name}`,
+          role: 'api', // Special role for API tokens
+          permissions: result.appToken.permissions,
+          loginAt: new Date().toISOString(),
+          expiresAt: result.appToken.expiresAt
+        }
+      }
+    }
+    
+    return null
+  }
+
   public async authenticateUser(username: string, password: string, options: { rememberMe?: boolean } = {}): Promise<{ user: User; token: string; refreshToken: string } | null> {
     try {
       // Get user by username

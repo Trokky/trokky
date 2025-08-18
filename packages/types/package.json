@@ -1,0 +1,45 @@
+{
+  "name": "@trokky/types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for Trokky ecosystem",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "import": "./dist/media.js"
+    },
+    "./fields": {
+      "types": "./dist/fields.d.ts", 
+      "import": "./dist/fields.js"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "tsc --project tsconfig.build.json --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "trokky",
+    "types",
+    "typescript",
+    "cms"
+  ],
+  "author": "Trokky Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

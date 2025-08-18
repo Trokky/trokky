@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import type { MediaFieldValue, MediaType } from './definition.js';
-import { MediaBrowserContent } from './MediaBrowserContent.js';
+import type { MediaFieldValue, MediaType } from '../types';
+import { MediaBrowserContent } from './MediaBrowserContent';
 
 // Custom modal component with proper backdrop
 const CustomModal = ({ isOpen, onClose, title, children }: any) => {
@@ -22,7 +22,7 @@ const CustomModal = ({ isOpen, onClose, title, children }: any) => {
         />
         
         {/* Modal content */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[60vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
           {title && (
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex-1">
@@ -70,6 +70,10 @@ interface MediaBrowserProps {
     warn: (message: string, data?: any) => void;
     error: (message: string, error?: Error | any) => void;
   };
+  // MediaUrlGenerator for proper URL construction
+  mediaUrlGenerator?: {
+    getMediaUrl: (mediaId: string, variant?: string) => string;
+  } | null;
 }
 
 export function MediaBrowser({ 
@@ -80,7 +84,8 @@ export function MediaBrowser({
   showVariantSelector = false,
   context,
   apiClient,
-  logger
+  logger,
+  mediaUrlGenerator
 }: MediaBrowserProps) {
   const handleSelect = (value: MediaFieldValue) => {
     onSelect(value);
@@ -111,6 +116,7 @@ export function MediaBrowser({
         context={context}
         apiClient={apiClient}
         logger={logger}
+        mediaUrlGenerator={mediaUrlGenerator}
       />
     </CustomModal>
   );

@@ -93,11 +93,20 @@ export class HttpClient {
       }
     })
 
-    // Extract tokens from response (transformResponse already extracted the data field)
+    // Handle both old and new response formats
+    // New format: { success: true, token: "...", refreshToken: "...", expiresAt: "..." }
+    // Old format: { success: true, data: { token: "...", refreshToken: "...", expiresAt: "..." } }
+    // The transformResponse method already handles the old format by extracting the data field
+    
     const tokens = {
       accessToken: response.token,
       refreshToken: response.refreshToken,
-      expiresAt: new Date(response.expiresAt).getTime()
+      expiresAt: response.expiresAt ? new Date(response.expiresAt).getTime() : undefined
+    }
+    
+    // Validate that we received the required tokens
+    if (!tokens.accessToken) {
+      throw new Error('Authentication failed: No access token received')
     }
 
     this.setTokens(tokens)

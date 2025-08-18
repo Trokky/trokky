@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { fieldRegistry } from '@trokky/fields'
+import type { 
+  FieldRegistry, 
+  FieldType
+} from '@trokky/types';
+import { CORE_FIELD_TYPES } from '@trokky/types';
 import type { 
   User, 
   UserListOptions, 
@@ -95,17 +99,24 @@ export interface DocumentWithContent extends Document {
 // Document data without metadata
 export type DocumentData = Omit<Document, 'id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>
 
-// Dynamic field types from @trokky/fields registry
-function getFieldTypeSchema() {
-  const registeredTypes = fieldRegistry.getTypes();
-  if (registeredTypes.length === 0) {
-    throw new Error('No field types registered in @trokky/fields registry. Ensure field registration runs before schema validation.');
-  }
-  return z.enum(registeredTypes as [string, ...string[]]);
+// Dynamic field type registry - allows @trokky/fields to register types at runtime
+let _fieldRegistry: FieldRegistry | null = null;
+
+export function setFieldRegistry(registry: FieldRegistry) {
+  _fieldRegistry = registry;
 }
 
-export const FieldTypeSchema = getFieldTypeSchema();
-export type FieldType = z.infer<typeof FieldTypeSchema>
+export function getRegisteredFieldTypes(): string[] {
+  if (_fieldRegistry) {
+    return _fieldRegistry.getTypes();
+  }
+  // Fallback to core types
+  return [...CORE_FIELD_TYPES];
+}
+
+// Field type schema - accepts any string to allow dynamic types
+export const FieldTypeSchema = z.string();
+export type { FieldType };
 
 // Schema field definition interfaces
 export interface FieldDefinition {
@@ -355,6 +366,15 @@ export type {
 } from './user.js'
 
 export { ROLE_PERMISSIONS } from './user.js'
+
+// Re-export media types from @trokky/types
+export type {
+  MediaAssetReference,
+  MediaFieldValue,
+  MediaType,
+  MediaAsset,
+  MediaBrowserConfig
+} from '@trokky/types';
 
 // Split storage adapter types
 export type {

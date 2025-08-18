@@ -3,10 +3,12 @@
  * Provides field components access to Studio capabilities
  */
 
-import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect, useState } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import type { StudioContext } from '@trokky/fields';
+import type { MediaBrowserConfig } from '@trokky/types/media';
+import { MediaBrowser } from '@/components/MediaBrowser';
 
 const StudioContextInstance = createContext<StudioContext | null>(null);
 
@@ -91,6 +93,67 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
   // Create a dedicated logger for field components
   const fieldLogger = useMemo(() => createStudioLogger('Fields'), []);
   
+  // Get MediaUrlGenerator from API endpoint instead of global config
+  const [mediaUrlGenerator, setMediaUrlGenerator] = useState<any>(null);
+  
+  useEffect(() => {
+    // Fetch studio config from API endpoint
+    const fetchStudioConfig = async () => {
+      try {
+        console.log('🔍 Studio Context - Fetching config from API endpoint...');
+        const response = await apiClient.get('/config/studio');
+        
+        if (response.success && response.data?.studioConfig?.mediaUrlGenerator) {
+          const mediaUrlGenConfig = response.data.studioConfig.mediaUrlGenerator;
+          console.log('✅ Studio Context - MediaUrlGenerator config received:', mediaUrlGenConfig);
+          
+          // Create a MediaUrlGenerator-like object from the config
+          const generator = {
+            getMediaUrl: (mediaId: string, variant?: string) => {
+              const { options } = mediaUrlGenConfig;
+              const servingMode = options.mediaConfig?.serving?.mode || 'api';
+              const apiBasePath = options.apiBasePath || '/api';
+              const staticBasePath = options.mediaConfig?.serving?.staticBasePath || '/media';
+              
+              // Get the backend URL from apiClient (already includes /cms-api)
+              const backendUrl = apiClient.getBackendUrl?.() || 'http://localhost:3000/cms-api';
+              
+              if (servingMode === 'static') {
+                // For static serving, use base URL without API path
+                const baseUrl = backendUrl.replace(/\/[^\/]+$/, ''); // Remove /cms-api
+                const path = variant ? `${staticBasePath}/${mediaId}/${variant}` : `${staticBasePath}/${mediaId}`;
+                return `${baseUrl}${path}`;
+              } else {
+                // For API serving, backendUrl already has /cms-api, just add the media path
+                const path = variant 
+                  ? `/media/${mediaId}/variants/${variant}`
+                  : `/media/${mediaId}/file`;
+                return `${backendUrl}${path}`;
+              }
+            }
+          };
+          
+          setMediaUrlGenerator(generator);
+        } else {
+          console.warn('⚠️ Studio Context - No MediaUrlGenerator config in API response');
+        }
+      } catch (error) {
+        console.error('❌ Studio Context - Failed to fetch studio config:', error);
+      }
+    };
+    
+    fetchStudioConfig();
+  }, []);
+  
+  // Media browser state
+  const [mediaBrowserState, setMediaBrowserState] = useState<{
+    isOpen: boolean;
+    config: MediaBrowserConfig | null;
+  }>({
+    isOpen: false,
+    config: null
+  });
+  
   // Only log once when provider is first created
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true) {
@@ -140,6 +203,21 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
 
   const closeModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('studio:closeModal'));
+  }, []);
+
+  // Media browser utilities
+  const showMediaBrowser = useCallback((config: MediaBrowserConfig) => {
+    setMediaBrowserState({
+      isOpen: true,
+      config
+    });
+  }, []);
+
+  const closeMediaBrowser = useCallback(() => {
+    setMediaBrowserState({
+      isOpen: false,
+      config: null
+    });
   }, []);
 
   // Create the studio context value
@@ -207,6 +285,7 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         showConfirm,
         openModal,
         closeModal,
+        showMediaBrowser,
       },
       
       logger: {
@@ -215,12 +294,33 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
         warn: fieldLogger.warn.bind(fieldLogger),
         error: fieldLogger.error.bind(fieldLogger),
       },
+
+      // Media URL generator for field components
+      mediaUrlGenerator,
     };
-  }, [showToast, showConfirm, openModal, closeModal, fieldLogger]);
+  }, [showToast, showConfirm, openModal, closeModal, showMediaBrowser, fieldLogger, mediaUrlGenerator]);
 
   return (
     <StudioContextInstance.Provider value={studioContext}>
       {children}
+      
+      {/* Media Browser Modal */}
+      {mediaBrowserState.isOpen && mediaBrowserState.config && (
+        <MediaBrowser
+          isOpen={mediaBrowserState.isOpen}
+          onClose={closeMediaBrowser}
+          onSelect={(value) => {
+            mediaBrowserState.config?.onSelect(value);
+            closeMediaBrowser();
+          }}
+          mediaTypeFilter={mediaBrowserState.config.mediaTypeFilter}
+          showVariantSelector={mediaBrowserState.config.showVariantSelector}
+          context={mediaBrowserState.config.context}
+          apiClient={apiClient}
+          logger={fieldLogger}
+          mediaUrlGenerator={mediaUrlGenerator}
+        />
+      )}
     </StudioContextInstance.Provider>
   );
 }

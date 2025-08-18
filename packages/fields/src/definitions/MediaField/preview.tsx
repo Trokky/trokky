@@ -13,8 +13,8 @@ const SpeakerWaveIcon = ({ className }: { className?: string }) => <div classNam
 const ArchiveBoxIcon = ({ className }: { className?: string }) => <div className={className}>📦</div>;
 const EyeIcon = ({ className }: { className?: string }) => <div className={className}>👁️</div>;
 const ArrowDownTrayIcon = ({ className }: { className?: string }) => <div className={className}>⬇️</div>;
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition.js';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
+import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition';
 
 type MediaFieldPreviewProps = FieldComponentProps;
 
@@ -48,6 +48,12 @@ function formatFileSize(bytes: number): string {
   }
   
   return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+// Truncate text for display with ellipsis
+function truncateText(text: string, maxLength: number = 30): string {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
 }
 
 // Media asset interface (from Studio API)
@@ -212,7 +218,17 @@ export function MediaFieldPreview(props: MediaFieldPreviewProps) {
         <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden">
           {asset?.url && mediaType === 'image' ? (
             <img 
-              src={asset.url} 
+              src={(() => {
+                // Use MediaUrlGenerator if available from Studio Context
+                if (studioContext?.mediaUrlGenerator) {
+                  return studioContext.mediaUrlGenerator.getMediaUrl(
+                    mediaValue.asset._ref, 
+                    mediaValue.variant || 'thumbnail'
+                  );
+                }
+                // Fallback to main URL
+                return asset.url;
+              })()} 
               alt={mediaValue?.alt || asset.title || asset.filename}
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -228,14 +244,17 @@ export function MediaFieldPreview(props: MediaFieldPreviewProps) {
 
       {/* Information below the image */}
       <div className="space-y-2 text-center">
-        <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-          {mediaValue.title || asset?.title || asset?.filename || 'Media Asset'}
+        <h4 
+          className="text-sm font-medium text-gray-900 dark:text-white"
+          title={mediaValue.title || asset?.title || asset?.filename || 'Media Asset'}
+        >
+          {truncateText(mediaValue.title || asset?.title || asset?.filename || 'Media Asset', 40)}
         </h4>
         
         {asset && (
           <div className="text-xs text-gray-500 space-y-1">
             <div className="flex items-center justify-center space-x-2">
-              <span>{asset.filename}</span>
+              <span title={asset.filename}>{truncateText(asset.filename, 25)}</span>
               <span>•</span>
               <span>{formatFileSize(asset.size)}</span>
               {asset.contentType && (

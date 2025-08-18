@@ -9,6 +9,17 @@ export { DocumentClient } from './document/client'
 export { TrokkyClient } from './client'
 export { MediaHelper } from './media/helper'
 
+// Shortcode support
+export { ShortcodeResolver, createMediaUrlResolver } from './shortcodes/resolver'
+export { 
+  parseShortcodeAttrs,
+  parseImageShortcode,
+  shortcodeToHtml,
+  resolveShortcodes,
+  hasShortcodes,
+  extractImageShortcodes
+} from './shortcodes/parser'
+
 export type {
   ClientConfig,
   AuthConfig,
@@ -18,19 +29,32 @@ export type {
   CreateAppTokenData,
   AppTokenResult,
   RequestOptions,
-  QueryOptions,
-  DocumentResult,
-  CollectionResult,
   MediaResult,
   ValidationError,
   ApiError,
   CacheEntry,
   TypeGeneratorOptions,
   DocumentGeneratorOptions,
-  BaseDocument,
   ClientEvents,
-  ClientEventType
+  ClientEventType,
+  // Re-exported from @trokky/types
+  BaseDocument,
+  DocumentResult,
+  CollectionResult,
+  DocumentWithContent,
+  QueryOptions,
+  ListOptions,
+  MediaAsset,
+  MediaFieldValue,
+  MediaAssetReference,
+  MediaType
 } from './types'
+
+// Shortcode types
+export type {
+  TrokkyImageShortcode,
+  MediaUrlResolver
+} from './shortcodes/types'
 
 // Type generator exports (for separate import)
 export { 
@@ -53,3 +77,6 @@ export type {
   MediaFile,
   MediaResponse
 } from './media/helper'
+
+// React integration (optional export path)
+export * as React from './react'

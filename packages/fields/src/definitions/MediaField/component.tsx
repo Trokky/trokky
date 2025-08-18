@@ -4,6 +4,10 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
+import type { MediaFieldDefinition } from './definition';
+import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types';
+
 // TODO: Add proper icon imports when Studio icons are available
 // Using placeholder icons for now
 const PhotoIcon = ({ className }: { className?: string }) => <div className={className}>📷</div>;
@@ -21,9 +25,6 @@ const EyeIcon = ({ className }: { className?: string }) => <div className={class
 const PencilIcon = ({ className }: { className?: string }) => <div className={className}>✏️</div>;
 const CloudArrowUpIcon = ({ className }: { className?: string }) => <div className={className}>☁️</div>;
 const FolderOpenIcon = ({ className }: { className?: string }) => <div className={className}>📁</div>;
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition.js';
-import { MediaBrowser } from './MediaBrowser.js';
 
 type MediaFieldComponentProps = FieldComponentProps;
 
@@ -59,39 +60,13 @@ function formatFileSize(bytes: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-// Media asset interface (from Studio API)
-interface MediaAsset {
-  id: string;
-  filename: string;
-  originalFilename?: string;
-  contentType: string;
-  size: number;
-  url: string;
-  uploadedAt: string;
-  title?: string;
-  description?: string;
-  metadata?: {
-    width?: number;
-    height?: number;
-    duration?: number;
-    title?: string;
-    alt?: string;
-    credit?: string;
-    author?: string;
-    tags?: string[];
-    imageVariants?: Record<string, {
-      url: string;
-      width: number;
-      height: number;
-      format: string;
-      size: number;
-    }>;
-    originalDimensions?: {
-      width: number;
-      height: number;
-    };
-  };
+// Truncate text for display with ellipsis
+function truncateText(text: string, maxLength: number = 50): string {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
 }
+
+// MediaAsset is now imported from @trokky/core
 
 export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const {
@@ -113,7 +88,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [showBrowser, setShowBrowser] = useState(false);
   const [showMetadataEditor, setShowMetadataEditor] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
@@ -309,16 +283,17 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
   // Handle browse media
   const handleBrowseClick = useCallback(() => {
-    if (options.enableBrowse) {
-      setShowBrowser(true);
+    if (options.enableBrowse && studioContext?.utils?.showMediaBrowser) {
+      studioContext.utils.showMediaBrowser({
+        onSelect: (selectedValue: MediaFieldValue) => {
+          onChange(selectedValue);
+        },
+        mediaTypeFilter: validation.restrictToMediaType,
+        showVariantSelector: options.showVariantSelector,
+        context: fieldId
+      });
     }
-  }, [options.enableBrowse]);
-
-  // Handle media selection from browser
-  const handleMediaSelected = useCallback((selectedValue: MediaFieldValue) => {
-    onChange(selectedValue);
-    setShowBrowser(false);
-  }, [onChange]);
+  }, [options.enableBrowse, studioContext, onChange, validation.restrictToMediaType, options.showVariantSelector, fieldId]);
 
   // Handle remove media
   const handleRemove = useCallback(() => {
@@ -524,57 +499,65 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     
     return (
       <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center">
-              {asset?.url && mediaType === 'image' ? (
-                <img 
-                  src={(() => {
-                    // Try to use thumbnail variant if available
-                    if (asset.metadata?.imageVariants?.thumbnail) {
-                      return asset.metadata.imageVariants.thumbnail.url;
-                    }
-                    // Fallback to main URL
-                    return asset.url;
-                  })()} 
-                  alt={value?.alt || asset.title || asset.filename}
-                  className="w-full h-full object-cover rounded-md"
-                  onError={(e) => {
-                    // Fallback to icon if image fails to load
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-              ) : null}
-              <MediaIcon className={`w-8 h-8 text-gray-400 ${asset?.url && mediaType === 'image' ? 'hidden' : ''}`} />
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={value?.title || asset?.title || asset?.filename || 'Media Asset'}>
-                {value?.title || asset?.title || asset?.filename || 'Media Asset'}
-              </h4>
-              <div className="space-y-0.5">
-                <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
-                  <span className="font-medium">File:</span> {asset?.filename || 'Unknown'}
+        <div className="flex items-start gap-3">
+          {/* Cell 1: Thumbnail - Fixed width */}
+          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center flex-shrink-0">
+            {asset?.url && mediaType === 'image' ? (
+              <img 
+                src={(() => {
+                  // Use MediaUrlGenerator if available from Studio Context
+                  if (studioContext?.mediaUrlGenerator) {
+                    return studioContext.mediaUrlGenerator.getMediaUrl(
+                      value.asset._ref, 
+                      value.variant || 'thumbnail'
+                    );
+                  }
+                  // Fallback: Try to use thumbnail variant if available
+                  if (asset.metadata?.imageVariants?.thumbnail) {
+                    return asset.metadata.imageVariants.thumbnail.url;
+                  }
+                  // Fallback to main URL
+                  return asset.url;
+                })()} 
+                alt={value?.alt || asset.title || asset.filename}
+                className="w-full h-full object-cover rounded-md"
+                onError={(e) => {
+                  // Fallback to icon if image fails to load
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            <MediaIcon className={`w-8 h-8 text-gray-400 ${asset?.url && mediaType === 'image' ? 'hidden' : ''}`} />
+          </div>
+          
+          {/* Cell 2: Content - Flexible width with truncation */}
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={value?.title || asset?.title || asset?.filename || 'Media Asset'}>
+              {truncateText(value?.title || asset?.title || asset?.filename || 'Media Asset', 50)}
+            </h4>
+            <div className="space-y-0.5">
+              <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
+                <span className="font-medium">File:</span> {truncateText(asset?.filename || 'Unknown', 40)}
+              </p>
+              <p className="text-xs text-gray-500">
+                <span className="font-medium">Size:</span> {asset ? formatFileSize(asset.size) : 'Unknown'}
+              </p>
+              {asset?.contentType && (
+                <p className="text-xs text-gray-500 truncate" title={asset.contentType}>
+                  <span className="font-medium">Type:</span> {asset.contentType}
                 </p>
-                <p className="text-xs text-gray-500">
-                  <span className="font-medium">Size:</span> {asset ? formatFileSize(asset.size) : 'Unknown'}
+              )}
+              {value?.variant && mediaType === 'image' && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  <span className="font-medium">Variant:</span> {value.variant}
                 </p>
-                {asset?.contentType && (
-                  <p className="text-xs text-gray-500 truncate" title={asset.contentType}>
-                    <span className="font-medium">Type:</span> {asset.contentType}
-                  </p>
-                )}
-                {value?.variant && mediaType === 'image' && (
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
-                    <span className="font-medium">Variant:</span> {value.variant}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
           </div>
           
-          <div className="flex items-start space-x-2">
+          {/* Cell 3: Actions - Fixed width */}
+          <div className="flex items-start space-x-2 flex-shrink-0">
             {!isReadonly && (
               <button
                 type="button"
@@ -628,7 +611,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                 value={value?.title || ''}
                 onChange={(e) => handleInstanceMetadataChange('title', e.target.value)}
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Override the asset title for this usage"
+                placeholder={
+                  asset?.title 
+                    ? truncateText(asset.title, 40)
+                    : asset?.filename 
+                      ? truncateText(asset.filename, 40)
+                      : "Override the asset title for this usage"
+                }
+                title={asset?.title || asset?.filename || 'Asset title'}
                 disabled={isDisabled || isReadonly}
               />
             </div>
@@ -652,17 +642,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       {/* Render upload area or preview */}
       {value ? renderMediaPreview() : renderUploadArea()}
-
-      {/* Media Browser Modal */}
-      <MediaBrowser
-        isOpen={showBrowser}
-        onClose={() => setShowBrowser(false)}
-        onSelect={handleMediaSelected}
-        mediaTypeFilter={validation.restrictToMediaType}
-        showVariantSelector={options.showVariantSelector}
-        apiClient={studioContext?.apiClient}
-        logger={studioContext?.logger}
-      />
 
       {/* TODO: Add metadata editor modal */}
     </div>
