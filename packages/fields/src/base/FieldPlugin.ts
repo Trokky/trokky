@@ -4,13 +4,13 @@
  */
 
 import type { ComponentType } from 'react';
-import type { BaseFieldDefinition, ValidationResult, DocumentContext } from './FieldDefinition.js';
+import type { BaseFieldDefinition, ValidationResult, DocumentContext } from './FieldDefinition';
 
 // Field plugin source types
 export type FieldPluginSource = 'builtin' | 'external' | 'custom';
 
 // Import ValidationState from FieldDefinition to avoid duplication
-import type { ValidationState } from './FieldDefinition.js';
+import type { ValidationState } from './FieldDefinition';
 
 // Studio context interface for field access to Studio capabilities
 export interface StudioContext {

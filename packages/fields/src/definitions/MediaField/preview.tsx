@@ -13,8 +13,8 @@ const SpeakerWaveIcon = ({ className }: { className?: string }) => <div classNam
 const ArchiveBoxIcon = ({ className }: { className?: string }) => <div className={className}>📦</div>;
 const EyeIcon = ({ className }: { className?: string }) => <div className={className}>👁️</div>;
 const ArrowDownTrayIcon = ({ className }: { className?: string }) => <div className={className}>⬇️</div>;
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition.js';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
+import type { MediaFieldDefinition, MediaFieldValue, MediaType } from './definition';
 
 type MediaFieldPreviewProps = FieldComponentProps;
 

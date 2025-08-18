@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { MediaFieldDefinition } from './definition.js';
+import type { FieldComponentProps } from '../../base/FieldPlugin';
+import type { MediaFieldDefinition } from './definition';
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types';
 
 // TODO: Add proper icon imports when Studio icons are available
