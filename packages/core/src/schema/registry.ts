@@ -20,8 +20,9 @@ export class SchemaRegistry {
 
   private validateAndRegisterSchema(schema: ContentSchema): void {
     try {
-      // Automatically inject slug field for document schemas (if not already present)
-      const processedSchema = this.injectAutoSlugField(schema)
+      // Automatically inject auto-fields for document schemas
+      let processedSchema = this.injectAutoSlugField(schema)
+      processedSchema = this.injectAutoThumbnailField(processedSchema)
       
       const validatedSchema = ContentSchemaSchema.parse(processedSchema)
       this.schemas.set(validatedSchema.name, validatedSchema)
@@ -66,6 +67,85 @@ export class SchemaRegistry {
           unique: true,
           required: false // Auto-generated, so not strictly required from user
         }
+      }
+    }
+
+    return {
+      ...schema,
+      fields: newFields
+    }
+  }
+
+  /**
+   * Automatically injects a thumbnail field for document schemas if:
+   * 1. It's a document type
+   * 2. No thumbnail/featured image field is already defined
+   */
+  private injectAutoThumbnailField(schema: ContentSchema): ContentSchema {
+    // Skip if thumbnail field already exists (various naming conventions)
+    if (schema.fields._thumbnail || 
+        schema.fields.thumbnail || 
+        schema.fields.featuredImage || 
+        schema.fields.featured_image ||
+        schema.fields.image) {
+      return schema
+    }
+
+    // Only inject for document types (not singletons typically)
+    if (schema.type === 'singleton') {
+      return schema
+    }
+
+    // Create a copy of the schema with the injected thumbnail field
+    // Insert thumbnail field at the beginning for better UX (after title/name if present)
+    const newFields: Record<string, any> = {}
+    let thumbnailInserted = false
+    
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+      newFields[fieldName] = fieldDef
+      
+      // Insert thumbnail field after title, name, or slug field for better UX
+      if (!thumbnailInserted && (fieldName === 'title' || fieldName === 'name' || fieldName === 'slug')) {
+        newFields._thumbnail = {
+          type: 'media',
+          title: 'Featured Image',
+          description: 'Main image representing this content',
+          required: false,
+          mediaType: 'image',
+          options: {
+            showVariantSelector: true,
+            uploadSettings: {
+              maxFileSize: 10 * 1024 * 1024, // 10MB
+              allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+            }
+          }
+        }
+        thumbnailInserted = true
+      }
+    }
+
+    // If we haven't inserted it yet, add it at the beginning
+    if (!thumbnailInserted) {
+      const fieldsWithThumbnail: Record<string, any> = {
+        _thumbnail: {
+          type: 'media',
+          title: 'Featured Image', 
+          description: 'Main image representing this content',
+          required: false,
+          mediaType: 'image',
+          options: {
+            showVariantSelector: true,
+            uploadSettings: {
+              maxFileSize: 10 * 1024 * 1024, // 10MB
+              allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+            }
+          }
+        },
+        ...newFields
+      }
+      return {
+        ...schema,
+        fields: fieldsWithThumbnail
       }
     }
 
