@@ -8,7 +8,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import type { StudioContext } from '@trokky/fields';
 import type { MediaBrowserConfig } from '@trokky/types/media';
-import { MediaBrowser } from '@/components/media/MediaBrowser';
+import { MediaBrowser } from '@/components/MediaBrowser';
 
 const StudioContextInstance = createContext<StudioContext | null>(null);
 
@@ -261,6 +261,8 @@ export function StudioContextProvider({ children }: StudioContextProviderProps) 
           mediaTypeFilter={mediaBrowserState.config.mediaTypeFilter}
           showVariantSelector={mediaBrowserState.config.showVariantSelector}
           context={mediaBrowserState.config.context}
+          apiClient={apiClient}
+          logger={fieldLogger}
         />
       )}
     </StudioContextInstance.Provider>
