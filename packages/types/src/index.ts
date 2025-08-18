@@ -5,6 +5,16 @@
  * It has no dependencies to avoid circular dependency issues.
  */
 
+// Document types
+export type {
+  BaseDocument,
+  DocumentResult,
+  CollectionResult,
+  DocumentWithContent,
+  QueryOptions,
+  ListOptions
+} from './document.js';
+
 // Media types
 export type {
   MediaAssetReference,

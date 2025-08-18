@@ -29,18 +29,25 @@ export type {
   CreateAppTokenData,
   AppTokenResult,
   RequestOptions,
-  QueryOptions,
-  DocumentResult,
-  CollectionResult,
   MediaResult,
   ValidationError,
   ApiError,
   CacheEntry,
   TypeGeneratorOptions,
   DocumentGeneratorOptions,
-  BaseDocument,
   ClientEvents,
-  ClientEventType
+  ClientEventType,
+  // Re-exported from @trokky/types
+  BaseDocument,
+  DocumentResult,
+  CollectionResult,
+  DocumentWithContent,
+  QueryOptions,
+  ListOptions,
+  MediaAsset,
+  MediaFieldValue,
+  MediaAssetReference,
+  MediaType
 } from './types'
 
 // Shortcode types

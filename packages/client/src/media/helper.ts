@@ -4,7 +4,7 @@
  */
 
 import type { HttpClient } from '../http/client'
-import type { MediaAsset } from '../types'
+import type { MediaFieldValue } from '@trokky/types'
 
 export interface MediaVariant {
   url: string
@@ -76,7 +76,7 @@ export class MediaHelper {
    * @returns The media URL or null if not available
    */
   getUrl(
-    mediaAsset: MediaAsset | null | undefined,
+    mediaAsset: MediaFieldValue | null | undefined,
     variant?: string
   ): string | null {
     if (!mediaAsset?.asset?._ref) {
@@ -99,7 +99,7 @@ export class MediaHelper {
    * Checks if variant exists and falls back to original if not
    */
   async getValidatedUrl(
-    mediaAsset: MediaAsset | null | undefined,
+    mediaAsset: MediaFieldValue | null | undefined,
     variant?: string
   ): Promise<string | null> {
     if (!mediaAsset?.asset?._ref) {
@@ -147,7 +147,7 @@ export class MediaHelper {
    * This method dynamically discovers available variants and chooses the best one
    */
   async getBestUrlForWidth(
-    mediaAsset: MediaAsset | null | undefined,
+    mediaAsset: MediaFieldValue | null | undefined,
     maxWidth: number
   ): Promise<string | null> {
     if (!mediaAsset?.asset?._ref) {
@@ -207,7 +207,7 @@ export class MediaHelper {
    * Returns an array of variant names that are available
    */
   async getAvailableVariants(
-    mediaAsset: MediaAsset | null | undefined
+    mediaAsset: MediaFieldValue | null | undefined
   ): Promise<string[]> {
     if (!mediaAsset?.asset?._ref) {
       return []
@@ -229,7 +229,7 @@ export class MediaHelper {
    * Check if a media asset has a specific variant
    */
   async hasVariant(
-    mediaAsset: MediaAsset | null | undefined,
+    mediaAsset: MediaFieldValue | null | undefined,
     variant: string
   ): Promise<boolean> {
     if (!mediaAsset?.asset?._ref) {
@@ -251,7 +251,7 @@ export class MediaHelper {
    * Returns an object with variant names as keys and URLs as values
    */
   async getAllVariantUrls(
-    mediaAsset: MediaAsset | null | undefined
+    mediaAsset: MediaFieldValue | null | undefined
   ): Promise<Record<string, string>> {
     if (!mediaAsset?.asset?._ref) {
       return {}

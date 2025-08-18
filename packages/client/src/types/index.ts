@@ -3,6 +3,34 @@
  * Core types for the TypeScript-native Trokky client
  */
 
+// Import shared types from @trokky/types to avoid circular dependencies
+import type {
+  BaseDocument,
+  DocumentResult,
+  CollectionResult,
+  DocumentWithContent,
+  QueryOptions,
+  ListOptions,
+  MediaAsset,
+  MediaFieldValue,
+  MediaAssetReference,
+  MediaType
+} from '@trokky/types'
+
+// Re-export shared types for consumers
+export type {
+  BaseDocument,
+  DocumentResult,
+  CollectionResult,
+  DocumentWithContent,
+  QueryOptions,
+  ListOptions,
+  MediaAsset,
+  MediaFieldValue,
+  MediaAssetReference,
+  MediaType
+} from '@trokky/types'
+
 export interface ClientConfig {
   // API endpoint configuration
   baseUrl: string
@@ -72,31 +100,6 @@ export interface RequestOptions {
   signal?: AbortSignal
 }
 
-export interface QueryOptions {
-  filter?: Record<string, any>
-  sort?: Record<string, 1 | -1 | 'asc' | 'desc'> | string
-  limit?: number
-  offset?: number
-  select?: string[]
-}
-
-export interface DocumentResult<T = any> {
-  data: T
-  _id: string
-  _type: string
-  _createdAt: string
-  _updatedAt: string
-  _version: number
-}
-
-export interface CollectionResult<T = any> {
-  data: DocumentResult<T>[]
-  total: number
-  offset: number
-  limit: number
-  hasMore: boolean
-}
-
 export interface MediaResult {
   _id: string
   filename: string
@@ -105,16 +108,6 @@ export interface MediaResult {
   url: string
   uploadedAt: string
   metadata?: Record<string, any>
-}
-
-export interface MediaAsset {
-  _type: 'media'
-  asset: {
-    _ref: string
-    _type: 'mediaAsset'
-  }
-  alt?: string
-  caption?: string
 }
 
 export interface ValidationError {
@@ -193,16 +186,6 @@ export interface FieldSchema {
   unique?: boolean
   prefix?: string
   suffix?: string
-}
-
-// Generic document types that will be enhanced by generated types
-export interface BaseDocument {
-  _id?: string
-  _type: string
-  _createdAt?: string
-  _updatedAt?: string
-  _version?: number
-  [key: string]: any // Allow dynamic field access
 }
 
 // Client events for real-time capabilities
