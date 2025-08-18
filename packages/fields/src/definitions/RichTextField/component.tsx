@@ -621,19 +621,36 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               altText = mediaFile.metadata?.alt || mediaFile.filename || '';
             }
             
-            // Get the correct URL from the API response
-            if (selectedValue.variant && selectedValue.variant !== 'original') {
-              // Use variant URL from metadata
-              const variantData = mediaFile.metadata?.imageVariants?.[selectedValue.variant];
-              if (variantData?.url) {
-                imageUrl = variantData.url;
+            // Get the correct URL using MediaUrlGenerator if available
+            if (studioContext?.mediaUrlGenerator) {
+              // Use MediaUrlGenerator for proper variant URL generation
+              if (selectedValue.variant && selectedValue.variant !== 'original') {
+                imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId, selectedValue.variant);
+                logger.debug('Generated variant URL using MediaUrlGenerator', { 
+                  assetId, 
+                  variant: selectedValue.variant, 
+                  imageUrl 
+                });
               } else {
-                logger.warn(`Variant '${selectedValue.variant}' not found, falling back to original`);
-                imageUrl = mediaFile.url;
+                imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId);
+                logger.debug('Generated original URL using MediaUrlGenerator', { 
+                  assetId, 
+                  imageUrl 
+                });
               }
             } else {
-              // Use original file URL from metadata
-              imageUrl = mediaFile.url;
+              // Fallback to metadata URLs (legacy approach)
+              if (selectedValue.variant && selectedValue.variant !== 'original') {
+                const variantData = mediaFile.metadata?.imageVariants?.[selectedValue.variant];
+                if (variantData?.url) {
+                  imageUrl = variantData.url;
+                } else {
+                  logger.warn(`Variant '${selectedValue.variant}' not found, falling back to original`);
+                  imageUrl = mediaFile.url;
+                }
+              } else {
+                imageUrl = mediaFile.url;
+              }
             }
             
             // Insert the image into the editor
@@ -672,17 +689,32 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       const assetId = assetIdMatch[1];
       let newImageUrl: string;
       
-      if (variantName === 'original') {
-        // Use original file URL
-        newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file');
-      } else {
-        // Use variant URL
-        const variantData = availableVariants[variantName];
-        if (variantData?.url) {
-          newImageUrl = variantData.url;
+      // Use MediaUrlGenerator if available (preferred method)
+      if (studioContext?.mediaUrlGenerator) {
+        if (variantName === 'original') {
+          newImageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId);
         } else {
-          logger.warn(`Variant '${variantName}' not found`);
-          return;
+          newImageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId, variantName);
+        }
+        logger.debug('Generated variant URL using MediaUrlGenerator', { 
+          assetId, 
+          variant: variantName, 
+          newImageUrl 
+        });
+      } else {
+        // Fallback to URL manipulation (legacy approach)
+        if (variantName === 'original') {
+          // Use original file URL
+          newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file');
+        } else {
+          // Use variant URL from available variants
+          const variantData = availableVariants[variantName];
+          if (variantData?.url) {
+            newImageUrl = variantData.url;
+          } else {
+            logger.warn(`Variant '${variantName}' not found`);
+            return;
+          }
         }
       }
       
@@ -704,7 +736,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         newUrl: newImageUrl 
       });
     }
-  }, [editor, selectedImageNode, availableVariants, logger]);
+  }, [editor, selectedImageNode, availableVariants, logger, studioContext]);
   
   // Get current variant from image URL
   const getCurrentVariant = useCallback((imageSrc: string) => {
