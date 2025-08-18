@@ -1674,8 +1674,8 @@ export class TrokkyRoutes {
 
     const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
 
-    // Verify token using core engine
-    const session = await this.core.verifyAuthToken(token)
+    // Verify token using unified method that handles both JWT and API tokens
+    const session = await this.core.verifyAnyToken(token)
     if (!session) {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
@@ -1713,8 +1713,8 @@ export class TrokkyRoutes {
 
     const token = authHeaderStr.slice(7) // Remove 'Bearer ' prefix
 
-    // Verify token using core engine
-    const session = await this.core.verifyAuthToken(token)
+    // Verify token using unified method that handles both JWT and API tokens
+    const session = await this.core.verifyAnyToken(token)
     if (!session) {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
@@ -2318,7 +2318,7 @@ export class TrokkyRoutes {
 
   private async getCurrentUser(request: HttpRequest): Promise<any> {
     try {
-      // Extract user from validated token using core.verifyAuthToken
+      // Extract user from validated token using unified token validation
       const authHeader = request.headers.authorization || request.headers['Authorization']
       const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
       
@@ -2330,8 +2330,8 @@ export class TrokkyRoutes {
         ? authHeaderStr.slice(7) 
         : authHeaderStr
       
-      // Use core.verifyAuthToken which returns session with user info
-      const session = await this.core.verifyAuthToken(token)
+      // Use unified token validation that handles both JWT and API tokens
+      const session = await this.core.verifyAnyToken(token)
       
       if (session) {
         // Session contains basic user information

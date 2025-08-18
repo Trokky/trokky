@@ -20,7 +20,7 @@ export interface User {
   updatedAt: string
 }
 
-export type UserRole = 'admin' | 'editor' | 'author' | 'viewer'
+export type UserRole = 'admin' | 'editor' | 'author' | 'viewer' | 'api'
 
 // Default permissions for each role
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -46,6 +46,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'content:read',
     'media:read',
     'studio:access'
+  ],
+  api: [
+    // API tokens get their permissions from the token itself, not from role defaults
+    // This is just a placeholder - actual permissions come from AppToken.permissions
   ]
 }
 
