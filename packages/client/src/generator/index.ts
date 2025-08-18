@@ -236,10 +236,10 @@ export class TypeGenerator {
   private generateDocumentType(document: DocumentSchema): string {
     const imports = ['BaseDocument']
     
-    // Check if we need MediaAsset import
+    // Check if we need MediaFieldValue import
     const hasMediaFields = this.hasMediaFields(document.fields)
     if (hasMediaFields) {
-      imports.push('MediaAsset')
+      imports.push('MediaFieldValue')
     }
     
     const interfaceName = `${document.name}Document`
@@ -433,7 +433,7 @@ export class TypeGenerator {
       case 'audio':
       case 'video':
       case 'document':
-        return 'MediaAsset | null'
+        return 'MediaFieldValue | null'
       
       case 'file':
         return 'string | { _ref: string; url?: string; metadata?: Record<string, any> }'
