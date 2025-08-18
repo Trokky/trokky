@@ -53,6 +53,12 @@ import type { RichTextFieldDefinition } from './definition';
 import { createStudioLogger } from '../../utils/logger';
 import type { MediaFieldValue } from '@trokky/types';
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer';
+import { 
+  createImageShortcode, 
+  resolveShortcodes, 
+  contentToShortcodes,
+  type TrokkyImageShortcode 
+} from './shortcodes';
 
 const logger = createStudioLogger('RichTextField');
 
@@ -304,6 +310,32 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           class: 'max-w-full h-auto rounded-lg'
         },
         allowBase64: true
+      }).extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            'data-trokky-id': {
+              default: null,
+              parseHTML: element => element.getAttribute('data-trokky-id'),
+              renderHTML: attributes => {
+                if (!attributes['data-trokky-id']) {
+                  return {};
+                }
+                return { 'data-trokky-id': attributes['data-trokky-id'] };
+              },
+            },
+            'data-trokky-variant': {
+              default: null,
+              parseHTML: element => element.getAttribute('data-trokky-variant'),
+              renderHTML: attributes => {
+                if (!attributes['data-trokky-variant']) {
+                  return {};
+                }
+                return { 'data-trokky-variant': attributes['data-trokky-variant'] };
+              },
+            },
+          };
+        },
       }),
       Placeholder.configure({
         placeholder: options.placeholder || 'Start typing...'
@@ -323,7 +355,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       }),
       ...(characterLimit ? [CharacterCount.configure({ limit: characterLimit })] : [])
     ],
-    content: value || '',
+    content: studioContext?.mediaUrlGenerator && value 
+      ? resolveShortcodes(value, studioContext.mediaUrlGenerator)
+      : value || '',
     editable: !isDisabled && !isReadonly,
     editorProps: {
       handlePaste: (view, event) => {
@@ -385,8 +419,17 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       if (isViewMode || !onChange) return;
       
       const html = editor.getHTML();
-      logger.debug('Content updated', { fieldId, length: html.length });
-      onChange(html);
+      // 🎯 CRITICAL: Transform HTML to shortcodes for storage
+      const contentToSave = contentToShortcodes(html);
+      
+      logger.debug('Content updated and transformed to shortcodes', { 
+        fieldId, 
+        htmlLength: html.length,
+        shortcodeLength: contentToSave.length,
+        hasShortcodes: contentToSave !== html
+      });
+      
+      onChange(contentToSave);
     },
     onSelectionUpdate: ({ editor }) => {
       handleSelectionUpdate(editor);
@@ -397,11 +440,22 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   useEffect(() => {
     if (editor && value !== undefined) {
       const currentContent = editor.getHTML();
-      if (currentContent !== value) {
-        editor.commands.setContent(value, false); // false = don't emit update event
+      
+      // Transform shortcodes to HTML for display in editor
+      const htmlForEditor = studioContext?.mediaUrlGenerator 
+        ? resolveShortcodes(value, studioContext.mediaUrlGenerator)
+        : value;
+      
+      if (currentContent !== htmlForEditor) {
+        editor.commands.setContent(htmlForEditor, false); // false = don't emit update event
+        logger.debug('Editor content synced with shortcode resolution', {
+          originalValue: value,
+          resolvedHtml: htmlForEditor,
+          valueHasShortcodes: value !== htmlForEditor
+        });
       }
     }
-  }, [editor, value, isFullscreen]);
+  }, [editor, value, isFullscreen, studioContext?.mediaUrlGenerator, logger]);
   
   // Update editor editable state when read-only props change
   useEffect(() => {
@@ -608,63 +662,55 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     const assetId = selectedValue.asset._ref;
     let altText = selectedValue.alt || '';
     
-    // Get the media metadata to extract the correct URL
+    // Get the media metadata for alt text fallback
     if (studioContext?.apiClient) {
       studioContext.apiClient.getMediaById(assetId)
         .then(response => {
           if (response.success && response.data?.file) {
             const mediaFile = response.data.file;
-            let imageUrl: string;
             
             // Use metadata alt text if no alt text was provided
             if (!selectedValue.alt) {
               altText = mediaFile.metadata?.alt || mediaFile.filename || '';
             }
             
-            // Get the correct URL using MediaUrlGenerator if available
+            // 🎯 NEW APPROACH: Insert image with data attributes for shortcode conversion
+            let imageUrl: string = '';
             if (studioContext?.mediaUrlGenerator) {
-              // Use MediaUrlGenerator for proper variant URL generation
-              if (selectedValue.variant && selectedValue.variant !== 'original') {
-                imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId, selectedValue.variant);
-                logger.debug('Generated variant URL using MediaUrlGenerator', { 
-                  assetId, 
-                  variant: selectedValue.variant, 
-                  imageUrl 
-                });
-              } else {
-                imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId);
-                logger.debug('Generated original URL using MediaUrlGenerator', { 
-                  assetId, 
-                  imageUrl 
-                });
-              }
+              // Generate URL for Studio display (users see real image)
+              imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(
+                assetId, 
+                selectedValue.variant && selectedValue.variant !== 'original' 
+                  ? selectedValue.variant 
+                  : undefined
+              );
             } else {
-              // Fallback to metadata URLs (legacy approach)
-              if (selectedValue.variant && selectedValue.variant !== 'original') {
-                const variantData = mediaFile.metadata?.imageVariants?.[selectedValue.variant];
-                if (variantData?.url) {
-                  imageUrl = variantData.url;
-                } else {
-                  logger.warn(`Variant '${selectedValue.variant}' not found, falling back to original`);
-                  imageUrl = mediaFile.url;
-                }
-              } else {
-                imageUrl = mediaFile.url;
-              }
+              // Fallback URL generation
+              imageUrl = mediaFile.url;
             }
             
-            // Insert the image into the editor
-            editor.chain().focus().setImage({ 
-              src: imageUrl, 
+            // Insert image with special data attributes for shortcode identification
+            const imageAttrs = {
+              src: imageUrl,
               alt: altText,
-              title: altText
-            }).run();
+              title: altText,
+              'data-trokky-id': assetId,
+              ...(selectedValue.variant && selectedValue.variant !== 'original' && {
+                'data-trokky-variant': selectedValue.variant
+              }),
+              // Add default styling for rich text images
+              class: 'max-w-full h-auto rounded-lg'
+            };
             
-            logger.info('Image inserted successfully', {
+            // Insert the image into the editor with data attributes
+            editor.chain().focus().setImage(imageAttrs).run();
+            
+            logger.info('Image inserted with shortcode data', {
               imageUrl,
               altText,
               assetId,
-              variant: selectedValue.variant
+              variant: selectedValue.variant,
+              shortcodeReady: true
             });
           } else {
             logger.error('Invalid media metadata response', response);
@@ -676,74 +722,107 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     } else {
       logger.warn('No Studio context available for image URL resolution');
     }
-  }, [editor, studioContext?.apiClient, logger]);
+  }, [editor, studioContext?.apiClient, studioContext?.mediaUrlGenerator, logger]);
   
   // Handle variant change for selected image
   const handleVariantChange = useCallback((variantName: string) => {
     if (!editor || !selectedImageNode) return;
     
+    // Get trokky-id from existing data attributes (preferred) or extract from URL
+    const trokkyId = selectedImageNode.attrs['data-trokky-id'];
     const imageSrc = selectedImageNode.attrs.src;
-    const assetIdMatch = imageSrc.match(/\/media\/([^\/]+)/);
+    let assetId = trokkyId;
     
-    if (assetIdMatch) {
-      const assetId = assetIdMatch[1];
-      let newImageUrl: string;
+    // Fallback: extract from URL if no trokky-id
+    if (!assetId) {
+      const assetIdMatch = imageSrc.match(/\/media\/([^\/]+)/);
+      assetId = assetIdMatch?.[1];
+    }
+    
+    if (assetId && studioContext?.mediaUrlGenerator) {
+      // Generate new URL using MediaUrlGenerator
+      const newImageUrl = variantName === 'original' 
+        ? studioContext.mediaUrlGenerator.getMediaUrl(assetId)
+        : studioContext.mediaUrlGenerator.getMediaUrl(assetId, variantName);
       
-      // Use MediaUrlGenerator if available (preferred method)
-      if (studioContext?.mediaUrlGenerator) {
-        if (variantName === 'original') {
-          newImageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId);
-        } else {
-          newImageUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetId, variantName);
-        }
-        logger.debug('Generated variant URL using MediaUrlGenerator', { 
-          assetId, 
-          variant: variantName, 
-          newImageUrl 
-        });
+      // Update image attributes including data attributes for shortcode conversion
+      const newAttrs = {
+        src: newImageUrl,
+        'data-trokky-id': assetId,
+        ...(variantName !== 'original' && { 'data-trokky-variant': variantName })
+      };
+      
+      // Remove variant data attribute if original is selected
+      if (variantName === 'original' && selectedImageNode.attrs['data-trokky-variant']) {
+        // Need to explicitly remove the attribute
+        editor.chain().focus().updateAttributes('image', {
+          ...newAttrs,
+          'data-trokky-variant': null
+        }).run();
       } else {
-        // Fallback to URL manipulation (legacy approach)
-        if (variantName === 'original') {
-          // Use original file URL
-          newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file');
-        } else {
-          // Use variant URL from available variants
-          const variantData = availableVariants[variantName];
-          if (variantData?.url) {
-            newImageUrl = variantData.url;
-          } else {
-            logger.warn(`Variant '${variantName}' not found`);
-            return;
-          }
-        }
+        editor.chain().focus().updateAttributes('image', newAttrs).run();
       }
       
-      // Update the image src attribute
-      editor.chain().focus().updateAttributes('image', { src: newImageUrl }).run();
-      
-      // Update the selected image node in state to reflect the new src
+      // Update the selected image node in state
       setSelectedImageNode({
         ...selectedImageNode,
         attrs: {
           ...selectedImageNode.attrs,
-          src: newImageUrl
+          ...newAttrs
         }
       });
       
-      logger.debug('Image variant changed', { 
+      logger.debug('Image variant changed with shortcode data', { 
+        assetId, 
+        variant: variantName, 
+        newUrl: newImageUrl,
+        hasDataAttributes: true
+      });
+    } else if (assetId) {
+      // Fallback to URL manipulation (legacy approach when no MediaUrlGenerator)
+      let newImageUrl: string;
+      if (variantName === 'original') {
+        newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file');
+      } else {
+        const variantData = availableVariants[variantName];
+        if (variantData?.url) {
+          newImageUrl = variantData.url;
+        } else {
+          logger.warn(`Variant '${variantName}' not found`);
+          return;
+        }
+      }
+      
+      editor.chain().focus().updateAttributes('image', { src: newImageUrl }).run();
+      setSelectedImageNode({
+        ...selectedImageNode,
+        attrs: { ...selectedImageNode.attrs, src: newImageUrl }
+      });
+      
+      logger.debug('Image variant changed (legacy URL manipulation)', { 
         assetId, 
         variant: variantName, 
         newUrl: newImageUrl 
       });
+    } else {
+      logger.warn('No asset ID found for variant change');
     }
   }, [editor, selectedImageNode, availableVariants, logger, studioContext]);
   
-  // Get current variant from image URL
-  const getCurrentVariant = useCallback((imageSrc: string) => {
+  // Get current variant from image node (prefer data attributes, fallback to URL)
+  const getCurrentVariant = useCallback((imageNode: any) => {
+    // First, try to get variant from data attribute (shortcode system)
+    if (imageNode?.attrs?.['data-trokky-variant']) {
+      return imageNode.attrs['data-trokky-variant'];
+    }
+    
+    // Fallback: parse from URL (legacy system)
+    const imageSrc = imageNode?.attrs?.src || '';
     if (imageSrc.includes('/variants/')) {
       const variantMatch = imageSrc.match(/\/variants\/([^\/]+)/);
       return variantMatch ? variantMatch[1] : 'original';
     }
+    
     return 'original';
   }, []);
 
@@ -974,7 +1053,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               <div className="flex items-center gap-2">
                 <label className="text-xs text-gray-600 dark:text-gray-400">Variant:</label>
                 <select
-                  value={getCurrentVariant(selectedImageNode.attrs.src)}
+                  value={getCurrentVariant(selectedImageNode)}
                   onChange={(e) => handleVariantChange(e.target.value)}
                   className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={isDisabled}
@@ -1644,7 +1723,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-gray-600 dark:text-gray-400">Variant:</label>
                     <select
-                      value={getCurrentVariant(selectedImageNode.attrs.src)}
+                      value={getCurrentVariant(selectedImageNode)}
                       onChange={(e) => handleVariantChange(e.target.value)}
                       className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isDisabled}
