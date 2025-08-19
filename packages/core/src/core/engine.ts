@@ -169,7 +169,7 @@ export class TrokkyCore {
     }
     this.options = options
     this.config = config
-    this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas)
+    this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas, config.features)
     this.validator = options.validator || new DocumentValidator(this.schemas)
     this.idGenerator = options.idGenerator || new IdGenerator()
     this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true

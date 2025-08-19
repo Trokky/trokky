@@ -1,9 +1,12 @@
-import { ContentSchema, ContentSchemaSchema } from '../types/index.js'
+import { ContentSchema, ContentSchemaSchema, TrokkyConfig } from '../types/index.js'
 
 export class SchemaRegistry {
   private schemas: Map<string, ContentSchema> = new Map()
+  private config: TrokkyConfig['features']
 
-  constructor(schemas: ContentSchema[] | string) {
+  constructor(schemas: ContentSchema[] | string, config?: TrokkyConfig['features']) {
+    this.config = config || {}
+    
     if (Array.isArray(schemas)) {
       this.loadSchemas(schemas)
     } else {
@@ -20,7 +23,7 @@ export class SchemaRegistry {
 
   private validateAndRegisterSchema(schema: ContentSchema): void {
     try {
-      // Automatically inject auto-fields for document schemas
+      // Automatically inject auto-fields for document schemas based on configuration
       let processedSchema = this.injectAutoSlugField(schema)
       processedSchema = this.injectAutoThumbnailField(processedSchema)
       
@@ -78,12 +81,36 @@ export class SchemaRegistry {
 
   /**
    * Automatically injects a thumbnail field for document schemas if:
-   * 1. It's a document type
-   * 2. No thumbnail/featured image field is already defined
+   * 1. Feature is enabled in configuration (default: true)
+   * 2. It's a document type (or singleton if configured to include them)
+   * 3. No thumbnail/featured image field is already defined
+   * 4. Schema is not in the skip list
    */
   private injectAutoThumbnailField(schema: ContentSchema): ContentSchema {
-    // Skip if thumbnail field already exists (various naming conventions)
-    if (schema.fields._thumbnail || 
+    const autoThumbnailConfig = this.config?.autoThumbnail || {}
+    
+    // Check if feature is enabled (default: true)
+    if (autoThumbnailConfig.enabled === false) {
+      return schema
+    }
+
+    // Check if schema is in skip list
+    if (autoThumbnailConfig.skipSchemas?.includes(schema.name)) {
+      return schema
+    }
+
+    // Skip singletons if configured to do so (default: true)
+    const skipSingletons = autoThumbnailConfig.skipSingletons !== false
+    if (skipSingletons && schema.type === 'singleton') {
+      return schema
+    }
+
+    // Get field name from config (default: '_thumbnail')
+    const fieldName = autoThumbnailConfig.fieldName || '_thumbnail'
+    
+    // Skip if thumbnail field already exists (check configured name and common variations)
+    if (schema.fields[fieldName] || 
+        schema.fields._thumbnail || 
         schema.fields.thumbnail || 
         schema.fields.featuredImage || 
         schema.fields.featured_image ||
@@ -91,22 +118,23 @@ export class SchemaRegistry {
       return schema
     }
 
-    // Only inject for document types (not singletons typically)
-    if (schema.type === 'singleton') {
-      return schema
-    }
+    // Get configuration values with defaults
+    const maxFileSize = autoThumbnailConfig.maxFileSize || 10 * 1024 * 1024 // 10MB
+    const allowedTypes = autoThumbnailConfig.allowedTypes || [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif'
+    ]
 
     // Create a copy of the schema with the injected thumbnail field
     // Insert thumbnail field at the beginning for better UX (after title/name if present)
     const newFields: Record<string, any> = {}
     let thumbnailInserted = false
     
-    for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-      newFields[fieldName] = fieldDef
+    for (const [fieldKey, fieldDef] of Object.entries(schema.fields)) {
+      newFields[fieldKey] = fieldDef
       
       // Insert thumbnail field after title, name, or slug field for better UX
-      if (!thumbnailInserted && (fieldName === 'title' || fieldName === 'name' || fieldName === 'slug')) {
-        newFields._thumbnail = {
+      if (!thumbnailInserted && (fieldKey === 'title' || fieldKey === 'name' || fieldKey === 'slug')) {
+        newFields[fieldName] = {
           type: 'media',
           title: 'Featured Image',
           description: 'Main image representing this content',
@@ -115,8 +143,8 @@ export class SchemaRegistry {
           options: {
             showVariantSelector: true,
             uploadSettings: {
-              maxFileSize: 10 * 1024 * 1024, // 10MB
-              allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+              maxFileSize,
+              allowedTypes
             }
           }
         }
@@ -127,7 +155,7 @@ export class SchemaRegistry {
     // If we haven't inserted it yet, add it at the beginning
     if (!thumbnailInserted) {
       const fieldsWithThumbnail: Record<string, any> = {
-        _thumbnail: {
+        [fieldName]: {
           type: 'media',
           title: 'Featured Image', 
           description: 'Main image representing this content',
@@ -136,8 +164,8 @@ export class SchemaRegistry {
           options: {
             showVariantSelector: true,
             uploadSettings: {
-              maxFileSize: 10 * 1024 * 1024, // 10MB
-              allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+              maxFileSize,
+              allowedTypes
             }
           }
         },
