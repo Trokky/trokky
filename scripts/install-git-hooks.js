@@ -35,17 +35,13 @@ fi
 
 exit 0`;
 
-// Pre-commit hook for basic checks
+// Pre-commit hook disabled - .js extensions are required for ESM compatibility
 const preCommitHook = `#!/bin/bash
 
 echo "🔍 Running pre-commit checks..."
 
-# Check for .js extensions in TypeScript imports
-if grep -r "from.*\\\\.js['\\\"]" packages/*/src/ 2>/dev/null; then
-    echo "❌ Found .js extensions in TypeScript imports"
-    echo "Remove .js extensions from import statements in TypeScript files"
-    exit 1
-fi
+# Note: .js extensions in TypeScript imports are REQUIRED for ESM compatibility
+# This is correct syntax for "type": "module" packages
 
 echo "✅ Pre-commit checks passed"
 exit 0`;
