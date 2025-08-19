@@ -24,33 +24,28 @@ interface ContextSidebarAPI {
   // Page configuration (declarative)
   configure: (config: ContextSidebarPageConfig) => void;
   
-  // Visibility control
-  show: () => void;
-  hide: () => void;
-  toggle: () => void;
-  
-  // Collapse control
+  // Collapse control (user-controllable)
   collapse: () => void;
   expand: () => void;
   toggleCollapse: () => void;
   
-  // Width control
+  // Width control (user-controllable)
   setWidth: (width: number) => void;
   
-  // Position control
+  // Position control (user-controllable)
   setPosition: (position: 'left' | 'right') => void;
   
-  // Content control
+  // Content control (programmatic)
   setContent: (content: ReactNode) => void;
   clearContent: () => void;
   
-  // Title control
+  // Title control (programmatic)
   setTitle: (title: string) => void;
   
-  // State accessors
+  // State accessors (read-only)
   currentPage: string;
   title: string;
-  isVisible: boolean;
+  isVisible: boolean;  // Read-only - controlled by page configuration
   isCollapsed: boolean;
   width: number;
   position: 'left' | 'right';
@@ -95,51 +90,45 @@ export function ContextSidebarProvider({
   const configure = useCallback((config: ContextSidebarPageConfig) => {
     const page = config.page;
     
-    // Load existing user preferences for this page, or use defaults
-    const savedVisible = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_VISIBLE(page), config.defaultVisible ?? true);
-    const savedCollapsed = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED(page), config.defaultCollapsed ?? false);
-    const savedWidth = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_WIDTH(page), config.defaultWidth ?? 256);
-    const savedPosition = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_POSITION(page), config.defaultPosition ?? 'left');
-    
     setState(prev => {
+      // Prevent unnecessary re-configuration if already configured for this page with same settings
+      if (prev.currentPage === page && 
+          prev.title === (config.title ?? 'Context') &&
+          prev.isVisible === (config.defaultVisible ?? true)) {
+        return prev; // No change needed
+      }
+      
+      // Load existing user preferences for this page (only for user-controllable settings)
+      const savedCollapsed = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_COLLAPSED(page));
+      const savedWidth = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_WIDTH(page));
+      const savedPosition = storageService.get(STORAGE_KEYS.CONTEXT_SIDEBAR_POSITION(page));
+      
+      // Visibility is controlled by page configuration only (not user preference)
+      const isVisible = config.defaultVisible ?? true;
+      
+      // Other settings use saved preferences with fallbacks
+      const isCollapsed = savedCollapsed !== null ? savedCollapsed : (config.defaultCollapsed ?? false);
+      const width = savedWidth !== null ? savedWidth : (config.defaultWidth ?? 256);
+      const position = savedPosition !== null ? savedPosition : (config.defaultPosition ?? 'left');
+      
       const isPageChange = prev.currentPage !== page;
       
       return {
         ...prev,
         currentPage: page,
         title: config.title ?? 'Context',
-        isVisible: savedVisible,
-        isCollapsed: savedCollapsed,
-        width: savedWidth,
-        position: savedPosition,
+        isVisible,
+        isCollapsed,
+        width,
+        position,
         // Auto-clear content when switching to a different page
         content: isPageChange ? null : prev.content
       };
     });
   }, []);
 
-  // Memoize all the action functions with page-specific storage persistence
-  const show = useCallback(() => {
-    setState(prev => {
-      saveToPageStorage(prev.currentPage, 'visible', true);
-      return { ...prev, isVisible: true };
-    });
-  }, [saveToPageStorage]);
-  
-  const hide = useCallback(() => {
-    setState(prev => {
-      saveToPageStorage(prev.currentPage, 'visible', false);
-      return { ...prev, isVisible: false };
-    });
-  }, [saveToPageStorage]);
-  
-  const toggle = useCallback(() => {
-    setState(prev => {
-      const newVisible = !prev.isVisible;
-      saveToPageStorage(prev.currentPage, 'visible', newVisible);
-      return { ...prev, isVisible: newVisible };
-    });
-  }, [saveToPageStorage]);
+  // Remove show/hide/toggle methods - visibility is controlled by page configuration only
+  // Users can only control collapse/expand
   
   const collapse = useCallback(() => {
     setState(prev => {
@@ -186,39 +175,34 @@ export function ContextSidebarProvider({
     // Page configuration (stable reference)
     configure,
     
-    // Visibility control (stable references)
-    show,
-    hide,
-    toggle,
-    
-    // Collapse control (stable references)
+    // Collapse control (stable references) - user-controllable
     collapse,
     expand,
     toggleCollapse,
     
-    // Width control (stable reference)
+    // Width control (stable reference) - user-controllable
     setWidth,
     
-    // Position control (stable reference)
+    // Position control (stable reference) - user-controllable
     setPosition,
     
-    // Content control (stable references)
+    // Content control (stable references) - programmatic
     setContent,
     clearContent,
     
-    // Title control (stable reference)
+    // Title control (stable reference) - programmatic
     setTitle,
     
-    // State accessors (updated with current state)
+    // State accessors (updated with current state) - read-only
     currentPage: state.currentPage,
     title: state.title,
-    isVisible: state.isVisible,
+    isVisible: state.isVisible,  // Read-only - controlled by page configuration
     isCollapsed: state.isCollapsed,
     width: state.width,
     position: state.position,
     content: state.content
   }), [
-    configure, show, hide, toggle,
+    configure,
     collapse, expand, toggleCollapse,
     setWidth, setPosition, setContent, clearContent, setTitle,
     state.currentPage, state.title, state.isVisible, state.isCollapsed, state.width, state.position, state.content

@@ -10,7 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
-import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -58,7 +58,8 @@ export function DocumentEditor({
   onCancel 
 }: DocumentEditorProps) {
   const navigate = useNavigate();
-  const contextSidebar = useContextSidebar();
+  // Use structure-driven context sidebar instead of manual configuration
+  useStructureContextSidebar();
   const studioContext = useStudioContext();
   const permissions = usePermissions();
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
@@ -102,23 +103,8 @@ export function DocumentEditor({
     }
   }, [schemaName, documentId]);
 
-  // Hide/show ContextSidebar (left sidebar) based on singleton status
-  useEffect(() => {
-    if (schema) {
-      if (schema.singleton) {
-        contextSidebar.hide(); // Hide left sidebar for singleton documents
-      } else {
-        contextSidebar.show(); // Show left sidebar for regular documents
-      }
-    }
-  }, [schema, contextSidebar]);
-
-  // Cleanup: Show ContextSidebar when component unmounts (when navigating away)
-  useEffect(() => {
-    return () => {
-      contextSidebar.show();
-    };
-  }, [contextSidebar]);
+  // Structure-driven context sidebar is now handled by useStructureContextSidebar hook
+  // No manual configuration needed - it reads from structure.js configuration
 
   const loadEditorData = async () => {
     try {

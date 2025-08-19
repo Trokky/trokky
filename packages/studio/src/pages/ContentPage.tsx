@@ -14,7 +14,7 @@ import { storage } from '@/utils/storage';
 import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { ContentContext } from '@/components/context/ContentContext';
-import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
@@ -46,18 +46,9 @@ export function ContentPage() {
   const { schemaName, documentId } = useParams();
   const navigate = useNavigate();
   const structureItem = useStructureItem(schemaName || '');
-  // Declarative context sidebar configuration for content page
-  const contextSidebar = useContextSidebar({
-    page: 'content',
-    title: 'Content Info',
-    defaultVisible: false,
-    defaultPosition: 'left'
-  });
-
-  useEffect(() => {
-    // Set content context sidebar content
-    contextSidebar.setContent(<ContentContext />);
-  }, [contextSidebar.setContent]);
+  
+  // Use structure-driven context sidebar for content pages
+  useStructureContextSidebar();
 
 
   // Handle document editing
