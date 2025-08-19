@@ -26,7 +26,8 @@
     "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --project tsconfig.build.json --watch",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "echo 'Type-only package - no runtime tests needed' && exit 0"
   },
   "keywords": [
     "trokky",
@@ -39,7 +40,16 @@
   "devDependencies": {
     "typescript": "^5.6.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Trokky/trokky.git"
+  },
+  "homepage": "https://github.com/trokky/trokky#readme",
+  "bugs": {
+    "url": "https://github.com/trokky/trokky/issues"
+  },
   "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
     "access": "public"
   }
 }

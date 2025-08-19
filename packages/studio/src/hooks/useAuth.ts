@@ -163,6 +163,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check for stored tokens
       const storedToken = localStorage.getItem('trokky_auth_token');
       const storedRefreshToken = localStorage.getItem('trokky_refresh_token');
+      console.log('🔍 Auth check - stored tokens:', {
+        hasStoredToken: !!storedToken,
+        hasRefreshToken: !!storedRefreshToken,
+        refreshTokenLength: storedRefreshToken?.length || 0
+      });
       logger.info('Checking auth', { hasStoredToken: !!storedToken, hasRefreshToken: !!storedRefreshToken });
       
       if (!storedToken) {
@@ -312,6 +317,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log('📥 Login response:', response);
       
+      console.log('📥 Full login response structure:', {
+        responseSuccess: response.success,
+        hasData: !!response.data,
+        dataType: typeof response.data,
+        dataKeys: response.data && typeof response.data === 'object' ? Object.keys(response.data) : [],
+        responseDataSuccess: response.data && typeof response.data === 'object' && 'success' in response.data ? response.data.success : 'not found'
+      });
+
       if (response.success && response.data && 
           typeof response.data === 'object' && 
           'user' in response.data && 
@@ -327,7 +340,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('🔑 Extracted tokens:', {
           hasToken: !!token,
           hasRefreshToken: !!refreshToken,
-          refreshTokenLength: refreshToken?.length || 0
+          refreshTokenLength: refreshToken?.length || 0,
+          refreshTokenValue: refreshToken ? 'present' : 'missing',
+          tokenValue: token ? 'present' : 'missing',
+          responseDataKeys: Object.keys(response.data)
         });
         
         logger.info('User login successful', { username, rememberMe });
@@ -336,6 +352,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('trokky_auth_token', token);
         if (refreshToken) {
           localStorage.setItem('trokky_refresh_token', refreshToken);
+          console.log('💾 Stored refresh token in localStorage');
+        } else {
+          console.warn('⚠️ No refresh token to store');
         }
         
         // Update API client

@@ -339,6 +339,22 @@ export interface TrokkyConfig {
       forbiddenExtensions?: string[]
     }
   }
+  // Schema enhancement features
+  features?: {
+    autoThumbnail?: {
+      enabled?: boolean
+      fieldName?: string
+      skipSingletons?: boolean
+      skipSchemas?: string[]
+      maxFileSize?: number
+      allowedTypes?: string[]
+    }
+    autoSlug?: {
+      enabled?: boolean
+      sourceFields?: string[]
+      unique?: boolean
+    }
+  }
   security?: {
     validateInput?: boolean
     rateLimitEnabled?: boolean

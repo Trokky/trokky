@@ -12,7 +12,7 @@ import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { StatsWidget, DashboardContextSidebar } from '@/components/dashboard';
 
 export function DashboardPage() {
-  // Declarative context sidebar configuration for dashboard
+  // Manual context sidebar configuration for dashboard (not structure-driven)
   const contextSidebar = useContextSidebar({
     page: 'dashboard',
     title: 'Recent Activity',

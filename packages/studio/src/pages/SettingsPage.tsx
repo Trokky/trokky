@@ -32,10 +32,14 @@ export function SettingsPage() {
   const canReadSettings = hasPermission(SETTINGS_PERMISSIONS.READ);
   const canWriteSettings = hasPermission(SETTINGS_PERMISSIONS.WRITE);
 
-  // Hide context sidebar for settings page
+  // Configure context sidebar for settings page (disabled)
   useEffect(() => {
-    contextSidebar.hide();
-  }, [contextSidebar]);
+    contextSidebar.configure({
+      page: 'settings',
+      title: 'Settings',
+      defaultVisible: false  // Hide context sidebar for settings
+    });
+  }, [contextSidebar.configure]);
 
   // Load settings from API on mount
   useEffect(() => {

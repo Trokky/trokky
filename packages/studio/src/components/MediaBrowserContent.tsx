@@ -382,11 +382,13 @@ export function MediaBrowserContent({
                       : getMediaUrl(selectedMedia, selectedVariant, mediaUrlGenerator);
                     
                     return (
-                      <img
-                        src={previewUrl}
-                        alt={selectedMedia.metadata?.title || selectedMedia.filename}
-                        className="max-w-full max-h-full object-contain"
-                      />
+                      <div className="w-full h-full max-w-[800px] max-h-[400px] flex items-center justify-center">
+                        <img
+                          src={previewUrl}
+                          alt={selectedMedia.metadata?.title || selectedMedia.filename}
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
                     );
                   } else if (mediaType === 'video') {
                     return (
@@ -714,13 +716,13 @@ export function MediaBrowserContent({
           )}
 
           {/* Media Grid */}
-          <div className="flex-1 overflow-y-auto p-4 max-h-[400px]">
+          <div className="flex-1 overflow-y-auto p-4 max-h-[600px]">
             {isLoading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             ) : filteredMedia.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3">
                 {filteredMedia.map((media) => (
                   <div
                     key={media.id}

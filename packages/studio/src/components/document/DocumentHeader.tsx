@@ -8,7 +8,8 @@ import {
   PencilIcon, 
   CloudArrowUpIcon,
   XMarkIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ChevronLeftIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useDocumentEditor } from './DocumentEditorContext';
@@ -51,50 +52,31 @@ export function DocumentHeader() {
   };
 
   const isSingletonDocument = schema?.singleton === true;
-  // For singleton documents, only show cancel if there are unsaved changes
-  // For non-singleton documents, show cancel for new documents or when there are changes
-  const shouldShowCancelButton = isSingletonDocument 
-    ? hasUnsavedChanges 
-    : (isNewDocument || hasUnsavedChanges);
+  // Show cancel button only when there are unsaved changes (for discarding changes)
+  const shouldShowCancelButton = hasUnsavedChanges;
 
   const availableTransitions = DocumentStates.getAvailableTransitions(documentState);
 
   return (
     <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="px-6 py-3">
-        {/* First line - Document title only */}
-        <div className="mb-2">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {getDocumentTitle()}
-          </h1>
-          {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
-            <div className="flex items-center space-x-2 mt-0.5">
-              {isReadOnly && (
-                <span className="text-xs text-blue-600 dark:text-blue-400">
-                  • Read only mode
-                </span>
-              )}
-              {hasUnsavedChanges && (
-                <span className="text-xs text-amber-600 dark:text-amber-400">
-                  • Unsaved changes
-                </span>
-              )}
-              {hasValidationErrors && (
-                <span className="text-xs text-red-600 dark:text-red-400">
-                  • Validation errors
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Separator */}
-        <div className="border-t border-gray-200 dark:border-gray-700 mb-2"></div>
-
-        {/* Second line - Type and actions */}
-        <div className="flex items-center justify-between">
-          {/* Left side - Document type and state */}
+        {/* First line - Back navigation, collection type and actions */}
+        <div className="flex items-center justify-between mb-2">
+          {/* Left side - Back navigation, document type and state */}
           <div className="flex items-center space-x-4">
+            {/* Back to collection button - only show for non-singleton documents */}
+            {!isSingletonDocument && (
+              <button
+                onClick={onCancel}
+                className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title={`Back to ${schema?.title || schema?.name} collection`}
+              >
+                <ChevronLeftIcon className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Back to {schema?.title || schema?.name}</span>
+                <span className="sm:hidden">Back</span>
+              </button>
+            )}
+            
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {schema?.title || schema?.name} {isNewDocument ? '(New)' : ''}
             </span>
@@ -180,6 +162,35 @@ export function DocumentHeader() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-gray-200 dark:border-gray-700 mb-2"></div>
+
+        {/* Second line - Document title */}
+        <div className="mb-2">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {getDocumentTitle()}
+          </h1>
+          {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
+            <div className="flex items-center space-x-2 mt-0.5">
+              {isReadOnly && (
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  • Read only mode
+                </span>
+              )}
+              {hasUnsavedChanges && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  • Unsaved changes
+                </span>
+              )}
+              {hasValidationErrors && (
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  • Validation errors
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

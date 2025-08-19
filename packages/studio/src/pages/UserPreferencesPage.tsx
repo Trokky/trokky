@@ -33,15 +33,14 @@ export function UserPreferencesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Hide context sidebar on this page
+  // Configure context sidebar for user preferences page (disabled)
   useEffect(() => {
-    contextSidebar.hide();
-    
-    // Show it again when leaving the page
-    return () => {
-      contextSidebar.show();
-    };
-  }, [contextSidebar]);
+    contextSidebar.configure({
+      page: 'user-preferences',
+      title: 'User Preferences',
+      defaultVisible: false  // Hide context sidebar for user preferences
+    });
+  }, [contextSidebar.configure]);
 
   useEffect(() => {
     if (user) {

@@ -263,17 +263,39 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         })
       }
 
-      // Apply sorting
+      // Apply sorting - default to newest first (_createdAt desc)
       if (options.sort) {
         const sortFields = Array.isArray(options.sort) ? options.sort : [options.sort]
         filteredDocuments.sort((a, b) => {
           for (const field of sortFields) {
-            const aVal = (a as any)[field]
-            const bVal = (b as any)[field]
-            if (aVal < bVal) return -1
-            if (aVal > bVal) return 1
+            let fieldName = field
+            let direction = 'asc'
+            
+            // Handle descending sort (field prefixed with -)
+            if (field.startsWith('-')) {
+              fieldName = field.substring(1)
+              direction = 'desc'
+            }
+            
+            const aVal = (a as any)[fieldName]
+            const bVal = (b as any)[fieldName]
+            
+            let comparison = 0
+            if (aVal < bVal) comparison = -1
+            if (aVal > bVal) comparison = 1
+            
+            if (comparison !== 0) {
+              return direction === 'desc' ? -comparison : comparison
+            }
           }
           return 0
+        })
+      } else {
+        // Default sort: newest first (_createdAt descending)
+        filteredDocuments.sort((a, b) => {
+          const aDate = new Date(a._createdAt).getTime()
+          const bDate = new Date(b._createdAt).getTime()
+          return bDate - aDate // Descending order (newest first)
         })
       }
 
