@@ -1,11 +1,5 @@
 import { InvalidInputError } from '../errors/index.js';
 export class SecurityValidator {
-    static COLLECTION_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
-    static ID_REGEX = /^[a-zA-Z0-9-_]+$/;
-    static MAX_COLLECTION_NAME_LENGTH = 50;
-    static MAX_ID_LENGTH = 100;
-    static MAX_LIMIT = 1000;
-    static MAX_SORT_FIELDS = 5;
     static validateCollectionName(name) {
         if (typeof name !== 'string') {
             throw new InvalidInputError('Collection name must be a string', 'collection');
@@ -237,3 +231,10 @@ export class SecurityValidator {
         }
     }
 }
+SecurityValidator.COLLECTION_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+SecurityValidator.ID_REGEX = /^[a-zA-Z0-9-_]+$/;
+SecurityValidator.MAX_COLLECTION_NAME_LENGTH = 50;
+SecurityValidator.MAX_ID_LENGTH = 100;
+SecurityValidator.MAX_LIMIT = 1000;
+SecurityValidator.MAX_SORT_FIELDS = 5;
+//# sourceMappingURL=validation.js.map

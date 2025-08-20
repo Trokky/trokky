@@ -1,9 +1,8 @@
 import { getUniversalCrypto, bytesToHex } from './universal-crypto.js';
 export class IdGenerator {
-    counter = 0;
-    instanceId;
-    crypto = getUniversalCrypto();
     constructor() {
+        this.counter = 0;
+        this.crypto = getUniversalCrypto();
         // Generate a unique instance ID for this generator
         const bytes = this.crypto.getRandomBytes(4);
         this.instanceId = bytesToHex(bytes);
@@ -58,3 +57,4 @@ export class IdGenerator {
         this.counter = 0;
     }
 }
+//# sourceMappingURL=id-generator.js.map

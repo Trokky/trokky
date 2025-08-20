@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, type SettingsConfig, type AuditContext, AUDIT_ACTOR_TYPES } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -504,9 +504,9 @@ export class TrokkyRoutes {
       
       // Get current user for audit context
       const currentUser = await this.getCurrentUser(request)
-      const auditContext: AuditContext | undefined = currentUser ? {
+      const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
-        userType: AUDIT_ACTOR_TYPES.USER,
+        userType: 'USER',
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -595,9 +595,9 @@ export class TrokkyRoutes {
       
       // Get current user for audit context
       const currentUser = await this.getCurrentUser(request)
-      const auditContext: AuditContext | undefined = currentUser ? {
+      const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
-        userType: AUDIT_ACTOR_TYPES.USER,
+        userType: 'USER',
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -650,9 +650,9 @@ export class TrokkyRoutes {
 
       // Get audit context from current user
       const currentUser = await this.getCurrentUser(request)
-      const auditContext: AuditContext | undefined = currentUser ? {
+      const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
-        userType: AUDIT_ACTOR_TYPES.USER,
+        userType: 'USER',
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -1777,11 +1777,11 @@ export class TrokkyRoutes {
     // SECURITY: Enhanced error handling with proper typing and status mapping
     if (error instanceof InvalidInputError) {
       errorCode = 'INVALID_INPUT'
-      errorMessage = error.message
+      errorMessage = (error as any).message
       statusCode = 400
       
       // Handle authentication errors specifically
-      if ('field' in error && error.field === 'authorization') {
+      if ((error as any).field === 'authorization') {
         statusCode = 401
         errorCode = 'UNAUTHORIZED'
       }
@@ -2227,7 +2227,7 @@ export class TrokkyRoutes {
       const currentUser = await this.getCurrentUser(request)
       
       // Merge settings with metadata, ensuring required fields are present
-      const updatedSettings: SettingsConfig = {
+      const updatedSettings: any = {
         id: 'studio-settings', // Ensure ID is consistent
         publicUrl: newSettings.publicUrl || currentSettings.publicUrl,
         studioTitle: newSettings.studioTitle || currentSettings.studioTitle,
@@ -2508,9 +2508,9 @@ export class TrokkyRoutes {
         }
         
         // Auto-created singleton uses system context
-        const systemContext: AuditContext = {
+        const systemContext: any = {
           userId: 'system',
-          userType: AUDIT_ACTOR_TYPES.SYSTEM,
+          userType: 'SYSTEM',
           username: 'system'
         }
         const document = await this.core.saveDocument(collection, singletonData, systemContext)

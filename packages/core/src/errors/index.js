@@ -1,6 +1,4 @@
 export class TrokkyError extends Error {
-    code;
-    details;
     constructor(message, code, details) {
         super(message);
         this.code = code;
@@ -19,7 +17,6 @@ export class TrokkyError extends Error {
     }
 }
 export class ValidationError extends TrokkyError {
-    validationErrors;
     constructor(message, validationErrors) {
         super(message, 'VALIDATION_FAILED', { errors: validationErrors });
         this.validationErrors = validationErrors;
@@ -56,3 +53,4 @@ export class RateLimitError extends TrokkyError {
         this.name = 'RateLimitError';
     }
 }
+//# sourceMappingURL=index.js.map

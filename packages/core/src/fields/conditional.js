@@ -2,7 +2,6 @@
  * Conditional logic evaluation error
  */
 export class ConditionalEvaluationError extends Error {
-    expression;
     constructor(message, expression) {
         super(message);
         this.expression = expression;
@@ -293,3 +292,4 @@ export class ConditionalUtils {
         return errors;
     }
 }
+//# sourceMappingURL=conditional.js.map

@@ -1,6 +1,5 @@
 import { z } from 'zod';
 export class DocumentValidator {
-    schemaRegistry;
     constructor(schemaRegistry) {
         this.schemaRegistry = schemaRegistry;
     }
@@ -61,22 +60,36 @@ export class DocumentValidator {
             case 'boolean':
                 return z.boolean();
             case 'date':
-                return z.date().or(z.string().refine(str => {
+                return z.date()
+                    .or(z.string().refine(str => {
+                    // Handle special "now" value
+                    if (str === 'now') {
+                        return true;
+                    }
                     const date = new Date(str);
                     return !isNaN(date.getTime());
-                }, { message: 'Invalid date string' }).transform(str => new Date(str)));
+                }, { message: 'Invalid date string' }).transform(str => {
+                    // Transform "now" to current date
+                    if (str === 'now') {
+                        return new Date();
+                    }
+                    return new Date(str);
+                }))
+                    .or(z.null()); // Allow null values for optional date fields
             case 'array':
-                if (!fieldDef.items) {
+                // Use modern 'of' format for array item definition
+                if (!fieldDef.of) {
                     return z.array(z.unknown());
                 }
-                const itemSchema = this.buildFieldSchema(fieldDef.items);
+                const itemSchema = this.buildFieldSchema(fieldDef.of);
                 return z.array(itemSchema);
             case 'object':
-                if (!fieldDef.properties) {
+                if (!fieldDef.fields) {
                     return z.record(z.unknown());
                 }
                 const objectShape = {};
-                for (const [propName, propDef] of Object.entries(fieldDef.properties)) {
+                // Handle modern format: fields is a Record<string, FieldDefinition>
+                for (const [propName, propDef] of Object.entries(fieldDef.fields)) {
                     const typedPropDef = propDef;
                     let propSchema = this.buildFieldSchema(typedPropDef);
                     if (!typedPropDef.required) {
@@ -86,7 +99,13 @@ export class DocumentValidator {
                 }
                 return z.object(objectShape);
             case 'reference':
-                return z.string(); // Reference IDs are strings
+                return z.union([
+                    z.string(), // Still allow string IDs for backward compatibility
+                    z.object({
+                        _ref: z.string(),
+                        _type: z.string().optional()
+                    }).passthrough() // Allow additional metadata
+                ]);
             case 'media':
                 // Media fields can be either a string ID or a complex object with asset reference
                 return z.union([
@@ -121,3 +140,4 @@ export class DocumentValidator {
         }));
     }
 }
+//# sourceMappingURL=validator.js.map

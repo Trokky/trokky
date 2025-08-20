@@ -7,9 +7,7 @@ import type {
   User,
   CreateUserData,
   UpdateUserData,
-  UserListOptions,
-  WebhookConfig,
-  WebhookDeliveryResult
+  UserListOptions
 } from '@trokky/core'
 
 // HTTP Method types
@@ -250,12 +248,12 @@ export interface ListWebhooksRequest {
 }
 
 export interface CreateWebhookRequest {
-  webhookData: Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt'>
+  webhookData: any
 }
 
 export interface UpdateWebhookRequest {
   id: string
-  webhookData: Partial<Omit<WebhookConfig, 'id' | 'createdAt' | 'updatedAt'>>
+  webhookData: any
 }
 
 export interface GetWebhookRequest {

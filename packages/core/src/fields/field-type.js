@@ -14,3 +14,4 @@ export var FieldCategory;
     FieldCategory["EXTERNAL"] = "external";
     FieldCategory["CUSTOM"] = "custom";
 })(FieldCategory || (FieldCategory = {}));
+//# sourceMappingURL=field-type.js.map

@@ -55,8 +55,6 @@ const COLORS = {
  * Platform-agnostic logger
  */
 export class TrokkyLogger {
-    config;
-    context;
     constructor(context, config = {}) {
         this.context = context;
         this.config = { ...DEFAULT_CONFIG, ...config };
@@ -177,7 +175,6 @@ export class TrokkyLogger {
  * Global logger factory
  */
 export class LoggerFactory {
-    static globalConfig = {};
     static configure(config) {
         LoggerFactory.globalConfig = { ...LoggerFactory.globalConfig, ...config };
     }
@@ -194,6 +191,7 @@ export class LoggerFactory {
         LoggerFactory.configure({ level: 'error' });
     }
 }
+LoggerFactory.globalConfig = {};
 /**
  * Convenience function to create package loggers
  */
@@ -209,3 +207,4 @@ export const LoggerPresets = {
     testing: { level: 'warn', format: 'human', colors: false },
     edge: { level: 'info', format: 'json', colors: false }
 };
+//# sourceMappingURL=logger.js.map

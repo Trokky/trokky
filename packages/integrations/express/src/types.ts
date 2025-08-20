@@ -62,6 +62,11 @@ export interface StudioIntegrationConfig {
 
 // Express integration configuration
 export interface ExpressIntegrationConfig extends RoutesConfig {
+  // Core configuration
+  core?: TrokkyCore
+  
+  // Base path for API routes
+  basePath?: string
   // File upload configuration
   fileUpload?: {
     maxFileSize?: number
@@ -90,6 +95,9 @@ export interface ExpressIntegrationConfig extends RoutesConfig {
   
   // Studio integration
   studio?: StudioIntegrationConfig
+  
+  // Static routes configuration
+  staticRoutes?: any
 }
 
 // Express request with file upload support

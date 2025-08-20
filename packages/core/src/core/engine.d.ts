@@ -4,7 +4,8 @@ import { DocumentValidator } from '../validation/validator.js';
 import { RateLimiter } from '../security/rate-limiter.js';
 import { IdGenerator } from '../utils/id-generator.js';
 import { type ImageProcessor, type ImageProcessorConfig } from '../media/image-processor.js';
-import { TrokkyConfig, StorageAdapter, DataStorageAdapter, MediaStorageAdapter, TrokkyStorageAdapters, Document, DocumentData, ListOptions, MediaFile, ContentSchema, ValidationResult, User, CreateUserData, UpdateUserData, UserListOptions, UserSession, AppToken, AppTokenListOptions, CreateAppTokenData } from '../types/index.js';
+import { TrokkyEventBus, type EventBusConfig } from '../events/index.js';
+import { TrokkyConfig, StorageAdapter, DataStorageAdapter, MediaStorageAdapter, TrokkyStorageAdapters, Document, DocumentData, ListOptions, MediaFile, ContentSchema, ValidationResult, User, CreateUserData, UpdateUserData, UserListOptions, UserSession, AppToken, AppTokenListOptions, CreateAppTokenData, AuditContext, AuditLog } from '../types/index.js';
 import type { AppTokenCreationResult } from '../security/auth.js';
 export interface TrokkyCoreOptions {
     schemaRegistry?: SchemaRegistry;
@@ -21,6 +22,9 @@ export interface TrokkyCoreOptions {
     imageProcessorConfig?: ImageProcessorConfig;
     validateAdapters?: boolean;
     allowPartialAdapters?: boolean;
+    eventBus?: TrokkyEventBus;
+    eventBusConfig?: EventBusConfig;
+    enableEvents?: boolean;
 }
 export interface AuditEvent {
     type: 'user_created' | 'user_updated' | 'user_deleted' | 'user_login' | 'user_logout' | 'admin_access' | 'app_token_deleted';
@@ -47,24 +51,51 @@ export declare class TrokkyCore {
     private securityEnabled;
     private options;
     private jwtSecret;
+    private config;
     private auditLogger?;
     private cryptoAdapter;
     private imageProcessor;
+    private imageProcessorConfig;
     private logger;
     private auditLog;
+    private eventBus;
+    private eventsEnabled;
     constructor(config: TrokkyConfig, storageAdapter: StorageAdapter, options?: TrokkyCoreOptions);
     constructor(config: TrokkyConfig, storageAdapters: TrokkyStorageAdapters, options?: TrokkyCoreOptions);
     private isTrokkyStorageAdapters;
     private createDataAdapterWrapper;
     private createMediaAdapterWrapper;
     private validateStorageAdapters;
+    getEventBus(): TrokkyEventBus;
     init(): Promise<void>;
+    private createAuditLog;
     getDocument<T extends Record<string, unknown> = Record<string, unknown>>(collection: string, id: string): Promise<(Document & T) | null>;
     saveDocument<T extends Record<string, unknown> = Record<string, unknown>>(collection: string, data: DocumentData & T & {
         id?: string;
-    }): Promise<Document & T>;
+    }, auditContext?: AuditContext): Promise<Document & T>;
     listDocuments<T extends Record<string, unknown> = Record<string, unknown>>(collection: string, options?: ListOptions): Promise<(Document & T)[]>;
-    deleteDocument(collection: string, id: string): Promise<void>;
+    deleteDocument(collection: string, id: string, auditContext?: AuditContext): Promise<void>;
+    /**
+     * Get audit logs for a specific document
+     */
+    getDocumentAuditLogs(documentId: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
+    /**
+     * Get audit logs for a collection
+     */
+    getCollectionAuditLogs(collection: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
+    /**
+     * Get audit logs for a specific actor
+     */
+    getActorAuditLogs(actorId: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
     uploadMedia(file: File): Promise<MediaFile>;
     getMedia(id: string): Promise<MediaFile | null>;
     updateMedia(id: string, metadata: Record<string, any>): Promise<MediaFile>;
@@ -98,7 +129,8 @@ export declare class TrokkyCore {
      */
     getStorageAdapters(): TrokkyStorageAdapters;
     healthCheck(): Promise<boolean>;
-    private validateMediaFile;
+    private validateAndSanitizeMediaFile;
+    private sanitizeFilename;
     private getFileExtension;
     createUser(userData: CreateUserData): Promise<User>;
     getUser(id: string): Promise<User | null>;
@@ -110,6 +142,11 @@ export declare class TrokkyCore {
     listAppTokens(options?: AppTokenListOptions): Promise<AppToken[]>;
     createAppToken(tokenData: CreateAppTokenData, createdBy: string): Promise<AppTokenCreationResult>;
     getAppToken(id: string): Promise<AppToken | null>;
+    validateAppToken(token: string): Promise<{
+        valid: boolean;
+        appToken?: AppToken;
+        error?: string;
+    }>;
     deleteAppToken(id: string): Promise<void>;
     verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean>;
     private hashPassword;
@@ -117,6 +154,11 @@ export declare class TrokkyCore {
     private checkWeakPassword;
     generateAuthToken(user: User, expiresIn?: string): Promise<string>;
     verifyAuthToken(token: string): Promise<UserSession | null>;
+    /**
+     * Unified token validation that handles both JWT and API tokens
+     * Returns a consistent UserSession interface for both token types
+     */
+    verifyAnyToken(token: string): Promise<UserSession | null>;
     authenticateUser(username: string, password: string, options?: {
         rememberMe?: boolean;
     }): Promise<{

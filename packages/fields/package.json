@@ -20,6 +20,7 @@
     "build:watch": "tsc --project tsconfig.build.json --watch",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
+    "test": "echo 'No tests configured for this package' && exit 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -39,7 +40,7 @@
     "@tiptap/extension-table-cell": "^2.10.6",
     "@tiptap/extension-gapcursor": "^2.10.6",
     "@tiptap/extension-code-block-lowlight": "^2.10.6",
-    "@trokky/types": "file:../types",
+    "@trokky/types": "0.1.0",
     "lowlight": "^3.1.0"
   },
   "peerDependencies": {

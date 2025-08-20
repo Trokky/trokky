@@ -23,6 +23,15 @@ export { TrokkyLogger, LoggerFactory, createLogger, LoggerPresets } from './util
 export { getUniversalCrypto, bytesToHex, generateRandomHex, generateUUID, getSecureRandomInt, secureShuffleArray, generateSecurePassword } from './utils/universal-crypto.js';
 // Errors
 export { TrokkyError, ValidationError, SchemaNotFoundError, DocumentNotFoundError, InvalidInputError, RateLimitError } from './errors/index.js';
-export { ROLE_PERMISSIONS } from './types/index.js';
+export { ROLE_PERMISSIONS, AUDIT_ACTOR_TYPES, AUDIT_OPERATIONS } from './types/index.js';
 // Zod schemas for validation
-export { LegacyFieldTypeSchema, LegacyFieldDefinitionSchema, ContentSchemaSchema } from './types/index.js';
+export { FieldTypeSchema, FieldDefinitionSchema, ContentSchemaSchema } from './types/index.js';
+// Event system
+export { TrokkyEventBus, MemoryEventStorage, 
+// Event creation utilities
+createDocumentEvent, createMediaEvent, createUserEvent, createAppTokenEvent, createSystemEvent, 
+// Specific event builders
+documentCreated, documentUpdated, documentDeleted, documentPublished, documentUnpublished, mediaUploaded, mediaUpdated, mediaDeleted, mediaVariantGenerated, userCreated, userUpdated, userDeleted, userLogin, userLogout, userRoleChanged, appTokenCreated, appTokenUsed, systemStartup, systemShutdown, systemError, 
+// Utility functions
+eventMatches, extractDocumentChanges, actorFromUser, actorFromAppToken, systemActor } from './events/index.js';
+//# sourceMappingURL=index.js.map

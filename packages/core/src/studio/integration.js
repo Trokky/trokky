@@ -6,11 +6,9 @@
  */
 import { createLogger } from '../utils/logger.js';
 export class StudioIntegration {
-    core;
-    config;
-    routes = new Map();
-    logger = createLogger('core', 'StudioIntegration');
     constructor(core, config = {}) {
+        this.routes = new Map();
+        this.logger = createLogger('core', 'StudioIntegration');
         this.core = core;
         this.config = {
             enabled: true,
@@ -301,3 +299,4 @@ export class StudioIntegration {
         };
     }
 }
+//# sourceMappingURL=integration.js.map
