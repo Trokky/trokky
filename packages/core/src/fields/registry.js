@@ -3,7 +3,6 @@ import { FieldCategory } from './field-type.js';
  * Field type registration error
  */
 export class FieldTypeRegistrationError extends Error {
-    fieldType;
     constructor(message, fieldType) {
         super(message);
         this.fieldType = fieldType;
@@ -15,9 +14,6 @@ export class FieldTypeRegistrationError extends Error {
  * Supports registration, lookup, categorization, and extensibility
  */
 export class FieldTypeRegistry {
-    static types = new Map();
-    static categories = new Map();
-    static metadata = new Map();
     /**
      * Register a field type in the registry
      */
@@ -182,3 +178,7 @@ export class FieldTypeRegistry {
         };
     }
 }
+FieldTypeRegistry.types = new Map();
+FieldTypeRegistry.categories = new Map();
+FieldTypeRegistry.metadata = new Map();
+//# sourceMappingURL=registry.js.map

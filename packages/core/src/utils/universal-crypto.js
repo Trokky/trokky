@@ -16,16 +16,15 @@ export function getUniversalCrypto() {
             }
         };
     }
-    // Node.js environment - use dynamic import to avoid bundling
+    // Node.js environment - use dynamic require detection to avoid bundling
     if (typeof process !== 'undefined' && process.versions && process.versions.node) {
         return {
             getRandomBytes(length) {
                 try {
-                    // Use dynamic require to avoid bundler warnings
+                    // Use dynamic require detection to prevent bundlers from trying to resolve this
                     const requireFunc = typeof require !== 'undefined' ? require : null;
-                    if (!requireFunc) {
-                        return getFallbackRandomBytes(length);
-                    }
+                    if (!requireFunc)
+                        throw new Error('require not available');
                     const crypto = requireFunc('crypto');
                     return new Uint8Array(crypto.randomBytes(length));
                 }
@@ -176,3 +175,4 @@ export function generateSecurePassword(options = {}) {
     // Securely shuffle the password to avoid predictable patterns
     return secureShuffleArray(passwordChars).join('');
 }
+//# sourceMappingURL=universal-crypto.js.map

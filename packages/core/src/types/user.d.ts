@@ -18,9 +18,9 @@ export interface User {
     createdAt: string;
     updatedAt: string;
 }
-export type UserRole = 'admin' | 'editor' | 'author' | 'viewer';
+export type UserRole = 'admin' | 'editor' | 'author' | 'viewer' | 'api';
 export declare const ROLE_PERMISSIONS: Record<UserRole, Permission[]>;
-export type Permission = 'content:read' | 'content:write' | 'content:delete' | 'content:publish' | 'media:read' | 'media:upload' | 'media:edit' | 'media:delete' | 'users:read' | 'users:write' | 'users:delete' | 'users:invite' | 'settings:read' | 'settings:write' | 'studio:access' | 'tokens:read' | 'tokens:write' | 'tokens:delete';
+export type Permission = 'content:read' | 'content:write' | 'content:delete' | 'content:publish' | 'content:*' | 'media:read' | 'media:upload' | 'media:edit' | 'media:delete' | 'users:read' | 'users:write' | 'users:delete' | 'users:invite' | 'settings:read' | 'settings:write' | 'studio:access' | 'tokens:read' | 'tokens:write' | 'tokens:delete' | 'webhooks:read' | 'webhooks:write' | 'webhooks:delete' | string;
 export interface UserPreferences {
     theme?: 'light' | 'dark';
     language?: string;

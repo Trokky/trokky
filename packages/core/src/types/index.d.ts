@@ -1,5 +1,49 @@
 import { z } from 'zod';
+import type { FieldRegistry, FieldType } from '@trokky/types';
 import type { User, UserListOptions, AppToken, AppTokenListOptions } from './user.js';
+export declare const AUDIT_ACTOR_TYPES: {
+    readonly USER: "user";
+    readonly API: "api";
+    readonly SYSTEM: "system";
+    readonly WEBHOOK: "webhook";
+};
+export type AuditActorType = typeof AUDIT_ACTOR_TYPES[keyof typeof AUDIT_ACTOR_TYPES];
+export interface AuditContext {
+    userId: string;
+    userType: AuditActorType;
+    username?: string;
+    ipAddress?: string;
+    userAgent?: string;
+}
+export declare const AUDIT_OPERATIONS: {
+    readonly CREATE: "create";
+    readonly UPDATE: "update";
+    readonly DELETE: "delete";
+    readonly PUBLISH: "publish";
+    readonly UNPUBLISH: "unpublish";
+    readonly RESTORE: "restore";
+};
+export type AuditOperation = typeof AUDIT_OPERATIONS[keyof typeof AUDIT_OPERATIONS];
+export interface AuditLog {
+    id: string;
+    documentId: string;
+    collection: string;
+    operation: AuditOperation;
+    actorId: string;
+    actorType: AuditActorType;
+    actorUsername?: string;
+    changes?: {
+        before?: Record<string, unknown>;
+        after?: Record<string, unknown>;
+        fields?: string[];
+    };
+    timestamp: Date;
+    revision: number;
+    ipAddress?: string;
+    userAgent?: string;
+    sessionId?: string;
+    metadata?: Record<string, unknown>;
+}
 export interface Document {
     id: string;
     _collection: string;
@@ -7,21 +51,40 @@ export interface Document {
     _updatedAt: Date;
     _revision?: number;
     _status?: 'draft' | 'published';
+    _createdBy?: string;
+    _updatedBy?: string;
+    _createdByType?: AuditActorType;
+    _updatedByType?: AuditActorType;
 }
 export interface DocumentWithContent extends Document {
     [key: string]: unknown;
 }
 export type DocumentData = Omit<Document, 'id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>;
-export declare const LegacyFieldTypeSchema: z.ZodEnum<["string", "number", "boolean", "date", "array", "object", "reference", "media", "slug"]>;
-export type LegacyFieldType = z.infer<typeof LegacyFieldTypeSchema>;
-export interface LegacyFieldDefinition {
-    type: LegacyFieldType;
+export declare function setFieldRegistry(registry: FieldRegistry): void;
+export declare function getRegisteredFieldTypes(): string[];
+export declare const FieldTypeSchema: z.ZodString;
+export type { FieldType };
+export interface FieldDefinition {
+    type: FieldType;
     required?: boolean;
     description?: string;
     validation?: Record<string, unknown>;
     options?: Record<string, unknown>;
-    items?: LegacyFieldDefinition;
-    properties?: Record<string, LegacyFieldDefinition>;
+    of?: FieldDefinition;
+    fields?: Record<string, FieldDefinition> | Array<{
+        name: string;
+        type: string;
+        title: string;
+        description?: string;
+        required?: boolean;
+        validation?: any;
+        options?: any;
+        default?: any;
+        fields?: any;
+        to?: any;
+        of?: any;
+    }>;
+    to?: string;
     collection?: string;
     source?: string | string[];
     autoGenerate?: boolean;
@@ -35,29 +98,8 @@ export interface LegacyFieldDefinition {
     prefix?: string;
     suffix?: string;
 }
-export declare const LegacyFieldDefinitionSchema: z.ZodType<LegacyFieldDefinition>;
-export declare const ContentSchemaSchema: z.ZodObject<{
-    name: z.ZodString;
-    type: z.ZodEnum<["document", "singleton"]>;
-    title: z.ZodOptional<z.ZodString>;
-    description: z.ZodOptional<z.ZodString>;
-    singleton: z.ZodOptional<z.ZodBoolean>;
-    fields: z.ZodRecord<z.ZodString, z.ZodType<LegacyFieldDefinition, z.ZodTypeDef, LegacyFieldDefinition>>;
-}, "strip", z.ZodTypeAny, {
-    name: string;
-    type: "document" | "singleton";
-    fields: Record<string, LegacyFieldDefinition>;
-    description?: string | undefined;
-    singleton?: boolean | undefined;
-    title?: string | undefined;
-}, {
-    name: string;
-    type: "document" | "singleton";
-    fields: Record<string, LegacyFieldDefinition>;
-    description?: string | undefined;
-    singleton?: boolean | undefined;
-    title?: string | undefined;
-}>;
+export declare const FieldDefinitionSchema: z.ZodSchema<any>;
+export declare const ContentSchemaSchema: z.ZodSchema<any>;
 export type ContentSchema = z.infer<typeof ContentSchemaSchema>;
 export interface ListOptions {
     limit?: number;
@@ -76,7 +118,7 @@ export interface ValidationErrorDetail {
 }
 export interface MediaFile {
     id: string;
-    url: string;
+    url?: string;
     filename: string;
     contentType: string;
     size: number;
@@ -98,7 +140,7 @@ export interface Migration {
 }
 export interface StorageAdapter {
     getDocument(collection: string, id: string): Promise<Document | null>;
-    saveDocument(collection: string, id: string, data: DocumentData): Promise<Document>;
+    saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document>;
     listDocuments(collection: string, options?: ListOptions): Promise<Document[]>;
     deleteDocument(collection: string, id: string): Promise<void>;
     uploadFile(file: File, metadata: MediaMetadata): Promise<MediaFile>;
@@ -157,6 +199,28 @@ export interface TrokkyConfig {
             fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
         }>;
         imageProcessorOptions?: Record<string, unknown>;
+        validation?: {
+            maxFileSize?: number;
+            maxFiles?: number;
+            allowedTypes?: string[];
+            allowedExtensions?: string[];
+            forbiddenExtensions?: string[];
+        };
+    };
+    features?: {
+        autoThumbnail?: {
+            enabled?: boolean;
+            fieldName?: string;
+            skipSingletons?: boolean;
+            skipSchemas?: string[];
+            maxFileSize?: number;
+            allowedTypes?: string[];
+        };
+        autoSlug?: {
+            enabled?: boolean;
+            sourceFields?: string[];
+            unique?: boolean;
+        };
     };
     security?: {
         validateInput?: boolean;
@@ -165,5 +229,6 @@ export interface TrokkyConfig {
 }
 export type { User, UserRole, Permission, UserPreferences, CreateUserData, UpdateUserData, UserListOptions, LoginCredentials, UserSession, AppToken, AppTokenListOptions, CreateAppTokenData, UpdateAppTokenData, AuthContext, AuthenticatedUser, AuthenticatedAppToken } from './user.js';
 export { ROLE_PERMISSIONS } from './user.js';
-export type { DataStorageAdapter, MediaStorageAdapter, DataTransaction, MediaListOptions, MediaVariant, SplitStorageConfig, TrokkyStorageAdapters } from './storage-adapters.js';
+export type { MediaAssetReference, MediaFieldValue, MediaType, MediaAsset, MediaBrowserConfig } from '@trokky/types';
+export type { DataStorageAdapter, MediaStorageAdapter, DataTransaction, MediaListOptions, MediaVariant, SplitStorageConfig, TrokkyStorageAdapters, WebhookListOptions, SettingsConfig } from './storage-adapters.js';
 //# sourceMappingURL=index.d.ts.map

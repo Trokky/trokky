@@ -210,7 +210,9 @@ export class FieldUtils {
  * Validation rule builder (Sanity-style)
  */
 export class Rule {
-    rules = [];
+    constructor() {
+        this.rules = [];
+    }
     required(message) {
         this.rules.push({ rule: 'required', message });
         return this;
@@ -257,3 +259,4 @@ export class Rule {
 export function rule() {
     return new Rule();
 }
+//# sourceMappingURL=helpers.js.map

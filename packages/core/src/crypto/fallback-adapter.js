@@ -4,9 +4,8 @@
  */
 import { generateRandomHex } from '../utils/universal-crypto.js';
 export class FallbackCryptoAdapter {
-    saltRounds;
-    hasLoggedWarning = false;
     constructor(options = {}) {
+        this.hasLoggedWarning = false;
         this.saltRounds = options.saltRounds || 12;
         this.logSecurityWarning();
     }
@@ -189,3 +188,4 @@ export class FallbackCryptoAdapter {
         return value * (multipliers[unit] || 3600);
     }
 }
+//# sourceMappingURL=fallback-adapter.js.map

@@ -821,7 +821,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       if (options.events && options.events.length > 0) {
         filteredWebhooks = filteredWebhooks.filter(webhook => 
           options.events!.some((eventPattern: string) => 
-            webhook.events.some(webhookEvent => 
+            webhook.events.some((webhookEvent: any) => 
               this.matchesEventPattern(webhookEvent, eventPattern)
             )
           )

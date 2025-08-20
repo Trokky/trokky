@@ -99,7 +99,7 @@ export class ExpressAdapter {
     // Set headers
     if (httpResponse.headers) {
       for (const [key, value] of Object.entries(httpResponse.headers)) {
-        res.set(key, value)
+        res.set(key, String(value))
       }
     }
 

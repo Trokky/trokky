@@ -6,26 +6,14 @@ import { RateLimiter } from '../security/rate-limiter.js';
 import { IdGenerator } from '../utils/id-generator.js';
 import { createLogger } from '../utils/logger.js';
 import { createImageProcessor } from '../media/image-processor.js';
+import { TrokkyEventBus, MemoryEventStorage } from '../events/index.js';
+import { documentCreated, documentUpdated, documentDeleted, mediaUploaded, mediaDeleted, systemStartup, extractDocumentChanges } from '../events/index.js';
 import { SchemaNotFoundError, DocumentNotFoundError, ValidationError, InvalidInputError } from '../errors/index.js';
+import { AUDIT_OPERATIONS } from '../types/index.js';
 export class TrokkyCore {
-    // Split storage adapters (new architecture)
-    dataStorage;
-    mediaStorage;
-    // Legacy unified storage adapter (for backward compatibility)
-    storage;
-    schemas;
-    validator;
-    idGenerator;
-    rateLimiter;
-    securityEnabled;
-    options;
-    jwtSecret;
-    auditLogger;
-    cryptoAdapter;
-    imageProcessor;
-    logger = createLogger('core', 'TrokkyCore');
-    auditLog = createLogger('core', 'Audit');
     constructor(config, storageAdapterOrAdapters, options = {}) {
+        this.logger = createLogger('core', 'TrokkyCore');
+        this.auditLog = createLogger('core', 'Audit');
         // Determine if we're using unified or split adapters
         if (this.isTrokkyStorageAdapters(storageAdapterOrAdapters)) {
             // Split adapters (new architecture)
@@ -50,7 +38,8 @@ export class TrokkyCore {
             });
         }
         this.options = options;
-        this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas);
+        this.config = config;
+        this.schemas = options.schemaRegistry || new SchemaRegistry(config.schemas, config.features);
         this.validator = options.validator || new DocumentValidator(this.schemas);
         this.idGenerator = options.idGenerator || new IdGenerator();
         this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true;
@@ -66,19 +55,47 @@ export class TrokkyCore {
             ...options.cryptoOptions,
             adapterType: options.cryptoOptions?.adapterType || 'auto'
         });
-        // Initialize image processor from config or options
-        const imageProcessorConfig = options.imageProcessorConfig || {
+        // Image processor will be initialized in init() method
+        // Store config for async initialization
+        this.imageProcessorConfig = options.imageProcessorConfig || {
             type: config.media?.imageProcessor || 'none',
             variants: config.media?.imageVariants || [],
             options: config.media?.imageProcessorOptions || {}
         };
-        this.imageProcessor = options.imageProcessor || createImageProcessor(imageProcessorConfig);
         if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
             const rateLimitConfig = {
                 windowMs: config.api?.rateLimit?.windowMs || 60 * 1000,
                 maxRequests: config.api?.rateLimit?.maxRequests || 1000
             };
             this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig);
+        }
+        // Initialize event system
+        this.eventsEnabled = options.enableEvents ?? true;
+        if (options.eventBus) {
+            this.eventBus = options.eventBus;
+        }
+        else {
+            // Create default event bus with memory storage
+            const eventStorage = new MemoryEventStorage({
+                maxEvents: 1000,
+                autoCleanup: true
+            });
+            const eventBusConfig = {
+                maxHistorySize: 1000,
+                enablePersistence: true,
+                storage: eventStorage,
+                enableWebhooks: true,
+                maxConcurrentWebhooks: 5,
+                dataStorage: this.dataStorage, // Pass data storage adapter for webhook persistence
+                ...options.eventBusConfig
+            };
+            this.eventBus = new TrokkyEventBus(eventBusConfig);
+        }
+        // Emit system startup event
+        if (this.eventsEnabled) {
+            this.eventBus.emitEvent(systemStartup('TrokkyCore')).catch(error => {
+                this.logger.warn('Failed to emit system startup event', error);
+            });
         }
     }
     // Helper methods for adapter management
@@ -160,11 +177,61 @@ export class TrokkyCore {
             mediaMethodCount: requiredMediaMethods.length
         });
     }
+    // Public getters
+    getEventBus() {
+        return this.eventBus;
+    }
     // Initialization
     async init() {
+        // Initialize image processor asynchronously 
+        if (!this.options.imageProcessor) {
+            this.imageProcessor = await createImageProcessor(this.imageProcessorConfig);
+        }
+        else {
+            this.imageProcessor = this.options.imageProcessor;
+        }
         // Setup admin user from environment variables if configured
         if (this.options.setupAdminFromEnv) {
             await this.setupAdminFromEnv();
+        }
+    }
+    // Helper method to create audit logs
+    async createAuditLog(documentId, collection, operation, auditContext, changes, revision) {
+        // Only create audit logs if the adapter supports it and we have audit context
+        if (!this.dataStorage.createAuditLog || !auditContext) {
+            return;
+        }
+        try {
+            await this.dataStorage.createAuditLog({
+                documentId,
+                collection,
+                operation: AUDIT_OPERATIONS[operation],
+                actorId: auditContext.userId,
+                actorType: auditContext.userType,
+                actorUsername: auditContext.username,
+                changes,
+                timestamp: new Date(),
+                revision: revision || 1,
+                ipAddress: auditContext.ipAddress,
+                userAgent: auditContext.userAgent,
+                sessionId: undefined, // Could be added later if needed
+                metadata: undefined // Could be added later for additional context
+            });
+            this.auditLog.info('Audit log created', {
+                documentId,
+                collection,
+                operation: AUDIT_OPERATIONS[operation],
+                actorId: auditContext.userId,
+                actorType: auditContext.userType
+            });
+        }
+        catch (error) {
+            this.logger.warn('Failed to create audit log', {
+                error,
+                documentId,
+                collection,
+                operation
+            });
         }
     }
     // Document operations
@@ -182,7 +249,7 @@ export class TrokkyCore {
         const document = await this.dataStorage.getDocument(collection, id);
         return document;
     }
-    async saveDocument(collection, data) {
+    async saveDocument(collection, data, auditContext) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('saveDocument');
         }
@@ -204,7 +271,47 @@ export class TrokkyCore {
         // Generate ID if not provided
         const id = data.id || this.idGenerator.generate({ prefix: collection });
         const { id: _, ...documentData } = data;
-        const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData);
+        // Check if document already exists (for event emission)
+        const existingDocument = await this.dataStorage.getDocument(collection, id).catch(() => null);
+        const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData, auditContext);
+        // Create audit log entry
+        if (existingDocument) {
+            // Document was updated
+            const changes = extractDocumentChanges(savedDocument, existingDocument);
+            await this.createAuditLog(id, collection, 'UPDATE', auditContext, {
+                before: existingDocument,
+                after: savedDocument,
+                fields: changes
+            }, savedDocument._revision);
+        }
+        else {
+            // Document was created
+            await this.createAuditLog(id, collection, 'CREATE', auditContext, {
+                after: savedDocument
+            }, savedDocument._revision);
+        }
+        // Emit document event
+        if (this.eventsEnabled) {
+            try {
+                if (existingDocument) {
+                    // Document updated
+                    const changes = extractDocumentChanges(savedDocument, existingDocument);
+                    await this.eventBus.emitEvent(documentUpdated(collection, savedDocument, existingDocument, changes));
+                }
+                else {
+                    // Document created
+                    await this.eventBus.emitEvent(documentCreated(collection, savedDocument));
+                }
+            }
+            catch (error) {
+                this.logger.warn('Failed to emit document event', {
+                    error,
+                    collection,
+                    documentId: id,
+                    operation: existingDocument ? 'update' : 'create'
+                });
+            }
+        }
         return savedDocument;
     }
     async listDocuments(collection, options) {
@@ -223,7 +330,7 @@ export class TrokkyCore {
         const documents = await this.dataStorage.listDocuments(collection, sanitizedOptions);
         return documents;
     }
-    async deleteDocument(collection, id) {
+    async deleteDocument(collection, id, auditContext) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('deleteDocument');
         }
@@ -239,22 +346,94 @@ export class TrokkyCore {
         if (!existingDocument) {
             throw new DocumentNotFoundError(collection, id);
         }
-        return await this.dataStorage.deleteDocument(collection, id);
+        await this.dataStorage.deleteDocument(collection, id);
+        // Create audit log entry
+        await this.createAuditLog(id, collection, 'DELETE', auditContext, {
+            before: existingDocument
+        }, existingDocument._revision);
+        // Emit document deleted event
+        if (this.eventsEnabled) {
+            try {
+                await this.eventBus.emitEvent(documentDeleted(collection, id, existingDocument));
+            }
+            catch (error) {
+                this.logger.warn('Failed to emit document deleted event', {
+                    error,
+                    collection,
+                    documentId: id
+                });
+            }
+        }
+    }
+    // ==========================================================================
+    // AUDIT LOG OPERATIONS
+    // ==========================================================================
+    /**
+     * Get audit logs for a specific document
+     */
+    async getDocumentAuditLogs(documentId, options) {
+        if (this.rateLimiter) {
+            await this.rateLimiter.checkRateLimit('getDocumentAuditLogs');
+        }
+        if (this.securityEnabled) {
+            SecurityValidator.validateDocumentId(documentId);
+        }
+        // Only allow access if adapter supports audit logs
+        if (!this.dataStorage.getDocumentAuditLogs) {
+            throw new Error('Audit logs not supported by storage adapter');
+        }
+        return await this.dataStorage.getDocumentAuditLogs(documentId, options);
+    }
+    /**
+     * Get audit logs for a collection
+     */
+    async getCollectionAuditLogs(collection, options) {
+        if (this.rateLimiter) {
+            await this.rateLimiter.checkRateLimit('getCollectionAuditLogs');
+        }
+        if (this.securityEnabled) {
+            SecurityValidator.validateCollectionName(collection);
+        }
+        if (!this.schemas.hasSchema(collection)) {
+            throw new SchemaNotFoundError(collection);
+        }
+        // Only allow access if adapter supports audit logs
+        if (!this.dataStorage.getCollectionAuditLogs) {
+            throw new Error('Audit logs not supported by storage adapter');
+        }
+        return await this.dataStorage.getCollectionAuditLogs(collection, options);
+    }
+    /**
+     * Get audit logs for a specific actor
+     */
+    async getActorAuditLogs(actorId, options) {
+        if (this.rateLimiter) {
+            await this.rateLimiter.checkRateLimit('getActorAuditLogs');
+        }
+        if (this.securityEnabled) {
+            SecurityValidator.validateDocumentId(actorId); // Reuse document ID validation for actor ID
+        }
+        // Only allow access if adapter supports audit logs
+        if (!this.dataStorage.getActorAuditLogs) {
+            throw new Error('Audit logs not supported by storage adapter');
+        }
+        return await this.dataStorage.getActorAuditLogs(actorId, options);
     }
     // Media operations
     async uploadMedia(file) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('uploadMedia');
         }
+        let sanitizedFilename = file.name;
         if (this.securityEnabled) {
-            this.validateMediaFile(file);
+            sanitizedFilename = this.validateAndSanitizeMediaFile(file);
         }
         const metadata = {
             id: this.idGenerator.generate({ prefix: 'media' }),
-            filename: file.name,
+            filename: sanitizedFilename,
             contentType: file.type,
             size: file.size,
-            extension: this.getFileExtension(file.name)
+            extension: this.getFileExtension(sanitizedFilename)
         };
         // Upload to storage first
         const mediaFile = await this.mediaStorage.uploadFile(file, metadata);
@@ -264,7 +443,7 @@ export class TrokkyCore {
                 const processedImage = await this.imageProcessor.processImage(file, {
                     id: metadata.id,
                     filename: metadata.filename,
-                    path: mediaFile.url
+                    path: metadata.filename // Use filename as fallback since we don't have the full path here
                 });
                 // Save variant files directly to storage without creating separate MediaFile records
                 const savedVariants = {};
@@ -274,9 +453,8 @@ export class TrokkyCore {
                             // Save variant file directly using storage adapter's variant support
                             if (this.mediaStorage.saveVariantFile) {
                                 const variantPath = await this.mediaStorage.saveVariantFile(metadata.id, variantName, variantData.buffer, variantData.format);
-                                // Store variant info with the correct URL
+                                // Store variant info without URL - let frontend handle URL construction
                                 savedVariants[variantName] = {
-                                    url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(metadata.id, variantName) : variantPath}`,
                                     width: variantData.width,
                                     height: variantData.height,
                                     format: variantData.format,
@@ -343,6 +521,18 @@ export class TrokkyCore {
                 this.logger.warn('Image processing failed', {
                     fileId: metadata.id,
                     error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        }
+        // Emit media uploaded event
+        if (this.eventsEnabled) {
+            try {
+                await this.eventBus.emitEvent(mediaUploaded(mediaFile));
+            }
+            catch (error) {
+                this.logger.warn('Failed to emit media uploaded event', {
+                    error,
+                    fileId: mediaFile.id
                 });
             }
         }
@@ -419,7 +609,19 @@ export class TrokkyCore {
                 });
             }
         }
-        return await this.mediaStorage.deleteFile(id);
+        await this.mediaStorage.deleteFile(id);
+        // Emit media deleted event
+        if (this.eventsEnabled) {
+            try {
+                await this.eventBus.emitEvent(mediaDeleted(id, existingMedia));
+            }
+            catch (error) {
+                this.logger.warn('Failed to emit media deleted event', {
+                    error,
+                    fileId: id
+                });
+            }
+        }
     }
     async regenerateMediaVariants(id) {
         try {
@@ -447,7 +649,7 @@ export class TrokkyCore {
             const processedImage = await this.imageProcessor.processImage(file, {
                 id: mediaFile.id,
                 filename: mediaFile.filename,
-                path: mediaFile.url
+                path: mediaFile.metadata?.path || mediaFile.filename
             });
             // Delete existing variants first
             if (this.mediaStorage.deleteVariantFiles) {
@@ -466,8 +668,8 @@ export class TrokkyCore {
                     try {
                         if (this.mediaStorage.saveVariantFile) {
                             const variantPath = await this.mediaStorage.saveVariantFile(id, variantName, variantData.buffer, variantData.format);
+                            // Store variant info without URL - let frontend handle URL construction
                             savedVariants[variantName] = {
-                                url: `${this.mediaStorage.getVariantUrl ? await this.mediaStorage.getVariantUrl(id, variantName) : variantPath}`,
                                 width: variantData.width,
                                 height: variantData.height,
                                 format: variantData.format,
@@ -578,13 +780,33 @@ export class TrokkyCore {
         }
     }
     // Utility methods
-    validateMediaFile(file) {
-        const maxSize = 100 * 1024 * 1024; // 100MB
-        const allowedTypes = [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-            'video/mp4', 'video/webm',
-            'audio/mp3', 'audio/wav', 'audio/ogg',
-            'application/pdf', 'text/plain'
+    validateAndSanitizeMediaFile(file) {
+        // Use configuration or fall back to defaults
+        const mediaValidation = this.config.media?.validation;
+        const maxSize = mediaValidation?.maxFileSize || (100 * 1024 * 1024); // 100MB default
+        const allowedTypes = mediaValidation?.allowedTypes || [
+            // Images
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+            // Video
+            'video/mp4', 'video/webm', 'video/mov', 'video/avi',
+            // Audio - comprehensive list to match AudioField and Routes
+            'audio/mpeg', // MP3 (primary MIME type)
+            'audio/mp3', // MP3 (alternative MIME type)
+            'audio/wav', // WAV
+            'audio/wave', // WAV (alternative MIME type)
+            'audio/ogg', // OGG
+            'audio/aac', // AAC
+            'audio/mp4', // M4A (MP4 audio)
+            'audio/x-m4a', // M4A (alternative MIME type)
+            'audio/flac', // FLAC
+            'audio/webm', // WebM audio
+            // Documents
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            // Text
+            'text/plain', 'text/csv',
+            'application/json'
         ];
         if (file.size > maxSize) {
             throw new InvalidInputError(`File too large (max ${maxSize / 1024 / 1024}MB)`, 'file');
@@ -592,10 +814,42 @@ export class TrokkyCore {
         if (!allowedTypes.includes(file.type)) {
             throw new InvalidInputError(`File type not allowed: ${file.type}`, 'file');
         }
-        // Validate filename
-        if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-            throw new InvalidInputError('Invalid filename characters', 'file');
+        // Sanitize filename instead of rejecting it
+        const sanitizedName = this.sanitizeFilename(file.name);
+        if (sanitizedName !== file.name) {
+            this.logger.debug('Filename sanitized', {
+                original: file.name,
+                sanitized: sanitizedName
+            });
         }
+        return sanitizedName;
+    }
+    sanitizeFilename(filename) {
+        // Extract extension first
+        const lastDot = filename.lastIndexOf('.');
+        const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
+        const extension = lastDot > 0 ? filename.substring(lastDot) : '';
+        // Sanitize the name part
+        let sanitized = name
+            // Replace accented characters with ASCII equivalents
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            // Replace spaces and special characters with hyphens
+            .replace(/[^a-zA-Z0-9._-]/g, '-')
+            // Remove multiple consecutive hyphens
+            .replace(/-+/g, '-')
+            // Remove leading/trailing hyphens
+            .replace(/^-+|-+$/g, '')
+            // Ensure it's not empty
+            || 'file';
+        // Sanitize extension (keep dots, letters, numbers only)
+        const sanitizedExtension = extension.replace(/[^.a-zA-Z0-9]/g, '');
+        // Limit total length to 255 characters (filesystem limit)
+        const maxNameLength = 255 - sanitizedExtension.length;
+        if (sanitized.length > maxNameLength) {
+            sanitized = sanitized.substring(0, maxNameLength);
+        }
+        return sanitized + sanitizedExtension;
     }
     getFileExtension(filename) {
         const parts = filename.split('.');
@@ -812,6 +1066,34 @@ export class TrokkyCore {
         // App token operations are handled by data storage adapter
         return await this.dataStorage.getAppToken(id);
     }
+    async validateAppToken(token) {
+        if (this.rateLimiter) {
+            await this.rateLimiter.checkRateLimit('validateAppToken');
+        }
+        try {
+            // Get all active app tokens and check if any match the hash
+            const tokens = await this.dataStorage.listAppTokens({ isActive: true });
+            for (const appToken of tokens) {
+                if (appToken.tokenHash && await this.cryptoAdapter.verifyPassword(token, appToken.tokenHash)) {
+                    // Update last used timestamp and usage count
+                    const updatedToken = {
+                        ...appToken,
+                        lastUsedAt: new Date().toISOString(),
+                        usageCount: (appToken.usageCount || 0) + 1
+                    };
+                    await this.dataStorage.saveAppToken(appToken.id, updatedToken);
+                    return { valid: true, appToken: updatedToken };
+                }
+            }
+            return { valid: false, error: 'Invalid app token' };
+        }
+        catch (error) {
+            return {
+                valid: false,
+                error: error instanceof Error ? error.message : 'App token validation failed'
+            };
+        }
+    }
     async deleteAppToken(id) {
         if (this.rateLimiter) {
             await this.rateLimiter.checkRateLimit('deleteAppToken');
@@ -907,17 +1189,66 @@ export class TrokkyCore {
     }
     async verifyAuthToken(token) {
         const decoded = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret);
-        if (!decoded || !decoded.userId || !decoded.username || !decoded.role || !decoded.permissions) {
+        if (!decoded || !decoded.userId || !decoded.username) {
             return null;
         }
-        return {
-            userId: decoded.userId,
-            username: decoded.username,
-            role: decoded.role,
-            permissions: decoded.permissions,
-            loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-            expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
-        };
+        // Fetch fresh user data from storage to get current permissions
+        try {
+            const currentUser = await this.getUser(decoded.userId);
+            if (!currentUser || !currentUser.isActive) {
+                return null; // User no longer exists or is inactive
+            }
+            return {
+                userId: decoded.userId,
+                username: decoded.username,
+                role: currentUser.role, // Use fresh role from storage
+                permissions: currentUser.permissions, // Use fresh permissions from storage  
+                loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+                expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+            };
+        }
+        catch (error) {
+            // If we can't fetch user data, fall back to JWT payload for backwards compatibility
+            if (!decoded.role || !decoded.permissions) {
+                return null;
+            }
+            return {
+                userId: decoded.userId,
+                username: decoded.username,
+                role: decoded.role,
+                permissions: decoded.permissions,
+                loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+                expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+            };
+        }
+    }
+    /**
+     * Unified token validation that handles both JWT and API tokens
+     * Returns a consistent UserSession interface for both token types
+     */
+    async verifyAnyToken(token) {
+        // Check if it's a JWT token (3 parts separated by dots)
+        const parts = token.split('.');
+        if (parts.length === 3) {
+            // JWT token - use existing verification
+            return await this.verifyAuthToken(token);
+        }
+        else if (token.length === 64 && /^[a-f0-9]{64}$/.test(token)) {
+            // API token - validate and get permissions
+            const result = await this.validateAppToken(token);
+            if (result.valid && result.appToken) {
+                // Create a session-like object for API tokens
+                return {
+                    userId: result.appToken.createdBy,
+                    username: `api-token-${result.appToken.name}`,
+                    role: 'api', // Special role for API tokens
+                    permissions: result.appToken.permissions,
+                    loginAt: new Date().toISOString(),
+                    expiresAt: result.appToken.expiresAt
+                };
+            }
+        }
+        return null;
     }
     async authenticateUser(username, password, options = {}) {
         try {
@@ -1102,3 +1433,4 @@ export class TrokkyCore {
         }
     }
 }
+//# sourceMappingURL=engine.js.map

@@ -10,7 +10,27 @@
  * - AWS: DynamoDB for data + S3 for media
  * - Hybrid: Filesystem for data + R2 for media
  */
-import type { Document, DocumentData, ListOptions, MediaFile, MediaMetadata, Migration, User, UserListOptions, CreateUserData, UpdateUserData, AppToken, AppTokenListOptions, CreateAppTokenData, UpdateAppTokenData } from './index.js';
+import type { Document, AuditLog, DocumentData, ListOptions, MediaFile, MediaMetadata, Migration, User, UserListOptions, CreateUserData, UpdateUserData, AppToken, AppTokenListOptions, CreateAppTokenData, UpdateAppTokenData, AuditContext } from './index.js';
+import type { WebhookConfig } from '../events/types.js';
+/**
+ * Studio settings configuration
+ */
+export interface SettingsConfig {
+    /** Unique identifier for settings */
+    id: string;
+    /** Public website URL for "View Live" links */
+    publicUrl: string;
+    /** Studio title displayed in interface */
+    studioTitle: string;
+    /** Default theme for new users */
+    defaultTheme: 'light' | 'dark' | 'system';
+    /** Settings creation timestamp */
+    _createdAt?: string;
+    /** Settings last update timestamp */
+    _updatedAt?: string;
+    /** User who last updated settings */
+    _updatedBy?: string;
+}
 /**
  * DataStorageAdapter handles all structured data operations
  *
@@ -37,10 +57,11 @@ export interface DataStorageAdapter {
      * @param collection - The collection name
      * @param id - The document ID
      * @param data - The document data (without metadata)
+     * @param auditContext - Optional audit context with user information
      * @returns The saved document with metadata
      * @throws Error if validation fails or storage fails
      */
-    saveDocument(collection: string, id: string, data: DocumentData): Promise<Document>;
+    saveDocument(collection: string, id: string, data: DocumentData, auditContext?: AuditContext): Promise<Document>;
     /**
      * List documents in a collection with filtering, sorting, and pagination
      * @param collection - The collection name
@@ -70,6 +91,43 @@ export interface DataStorageAdapter {
      * @returns Number of matching documents
      */
     countDocuments?(collection: string, filter?: Record<string, unknown>): Promise<number>;
+    /**
+     * Create an audit log entry
+     * @param auditLog - The audit log data
+     * @returns The created audit log entry
+     * @throws Error if storage fails
+     */
+    createAuditLog?(auditLog: Omit<AuditLog, 'id'>): Promise<AuditLog>;
+    /**
+     * Get audit logs for a specific document
+     * @param documentId - The document ID
+     * @param options - Query options (limit, offset)
+     * @returns Array of audit log entries
+     */
+    getDocumentAuditLogs?(documentId: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
+    /**
+     * Get audit logs for a collection
+     * @param collection - The collection name
+     * @param options - Query options (limit, offset)
+     * @returns Array of audit log entries
+     */
+    getCollectionAuditLogs?(collection: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
+    /**
+     * Get audit logs by actor
+     * @param actorId - The actor ID
+     * @param options - Query options (limit, offset)
+     * @returns Array of audit log entries
+     */
+    getActorAuditLogs?(actorId: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<AuditLog[]>;
     /**
      * Retrieve a user by ID
      * @param id - The user ID
@@ -159,6 +217,46 @@ export interface DataStorageAdapter {
      * @throws Error if storage fails
      */
     getAppTokenByHash(hash: string): Promise<AppToken | null>;
+    /**
+     * Retrieve a webhook by ID
+     * @param id - The webhook ID
+     * @returns The webhook configuration or null if not found
+     * @throws Error if storage fails
+     */
+    getWebhook?(id: string): Promise<WebhookConfig | null>;
+    /**
+     * Create or update a webhook
+     * @param id - The webhook ID
+     * @param webhookData - The webhook data (partial for updates)
+     * @returns The saved webhook configuration
+     * @throws Error if validation fails or storage fails
+     */
+    saveWebhook?(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig>;
+    /**
+     * List webhooks with filtering and pagination
+     * @param options - Query options (active, limit, offset)
+     * @returns Array of matching webhooks
+     * @throws Error if query is invalid or storage fails
+     */
+    listWebhooks?(options?: WebhookListOptions): Promise<WebhookConfig[]>;
+    /**
+     * Delete a webhook permanently
+     * @param id - The webhook ID
+     * @throws Error if webhook doesn't exist or storage fails
+     */
+    deleteWebhook?(id: string): Promise<void>;
+    /**
+     * Retrieve studio settings
+     * @returns The settings configuration or null if not found
+     * @throws Error if storage fails
+     */
+    getSettings?(): Promise<SettingsConfig | null>;
+    /**
+     * Create or update studio settings
+     * @param settings - The settings configuration
+     * @throws Error if validation fails or storage fails
+     */
+    saveSettings?(settings: SettingsConfig): Promise<void>;
     /**
      * Health check for the data storage system
      * @returns True if storage is healthy and accessible
@@ -414,6 +512,21 @@ export interface SplitStorageConfig {
         adapter: string;
         options?: Record<string, unknown>;
     };
+}
+/**
+ * Webhook list options for filtering and pagination
+ */
+export interface WebhookListOptions {
+    /** Filter by active status */
+    active?: boolean;
+    /** Maximum number of results */
+    limit?: number;
+    /** Skip this many results (for pagination) */
+    offset?: number;
+    /** Filter by event patterns */
+    events?: string[];
+    /** Filter by creator user ID */
+    createdBy?: string;
 }
 /**
  * Combined storage adapter container

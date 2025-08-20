@@ -191,7 +191,7 @@ export class TrokkyExpress {
             apiBasePath: this.getMountedApiPath(), // Use dynamic API path
             basePath: this.getMountedStudioPath(), // Set the base path for routing
             backendUrl: req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
-            schemas: this.config.core.getAllSchemas() || [],
+            schemas: this.config.core?.getAllSchemas() || [],
             branding: this.config.studio?.branding,
             structure: this.config.studio?.structure,
             config: this.config.studio?.config || {},
@@ -232,7 +232,7 @@ export class TrokkyExpress {
             apiBasePath: this.getMountedApiPath(), // Use dynamic API path
             basePath: this.getMountedStudioPath(), // Set the base path for routing
             backendUrl: req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
-            schemas: this.config.core.getAllSchemas() || [],
+            schemas: this.config.core?.getAllSchemas() || [],
             branding: this.config.studio?.branding,
             structure: this.config.studio?.structure,
             config: this.config.studio?.config || {},
@@ -399,14 +399,6 @@ export class TrokkyExpress {
       const expressConfig: ExpressIntegrationConfig = {
         core,
         basePath: fullConfig.server.basePath,
-        corsOptions: fullConfig.server.cors ? {
-          origin: typeof fullConfig.server.cors.origin === 'function' 
-            ? 'http://localhost:5173' // Fallback for function origins
-            : fullConfig.server.cors.origin,
-          credentials: fullConfig.server.cors.credentials,
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-        } : undefined,
         staticRoutes: fullConfig.server.static.media || fullConfig.server.static.assets ? {
           ...(fullConfig.server.static.media && {
             media: {

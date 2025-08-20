@@ -3,7 +3,6 @@
  * Compatible with Cloudflare Workers, Deno, Vercel Edge, etc.
  */
 export class WebCryptoAdapter {
-    saltRounds;
     constructor(options = {}) {
         this.saltRounds = options.saltRounds || 12;
         if (!crypto || !crypto.subtle) {
@@ -198,3 +197,4 @@ export class WebCryptoAdapter {
         return value * multipliers[unit];
     }
 }
+//# sourceMappingURL=webcrypto-adapter.js.map

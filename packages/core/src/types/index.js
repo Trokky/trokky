@@ -1,25 +1,60 @@
 import { z } from 'zod';
-// Schema field types
-export const LegacyFieldTypeSchema = z.enum([
-    'string',
-    'number',
-    'boolean',
-    'date',
-    'array',
-    'object',
-    'reference',
-    'media',
-    'slug'
-]);
+import { CORE_FIELD_TYPES } from '@trokky/types';
+// Audit actor types
+export const AUDIT_ACTOR_TYPES = {
+    USER: 'user',
+    API: 'api',
+    SYSTEM: 'system',
+    WEBHOOK: 'webhook'
+};
+// Audit log operations
+export const AUDIT_OPERATIONS = {
+    CREATE: 'create',
+    UPDATE: 'update',
+    DELETE: 'delete',
+    PUBLISH: 'publish',
+    UNPUBLISH: 'unpublish',
+    RESTORE: 'restore'
+};
+// Dynamic field type registry - allows @trokky/fields to register types at runtime
+let _fieldRegistry = null;
+export function setFieldRegistry(registry) {
+    _fieldRegistry = registry;
+}
+export function getRegisteredFieldTypes() {
+    if (_fieldRegistry) {
+        return _fieldRegistry.getTypes();
+    }
+    // Fallback to core types
+    return [...CORE_FIELD_TYPES];
+}
+// Field type schema - accepts any string to allow dynamic types
+export const FieldTypeSchema = z.string();
 // Schema field definition Zod schema
-export const LegacyFieldDefinitionSchema = z.object({
-    type: LegacyFieldTypeSchema,
+export const FieldDefinitionSchema = z.object({
+    type: FieldTypeSchema,
     required: z.boolean().optional().default(false),
     description: z.string().optional(),
     validation: z.record(z.unknown()).optional(),
     options: z.record(z.unknown()).optional(), // For field-specific options
-    items: z.lazy(() => LegacyFieldDefinitionSchema).optional(), // For arrays
-    properties: z.record(z.lazy(() => LegacyFieldDefinitionSchema)).optional(), // For objects
+    of: z.lazy(() => FieldDefinitionSchema).optional(), // For arrays
+    fields: z.union([
+        z.record(z.lazy(() => FieldDefinitionSchema)),
+        z.array(z.object({
+            name: z.string(),
+            type: z.string(),
+            title: z.string(),
+            description: z.string().optional(),
+            required: z.boolean().optional(),
+            validation: z.any().optional(),
+            options: z.any().optional(),
+            default: z.any().optional(),
+            fields: z.any().optional(),
+            to: z.any().optional(),
+            of: z.any().optional()
+        }))
+    ]).optional(), // For objects - support both Record and Array formats
+    to: z.string().optional(), // For references
     collection: z.string().optional(), // For references
     // Slug field specific properties
     source: z.union([z.string(), z.array(z.string())]).optional(), // Source field(s) for auto-generation
@@ -41,6 +76,7 @@ export const ContentSchemaSchema = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
     singleton: z.boolean().optional(), // Allow singleton property
-    fields: z.record(LegacyFieldDefinitionSchema)
+    fields: z.record(FieldDefinitionSchema)
 });
 export { ROLE_PERMISSIONS } from './user.js';
+//# sourceMappingURL=index.js.map

@@ -11,11 +11,13 @@
  * Global adapter registry singleton
  */
 class AdapterRegistry {
-    factories = {
-        data: new Map(),
-        media: new Map()
-    };
-    isInitialized = false;
+    constructor() {
+        this.factories = {
+            data: new Map(),
+            media: new Map()
+        };
+        this.isInitialized = false;
+    }
     /**
      * Register an adapter factory
      */
@@ -142,3 +144,4 @@ export async function createAdapter(name, type, config) {
  * Export the registry instance for direct access
  */
 export { globalRegistry as adapterRegistry };
+//# sourceMappingURL=registry.js.map

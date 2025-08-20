@@ -15,12 +15,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "composite": true
+    "composite": false
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**/*"],
-  "references": [
-    { "path": "../../core/tsconfig.build.json" },
-    { "path": "../../routes/tsconfig.build.json" }
-  ]
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**/*"]
 }

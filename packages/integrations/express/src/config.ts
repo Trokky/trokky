@@ -94,6 +94,12 @@ export interface MediaConfig {
     maxFiles?: number
     allowedMimeTypes?: string[]
   }
+  /** Media serving configuration */
+  serving?: {
+    mode?: 'api' | 'static'
+    staticBasePath?: string
+    customDomain?: string
+  }
 }
 
 export interface ImageVariant {
@@ -281,6 +287,10 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
           'video/mp4', 'video/webm',
           'application/pdf', 'text/plain'
         ]
+      },
+      serving: {
+        mode: 'api',
+        staticBasePath: '/media'
       },
       ...config.media
     },

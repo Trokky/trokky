@@ -26,5 +26,10 @@ export const ROLE_PERMISSIONS = {
         'content:read',
         'media:read',
         'studio:access'
+    ],
+    api: [
+    // API tokens get their permissions from the token itself, not from role defaults
+    // This is just a placeholder - actual permissions come from AppToken.permissions
     ]
 };
+//# sourceMappingURL=user.js.map

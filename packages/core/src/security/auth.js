@@ -9,9 +9,8 @@
  */
 import { randomBytes, createHash } from 'node:crypto';
 export class AuthenticationService {
-    config;
-    failedAttempts = new Map();
     constructor(config) {
+        this.failedAttempts = new Map();
         this.config = config;
     }
     /**
@@ -270,3 +269,4 @@ export const DEFAULT_AUTH_CONFIG = {
     rateLimitAttempts: 5,
     rateLimitWindow: 15 * 60 * 1000 // 15 minutes
 };
+//# sourceMappingURL=auth.js.map
