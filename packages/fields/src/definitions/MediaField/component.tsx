@@ -7,6 +7,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type { MediaFieldDefinition } from './definition';
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types';
+import { MEDIA_FIELD_DEFAULTS } from './definition';
 
 // TODO: Add proper icon imports when Studio icons are available
 // Using placeholder icons for now
@@ -83,8 +84,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   } = props;
 
   const mediaDefinition = definition as MediaFieldDefinition;
-  const options = mediaDefinition.options || {};
-  const validation = mediaDefinition.validation || {};
+  const options = { ...MEDIA_FIELD_DEFAULTS.options, ...mediaDefinition.options };
+  const validation = { ...MEDIA_FIELD_DEFAULTS.validation, ...mediaDefinition.validation };
   
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
