@@ -451,6 +451,7 @@ export class TrokkyExpress {
       const expressConfig: ExpressIntegrationConfig = {
         core,
         basePath: fullConfig.server.basePath,
+        server: fullConfig.server, // Pass the entire server config including CORS
         staticRoutes:
           fullConfig.server.static.media || fullConfig.server.static.assets
             ? {
