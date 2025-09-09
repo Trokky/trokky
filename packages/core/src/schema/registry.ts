@@ -139,13 +139,21 @@ export class SchemaRegistry {
           title: 'Featured Image',
           description: 'Main image representing this content',
           required: false,
-          mediaType: 'image',
           options: {
+            // Enable upload/browse functionality
+            enableUpload: true,
+            enableBrowse: true,
+            enableDragDrop: true,
+            // Media type and validation
             showVariantSelector: true,
-            uploadSettings: {
-              maxFileSize,
-              allowedTypes
-            }
+            showMetadata: true,
+            showPreview: true,
+            requireAlt: true
+          },
+          validation: {
+            allowedTypes,
+            maxFileSize,
+            restrictToMediaType: 'image'
           }
         }
         thumbnailInserted = true
@@ -160,13 +168,21 @@ export class SchemaRegistry {
           title: 'Featured Image', 
           description: 'Main image representing this content',
           required: false,
-          mediaType: 'image',
           options: {
+            // Enable upload/browse functionality
+            enableUpload: true,
+            enableBrowse: true,
+            enableDragDrop: true,
+            // Media type and validation
             showVariantSelector: true,
-            uploadSettings: {
-              maxFileSize,
-              allowedTypes
-            }
+            showMetadata: true,
+            showPreview: true,
+            requireAlt: true
+          },
+          validation: {
+            allowedTypes,
+            maxFileSize,
+            restrictToMediaType: 'image'
           }
         },
         ...newFields

@@ -16,32 +16,32 @@ export interface AutoAdminUser {
 export interface StudioIntegrationConfig {
   /** Enable Studio integration */
   enabled?: boolean
-  
+
   /** Mount point for Studio (default: '/studio') */
   mount?: string
-  
+
   /** Enable authentication */
   auth?: boolean
-  
+
   /** Studio branding configuration */
   branding?: {
     title?: string
     logo?: string
     theme?: 'light' | 'dark' | 'system'
   }
-  
+
   /** Custom structure configuration */
   structure?: any
-  
+
   /** Custom field types to register */
   customFields?: any[]
-  
+
   /** Additional Studio configuration */
   config?: {
     pageSize?: number
     enableDrafts?: boolean
     enableVersioning?: boolean
-    
+
     /** Session management configuration */
     session?: {
       /** Auto-refresh token buffer in milliseconds (default: 30000) */
@@ -64,9 +64,12 @@ export interface StudioIntegrationConfig {
 export interface ExpressIntegrationConfig extends RoutesConfig {
   // Core configuration
   core?: TrokkyCore
-  
+
   // Base path for API routes
   basePath?: string
+
+  // Server configuration (includes CORS)
+  server?: any
   // File upload configuration
   fileUpload?: {
     maxFileSize?: number
@@ -74,7 +77,7 @@ export interface ExpressIntegrationConfig extends RoutesConfig {
     allowedMimeTypes?: string[]
     uploadPath?: string
   }
-  
+
   // Request parsing configuration
   bodyParser?: {
     json?: {
@@ -86,16 +89,16 @@ export interface ExpressIntegrationConfig extends RoutesConfig {
       extended?: boolean
     }
   }
-  
+
   // Security headers
   security?: {
     enableHelmet?: boolean
     customHeaders?: Record<string, string>
   }
-  
+
   // Studio integration
   studio?: StudioIntegrationConfig
-  
+
   // Static routes configuration
   staticRoutes?: any
 }
@@ -106,13 +109,26 @@ export interface ExpressRequestWithFiles extends Request {
 }
 
 // Middleware function type
-export type ExpressMiddleware = (req: Request, res: Response, next: NextFunction) => void | Promise<void>
+export type ExpressMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => void | Promise<void>
 
 // Error handler middleware type (4 parameters)
-export type ExpressErrorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => void
+export type ExpressErrorHandler = (
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => void
 
 // Route handler adapter - use Express's built-in RequestHandler type
-export type ExpressRouteHandler = (req: ExpressRequestWithFiles, res: Response, next: NextFunction) => Promise<void>
+export type ExpressRouteHandler = (
+  req: ExpressRequestWithFiles,
+  res: Response,
+  next: NextFunction
+) => Promise<void>
 
 // Express integration result
 export interface ExpressIntegration {
@@ -121,19 +137,22 @@ export interface ExpressIntegration {
   studioRouter?: Router
   middleware: ExpressMiddleware[]
   config: ExpressIntegrationConfig
-  
+
   /** Auto-mount all routers to the Express app */
-  mount: (app: any, options?: {
-    apiPath?: string
-    studioPath?: string
-  }) => void
-  
+  mount: (
+    app: any,
+    options?: {
+      apiPath?: string
+      studioPath?: string
+    }
+  ) => void
+
   /** Get the currently mounted API path */
   getMountedApiPath: () => string
-  
+
   /** Get the currently mounted Studio path */
   getMountedStudioPath: () => string
-  
+
   /** Get both mounted paths */
   getMountedPaths: () => { apiPath: string; studioPath: string }
 }
