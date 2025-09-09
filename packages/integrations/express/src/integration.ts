@@ -89,19 +89,19 @@ export class TrokkyExpress {
         })
       }
 
-      this.logger.info('Auto-mounting Trokky routers', {
-        apiPath,
-        studioPath,
-        hasStudio: !!studioRouter,
-      })
-
-      // Apply CORS middleware if configured
+      // Apply CORS middleware FIRST (before any routes)
       if (this.config.server?.cors) {
         this.logger.debug('Applying CORS middleware', {
           cors: this.config.server.cors,
         })
         app.use(cors(this.config.server.cors))
       }
+
+      this.logger.info('Auto-mounting Trokky routers', {
+        apiPath,
+        studioPath,
+        hasStudio: !!studioRouter,
+      })
 
       // Mount API routes
       app.use(apiPath, router)
