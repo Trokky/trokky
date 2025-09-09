@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "description": "Core CMS engine for Trokky v2",
   "type": "module",
-  "main": "src/index.js",
-  "types": "src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
-    "src"
+    "dist"
   ],
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
@@ -40,11 +40,11 @@
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/sharp": "^0.31.1",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.2",
     "zod": "^3.22.4"
   },
   "optionalDependencies": {
-    "bcrypt": "^6.0.0",
-    "jsonwebtoken": "^9.0.2",
     "sharp": "^0.34.3"
   },
   "devDependencies": {
@@ -52,9 +52,9 @@
   },
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "import": "./src/index.js",
-      "require": "./src/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     }
   }
 }

@@ -2112,12 +2112,30 @@ export class TrokkyRoutes {
         requireAuth: true
       }
       
+      // Add MediaUrlGenerator configuration for media URL generation
+      const mediaUrlGenerator = {
+        options: {
+          apiBasePath: studioConfig.apiBasePath || '/api',
+          mediaConfig: {
+            serving: {
+              mode: 'api' // Always use API mode for media serving
+            }
+          }
+        }
+      }
+      
+      const configWithMediaGenerator = {
+        ...studioConfig,
+        mediaUrlGenerator
+      }
+      
       this.logger.debug('Serving studio configuration', { 
         title: studioConfig.branding?.title,
-        enabled: studioConfig.enabled 
+        enabled: studioConfig.enabled,
+        hasMediaUrlGenerator: true
       })
 
-      return this.successResponse({ studioConfig })
+      return this.successResponse({ studioConfig: configWithMediaGenerator })
     } catch (error) {
       this.logger.error('Failed to get studio config', { 
         error: error instanceof Error ? error.message : String(error) 

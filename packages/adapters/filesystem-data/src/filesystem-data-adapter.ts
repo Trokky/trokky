@@ -393,7 +393,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           id,
           username: createData.username,
           email: createData.email,
-          passwordHash: '', // Will be set by the caller
+          passwordHash: (createData as any).passwordHash || '', // Use provided passwordHash from caller
           firstName: createData.firstName,
           lastName: createData.lastName,
           role: createData.role,
@@ -586,9 +586,9 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             id,
             name: createData.name,
             description: createData.description,
-            tokenHash: '', // Will be set by the caller
+            tokenHash: (createData as any).tokenHash || '', // Use provided tokenHash from caller
             permissions: createData.permissions,
-            createdBy: '', // Will be set by the caller
+            createdBy: (createData as any).createdBy || '', // Use provided createdBy from caller
             isActive: true,
             usageCount: 0,
             expiresAt: createData.expiresAt,
