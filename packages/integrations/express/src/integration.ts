@@ -84,6 +84,15 @@ export class TrokkyExpress {
         (global as any).__TROKKY_STUDIO_CONFIG__
       ) {
         ;(global as any).__TROKKY_STUDIO_CONFIG__.apiBasePath = apiPath
+
+        // Also update mediaUrlGenerator with the correct API path
+        if ((global as any).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator) {
+          ;(
+            global as any
+          ).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator.options.apiBasePath =
+            apiPath
+        }
+
         this.logger.debug('Updated Studio config with apiBasePath', {
           apiBasePath: apiPath,
         })
@@ -242,6 +251,7 @@ export class TrokkyExpress {
             structure: this.config.studio?.structure,
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
+            mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -284,6 +294,7 @@ export class TrokkyExpress {
             structure: this.config.studio?.structure,
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
+            mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -415,7 +426,21 @@ export class TrokkyExpress {
       // Set global studio config for API endpoint access
       if (fullConfig.studio?.enabled) {
         ;(global as any).__TROKKY_STUDIO_CONFIG__ = fullConfig.studio
-        logger.debug('✅ Studio configuration registered globally')
+
+        // Always create mediaUrlGenerator configuration for Studio
+        ;(global as any).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator = {
+          options: {
+            apiBasePath: fullConfig.server.basePath || '/api',
+            mediaConfig: {
+              serving: {
+                mode: fullConfig.media.serving?.mode || 'api',
+              },
+            },
+          },
+        }
+        logger.debug(
+          '✅ Studio configuration registered globally with mediaUrlGenerator'
+        )
 
         // Also register structure separately for structure service access
         if (fullConfig.studio.structure) {

@@ -2113,12 +2113,13 @@ export class TrokkyRoutes {
       }
       
       // Add MediaUrlGenerator configuration for media URL generation
-      const mediaUrlGenerator = {
+      // Use mediaUrlGenerator from global config if available
+      const mediaUrlGenerator = studioConfig.mediaUrlGenerator || {
         options: {
-          apiBasePath: studioConfig.apiBasePath || '/api',
+          apiBasePath: studioConfig.apiBasePath || "/api",
           mediaConfig: {
             serving: {
-              mode: 'api' // Always use API mode for media serving
+              mode: "api" // Always use API mode for media serving
             }
           }
         }
