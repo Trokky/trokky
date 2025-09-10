@@ -1,38 +1,38 @@
-import type { 
-  ApiResponse, 
-  BackendCapabilities, 
-  Document, 
-  Schema, 
+import type {
+  ApiResponse,
+  BackendCapabilities,
+  Document,
+  Schema,
   SchemaApiResponse,
-  MediaFile, 
-  User, 
+  MediaFile,
+  User,
   QueryOptions,
-  SearchResponse
-} from '@/types';
-import { createStudioLogger } from '../utils/logger';
-import { storageService, STORAGE_KEYS } from '@/utils/storage';
+  SearchResponse,
+} from '@/types'
+import { createStudioLogger } from '../utils/logger'
+import { storageService, STORAGE_KEYS } from '@/utils/storage'
 
 export class ApiClientError extends Error {
   constructor(
-    message: string, 
+    message: string,
     public readonly status?: number,
     public readonly code?: string,
     public readonly details?: any
   ) {
-    super(message);
-    this.name = 'ApiClientError';
+    super(message)
+    this.name = 'ApiClientError'
   }
 }
 
 export class ApiClient {
-  private backendUrl: string = '';
-  private capabilities: BackendCapabilities | null = null;
-  private authToken: string | null = null;
-  private logger = createStudioLogger('ApiClient');
+  private backendUrl: string = ''
+  private capabilities: BackendCapabilities | null = null
+  private authToken: string | null = null
+  private logger = createStudioLogger('ApiClient')
 
   constructor(backendUrl?: string) {
     if (backendUrl) {
-      this.backendUrl = backendUrl;
+      this.backendUrl = backendUrl
     }
   }
 
@@ -44,36 +44,46 @@ export class ApiClient {
     // 1. Saved URL from localStorage (user's custom setting)
     // 2. Injected backend URL from server (integrated deployment)
     // 3. Build-time environment variable (VITE_BACKEND_URL)
-    
-    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL);
-    const config = (window as any).TROKKY_CONFIG;
-    const injectedBackendUrl = config?.backendUrl;
-    const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL;
-    
+
+    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL)
+    const config = (window as any).TROKKY_CONFIG
+    const injectedBackendUrl = config?.backendUrl
+    const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL
+
     if (savedBackendUrl) {
       // Use saved backend URL from localStorage
-      this.setBackendUrl(savedBackendUrl);
-      console.log('🚀 Using saved backend URL:', savedBackendUrl);
+      this.setBackendUrl(savedBackendUrl)
+      console.log('🚀 Using saved backend URL:', savedBackendUrl)
     } else if (injectedBackendUrl) {
       // Use server-injected backend URL (integrated deployment)
-      this.setBackendUrl(injectedBackendUrl);
-      console.log('🚀 Using injected backend URL (integrated):', injectedBackendUrl);
+      this.setBackendUrl(injectedBackendUrl)
+      console.log(
+        '🚀 Using injected backend URL (integrated):',
+        injectedBackendUrl
+      )
     } else if (buildTimeBackendUrl) {
       // Use build-time configured backend URL
-      this.setBackendUrl(buildTimeBackendUrl);
-      console.log('🚀 Using build-time backend URL:', buildTimeBackendUrl);
+      this.setBackendUrl(buildTimeBackendUrl)
+      console.log('🚀 Using build-time backend URL:', buildTimeBackendUrl)
+    } else if (import.meta.env.DEV) {
+      // Development mode fallback - assume API is on localhost:3000
+      const devBackendUrl = 'http://localhost:3000/api'
+      this.setBackendUrl(devBackendUrl)
+      console.log('🚀 Using development mode backend URL:', devBackendUrl)
     } else {
       // No backend URL configured - Studio will show login form to set it
-      this.logger.info('No backend URL configured. User will need to set it in login form.');
+      this.logger.info(
+        'No backend URL configured. User will need to set it in login form.'
+      )
     }
-    
+
     // Restore auth token from localStorage if available
-    this.restoreAuthToken();
-    
-    this.logger.info('Studio initialized', { 
+    this.restoreAuthToken()
+
+    this.logger.info('Studio initialized', {
       backendUrl: this.backendUrl,
-      hasAuthToken: !!this.authToken
-    });
+      hasAuthToken: !!this.authToken,
+    })
   }
 
   /**
@@ -82,14 +92,14 @@ export class ApiClient {
    */
   setBackendUrl(url: string): void {
     // Remove trailing slash if present
-    this.backendUrl = url.replace(/\/$/, '');
+    this.backendUrl = url.replace(/\/$/, '')
 
     // Update capabilities with new endpoints
-    this.updateCapabilities();
+    this.updateCapabilities()
 
     this.logger.info('Backend URL set', {
-      backendUrl: this.backendUrl
-    });
+      backendUrl: this.backendUrl,
+    })
   }
 
   /**
@@ -103,52 +113,52 @@ export class ApiClient {
         media: true,
         auth: true,
         structure: true,
-        workflows: false
+        workflows: false,
       },
       endpoints: {
         documents: '/collections',
         auth: '/auth',
         structure: '/structure',
-        slugs: '/slugs'
+        slugs: '/slugs',
       },
       limits: {
         maxUploadSize: 100 * 1024 * 1024,
         maxResults: 100,
-        requestRate: 1000
-      }
-    };
+        requestRate: 1000,
+      },
+    }
   }
 
   /**
    * Check if the client is initialized
    */
   get isInitialized(): boolean {
-    return !!this.backendUrl && !!this.capabilities;
+    return !!this.backendUrl && !!this.capabilities
   }
 
   /**
    * Get backend capabilities
    */
   getCapabilities(): BackendCapabilities | null {
-    return this.capabilities;
+    return this.capabilities
   }
 
   /**
    * Check if a feature is available
    */
   hasFeature(feature: keyof BackendCapabilities['features']): boolean {
-    return this.capabilities?.features[feature] ?? false;
+    return this.capabilities?.features[feature] ?? false
   }
 
   /**
    * Set authentication token
    */
   setAuthToken(token: string): void {
-    this.authToken = token;
+    this.authToken = token
     try {
-      localStorage.setItem('trokky_auth_token', token);
+      localStorage.setItem('trokky_auth_token', token)
     } catch (error) {
-      console.warn('Failed to save auth token:', error);
+      console.warn('Failed to save auth token:', error)
     }
   }
 
@@ -156,11 +166,11 @@ export class ApiClient {
    * Clear authentication token
    */
   clearAuthToken(): void {
-    this.authToken = null;
+    this.authToken = null
     try {
-      localStorage.removeItem('trokky_auth_token');
+      localStorage.removeItem('trokky_auth_token')
     } catch (error) {
-      console.warn('Failed to clear auth token:', error);
+      console.warn('Failed to clear auth token:', error)
     }
   }
 
@@ -169,13 +179,13 @@ export class ApiClient {
    */
   restoreAuthToken(): void {
     try {
-      const token = localStorage.getItem('trokky_auth_token');
+      const token = localStorage.getItem('trokky_auth_token')
       if (token) {
-        this.authToken = token;
-        this.logger.info('Auth token restored from localStorage');
+        this.authToken = token
+        this.logger.info('Auth token restored from localStorage')
       }
     } catch (error) {
-      console.warn('Failed to restore auth token:', error);
+      console.warn('Failed to restore auth token:', error)
     }
   }
 
@@ -183,7 +193,7 @@ export class ApiClient {
    * Make an HTTP request with automatic error handling
    */
   async request<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {},
     skipAuth = false
   ): Promise<ApiResponse<T>> {
@@ -192,101 +202,111 @@ export class ApiClient {
       return {
         success: false,
         error: {
-          message: 'Backend URL not configured. Please configure it in the login form.',
-          code: 'NO_BACKEND_URL'
-        }
-      };
+          message:
+            'Backend URL not configured. Please configure it in the login form.',
+          code: 'NO_BACKEND_URL',
+        },
+      }
     }
-    
+
     // Build the full URL
-    const url = this.buildUrl(endpoint);
-    
+    const url = this.buildUrl(endpoint)
+
     const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      ...(options.headers as Record<string, string> || {})
-    };
+      Accept: 'application/json',
+      ...((options.headers as Record<string, string>) || {}),
+    }
 
     // Only set Content-Type if not FormData (browser will set it automatically for FormData)
     if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
+      headers['Content-Type'] = 'application/json'
     }
 
     // Add auth token if available and not skipped
     if (this.authToken && !skipAuth) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
+      headers['Authorization'] = `Bearer ${this.authToken}`
     }
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
-        credentials: 'include'
-      });
+        credentials: 'include',
+      })
 
       // Handle non-JSON responses
-      const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type')
       if (!contentType?.includes('application/json')) {
         if (!response.ok) {
           throw new ApiClientError(
             `HTTP ${response.status}: ${response.statusText}`,
             response.status
-          );
+          )
         }
-        return { success: true, data: null as T };
+        return { success: true, data: null as T }
       }
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
         // Handle 401 Unauthorized - try to refresh token automatically
-        if (response.status === 401 && this.authToken && !skipAuth && !endpoint.includes('/auth/validate')) {
+        if (
+          response.status === 401 &&
+          this.authToken &&
+          !skipAuth &&
+          !endpoint.includes('/auth/validate')
+        ) {
           try {
             // Try to validate stored token to potentially refresh it
-            const storedToken = localStorage.getItem('trokky_auth_token');
+            const storedToken = localStorage.getItem('trokky_auth_token')
             if (storedToken) {
-              const validateResponse = await this.post('/auth/validate', { token: storedToken });
-              if (validateResponse.success && 
-                  validateResponse.data && 
-                  typeof validateResponse.data === 'object' && 
-                  'valid' in validateResponse.data && 
-                  validateResponse.data.valid && 
-                  'session' in validateResponse.data && 
-                  validateResponse.data.session) {
+              const validateResponse = await this.post('/auth/validate', {
+                token: storedToken,
+              })
+              if (
+                validateResponse.success &&
+                validateResponse.data &&
+                typeof validateResponse.data === 'object' &&
+                'valid' in validateResponse.data &&
+                validateResponse.data.valid &&
+                'session' in validateResponse.data &&
+                validateResponse.data.session
+              ) {
                 // Token is still valid, retry the original request
-                this.setAuthToken(storedToken);
-                return this.request(endpoint, options, skipAuth);
+                this.setAuthToken(storedToken)
+                return this.request(endpoint, options, skipAuth)
               }
             }
           } catch (refreshError) {
             // Token refresh failed, proceed with clearing auth
           }
-          
+
           // Clear invalid token
-          this.clearAuthToken();
-          localStorage.removeItem('trokky_auth_token');
+          this.clearAuthToken()
+          localStorage.removeItem('trokky_auth_token')
         }
-        
+
         throw new ApiClientError(
           data.error?.message || `HTTP ${response.status}`,
           response.status,
           data.error?.code,
           data.error?.details
-        );
+        )
       }
 
       return {
         success: true,
         data: data.data || data,
-        meta: data.meta
-      };
+        meta: data.meta,
+      }
     } catch (error) {
       if (error instanceof ApiClientError) {
-        throw error;
+        throw error
       }
-      
+
       throw new ApiClientError(
         `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      )
     }
   }
 
@@ -296,39 +316,57 @@ export class ApiClient {
   private buildUrl(endpoint: string): string {
     // If endpoint is already a full URL, return as-is
     if (endpoint.startsWith('http')) {
-      return endpoint;
+      return endpoint
+    }
+
+    // Check if backendUrl is set
+    if (!this.backendUrl) {
+      this.logger.warn(
+        'Backend URL not set, cannot build URL for endpoint:',
+        endpoint
+      )
+      throw new ApiClientError(
+        'Backend URL not configured. Please set the backend URL.'
+      )
     }
 
     // Remove leading slash from endpoint to ensure proper joining
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    
+    const cleanEndpoint = endpoint.startsWith('/')
+      ? endpoint.slice(1)
+      : endpoint
+
     // Join backendUrl with the clean endpoint
-    const url = cleanEndpoint ? `${this.backendUrl}/${cleanEndpoint}` : this.backendUrl;
-    
-    this.logger.debug('Building URL:', { 
+    const url = cleanEndpoint
+      ? `${this.backendUrl}/${cleanEndpoint}`
+      : this.backendUrl
+
+    this.logger.debug('Building URL:', {
       originalEndpoint: endpoint,
       cleanEndpoint,
       backendUrl: this.backendUrl,
-      finalUrl: url
-    });
-    
-    return url;
+      finalUrl: url,
+    })
+
+    return url
   }
 
   /**
    * GET request helper
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
-    const url = new URL(this.buildUrl(endpoint));
+  async get<T>(
+    endpoint: string,
+    params?: Record<string, any>
+  ): Promise<ApiResponse<T>> {
+    const url = new URL(this.buildUrl(endpoint))
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
+          url.searchParams.append(key, String(value))
         }
-      });
+      })
     }
-    
-    return this.request<T>(url.toString(), { method: 'GET' });
+
+    return this.request<T>(url.toString(), { method: 'GET' })
   }
 
   /**
@@ -337,8 +375,8 @@ export class ApiClient {
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined
-    });
+      body: data ? JSON.stringify(data) : undefined,
+    })
   }
 
   /**
@@ -347,15 +385,15 @@ export class ApiClient {
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined
-    });
+      body: data ? JSON.stringify(data) : undefined,
+    })
   }
 
   /**
    * DELETE request helper
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+    return this.request<T>(endpoint, { method: 'DELETE' })
   }
 
   // ========================================
@@ -366,57 +404,76 @@ export class ApiClient {
    * Get all schemas
    */
   async getSchemas(): Promise<ApiResponse<Schema[]>> {
-    const response = await this.get<{ collections: Schema[] }>('/collections');
+    const response = await this.get<{ collections: Schema[] }>('/collections')
     if (response.success && response.data?.collections) {
       return {
         success: true,
         data: response.data.collections,
-        meta: response.meta
-      };
+        meta: response.meta,
+      }
     }
-    return { success: false, data: [] } as ApiResponse<Schema[]>;
+    return { success: false, data: [] } as ApiResponse<Schema[]>
   }
 
   /**
    * Get schema by name
    */
   async getSchema(name: string): Promise<ApiResponse<SchemaApiResponse>> {
-    return this.get<SchemaApiResponse>(`/schemas/${name}`);
+    return this.get<SchemaApiResponse>(`/schemas/${name}`)
   }
 
   /**
    * Get documents for a schema
    */
-  async getDocuments(schemaName: string, options: QueryOptions = {}): Promise<ApiResponse<{ documents: Document[]; total: number }>> {
-    return this.get<{ documents: Document[]; total: number }>(`/collections/${schemaName}`, options);
+  async getDocuments(
+    schemaName: string,
+    options: QueryOptions = {}
+  ): Promise<ApiResponse<{ documents: Document[]; total: number }>> {
+    return this.get<{ documents: Document[]; total: number }>(
+      `/collections/${schemaName}`,
+      options
+    )
   }
 
   /**
    * Get single document
    */
-  async getDocument(schemaName: string, id: string): Promise<ApiResponse<Document>> {
-    return this.get<Document>(`/collections/${schemaName}/${id}`);
+  async getDocument(
+    schemaName: string,
+    id: string
+  ): Promise<ApiResponse<Document>> {
+    return this.get<Document>(`/collections/${schemaName}/${id}`)
   }
 
   /**
    * Create document
    */
-  async createDocument(schemaName: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.post<Document>(`/collections/${schemaName}`, { data });
+  async createDocument(
+    schemaName: string,
+    data: Partial<Document>
+  ): Promise<ApiResponse<Document>> {
+    return this.post<Document>(`/collections/${schemaName}`, { data })
   }
 
   /**
    * Update document
    */
-  async updateDocument(schemaName: string, id: string, data: Partial<Document>): Promise<ApiResponse<Document>> {
-    return this.put<Document>(`/collections/${schemaName}/${id}`, { data });
+  async updateDocument(
+    schemaName: string,
+    id: string,
+    data: Partial<Document>
+  ): Promise<ApiResponse<Document>> {
+    return this.put<Document>(`/collections/${schemaName}/${id}`, { data })
   }
 
   /**
    * Delete document
    */
-  async deleteDocument(schemaName: string, id: string): Promise<ApiResponse<void>> {
-    return this.delete<void>(`/collections/${schemaName}/${id}`);
+  async deleteDocument(
+    schemaName: string,
+    id: string
+  ): Promise<ApiResponse<void>> {
+    return this.delete<void>(`/collections/${schemaName}/${id}`)
   }
 
   // ========================================
@@ -426,18 +483,22 @@ export class ApiClient {
   /**
    * Get media files
    */
-  async getMedia(options: QueryOptions = {}): Promise<ApiResponse<MediaFile[]>> {
+  async getMedia(
+    options: QueryOptions = {}
+  ): Promise<ApiResponse<MediaFile[]>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
-    const response = await this.get<MediaFile[]>('/media', options);
-    
+    const response = await this.get<MediaFile[]>('/media', options)
+
     // Transform media objects to include constructed URLs
     if (response.success && response.data) {
-      response.data = response.data.map(media => this.transformMediaObject(media));
+      response.data = response.data.map(media =>
+        this.transformMediaObject(media)
+      )
     }
-    
-    return response;
+
+    return response
   }
 
   /**
@@ -445,73 +506,82 @@ export class ApiClient {
    */
   async getMediaFile(id: string): Promise<ApiResponse<{ file: MediaFile }>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
-    const response = await this.get<{ file: MediaFile }>(`/media/${id}`);
-    
+    const response = await this.get<{ file: MediaFile }>(`/media/${id}`)
+
     // Transform media object to include constructed URLs
     if (response.success && response.data?.file) {
-      response.data.file = this.transformMediaObject(response.data.file);
+      response.data.file = this.transformMediaObject(response.data.file)
     }
-    
-    return response;
+
+    return response
   }
 
   /**
    * Get single media file by ID (alias for compatibility with MediaField)
    */
   async getMediaById(id: string): Promise<ApiResponse<{ file: MediaFile }>> {
-    return this.getMediaFile(id);
+    return this.getMediaFile(id)
   }
 
   /**
    * Upload media file
    */
-  async uploadMedia(file: File, options?: any, metadata?: Record<string, any>): Promise<ApiResponse<MediaFile>> {
+  async uploadMedia(
+    file: File,
+    options?: any,
+    metadata?: Record<string, any>
+  ): Promise<ApiResponse<MediaFile>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
 
     // Handle different call patterns for compatibility
-    let finalMetadata = metadata;
+    let finalMetadata = metadata
     if (options && typeof options === 'object' && !metadata) {
-      finalMetadata = options;
+      finalMetadata = options
     }
 
-    const formData = new FormData();
-    formData.append('files', file);
+    const formData = new FormData()
+    formData.append('files', file)
     if (finalMetadata) {
-      formData.append('metadata', JSON.stringify(finalMetadata));
+      formData.append('metadata', JSON.stringify(finalMetadata))
     }
 
     const response = await this.request<MediaFile>('/media/upload', {
       method: 'POST',
-      body: formData
-    });
-    
+      body: formData,
+    })
+
     // Transform media object to include constructed URLs
     if (response.success && response.data) {
-      response.data = this.transformMediaObject(response.data);
+      response.data = this.transformMediaObject(response.data)
     }
-    
-    return response;
+
+    return response
   }
 
   /**
    * Update media metadata
    */
-  async updateMedia(id: string, metadata: Record<string, any>): Promise<ApiResponse<{ file: MediaFile }>> {
+  async updateMedia(
+    id: string,
+    metadata: Record<string, any>
+  ): Promise<ApiResponse<{ file: MediaFile }>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
-    const response = await this.put<{ file: MediaFile }>(`/media/${id}`, { metadata });
-    
+    const response = await this.put<{ file: MediaFile }>(`/media/${id}`, {
+      metadata,
+    })
+
     // Transform media object to include constructed URLs
     if (response.success && response.data?.file) {
-      response.data.file = this.transformMediaObject(response.data.file);
+      response.data.file = this.transformMediaObject(response.data.file)
     }
-    
-    return response;
+
+    return response
   }
 
   /**
@@ -519,19 +589,24 @@ export class ApiClient {
    */
   async deleteMedia(id: string): Promise<ApiResponse<void>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
-    return this.delete<void>(`/media/${id}`);
+    return this.delete<void>(`/media/${id}`)
   }
 
   /**
    * Regenerate variants for media file
    */
-  async regenerateMediaVariants(id: string): Promise<ApiResponse<{ message: string; file: MediaFile }>> {
+  async regenerateMediaVariants(
+    id: string
+  ): Promise<ApiResponse<{ message: string; file: MediaFile }>> {
     if (!this.hasFeature('media')) {
-      throw new ApiClientError('Media feature not available');
+      throw new ApiClientError('Media feature not available')
     }
-    return this.post<{ message: string; file: MediaFile }>(`/media/${id}/regenerate-variants`, {});
+    return this.post<{ message: string; file: MediaFile }>(
+      `/media/${id}/regenerate-variants`,
+      {}
+    )
   }
 
   /**
@@ -539,9 +614,9 @@ export class ApiClient {
    */
   private transformMediaObject(media: any): any {
     if (!media || !media.id) {
-      return media;
+      return media
     }
-    
+
     return {
       ...media,
       url: this.getMediaUrl(media.id), // Original file URL
@@ -550,12 +625,12 @@ export class ApiClient {
         variants: Object.keys(media.variants).reduce((acc, variantName) => {
           acc[variantName] = {
             ...media.variants[variantName],
-            url: this.getMediaUrl(media.id, variantName)
-          };
-          return acc;
-        }, {} as any)
-      })
-    };
+            url: this.getMediaUrl(media.id, variantName),
+          }
+          return acc
+        }, {} as any),
+      }),
+    }
   }
 
   /**
@@ -564,23 +639,23 @@ export class ApiClient {
    */
   getMediaUrl(assetRef: string, variant?: string): string {
     if (!assetRef) {
-      return '';
+      return ''
     }
-    
+
     // If no variant specified, return the original file URL
     if (!variant) {
-      return `${this.backendUrl}/media/${assetRef}/file`;
+      return `${this.backendUrl}/media/${assetRef}/file`
     }
-    
+
     // Return variant URL
-    return `${this.backendUrl}/media/${assetRef}/variants/${variant}`;
+    return `${this.backendUrl}/media/${assetRef}/variants/${variant}`
   }
 
   /**
    * Get the backend URL (useful for external URL construction)
    */
   getBackendUrl(): string {
-    return this.backendUrl;
+    return this.backendUrl
   }
 
   /**
@@ -588,7 +663,7 @@ export class ApiClient {
    * @deprecated Use getBackendUrl() instead
    */
   getApiBasePath(): string {
-    return this.backendUrl;
+    return this.backendUrl
   }
 
   // ========================================
@@ -598,72 +673,79 @@ export class ApiClient {
   /**
    * List documents using Studio-compatible endpoint
    */
-  async listDocuments(schemaName: string, options: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    filter?: Record<string, any>;
-    sort?: string;
-  } = {}): Promise<ApiResponse<{
-    documents: Document[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  }>> {
-    const queryParams = new URLSearchParams();
-    
-    if (options.page) queryParams.set('page', String(options.page));
-    if (options.limit) queryParams.set('limit', String(options.limit));
-    if (options.search) queryParams.set('search', options.search);
-    if (options.sort) queryParams.set('sort', options.sort);
-    
+  async listDocuments(
+    schemaName: string,
+    options: {
+      page?: number
+      limit?: number
+      search?: string
+      filter?: Record<string, any>
+      sort?: string
+    } = {}
+  ): Promise<
+    ApiResponse<{
+      documents: Document[]
+      pagination: {
+        page: number
+        limit: number
+        total: number
+        pages: number
+      }
+    }>
+  > {
+    const queryParams = new URLSearchParams()
+
+    if (options.page) queryParams.set('page', String(options.page))
+    if (options.limit) queryParams.set('limit', String(options.limit))
+    if (options.search) queryParams.set('search', options.search)
+    if (options.sort) queryParams.set('sort', options.sort)
+
     // Add filters
     if (options.filter) {
       Object.entries(options.filter).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
-          queryParams.set(`filter[${key}]`, String(value));
+          queryParams.set(`filter[${key}]`, String(value))
         }
-      });
+      })
     }
-    
-    const endpoint = `/collections/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+    const endpoint = `/collections/${schemaName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
     return this.get<{
-      documents: Document[];
+      documents: Document[]
       pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        pages: number;
-      };
-    }>(endpoint);
+        page: number
+        limit: number
+        total: number
+        pages: number
+      }
+    }>(endpoint)
   }
 
   /**
    * Get collection statistics
    */
-  async getCollectionStats(schemaName: string): Promise<ApiResponse<{
-    stats: {
-      collection: string;
-      totalDocuments: number;
-      publishedDocuments: number;
-      draftDocuments: number;
-      recentDocuments: number;
-      lastUpdated: string;
-    };
-  }>> {
+  async getCollectionStats(schemaName: string): Promise<
+    ApiResponse<{
+      stats: {
+        collection: string
+        totalDocuments: number
+        publishedDocuments: number
+        draftDocuments: number
+        recentDocuments: number
+        lastUpdated: string
+      }
+    }>
+  > {
     return this.get<{
       stats: {
-        collection: string;
-        totalDocuments: number;
-        publishedDocuments: number;
-        draftDocuments: number;
-        recentDocuments: number;
-        lastUpdated: string;
-      };
-    }>(`/stats/${schemaName}`);
+        collection: string
+        totalDocuments: number
+        publishedDocuments: number
+        draftDocuments: number
+        recentDocuments: number
+        lastUpdated: string
+      }
+    }>(`/stats/${schemaName}`)
   }
 
   // ========================================
@@ -673,45 +755,56 @@ export class ApiClient {
   /**
    * Global search
    */
-  async search(query: string, options: { types?: string[]; limit?: number } = {}): Promise<ApiResponse<SearchResponse>> {
+  async search(
+    query: string,
+    options: { types?: string[]; limit?: number } = {}
+  ): Promise<ApiResponse<SearchResponse>> {
     if (!this.hasFeature('search')) {
       // Fallback to client-side search
-      return this.clientSideSearch(query, options);
+      return this.clientSideSearch(query, options)
     }
-    
-    return this.get<SearchResponse>('/search', { q: query, ...options });
+
+    return this.get<SearchResponse>('/search', { q: query, ...options })
   }
 
   /**
    * Client-side search fallback
    */
-  private async clientSideSearch(query: string, options: { types?: string[]; limit?: number } = {}): Promise<ApiResponse<SearchResponse>> {
+  private async clientSideSearch(
+    query: string,
+    options: { types?: string[]; limit?: number } = {}
+  ): Promise<ApiResponse<SearchResponse>> {
     // Basic client-side search implementation
-    const results: any[] = [];
-    
+    const results: any[] = []
+
     // Search documents if enabled
     if (!options.types || options.types.includes('documents')) {
       try {
-        const schemas = await this.getSchemas();
+        const schemas = await this.getSchemas()
         if (schemas.success && schemas.data) {
           for (const schema of schemas.data.slice(0, 3)) {
-            const docs = await this.getDocuments(schema.name, { limit: 5, search: query });
+            const docs = await this.getDocuments(schema.name, {
+              limit: 5,
+              search: query,
+            })
             if (docs.success && docs.data?.documents) {
-              results.push(...docs.data.documents.map((doc: any) => ({
-                id: doc.id || doc._id,
-                type: 'document',
-                title: doc.title || doc.name || doc.id || doc._id,
-                url: `/content/${schema.name}/${doc.id || doc._id}`,
-                metadata: {
-                  status: doc._status,
-                  createdAt: doc._createdAt
-                }
-              })));
+              results.push(
+                ...docs.data.documents.map((doc: any) => ({
+                  id: doc.id || doc._id,
+                  type: 'document',
+                  title: doc.title || doc.name || doc.id || doc._id,
+                  url: `/content/${schema.name}/${doc.id || doc._id}`,
+                  metadata: {
+                    status: doc._status,
+                    createdAt: doc._createdAt,
+                  },
+                }))
+              )
             }
           }
         }
       } catch (error) {
-        console.warn('Document search failed:', error);
+        console.warn('Document search failed:', error)
       }
     }
 
@@ -724,12 +817,12 @@ export class ApiClient {
           documents: results.filter(r => r.type === 'document').length,
           media: 0,
           users: 0,
-          schemas: 0
+          schemas: 0,
         },
         query,
-        searchTime: 0
-      }
-    };
+        searchTime: 0,
+      },
+    }
   }
 
   // ========================================
@@ -741,26 +834,34 @@ export class ApiClient {
    */
   async getCurrentUser(): Promise<ApiResponse<User>> {
     if (!this.hasFeature('auth')) {
-      throw new ApiClientError('Auth feature not available');
+      throw new ApiClientError('Auth feature not available')
     }
-    return this.get<User>('/auth/me');
+    return this.get<User>('/auth/me')
   }
 
   /**
    * Login
    */
-  async login(username: string, password: string, rememberMe?: boolean): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
+  async login(
+    username: string,
+    password: string,
+    rememberMe?: boolean
+  ): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
     if (!this.hasFeature('auth')) {
-      throw new ApiClientError('Auth feature not available');
+      throw new ApiClientError('Auth feature not available')
     }
-    
-    const response = await this.post<{ user: User; token: string; expiresAt?: string }>('/auth/login', { username, password, rememberMe });
-    
+
+    const response = await this.post<{
+      user: User
+      token: string
+      expiresAt?: string
+    }>('/auth/login', { username, password, rememberMe })
+
     if (response.success && response.data?.token) {
-      this.setAuthToken(response.data.token);
+      this.setAuthToken(response.data.token)
     }
-    
-    return response;
+
+    return response
   }
 
   /**
@@ -769,15 +870,15 @@ export class ApiClient {
   async logout(): Promise<ApiResponse<void>> {
     if (this.hasFeature('auth')) {
       try {
-        await this.post('/auth/logout');
+        await this.post('/auth/logout')
       } catch (error) {
         // Continue with local logout even if server logout fails
-        console.warn('Server logout failed:', error);
+        console.warn('Server logout failed:', error)
       }
     }
-    
-    this.clearAuthToken();
-    return { success: true };
+
+    this.clearAuthToken()
+    return { success: true }
   }
 
   // ========================================
@@ -787,22 +888,28 @@ export class ApiClient {
   /**
    * Check slug uniqueness
    */
-  async checkSlugUniqueness(slug: string, collection: string, excludeId?: string): Promise<ApiResponse<{
-    unique: boolean;
-    slug: string;
-    collection: string;
-    reason?: string;
-  }>> {
+  async checkSlugUniqueness(
+    slug: string,
+    collection: string,
+    excludeId?: string
+  ): Promise<
+    ApiResponse<{
+      unique: boolean
+      slug: string
+      collection: string
+      reason?: string
+    }>
+  > {
     const queryParams = new URLSearchParams({
       slug: slug,
-      collection: collection
-    });
-    
+      collection: collection,
+    })
+
     if (excludeId) {
-      queryParams.append('excludeId', excludeId);
+      queryParams.append('excludeId', excludeId)
     }
 
-    return this.get(`/slugs/check-unique?${queryParams}`);
+    return this.get(`/slugs/check-unique?${queryParams}`)
   }
 
   // ========================================
@@ -814,11 +921,11 @@ export class ApiClient {
    */
   async getStructure(): Promise<ApiResponse<any>> {
     if (!this.hasFeature('structure')) {
-      return { success: true, data: null };
+      return { success: true, data: null }
     }
-    return this.get('/structure');
+    return this.get('/structure')
   }
 }
 
 // Singleton instance
-export const apiClient = new ApiClient();
+export const apiClient = new ApiClient()
