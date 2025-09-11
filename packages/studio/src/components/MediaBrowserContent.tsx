@@ -538,19 +538,37 @@ export function MediaBrowserContent({
 
                     return (
                       <div className="w-full h-full max-w-[800px] max-h-[400px] flex items-center justify-center">
-                        <img
-                          key={`${selectedMedia.id}-${selectedVariant}`} // Force re-render on variant change
-                          src={previewUrl}
-                          alt={
-                            selectedMedia.metadata?.title ||
-                            selectedMedia.filename
-                          }
-                          className="max-w-full max-h-full object-contain"
-                          onError={e => {
-                            // Prevent error propagation that might break React rendering
-                            e.currentTarget.onerror = null
-                          }}
-                        />
+                        {previewUrl ? (
+                          <img
+                            key={`${selectedMedia.id}-${selectedVariant}-${previewUrl}`} // Use URL in key for proper re-render
+                            src={previewUrl}
+                            alt={
+                              selectedMedia.metadata?.title ||
+                              selectedMedia.filename
+                            }
+                            className="max-w-full max-h-full object-contain"
+                            loading="eager" // Force immediate loading
+                            onLoad={() => {
+                              // Image loaded successfully
+                            }}
+                            onError={e => {
+                              // Try fallback URL if available
+                              if (
+                                selectedMedia.url &&
+                                e.currentTarget.src !== selectedMedia.url
+                              ) {
+                                e.currentTarget.src = selectedMedia.url
+                              } else {
+                                // Prevent error propagation that might break React rendering
+                                e.currentTarget.onerror = null
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="text-gray-500">
+                            No preview URL available
+                          </div>
+                        )}
                       </div>
                     )
                   } else if (mediaType === 'video') {
