@@ -545,6 +545,10 @@ export function MediaBrowserContent({
                             selectedMedia.filename
                           }
                           className="max-w-full max-h-full object-contain"
+                          onError={e => {
+                            // Prevent error propagation that might break React rendering
+                            e.currentTarget.onerror = null
+                          }}
                         />
                       </div>
                     )
