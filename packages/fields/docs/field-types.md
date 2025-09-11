@@ -459,6 +459,65 @@ URL-safe slugs with auto-generation.
 - `lowercase` - Force lowercase
 - `showPreview` - Show full URL preview
 
+### Color Field
+Color picker with multiple format support and swatches.
+
+```typescript
+{
+  type: 'color',
+  title: 'Theme Color',
+  required: false,
+  options: {
+    format: 'hex', // 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla'
+    enableAlpha: false,
+    swatches: ['#FF0000', '#00FF00', '#0000FF'], // Predefined colors
+    defaultValue: '#000000',
+    showFormatSwitcher: false,
+    showInput: true,
+    enableEyedropper: true
+  },
+  validation: {
+    allowedColors: ['#FF0000', '#00FF00', '#0000FF'], // Whitelist
+    forbiddenColors: ['#FFFFFF'], // Blacklist
+    custom: (value) => value !== '#000000' || 'Black is not allowed'
+  }
+}
+```
+
+**Options:**
+- `format` - Color format for storage (default: 'hex')
+- `enableAlpha` - Enable transparency/alpha channel
+- `swatches` - Array of predefined color swatches for quick selection
+- `defaultValue` - Default color value (default: '#000000')
+- `showFormatSwitcher` - Allow switching between color formats in UI
+- `showInput` - Show color code input field
+- `enableEyedropper` - Enable eyedropper tool (browser support required)
+
+**Validation:**
+- `allowedColors` - Whitelist of allowed colors
+- `forbiddenColors` - Blacklist of forbidden colors
+- `custom` - Custom validation function
+
+**Value Format:**
+```typescript
+{
+  hex: '#3B82F6',
+  rgb?: { r: 59, g: 130, b: 246 },
+  rgba?: { r: 59, g: 130, b: 246, a: 1 },
+  hsl?: { h: 217, s: 91, l: 60 },
+  hsla?: { h: 217, s: 91, l: 60, a: 1 }
+}
+```
+
+**Features:**
+- Native HTML5 color picker with fallback
+- Predefined color swatches
+- Multiple color format support
+- Alpha channel support for transparency
+- Eyedropper tool (Chrome/Edge)
+- Custom validation rules
+- Accessible keyboard navigation
+
 ### Reference Field
 
 References to other documents.

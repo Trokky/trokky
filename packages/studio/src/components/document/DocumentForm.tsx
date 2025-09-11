@@ -237,7 +237,7 @@ export function DocumentForm() {
         return updated;
       });
     }
-  }, [onDocumentChange, fieldErrors]);
+  }, [onDocumentChange, fieldErrors, isReadOnly]);
 
   const handleFieldBlur = useCallback((fieldName: string, field: any) => {
     const value = document[fieldName];
@@ -255,7 +255,7 @@ export function DocumentForm() {
         return updated;
       });
     }
-  }, [document, validateField]);
+  }, [document, validateField, isReadOnly]);
 
   // Create document context for field rendering
   const documentContext = useMemo(() => {
@@ -325,7 +325,7 @@ export function DocumentForm() {
     }
 
     return fieldRenderer;
-  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, documentContext]);
+  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, documentContext, isReadOnly]);
 
   const renderFormSection = (fields: any[]) => {
     return (

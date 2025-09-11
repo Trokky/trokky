@@ -20,6 +20,7 @@ import { DocumentStates, type DocumentState } from './DocumentStates';
 import { DocumentForm } from './DocumentForm';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
+import { PermissionsDebugPanel } from '../debug/PermissionsDebugPanel';
 
 const logger = createStudioLogger('DocumentEditor');
 
@@ -62,20 +63,34 @@ export function DocumentEditor({
   useStructureContextSidebar();
   const studioContext = useStudioContext();
   const permissions = usePermissions();
+  
+  // Debug permissions object
+  useEffect(() => {
+    logger.debug('Permissions object state', {
+      hasPermissions: !!permissions,
+      isAdmin: permissions?.isAdmin,
+      userPermissions: permissions?.userPermissions,
+      schemaName
+    });
+  }, [permissions, schemaName]);
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const isNewDocument = documentId === 'new' || !documentId;
   
   // Check if user has write permission for this schema
   const hasWritePermission = useMemo(() => {
-    if (!permissions) return false;
-    return permissions.hasSchemaPermission(schemaName, 'write');
-  }, [permissions, schemaName]);
-  
+    if (!permissions) {
+      return false;
+    }
+    
+    const result = permissions.hasSchemaPermission(schemaName, 'write');
+    return result;
+  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
+
   // Check if user has delete permission for this schema
   const hasDeletePermission = useMemo(() => {
     if (!permissions) return false;
     return permissions.hasSchemaPermission(schemaName, 'delete');
-  }, [permissions, schemaName]);
+  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
 
   logger.debug('Initializing document editor', { 
     schemaName, 
@@ -462,7 +477,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
-    hasWritePermission,
+    hasWritePermission, // Add this dependency
     loading,
     saving,
     error,
@@ -517,6 +532,16 @@ export function DocumentEditor({
           <DocumentSidebar />
         </div>
       </div>
+
+      {/* Permissions Debug Panel */}
+      <PermissionsDebugPanel
+        documentType={schemaName}
+        documentId={documentId}
+        isNew={isNewDocument}
+        canCreate={hasWritePermission}
+        canUpdate={hasWritePermission}
+        canDelete={hasDeletePermission}
+      />
     </DocumentEditorProvider>
   );
 }
