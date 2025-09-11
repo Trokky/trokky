@@ -9,6 +9,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
+import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -82,14 +83,17 @@ export function ListView({
     onSort(column.key, newDirection);
   };
   
-  const getDocumentValue = (doc: Document, key: string) => {
-    // Handle nested keys with dot notation
-    return key.split('.').reduce((obj, k) => obj?.[k], doc);
-  };
-  
   const formatValue = (value: any, column: ListColumn, doc: Document) => {
     if (column.render) {
       return column.render(value, doc);
+    }
+    
+    // Special handling for title-like columns - use smart title logic
+    if (column.key === 'title' || column.key === 'name') {
+      const smartTitle = getSmartDocumentTitle(doc);
+      if (smartTitle !== 'Untitled') {
+        return smartTitle;
+      }
     }
     
     if (value === null || value === undefined) {
@@ -381,7 +385,7 @@ export const getDefaultColumns = (): ListColumn[] => {
       key: 'title',
       title: 'Title',
       sortable: true,
-      render: (value, doc) => value || doc.name || doc.slug || 'Untitled'
+      render: (value, doc) => getSmartDocumentTitle(doc)
     },
     {
       key: '_status',

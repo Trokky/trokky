@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
+import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
 import type { Document } from '@/types';
 
 export interface TableColumn {
@@ -123,13 +124,17 @@ export function TableView({
     document.addEventListener('mouseup', handleMouseUp);
   };
   
-  const getDocumentValue = (doc: Document, key: string) => {
-    return key.split('.').reduce((obj, k) => obj?.[k], doc);
-  };
-  
   const formatValue = (value: any, column: TableColumn, doc: Document) => {
     if (column.render) {
       return column.render(value, doc);
+    }
+    
+    // Special handling for title-like columns - use smart title logic
+    if (column.key === 'title' || column.key === 'name') {
+      const smartTitle = getSmartDocumentTitle(doc);
+      if (smartTitle !== 'Untitled') {
+        return smartTitle;
+      }
     }
     
     if (value === null || value === undefined) {
