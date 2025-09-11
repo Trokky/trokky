@@ -278,14 +278,14 @@ export function ColorFieldComponent({
                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
                   Quick Colors
                 </div>
-                <div className="grid grid-cols-7 gap-1">
+                <div className="flex flex-wrap gap-2 max-w-sm">
                   {options.swatches.map((color: string) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => handleSwatchClick(color)}
                       className={`
-                        w-8 h-8 rounded border-2 transition-all
+                        w-6 h-6 rounded border-2 transition-all flex-shrink-0
                         ${
                           currentColor === color
                             ? 'border-blue-500 scale-110'
