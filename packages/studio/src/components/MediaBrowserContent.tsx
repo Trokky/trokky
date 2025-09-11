@@ -240,39 +240,22 @@ function getMediaUrl(
   } | null,
   apiClient?: MediaBrowserAPI
 ): string {
-  console.log('🔍 getMediaUrl called:', {
-    mediaId: media.id,
-    variant,
-    hasMediaUrlGenerator: !!mediaUrlGenerator,
-    hasApiClient: !!apiClient,
-    hasApiClientGetMediaUrl: !!apiClient?.getMediaUrl,
-  })
-
   // Use MediaUrlGenerator if available (preferred method)
   if (mediaUrlGenerator) {
-    const generatedUrl = mediaUrlGenerator.getMediaUrl(media.id, variant)
-    console.log('✅ MediaUrlGenerator generated URL:', generatedUrl)
-    return generatedUrl
+    return mediaUrlGenerator.getMediaUrl(media.id, variant)
   }
 
   // Fallback to apiClient.getMediaUrl if available
   if (apiClient?.getMediaUrl) {
-    const generatedUrl = apiClient.getMediaUrl(media.id, variant)
-    console.log('✅ API Client generated URL:', generatedUrl)
-    return generatedUrl
+    return apiClient.getMediaUrl(media.id, variant)
   }
 
   // If we have a direct URL on the media object, use it
   if (media.url) {
-    console.log('✅ Using direct media URL:', media.url)
     return media.url
   }
 
   // ERROR: No way to generate URL
-  console.error('❌ No URL generation method available!')
-  console.error('MediaUrlGenerator:', mediaUrlGenerator)
-  console.error('ApiClient:', apiClient)
-  console.error('Media object:', media)
 
   throw new Error(
     `Cannot generate URL for media ${media.id}${variant ? ` variant ${variant}` : ''}`

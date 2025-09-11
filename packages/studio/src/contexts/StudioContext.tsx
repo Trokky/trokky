@@ -155,7 +155,6 @@ export function StudioContextProvider({
     // Fetch studio config from API endpoint to get proper media serving config
     const fetchStudioConfig = async () => {
       try {
-        console.log('🔍 Studio Context - Fetching config from API endpoint...')
         const response = await apiClient.get('/config/studio')
 
         if (
@@ -163,22 +162,11 @@ export function StudioContextProvider({
           response.data?.studioConfig?.mediaUrlGenerator
         ) {
           const mediaUrlGenConfig = response.data.studioConfig.mediaUrlGenerator
-          console.log(
-            '✅ Studio Context - MediaUrlGenerator config received:',
-            mediaUrlGenConfig
-          )
+
           setMediaUrlConfig(mediaUrlGenConfig)
         } else {
-          console.warn(
-            '⚠️ Studio Context - No MediaUrlGenerator config in API response, using defaults'
-          )
         }
-      } catch (error) {
-        console.error(
-          '❌ Studio Context - Failed to fetch studio config:',
-          error
-        )
-      }
+      } catch (error) {}
     }
 
     fetchStudioConfig()
@@ -199,7 +187,6 @@ export function StudioContextProvider({
       typeof window !== 'undefined' &&
       (window as any).__TROKKY_DEV__ === true
     ) {
-      console.log('v2 StudioContextProvider: Initialized')
     }
   }, [])
 
