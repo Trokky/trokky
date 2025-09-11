@@ -539,6 +539,7 @@ export function MediaBrowserContent({
                     return (
                       <div className="w-full h-full max-w-[800px] max-h-[400px] flex items-center justify-center">
                         <img
+                          key={`${selectedMedia.id}-${selectedVariant}`} // Force re-render on variant change
                           src={previewUrl}
                           alt={
                             selectedMedia.metadata?.title ||
@@ -888,9 +889,16 @@ export function MediaBrowserContent({
                                   name="variant"
                                   value="original"
                                   checked={selectedVariant === 'original'}
-                                  onChange={e =>
+                                  onChange={e => {
+                                    console.log(
+                                      '📝 Variant selection changed:',
+                                      {
+                                        from: selectedVariant,
+                                        to: e.target.value,
+                                      }
+                                    )
                                     setSelectedVariant(e.target.value)
-                                  }
+                                  }}
                                   className="sr-only"
                                 />
                                 <div className="font-medium">Original</div>
@@ -926,9 +934,16 @@ export function MediaBrowserContent({
                                     name="variant"
                                     value={variantName}
                                     checked={selectedVariant === variantName}
-                                    onChange={e =>
+                                    onChange={e => {
+                                      console.log(
+                                        '📝 Variant selection changed:',
+                                        {
+                                          from: selectedVariant,
+                                          to: e.target.value,
+                                        }
+                                      )
                                       setSelectedVariant(e.target.value)
-                                    }
+                                    }}
                                     className="sr-only"
                                   />
                                   <div className="font-medium capitalize">
