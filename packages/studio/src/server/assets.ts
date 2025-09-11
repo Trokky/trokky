@@ -1,6 +1,6 @@
 /**
  * Studio Asset Serving Utilities
- * 
+ *
  * These utilities allow other packages (like @trokky/routes) to serve
  * Studio HTML and assets without needing to resolve package paths.
  */
@@ -18,8 +18,8 @@ const distDir = join(studioDir, 'dist')
 export interface StudioConfig {
   mode: 'production'
   apiBasePath: string
-  basePath?: string    // Base path for routing (e.g., '/studio')
-  backendUrl?: string  // Full backend URL for integrated deployments
+  basePath?: string // Base path for routing (e.g., '/studio')
+  backendUrl?: string // Full backend URL for integrated deployments
   schemas: any[]
   branding?: {
     title?: string
@@ -33,59 +33,64 @@ export interface StudioConfig {
 /**
  * Get Studio HTML with injected configuration
  */
-export function getStudioHTML(config: StudioConfig, studioPath: string): string {
+export function getStudioHTML(
+  config: StudioConfig,
+  studioPath: string
+): string {
   try {
     const htmlPath = join(distDir, 'index.html')
-    
+
     if (!existsSync(htmlPath)) {
-      throw new Error(`Studio HTML not found at ${htmlPath}. Please build @trokky/studio package.`)
+      throw new Error(
+        `Studio HTML not found at ${htmlPath}. Please build @trokky/studio package.`
+      )
     }
-    
+
     let html = readFileSync(htmlPath, 'utf-8')
-    
+
     // Replace any existing config with our config (handle multi-line objects)
     html = html.replace(
       /window\.TROKKY_CONFIG\s*=\s*{[\s\S]*?};/,
       `window.TROKKY_CONFIG = ${JSON.stringify(config)};
-      
+
       // TEMPORARY FIX: Override API client path building for dynamic API paths
       window.TROKKY_API_PATH_FIX = function() {
-        console.log('🔧 Applying temporary API path fix...');
-        
+
+
         // Wait for the API client to be available
         const checkApiClient = setInterval(() => {
           if (window.TrokkyApiClient) {
-            console.log('📡 Found TrokkyApiClient, applying patch...');
+
             clearInterval(checkApiClient);
-            
+
             // Store original post method
             const originalPost = window.TrokkyApiClient.post;
-            
+
             // Override post method to handle dynamic API paths
             window.TrokkyApiClient.post = function(endpoint, data) {
-              console.log('🔄 POST intercepted:', { endpoint, apiBasePath: '${config.apiBasePath}' });
-              
+
+
               // Replace /api with the correct API base path
               if (endpoint.startsWith('/api')) {
                 const newEndpoint = endpoint.replace('/api', '${config.apiBasePath}');
-                console.log('🚀 Path redirected:', { from: endpoint, to: newEndpoint });
+
                 endpoint = newEndpoint;
               }
-              
+
               return originalPost.call(this, endpoint, data);
             };
-            
-            console.log('✅ API path fix applied successfully');
+
+
           }
         }, 100);
-        
+
         // Timeout after 5 seconds
         setTimeout(() => {
           clearInterval(checkApiClient);
-          console.log('⏰ API client patch timeout - client not found');
+
         }, 5000);
       };
-      
+
       // Apply the fix after DOM loads
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', window.TROKKY_API_PATH_FIX);
@@ -93,24 +98,26 @@ export function getStudioHTML(config: StudioConfig, studioPath: string): string 
         window.TROKKY_API_PATH_FIX();
       }`
     )
-    
+
     // Update asset paths to use our Studio route
     html = html.replace(/src="\/assets\//g, `src="${studioPath}/assets/`)
     html = html.replace(/href="\/assets\//g, `href="${studioPath}/assets/`)
-    
+
     // Remove favicon reference since we don't have the icon
     html = html.replace(/<link rel="icon"[^>]*>/g, '')
-    
+
     // Update title if provided
     if (config.branding?.title) {
-      html = html.replace(/<title>.*?<\/title>/, `<title>${config.branding.title}</title>`)
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>${config.branding.title}</title>`
+      )
     }
-    
+
     return html
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    
+
     // Fallback HTML if built assets are not available
     return `<!DOCTYPE html>
 <html lang="en">
@@ -140,21 +147,23 @@ export function getStudioHTML(config: StudioConfig, studioPath: string): string 
 /**
  * Get Studio asset content
  */
-export function getStudioAsset(assetPath: string): { content: Buffer, contentType: string } | null {
+export function getStudioAsset(
+  assetPath: string
+): { content: Buffer; contentType: string } | null {
   try {
     const safePath = assetPath.replace(/\.\.\//g, '') // Prevent directory traversal
     const fullAssetPath = join(distDir, 'assets', safePath)
-    
+
     if (!existsSync(fullAssetPath)) {
       return null
     }
-    
+
     const content = readFileSync(fullAssetPath)
-    
+
     // Determine content type based on file extension
     const ext = extname(assetPath).toLowerCase()
     let contentType = 'application/octet-stream'
-    
+
     if (ext === '.js') {
       contentType = 'application/javascript'
     } else if (ext === '.css') {
@@ -168,9 +177,8 @@ export function getStudioAsset(assetPath: string): { content: Buffer, contentTyp
     } else if (ext === '.jpg' || ext === '.jpeg') {
       contentType = 'image/jpeg'
     }
-    
+
     return { content, contentType }
-    
   } catch (error) {
     return null
   }

@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { useApiClient } from '@/hooks/useApiClient';
+import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
 import type { Document } from '@/types';
 
 export type GridCardSize = 'small' | 'medium' | 'large';
@@ -86,18 +87,10 @@ export function GridView({
     }
   };
   
-  const getDocumentValue = (doc: Document, field: string): any => {
-    return field.split('.').reduce((obj: any, k: string) => obj?.[k], doc);
-  };
-  
   const getDocumentId = (doc: Document) => doc.id || doc._id;
   
   const getDocumentTitle = (doc: Document) => {
-    return getDocumentValue(doc, titleField) || 
-           doc.title || 
-           doc.name || 
-           doc.slug || 
-           'Untitled';
+    return getSmartDocumentTitle(doc);
   };
   
   const getDocumentSubtitle = (doc: Document) => {
@@ -211,9 +204,6 @@ export function GridView({
       {documents.map((doc) => {
         const docId = getDocumentId(doc);
         const isSelected = selectedItems.includes(docId);
-        
-        // Debug logging to see document structure
-        console.log('GridView document:', doc.title || doc.name, doc);
         
         const image = getDocumentImage(doc);
         const title = getDocumentTitle(doc);

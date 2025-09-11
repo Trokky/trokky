@@ -53,23 +53,16 @@ export class ApiClient {
     if (savedBackendUrl) {
       // Use saved backend URL from localStorage
       this.setBackendUrl(savedBackendUrl)
-      console.log('🚀 Using saved backend URL:', savedBackendUrl)
     } else if (injectedBackendUrl) {
       // Use server-injected backend URL (integrated deployment)
       this.setBackendUrl(injectedBackendUrl)
-      console.log(
-        '🚀 Using injected backend URL (integrated):',
-        injectedBackendUrl
-      )
     } else if (buildTimeBackendUrl) {
       // Use build-time configured backend URL
       this.setBackendUrl(buildTimeBackendUrl)
-      console.log('🚀 Using build-time backend URL:', buildTimeBackendUrl)
     } else if (import.meta.env.DEV) {
       // Development mode fallback - assume API is on localhost:3000
       const devBackendUrl = 'http://localhost:3000/api'
       this.setBackendUrl(devBackendUrl)
-      console.log('🚀 Using development mode backend URL:', devBackendUrl)
     } else {
       // No backend URL configured - Studio will show login form to set it
       this.logger.info(

@@ -6,7 +6,7 @@ A universal, extensible field system for Trokky v2 CMS. This package provides a 
 
 The @trokky/fields package is the heart of Trokky's content modeling system. It provides:
 
-- **18+ Built-in Field Types** - From simple strings to complex rich text and media fields
+- **19+ Built-in Field Types** - From simple strings to complex rich text and media fields
 - **Plugin Architecture** - Extensible system for custom field types
 - **Universal Compatibility** - Works in browser, Node.js, and edge environments
 - **TypeScript Native** - Full type safety and IntelliSense support
@@ -111,6 +111,7 @@ const blogPostSchema = {
 
 ### Specialized Fields
 - **slug** - URL-safe slugs with auto-generation
+- **color** - Color picker with multiple formats and swatches
 - **reference** - References to other documents
 
 ## Key Features

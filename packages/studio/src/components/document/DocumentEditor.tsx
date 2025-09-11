@@ -20,23 +20,43 @@ import { DocumentStates, type DocumentState } from './DocumentStates';
 import { DocumentForm } from './DocumentForm';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
+import { PermissionsDebugPanel } from '../debug/PermissionsDebugPanel';
 
 const logger = createStudioLogger('DocumentEditor');
 
 // Helper function to get user-friendly display names
-function getSchemaDisplayName(schemaName?: string): string {
+function getSchemaDisplayName(schemaName?: string, schema?: any): string {
   if (!schemaName) return 'Document';
   
-  const displayNames: Record<string, string> = {
-    'article': 'Article',
-    'author': 'Author', 
-    'category': 'Category',
-    'homePage': 'Home Page',
-    'settings': 'Site Settings',
-    'post': 'Post'
-  };
+  // Use schema title if available
+  if (schema?.title) return schema.title;
   
-  return displayNames[schemaName] || schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
+  // Fallback to formatted schema name
+  return schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
+}
+
+// Helper function to get document display title
+function getDocumentDisplayTitle(document: any, schema: any, schemaName: string): string {
+  if (!document) return `New ${getSchemaDisplayName(schemaName, schema)}`;
+  
+  // Try common title fields first
+  if (document.title) return document.title;
+  if (document.name) return document.name;
+  
+  // Fallback to first field value
+  if (schema?.fields) {
+    const fields = Array.isArray(schema.fields) 
+      ? schema.fields 
+      : Object.entries(schema.fields).map(([name, field]) => ({ name, ...field }));
+    
+    const firstField = fields[0];
+    if (firstField && document[firstField.name]) {
+      const value = document[firstField.name];
+      return typeof value === 'string' ? value : `New ${getSchemaDisplayName(schemaName, schema)}`;
+    }
+  }
+  
+  return `New ${getSchemaDisplayName(schemaName, schema)}`;
 }
 
 export interface DocumentEditorProps {
@@ -62,20 +82,34 @@ export function DocumentEditor({
   useStructureContextSidebar();
   const studioContext = useStudioContext();
   const permissions = usePermissions();
+  
+  // Debug permissions object
+  useEffect(() => {
+    logger.debug('Permissions object state', {
+      hasPermissions: !!permissions,
+      isAdmin: permissions?.isAdmin,
+      userPermissions: permissions?.userPermissions,
+      schemaName
+    });
+  }, [permissions, schemaName]);
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const isNewDocument = documentId === 'new' || !documentId;
   
   // Check if user has write permission for this schema
   const hasWritePermission = useMemo(() => {
-    if (!permissions) return false;
-    return permissions.hasSchemaPermission(schemaName, 'write');
-  }, [permissions, schemaName]);
-  
+    if (!permissions) {
+      return false;
+    }
+    
+    const result = permissions.hasSchemaPermission(schemaName, 'write');
+    return result;
+  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
+
   // Check if user has delete permission for this schema
   const hasDeletePermission = useMemo(() => {
     if (!permissions) return false;
     return permissions.hasSchemaPermission(schemaName, 'delete');
-  }, [permissions, schemaName]);
+  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
 
   logger.debug('Initializing document editor', { 
     schemaName, 
@@ -206,9 +240,9 @@ export function DocumentEditor({
     if (!doc.title && !doc.name) {
       // Check if this has a specific ID (likely a singleton)
       if (doc.id && doc.id !== 'new') {
-        doc.title = getSchemaDisplayName(schemaName);
+        doc.title = getSchemaDisplayName(schemaName, schema);
       } else {
-        doc.title = `New ${getSchemaDisplayName(schemaName)}`;
+        doc.title = `New ${getSchemaDisplayName(schemaName, schema)}`;
       }
     }
 
@@ -307,7 +341,7 @@ export function DocumentEditor({
     
     // Check if user has write permission
     if (!hasWritePermission) {
-      showToast(`You don't have permission to edit ${getSchemaDisplayName(schemaName)}`, 'error');
+      showToast(`You don't have permission to edit ${getSchemaDisplayName(schemaName, schema)}`, 'error');
       return;
     }
 
@@ -462,7 +496,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
-    hasWritePermission,
+    hasWritePermission, // Add this dependency
     loading,
     saving,
     error,
@@ -517,6 +551,16 @@ export function DocumentEditor({
           <DocumentSidebar />
         </div>
       </div>
+
+      {/* Permissions Debug Panel */}
+      <PermissionsDebugPanel
+        documentType={schemaName}
+        documentId={documentId}
+        isNew={isNewDocument}
+        canCreate={hasWritePermission}
+        canUpdate={hasWritePermission}
+        canDelete={hasDeletePermission}
+      />
     </DocumentEditorProvider>
   );
 }

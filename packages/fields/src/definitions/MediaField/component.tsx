@@ -3,68 +3,103 @@
  * React component for media file upload and selection
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { FieldComponentProps } from '../../base/FieldPlugin';
-import type { MediaFieldDefinition } from './definition';
-import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types';
-import { MEDIA_FIELD_DEFAULTS } from './definition';
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import type { FieldComponentProps } from '../../base/FieldPlugin'
+import type { MediaFieldDefinition } from './definition'
+import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types'
+import { MEDIA_FIELD_DEFAULTS } from './definition'
 
 // TODO: Add proper icon imports when Studio icons are available
 // Using placeholder icons for now
-const PhotoIcon = ({ className }: { className?: string }) => <div className={className}>📷</div>;
-const DocumentIcon = ({ className }: { className?: string }) => <div className={className}>📄</div>;
-const VideoCameraIcon = ({ className }: { className?: string }) => <div className={className}>🎥</div>;
-const SpeakerWaveIcon = ({ className }: { className?: string }) => <div className={className}>🔊</div>;
-const ArchiveBoxIcon = ({ className }: { className?: string }) => <div className={className}>📦</div>;
-const PlusIcon = ({ className }: { className?: string }) => <div className={className}>➕</div>;
+const PhotoIcon = ({ className }: { className?: string }) => (
+  <div className={className}>📷</div>
+)
+const DocumentIcon = ({ className }: { className?: string }) => (
+  <div className={className}>📄</div>
+)
+const VideoCameraIcon = ({ className }: { className?: string }) => (
+  <div className={className}>🎥</div>
+)
+const SpeakerWaveIcon = ({ className }: { className?: string }) => (
+  <div className={className}>🔊</div>
+)
+const ArchiveBoxIcon = ({ className }: { className?: string }) => (
+  <div className={className}>📦</div>
+)
+const PlusIcon = ({ className }: { className?: string }) => (
+  <div className={className}>➕</div>
+)
 const XMarkIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M6 18L18 6M6 6l12 12"
+    />
   </svg>
-);
-const EyeIcon = ({ className }: { className?: string }) => <div className={className}>👁️</div>;
-const PencilIcon = ({ className }: { className?: string }) => <div className={className}>✏️</div>;
-const CloudArrowUpIcon = ({ className }: { className?: string }) => <div className={className}>☁️</div>;
-const FolderOpenIcon = ({ className }: { className?: string }) => <div className={className}>📁</div>;
+)
+const EyeIcon = ({ className }: { className?: string }) => (
+  <div className={className}>👁️</div>
+)
+const PencilIcon = ({ className }: { className?: string }) => (
+  <div className={className}>✏️</div>
+)
+const CloudArrowUpIcon = ({ className }: { className?: string }) => (
+  <div className={className}>☁️</div>
+)
+const FolderOpenIcon = ({ className }: { className?: string }) => (
+  <div className={className}>📁</div>
+)
 
-type MediaFieldComponentProps = FieldComponentProps;
+type MediaFieldComponentProps = FieldComponentProps
 
 // Media type icon mapping
 const MEDIA_TYPE_ICONS = {
   image: PhotoIcon,
-  video: VideoCameraIcon, 
+  video: VideoCameraIcon,
   audio: SpeakerWaveIcon,
   document: DocumentIcon,
-  archive: ArchiveBoxIcon
-};
+  archive: ArchiveBoxIcon,
+}
 
 // Get media type from MIME type
 function getMediaTypeFromMime(mimeType: string): MediaType {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text')) return 'document';
-  return 'archive';
+  if (mimeType.startsWith('image/')) return 'image'
+  if (mimeType.startsWith('video/')) return 'video'
+  if (mimeType.startsWith('audio/')) return 'audio'
+  if (
+    mimeType.includes('pdf') ||
+    mimeType.includes('document') ||
+    mimeType.includes('text')
+  )
+    return 'document'
+  return 'archive'
 }
 
 // Format file size for display
 function formatFileSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = bytes;
-  let unitIndex = 0;
-  
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = bytes
+  let unitIndex = 0
+
   while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
+    size /= 1024
+    unitIndex++
   }
-  
-  return `${size.toFixed(1)} ${units[unitIndex]}`;
+
+  return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
 // Truncate text for display with ellipsis
 function truncateText(text: string, maxLength: number = 50): string {
-  if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  if (!text || text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
 }
 
 // MediaAsset is now imported from @trokky/core
@@ -81,19 +116,25 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     documentContext,
     studioContext,
     ...restProps
-  } = props;
+  } = props
 
-  const mediaDefinition = definition as MediaFieldDefinition;
-  const options = { ...MEDIA_FIELD_DEFAULTS.options, ...mediaDefinition.options };
-  const validation = { ...MEDIA_FIELD_DEFAULTS.validation, ...mediaDefinition.validation };
-  
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [showMetadataEditor, setShowMetadataEditor] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null);
-  const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
-  
+  const mediaDefinition = definition as MediaFieldDefinition
+  const options = {
+    ...MEDIA_FIELD_DEFAULTS.options,
+    ...mediaDefinition.options,
+  }
+  const validation = {
+    ...MEDIA_FIELD_DEFAULTS.validation,
+    ...mediaDefinition.validation,
+  }
+
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null)
+  const [assetLoadError, setAssetLoadError] = useState<string | null>(null)
+
   // Debug Studio context availability using Studio logger
   if (studioContext?.logger) {
     studioContext.logger.debug('MediaField initialized', {
@@ -101,119 +142,129 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       hasApiClient: !!studioContext?.apiClient,
       fieldId,
       enableUpload: options.enableUpload,
-      enableBrowse: options.enableBrowse
-    });
+      enableBrowse: options.enableBrowse,
+    })
   }
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropZoneRef = useRef<HTMLDivElement>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   // Load asset when value changes
   useEffect(() => {
     const loadAsset = async () => {
       if (!value?.asset?._ref || !studioContext?.apiClient) {
-        setCurrentAsset(null);
-        setAssetLoadError(null);
-        return;
+        setCurrentAsset(null)
+        setAssetLoadError(null)
+        return
       }
 
       try {
-        setAssetLoadError(null);
-        studioContext.logger?.debug('Loading asset', { assetId: value.asset._ref });
-        
-        const response = await studioContext.apiClient.getMediaById(value.asset._ref);
-        
+        setAssetLoadError(null)
+        studioContext.logger?.debug('Loading asset', {
+          assetId: value.asset._ref,
+        })
+
+        const response = await studioContext.apiClient.getMediaById(
+          value.asset._ref
+        )
+
         if (response.success && response.data?.file) {
-          studioContext.logger?.info('Asset loaded successfully', { 
+          studioContext.logger?.info('Asset loaded successfully', {
             assetId: value.asset._ref,
             filename: response.data.file.filename,
-            contentType: response.data.file.contentType
-          });
-          setCurrentAsset(response.data.file);
+            contentType: response.data.file.contentType,
+          })
+          setCurrentAsset(response.data.file)
         } else {
-          studioContext.logger?.warn('Asset not found', { assetId: value.asset._ref });
-          setAssetLoadError('Media asset no longer exists');
-          setCurrentAsset(null);
+          studioContext.logger?.warn('Asset not found', {
+            assetId: value.asset._ref,
+          })
+          setAssetLoadError('Media asset no longer exists')
+          setCurrentAsset(null)
         }
       } catch (error) {
-        studioContext.logger?.error('Failed to load asset', error);
-        setAssetLoadError('Failed to load media asset');
-        setCurrentAsset(null);
+        studioContext.logger?.error('Failed to load asset', error)
+        setAssetLoadError('Failed to load media asset')
+        setCurrentAsset(null)
       }
-    };
+    }
 
-    loadAsset();
-  }, [value?.asset?._ref, studioContext?.apiClient]);
+    loadAsset()
+  }, [value?.asset?._ref, studioContext?.apiClient])
 
   // Cleanup object URLs to prevent memory leaks
   useEffect(() => {
     return () => {
       if (currentAsset?.url?.startsWith('blob:')) {
-        URL.revokeObjectURL(currentAsset.url);
-      }
-    };
-  }, [currentAsset?.url]);
-
-  // Handle file selection
-  const handleFileSelect = useCallback(async (files: FileList) => {
-    if (!files.length || isDisabled || isReadonly) return;
-
-    const file = files[0]; // Single file for now
-    
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
-      
-      // Simulate upload progress (replace with actual upload logic)
-      const uploadInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(uploadInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 100);
-
-      // Use secure upload implementation
-      const uploadedAsset = await secureUpload(file);
-      
-      clearInterval(uploadInterval);
-      setUploadProgress(100);
-      
-      // Create media field value
-      const newValue: MediaFieldValue = {
-        _type: 'media',
-        asset: {
-          _ref: uploadedAsset.id,
-          _type: 'mediaAsset'
-        },
-        alt: '',
-        caption: '',
-        title: uploadedAsset.title || file.name
-      };
-      
-      onChange(newValue);
-      
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-      }, 500);
-      
-    } catch (error) {
-      studioContext?.logger?.error('Upload failed', error);
-      setIsUploading(false);
-      setUploadProgress(0);
-      
-      // Show user-friendly error message
-      if (studioContext?.utils?.showToast) {
-        studioContext.utils.showToast(
-          error instanceof Error ? error.message : 'Upload failed. Please try again.',
-          'error'
-        );
+        URL.revokeObjectURL(currentAsset.url)
       }
     }
-  }, [onChange, isDisabled, isReadonly]);
+  }, [currentAsset?.url])
+
+  // Handle file selection
+  const handleFileSelect = useCallback(
+    async (files: FileList) => {
+      if (!files.length || isDisabled || isReadonly) return
+
+      const file = files[0] // Single file for now
+
+      try {
+        setIsUploading(true)
+        setUploadProgress(0)
+
+        // Simulate upload progress (replace with actual upload logic)
+        const uploadInterval = setInterval(() => {
+          setUploadProgress(prev => {
+            if (prev >= 90) {
+              clearInterval(uploadInterval)
+              return 90
+            }
+            return prev + 10
+          })
+        }, 100)
+
+        // Use secure upload implementation
+        const uploadedAsset = await secureUpload(file)
+
+        clearInterval(uploadInterval)
+        setUploadProgress(100)
+
+        // Create media field value
+        const newValue: MediaFieldValue = {
+          _type: 'media',
+          asset: {
+            _ref: uploadedAsset.id,
+            _type: 'mediaAsset',
+          },
+          alt: '',
+          caption: '',
+          title: uploadedAsset.title || file.name,
+        }
+
+        onChange(newValue)
+
+        setTimeout(() => {
+          setIsUploading(false)
+          setUploadProgress(0)
+        }, 500)
+      } catch (error) {
+        studioContext?.logger?.error('Upload failed', error)
+        setIsUploading(false)
+        setUploadProgress(0)
+
+        // Show user-friendly error message
+        if (studioContext?.utils?.showToast) {
+          studioContext.utils.showToast(
+            error instanceof Error
+              ? error.message
+              : 'Upload failed. Please try again.',
+            'error'
+          )
+        }
+      }
+    },
+    [onChange, isDisabled, isReadonly]
+  )
 
   // SECURITY: Replace with actual server-side upload implementation
   // This is a placeholder that should be replaced with proper upload API
@@ -224,102 +275,126 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     // 3. Content type verification
     // 4. Safe file storage (not in web-accessible directory)
     // 5. Proper asset management
-    
+
     if (!studioContext?.apiClient?.uploadMedia) {
-      throw new Error('Upload functionality not implemented. Use existing media browser instead.');
+      throw new Error(
+        'Upload functionality not implemented. Use existing media browser instead.'
+      )
     }
-    
+
     try {
-      const response = await studioContext.apiClient.uploadMedia(file, undefined, {
-        // Add metadata for tracking
-        uploadedAt: new Date().toISOString(),
-        originalName: file.name,
-        size: file.size,
-        contentType: file.type
-      });
-      
+      const response = await studioContext.apiClient.uploadMedia(
+        file,
+        undefined,
+        {
+          // Add metadata for tracking
+          uploadedAt: new Date().toISOString(),
+          originalName: file.name,
+          size: file.size,
+          contentType: file.type,
+        }
+      )
+
       if (response.success && response.data) {
-        return response.data;
+        return response.data
       } else {
-        throw new Error('Upload failed: ' + (response.error || 'Unknown error'));
+        throw new Error('Upload failed: ' + (response.error || 'Unknown error'))
       }
     } catch (error) {
-      studioContext?.logger?.error('Secure upload failed', error);
-      throw new Error('Upload failed. Please try again or use the media browser to select existing files.');
+      studioContext?.logger?.error('Secure upload failed', error)
+      throw new Error(
+        'Upload failed. Please try again or use the media browser to select existing files.'
+      )
     }
-  };
+  }
 
   // Handle drag events
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (!options.enableDragDrop || isDisabled || isReadonly) return;
-    setIsDragOver(true);
-  }, [options.enableDragDrop, isDisabled, isReadonly]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      if (!options.enableDragDrop || isDisabled || isReadonly) return
+      setIsDragOver(true)
+    },
+    [options.enableDragDrop, isDisabled, isReadonly]
+  )
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) {
-      setIsDragOver(false);
+      setIsDragOver(false)
     }
-  }, []);
+  }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    
-    if (!options.enableDragDrop || isDisabled || isReadonly) return;
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect(files);
-    }
-  }, [options.enableDragDrop, handleFileSelect, isDisabled, isReadonly]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setIsDragOver(false)
+
+      if (!options.enableDragDrop || isDisabled || isReadonly) return
+
+      const files = e.dataTransfer.files
+      if (files.length > 0) {
+        handleFileSelect(files)
+      }
+    },
+    [options.enableDragDrop, handleFileSelect, isDisabled, isReadonly]
+  )
 
   // Handle click upload
   const handleUploadClick = useCallback(() => {
     if (options.enableUpload && fileInputRef.current) {
-      fileInputRef.current.click();
+      fileInputRef.current.click()
     }
-  }, [options.enableUpload]);
+  }, [options.enableUpload])
 
   // Handle browse media
   const handleBrowseClick = useCallback(() => {
     if (options.enableBrowse && studioContext?.utils?.showMediaBrowser) {
       studioContext.utils.showMediaBrowser({
         onSelect: (selectedValue: MediaFieldValue) => {
-          onChange(selectedValue);
+          onChange(selectedValue)
         },
         mediaTypeFilter: validation.restrictToMediaType,
         showVariantSelector: options.showVariantSelector,
-        context: fieldId
-      });
+        context: fieldId,
+      })
     }
-  }, [options.enableBrowse, studioContext, onChange, validation.restrictToMediaType, options.showVariantSelector, fieldId]);
+  }, [
+    options.enableBrowse,
+    studioContext,
+    onChange,
+    validation.restrictToMediaType,
+    options.showVariantSelector,
+    fieldId,
+  ])
 
   // Handle remove media
   const handleRemove = useCallback(() => {
-    onChange(null);
-  }, [onChange]);
+    onChange(null)
+  }, [onChange])
 
   // Handle metadata edit
   const handleMetadataEdit = useCallback(() => {
-    setShowMetadataEditor(true);
-  }, []);
+    setShowMetadataEditor(true)
+  }, [])
 
   // Handle instance metadata change
-  const handleInstanceMetadataChange = useCallback((field: string, newValue: string) => {
-    if (!value) return;
-    
-    onChange({
-      ...value,
-      [field]: newValue
-    });
-  }, [value, onChange]);
+  const handleInstanceMetadataChange = useCallback(
+    (field: string, newValue: string) => {
+      if (!value) return
+
+      onChange({
+        ...value,
+        [field]: newValue,
+      })
+    },
+    [value, onChange]
+  )
 
   // Get accepted file types for input
   const getAcceptedTypes = () => {
     if (validation.allowedTypes) {
-      return validation.allowedTypes.join(',');
+      return validation.allowedTypes.join(',')
     }
     if (validation.restrictToMediaType) {
       const typeMap = {
@@ -327,19 +402,19 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         video: 'video/*',
         audio: 'audio/*',
         document: '.pdf,.doc,.docx,.txt,.rtf',
-        archive: '.zip,.rar,.7z,.tar,.gz'
-      };
-      return typeMap[validation.restrictToMediaType] || '*/*';
+        archive: '.zip,.rar,.7z,.tar,.gz',
+      }
+      return typeMap[validation.restrictToMediaType] || '*/*'
     }
-    return '*/*';
-  };
+    return '*/*'
+  }
 
   // Get media type icon
   const getMediaIcon = (mimeType: string) => {
-    const mediaType = getMediaTypeFromMime(mimeType);
-    const IconComponent = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon;
-    return IconComponent;
-  };
+    const mediaType = getMediaTypeFromMime(mimeType)
+    const IconComponent = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon
+    return IconComponent
+  }
 
   // Render upload area
   const renderUploadArea = () => (
@@ -347,9 +422,10 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       ref={dropZoneRef}
       className={`
         relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
-        ${isDragOver 
-          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
-          : 'border-gray-300 dark:border-gray-600'
+        ${
+          isDragOver
+            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-gray-300 dark:border-gray-600'
         }
         ${hasError ? '!border-red-400' : ''}
         ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -363,9 +439,11 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         <div className="space-y-4">
           <CloudArrowUpIcon className="mx-auto h-12 w-12 text-blue-500 animate-pulse" />
           <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Uploading...</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Uploading...
+            </p>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               />
@@ -378,13 +456,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-              {options.enableDragDrop ? 'Drop files here or click to upload' : 'Click to upload'}
+              {options.enableDragDrop
+                ? 'Drop files here or click to upload'
+                : 'Click to upload'}
             </h3>
             <p className="text-xs text-gray-500">
-              {validation.maxFileSize 
+              {validation.maxFileSize
                 ? `Max size: ${formatFileSize(validation.maxFileSize)}`
-                : 'Select a file to upload'
-              }
+                : 'Select a file to upload'}
             </p>
             {validation.allowedExtensions && (
               <p className="text-xs text-gray-500">
@@ -392,30 +471,30 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               </p>
             )}
           </div>
-          
+
           {(options.enableUpload || options.enableBrowse) && (
             <div className="flex justify-center space-x-3">
               {options.enableUpload && (
                 <button
                   type="button"
                   className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:bg-blue-900/50 dark:border-blue-700 dark:text-blue-400"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleUploadClick();
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleUploadClick()
                   }}
                 >
                   <PlusIcon className="w-4 h-4 mr-1" />
                   Upload
                 </button>
               )}
-              
+
               {options.enableBrowse && (
                 <button
                   type="button"
                   className="inline-flex items-center px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleBrowseClick();
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleBrowseClick()
                   }}
                 >
                   <FolderOpenIcon className="w-4 h-4 mr-1" />
@@ -427,12 +506,12 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         </div>
       )}
     </div>
-  );
+  )
 
   // Render selected media preview with proper asset resolution
   const renderMediaPreview = () => {
-    if (!value) return null;
-    
+    if (!value) return null
+
     // Show error state if asset failed to load
     if (assetLoadError) {
       return (
@@ -442,7 +521,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               <div className="w-16 h-16 bg-red-100 dark:bg-red-700 rounded-md flex items-center justify-center">
                 <XMarkIcon className="w-8 h-8 text-red-400" />
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium text-red-900 dark:text-red-300 truncate">
                   {value?.title || 'Media Asset'}
@@ -455,7 +534,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               {!isReadonly && (
                 <button
@@ -470,9 +549,9 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             </div>
           </div>
         </div>
-      );
+      )
     }
-    
+
     // Show loading state while asset is being loaded
     if (!currentAsset && !assetLoadError) {
       return (
@@ -482,7 +561,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center animate-pulse">
                 <PhotoIcon className="w-8 h-8 text-gray-400" />
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
                 <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
@@ -490,62 +569,92 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             </div>
           </div>
         </div>
-      );
+      )
     }
-    
+
     // Show actual asset information
-    const asset = currentAsset;
-    const mediaType = asset ? getMediaTypeFromMime(asset.contentType) : 'document';
-    const MediaIcon = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon;
-    
+    const asset = currentAsset
+    const mediaType = asset
+      ? getMediaTypeFromMime(asset.contentType)
+      : 'document'
+    const MediaIcon = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon
+
     return (
       <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
         <div className="flex items-start gap-3">
           {/* Cell 1: Thumbnail - Fixed width */}
           <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center flex-shrink-0">
             {asset?.url && mediaType === 'image' ? (
-              <img 
+              <img
                 src={(() => {
                   // Use MediaUrlGenerator if available from Studio Context
                   if (studioContext?.mediaUrlGenerator) {
                     return studioContext.mediaUrlGenerator.getMediaUrl(
-                      value.asset._ref, 
+                      value.asset._ref,
                       value.variant || 'thumbnail'
-                    );
+                    )
+                  }
+                  // Fallback to apiClient.getMediaUrl if available
+                  if (studioContext?.apiClient?.getMediaUrl) {
+                    return studioContext.apiClient.getMediaUrl(
+                      value.asset._ref,
+                      value.variant || 'thumbnail'
+                    )
                   }
                   // Fallback: Try to use thumbnail variant if available
                   if (asset.metadata?.imageVariants?.thumbnail) {
-                    return asset.metadata.imageVariants.thumbnail.url;
+                    return asset.metadata.imageVariants.thumbnail.url
                   }
                   // Fallback to main URL
-                  return asset.url;
-                })()} 
+                  return asset.url
+                })()}
                 alt={value?.alt || asset.title || asset.filename}
                 className="w-full h-full object-cover rounded-md"
-                onError={(e) => {
+                onError={e => {
                   // Fallback to icon if image fails to load
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
                 }}
               />
             ) : null}
-            <MediaIcon className={`w-8 h-8 text-gray-400 ${asset?.url && mediaType === 'image' ? 'hidden' : ''}`} />
+            <MediaIcon
+              className={`w-8 h-8 text-gray-400 ${asset?.url && mediaType === 'image' ? 'hidden' : ''}`}
+            />
           </div>
-          
+
           {/* Cell 2: Content - Flexible width with truncation */}
           <div className="min-w-0 flex-1">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={value?.title || asset?.title || asset?.filename || 'Media Asset'}>
-              {truncateText(value?.title || asset?.title || asset?.filename || 'Media Asset', 50)}
+            <h4
+              className="text-sm font-medium text-gray-900 dark:text-white truncate"
+              title={
+                value?.title || asset?.title || asset?.filename || 'Media Asset'
+              }
+            >
+              {truncateText(
+                value?.title ||
+                  asset?.title ||
+                  asset?.filename ||
+                  'Media Asset',
+                50
+              )}
             </h4>
             <div className="space-y-0.5">
-              <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
-                <span className="font-medium">File:</span> {truncateText(asset?.filename || 'Unknown', 40)}
+              <p
+                className="text-xs text-gray-500 truncate"
+                title={asset?.filename}
+              >
+                <span className="font-medium">File:</span>{' '}
+                {truncateText(asset?.filename || 'Unknown', 40)}
               </p>
               <p className="text-xs text-gray-500">
-                <span className="font-medium">Size:</span> {asset ? formatFileSize(asset.size) : 'Unknown'}
+                <span className="font-medium">Size:</span>{' '}
+                {asset ? formatFileSize(asset.size) : 'Unknown'}
               </p>
               {asset?.contentType && (
-                <p className="text-xs text-gray-500 truncate" title={asset.contentType}>
+                <p
+                  className="text-xs text-gray-500 truncate"
+                  title={asset.contentType}
+                >
                   <span className="font-medium">Type:</span> {asset.contentType}
                 </p>
               )}
@@ -556,7 +665,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               )}
             </div>
           </div>
-          
+
           {/* Cell 3: Actions - Fixed width */}
           <div className="flex items-start space-x-2 flex-shrink-0">
             {!isReadonly && (
@@ -577,32 +686,40 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-gray-600">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Alt text {options.requireAlt && <span className="text-red-500">*</span>}
+                Alt text{' '}
+                {options.requireAlt && <span className="text-red-500">*</span>}
               </label>
               <input
                 type="text"
                 value={value?.alt || ''}
-                onChange={(e) => handleInstanceMetadataChange('alt', e.target.value)}
+                onChange={e =>
+                  handleInstanceMetadataChange('alt', e.target.value)
+                }
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="Describe this image for accessibility"
                 disabled={isDisabled || isReadonly}
               />
             </div>
-            
+
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Caption {options.requireCaption && <span className="text-red-500">*</span>}
+                Caption{' '}
+                {options.requireCaption && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               <input
                 type="text"
                 value={value?.caption || ''}
-                onChange={(e) => handleInstanceMetadataChange('caption', e.target.value)}
+                onChange={e =>
+                  handleInstanceMetadataChange('caption', e.target.value)
+                }
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="Add a caption"
                 disabled={isDisabled || isReadonly}
               />
             </div>
-            
+
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Title override
@@ -610,14 +727,16 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               <input
                 type="text"
                 value={value?.title || ''}
-                onChange={(e) => handleInstanceMetadataChange('title', e.target.value)}
+                onChange={e =>
+                  handleInstanceMetadataChange('title', e.target.value)
+                }
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder={
-                  asset?.title 
+                  asset?.title
                     ? truncateText(asset.title, 40)
-                    : asset?.filename 
+                    : asset?.filename
                       ? truncateText(asset.filename, 40)
-                      : "Override the asset title for this usage"
+                      : 'Override the asset title for this usage'
                 }
                 title={asset?.title || asset?.filename || 'Asset title'}
                 disabled={isDisabled || isReadonly}
@@ -626,8 +745,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           </div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -636,7 +755,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         ref={fileInputRef}
         type="file"
         accept={getAcceptedTypes()}
-        onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
+        onChange={e => e.target.files && handleFileSelect(e.target.files)}
         className="hidden"
         disabled={isDisabled || isReadonly}
       />
@@ -646,5 +765,5 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       {/* TODO: Add metadata editor modal */}
     </div>
-  );
+  )
 }

@@ -3,122 +3,218 @@
  * Content for the media selection modal using global Modal component
  */
 
-import React, { useState, useEffect } from 'react';
-import type { MediaFieldValue, MediaType } from '../types';
+import React, { useState, useEffect } from 'react'
+import type { MediaFieldValue, MediaType } from '../types'
 
 // Types for Studio API integration
 interface MediaFile {
-  id: string;
-  filename: string;
-  contentType: string;
-  size: number;
-  url: string;
-  uploadedAt: string;
+  id: string
+  filename: string
+  contentType: string
+  size: number
+  url: string
+  uploadedAt: string
   metadata?: {
-    width?: number;
-    height?: number;
-    duration?: number;
-    title?: string;
-    alt?: string;
-    credit?: string;
-    author?: string;
-    tags?: string[];
-    imageVariants?: Record<string, {
-      url: string;
-      width: number;
-      height: number;
-      format: string;
-      size: number;
-    }>;
+    width?: number
+    height?: number
+    duration?: number
+    title?: string
+    alt?: string
+    credit?: string
+    author?: string
+    tags?: string[]
+    imageVariants?: Record<
+      string,
+      {
+        url: string
+        width: number
+        height: number
+        format: string
+        size: number
+      }
+    >
     originalDimensions?: {
-      width: number;
-      height: number;
-    };
-  };
+      width: number
+      height: number
+    }
+  }
 }
 
 // API client interface (matching StudioContext.apiClient structure)
 interface MediaBrowserAPI {
-  getMedia: (options?: any) => Promise<any>;
-  getMediaById?: (id: string) => Promise<any>;
-  getMediaUrl?: (assetRef: string, variant?: string) => string;
-  uploadMedia?: (file: File, collection?: string, metadata?: any) => Promise<any>;
-  deleteMedia?: (id: string) => Promise<any>;
-  updateMedia?: (id: string, metadata: any) => Promise<any>;
+  getMedia: (options?: any) => Promise<any>
+  getMediaById?: (id: string) => Promise<any>
+  getMediaUrl?: (assetRef: string, variant?: string) => string
+  uploadMedia?: (
+    file: File,
+    collection?: string,
+    metadata?: any
+  ) => Promise<any>
+  deleteMedia?: (id: string) => Promise<any>
+  updateMedia?: (id: string, metadata: any) => Promise<any>
 }
 
 // SVG Icons
 const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
   </svg>
-);
+)
 
 interface MediaBrowserContentProps {
-  onSelect: (value: MediaFieldValue) => void;
-  mediaTypeFilter?: MediaType;
-  showVariantSelector?: boolean;
-  context?: string;
+  onSelect: (value: MediaFieldValue) => void
+  mediaTypeFilter?: MediaType
+  showVariantSelector?: boolean
+  context?: string
   // TODO: Add API client when Studio context is available
-  apiClient?: MediaBrowserAPI;
+  apiClient?: MediaBrowserAPI
   // Studio logger for consistent logging
   logger?: {
-    debug: (message: string, data?: any) => void;
-    info: (message: string, data?: any) => void;
-    warn: (message: string, data?: any) => void;
-    error: (message: string, error?: Error | any) => void;
-  };
+    debug: (message: string, data?: any) => void
+    info: (message: string, data?: any) => void
+    warn: (message: string, data?: any) => void
+    error: (message: string, error?: Error | any) => void
+  }
   // MediaUrlGenerator for proper URL construction
   mediaUrlGenerator?: {
-    getMediaUrl: (mediaId: string, variant?: string) => string;
-  } | null;
+    getMediaUrl: (mediaId: string, variant?: string) => string
+  } | null
 }
 
 // Helper functions
 function getMediaTypeFromMime(mimeType: string): MediaType {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('word') || 
-      mimeType.includes('excel') || mimeType.includes('powerpoint') || mimeType === 'text/plain') return 'document';
-  if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z') || 
-      mimeType.includes('tar') || mimeType.includes('gzip')) return 'archive';
-  return 'document'; // fallback
+  if (mimeType.startsWith('image/')) return 'image'
+  if (mimeType.startsWith('video/')) return 'video'
+  if (mimeType.startsWith('audio/')) return 'audio'
+  if (
+    mimeType.includes('pdf') ||
+    mimeType.includes('document') ||
+    mimeType.includes('word') ||
+    mimeType.includes('excel') ||
+    mimeType.includes('powerpoint') ||
+    mimeType === 'text/plain'
+  )
+    return 'document'
+  if (
+    mimeType.includes('zip') ||
+    mimeType.includes('rar') ||
+    mimeType.includes('7z') ||
+    mimeType.includes('tar') ||
+    mimeType.includes('gzip')
+  )
+    return 'archive'
+  return 'document' // fallback
 }
 
 function getMediaTypeIcon(mediaType: string): React.ReactElement {
-  const iconClass = "w-full h-full";
+  const iconClass = 'w-full h-full'
   switch (mediaType) {
-    case 'image': return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    );
-    case 'video': return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-      </svg>
-    );
-    case 'audio': return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-      </svg>
-    );
-    case 'document': return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    );
-    case 'archive': return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-      </svg>
-    );
-    default: return (
-      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-    );
+    case 'image':
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      )
+    case 'video':
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+      )
+    case 'audio':
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+          />
+        </svg>
+      )
+    case 'document':
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      )
+    case 'archive':
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+          />
+        </svg>
+      )
+    default:
+      return (
+        <svg
+          className={iconClass}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+          />
+        </svg>
+      )
   }
 }
 
@@ -126,98 +222,104 @@ function getMediaTypeIcon(mediaType: string): React.ReactElement {
 function getBestPreviewVariant(media: MediaFile): string | undefined {
   // For image media with variants, prefer thumbnail > small > original
   if (media.metadata?.imageVariants) {
-    const variants = media.metadata.imageVariants;
-    if (variants.thumbnail) return 'thumbnail';
-    if (variants.small) return 'small';
+    const variants = media.metadata.imageVariants
+    if (variants.thumbnail) return 'thumbnail'
+    if (variants.small) return 'small'
     // If no small variants, use original (undefined means original)
   }
   // For non-image media or media without variants, use original
-  return undefined;
+  return undefined
 }
 
 // Helper function to get media URL using the new MediaUrlGenerator
 function getMediaUrl(
-  media: MediaFile, 
+  media: MediaFile,
   variant?: string,
-  mediaUrlGenerator?: { getMediaUrl: (mediaId: string, variant?: string) => string } | null
+  mediaUrlGenerator?: {
+    getMediaUrl: (mediaId: string, variant?: string) => string
+  } | null,
+  apiClient?: MediaBrowserAPI
 ): string {
-  console.log('🔍 getMediaUrl called:', { 
-    mediaId: media.id, 
-    variant, 
-    hasMediaUrlGenerator: !!mediaUrlGenerator,
-    mediaUrlGeneratorType: typeof mediaUrlGenerator
-  });
-  
   // Use MediaUrlGenerator if available (preferred method)
   if (mediaUrlGenerator) {
-    const generatedUrl = mediaUrlGenerator.getMediaUrl(media.id, variant);
-    console.log('✅ MediaUrlGenerator generated URL:', generatedUrl);
-    return generatedUrl;
+    return mediaUrlGenerator.getMediaUrl(media.id, variant)
   }
-  
-  // ERROR: MediaUrlGenerator should be available!
-  console.error('❌ MediaUrlGenerator not available! This should not happen.');
-  console.error('MediaUrlGenerator value:', mediaUrlGenerator);
-  
-  // Throw error instead of fallback to force debugging
-  throw new Error(`MediaUrlGenerator not available for media ${media.id}${variant ? ` variant ${variant}` : ''}`);
+
+  // Fallback to apiClient.getMediaUrl if available
+  if (apiClient?.getMediaUrl) {
+    return apiClient.getMediaUrl(media.id, variant)
+  }
+
+  // If we have a direct URL on the media object, use it
+  if (media.url) {
+    return media.url
+  }
+
+  // ERROR: No way to generate URL
+
+  throw new Error(
+    `Cannot generate URL for media ${media.id}${variant ? ` variant ${variant}` : ''}`
+  )
 }
 
 function formatFileSize(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1);
+  return (bytes / 1024 / 1024).toFixed(1)
 }
 
-export function MediaBrowserContent({ 
-  onSelect, 
-  mediaTypeFilter, 
+export function MediaBrowserContent({
+  onSelect,
+  mediaTypeFilter,
   showVariantSelector = false,
   context,
   apiClient,
   logger,
-  mediaUrlGenerator
+  mediaUrlGenerator,
 }: MediaBrowserContentProps) {
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<string>('original');
-  const [viewMode, setViewMode] = useState<'grid' | 'single'>('grid');
-  
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null)
+  const [selectedVariant, setSelectedVariant] = useState<string>('original')
+  const [viewMode, setViewMode] = useState<'grid' | 'single'>('grid')
+
   // Cross-platform development check
-  const isDevelopment = typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true;
+  const isDevelopment =
+    typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true
 
   // Load media files when component mounts
   useEffect(() => {
-    loadMediaFiles();
-  }, []);
+    loadMediaFiles()
+  }, [])
 
   const loadMediaFiles = async () => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      logger?.debug('MediaBrowser: apiClient received', { 
-        apiClient: !!apiClient, 
-        type: typeof apiClient, 
-        hasGetMedia: !!(apiClient?.getMedia) 
-      });
-      
+      logger?.debug('MediaBrowser: apiClient received', {
+        apiClient: !!apiClient,
+        type: typeof apiClient,
+        hasGetMedia: !!apiClient?.getMedia,
+      })
+
       if (apiClient && typeof apiClient.getMedia === 'function') {
         // Use real API when available
-        logger?.debug('MediaBrowser: Loading media from API...');
-        const response = await apiClient.getMedia();
-        
-        logger?.debug('MediaBrowser: API response received', response);
-        
+        logger?.debug('MediaBrowser: Loading media from API...')
+        const response = await apiClient.getMedia()
+
+        logger?.debug('MediaBrowser: API response received', response)
+
         // Handle v2 API response format only
         if (response?.success && Array.isArray(response.data)) {
-          logger?.info('MediaBrowser: Loaded media files from API', { count: response.data.length });
-          setMediaFiles(response.data);
+          logger?.info('MediaBrowser: Loaded media files from API', {
+            count: response.data.length,
+          })
+          setMediaFiles(response.data)
         } else {
-          logger?.warn('MediaBrowser: Invalid API response format', response);
-          setMediaFiles([]);
+          logger?.warn('MediaBrowser: Invalid API response format', response)
+          setMediaFiles([])
         }
       } else {
         // Fallback to mock data for development/demo
-        logger?.warn('MediaBrowser: No API client provided, using mock data');
+        logger?.warn('MediaBrowser: No API client provided, using mock data')
         const mockData: MediaFile[] = [
           {
             id: 'asset-1',
@@ -233,15 +335,39 @@ export function MediaBrowserContent({
               author: 'John Photographer',
               originalDimensions: { width: 1920, height: 1080 },
               imageVariants: {
-                thumbnail: { url: 'https://picsum.photos/150/150?random=1', width: 150, height: 150, format: 'jpeg', size: 12000 },
-                small: { url: 'https://picsum.photos/400/300?random=1', width: 400, height: 300, format: 'jpeg', size: 45000 },
-                medium: { url: 'https://picsum.photos/800/600?random=1', width: 800, height: 600, format: 'jpeg', size: 120000 },
-                large: { url: 'https://picsum.photos/1200/900?random=1', width: 1200, height: 900, format: 'jpeg', size: 280000 }
-              }
-            }
+                thumbnail: {
+                  url: 'https://picsum.photos/150/150?random=1',
+                  width: 150,
+                  height: 150,
+                  format: 'jpeg',
+                  size: 12000,
+                },
+                small: {
+                  url: 'https://picsum.photos/400/300?random=1',
+                  width: 400,
+                  height: 300,
+                  format: 'jpeg',
+                  size: 45000,
+                },
+                medium: {
+                  url: 'https://picsum.photos/800/600?random=1',
+                  width: 800,
+                  height: 600,
+                  format: 'jpeg',
+                  size: 120000,
+                },
+                large: {
+                  url: 'https://picsum.photos/1200/900?random=1',
+                  width: 1200,
+                  height: 900,
+                  format: 'jpeg',
+                  size: 280000,
+                },
+              },
+            },
           },
           {
-            id: 'asset-2', 
+            id: 'asset-2',
             filename: 'product-demo.mp4',
             contentType: 'video/mp4',
             size: 15728640,
@@ -251,8 +377,8 @@ export function MediaBrowserContent({
               width: 1280,
               height: 720,
               duration: 30,
-              title: 'Product Demo Video'
-            }
+              title: 'Product Demo Video',
+            },
           },
           {
             id: 'asset-3',
@@ -263,8 +389,8 @@ export function MediaBrowserContent({
             uploadedAt: new Date().toISOString(),
             metadata: {
               duration: 180,
-              title: 'Background Music Track'
-            }
+              title: 'Background Music Track',
+            },
           },
           {
             id: 'asset-4',
@@ -274,39 +400,45 @@ export function MediaBrowserContent({
             url: '#',
             uploadedAt: new Date().toISOString(),
             metadata: {
-              title: 'User Manual Document'
-            }
-          }
-        ];
-        
-        setMediaFiles(mockData);
+              title: 'User Manual Document',
+            },
+          },
+        ]
+
+        setMediaFiles(mockData)
       }
     } catch (error) {
-      logger?.error('Failed to load media files', error);
-      setMediaFiles([]);
+      logger?.error('Failed to load media files', error)
+      setMediaFiles([])
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   // Filter media files
   const filteredMedia = mediaFiles.filter(media => {
     // Apply media type filter
-    if (mediaTypeFilter && getMediaTypeFromMime(media.contentType) !== mediaTypeFilter) {
-      return false;
+    if (
+      mediaTypeFilter &&
+      getMediaTypeFromMime(media.contentType) !== mediaTypeFilter
+    ) {
+      return false
     }
-    
+
     // Apply search filter
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
     return (
       media.filename.toLowerCase().includes(search) ||
       media.id.toLowerCase().includes(search) ||
-      (media.metadata?.title && media.metadata.title.toLowerCase().includes(search)) ||
-      (media.metadata?.author && media.metadata.author.toLowerCase().includes(search)) ||
-      (media.metadata?.credit && media.metadata.credit.toLowerCase().includes(search))
-    );
-  });
+      (media.metadata?.title &&
+        media.metadata.title.toLowerCase().includes(search)) ||
+      (media.metadata?.author &&
+        media.metadata.author.toLowerCase().includes(search)) ||
+      (media.metadata?.credit &&
+        media.metadata.credit.toLowerCase().includes(search))
+    )
+  })
 
   const handleSelect = () => {
     if (selectedMedia) {
@@ -315,19 +447,19 @@ export function MediaBrowserContent({
         _type: 'media',
         asset: {
           _ref: selectedMedia.id,
-          _type: 'mediaAsset'
+          _type: 'mediaAsset',
         },
         alt: '',
         caption: '',
         title: '', // Leave empty by default - users can add their own meaningful title
-        variant: selectedVariant
-      };
-      
-      onSelect(mediaValue);
-      setSelectedMedia(null);
-      setSelectedVariant('original');
+        variant: selectedVariant,
+      }
+
+      onSelect(mediaValue)
+      setSelectedMedia(null)
+      setSelectedVariant('original')
     }
-  };
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -340,7 +472,7 @@ export function MediaBrowserContent({
               type="text"
               placeholder="Search by filename, title, author, or description..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -354,14 +486,24 @@ export function MediaBrowserContent({
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
             <button
               onClick={() => {
-                setViewMode('grid');
-                setSelectedMedia(null);
-                setSelectedVariant('original');
+                setViewMode('grid')
+                setSelectedMedia(null)
+                setSelectedVariant('original')
               }}
               className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
               Back to Grid
             </button>
@@ -374,151 +516,228 @@ export function MediaBrowserContent({
               {/* Media preview */}
               <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
                 {(() => {
-                  const mediaType = getMediaTypeFromMime(selectedMedia.contentType);
-                  
+                  const mediaType = getMediaTypeFromMime(
+                    selectedMedia.contentType
+                  )
+
                   if (mediaType === 'image') {
-                    const previewUrl = selectedVariant === 'original' 
-                      ? getMediaUrl(selectedMedia, undefined, mediaUrlGenerator)
-                      : getMediaUrl(selectedMedia, selectedVariant, mediaUrlGenerator);
-                    
+                    const previewUrl =
+                      selectedVariant === 'original'
+                        ? getMediaUrl(
+                            selectedMedia,
+                            undefined,
+                            mediaUrlGenerator,
+                            apiClient
+                          )
+                        : getMediaUrl(
+                            selectedMedia,
+                            selectedVariant,
+                            mediaUrlGenerator,
+                            apiClient
+                          )
+
                     return (
                       <div className="w-full h-full max-w-[800px] max-h-[400px] flex items-center justify-center">
-                        <img
-                          src={previewUrl}
-                          alt={selectedMedia.metadata?.title || selectedMedia.filename}
-                          className="max-w-full max-h-full object-contain"
-                        />
+                        {previewUrl ? (
+                          <img
+                            key={`${selectedMedia.id}-${selectedVariant}-${previewUrl}`} // Use URL in key for proper re-render
+                            src={previewUrl}
+                            alt={
+                              selectedMedia.metadata?.title ||
+                              selectedMedia.filename
+                            }
+                            className="max-w-full max-h-full object-contain"
+                            loading="eager" // Force immediate loading
+                            onLoad={() => {
+                              // Image loaded successfully
+                            }}
+                            onError={e => {
+                              // Try fallback URL if available
+                              if (
+                                selectedMedia.url &&
+                                e.currentTarget.src !== selectedMedia.url
+                              ) {
+                                e.currentTarget.src = selectedMedia.url
+                              } else {
+                                // Prevent error propagation that might break React rendering
+                                e.currentTarget.onerror = null
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="text-gray-500">
+                            No preview URL available
+                          </div>
+                        )}
                       </div>
-                    );
+                    )
                   } else if (mediaType === 'video') {
                     return (
                       <video
-                        src={getMediaUrl(selectedMedia, undefined, mediaUrlGenerator)}
+                        src={getMediaUrl(
+                          selectedMedia,
+                          undefined,
+                          mediaUrlGenerator,
+                          apiClient
+                        )}
                         controls
                         className="max-w-full max-h-full"
                       />
-                    );
+                    )
                   } else if (mediaType === 'audio') {
                     return (
                       <audio
-                        src={getMediaUrl(selectedMedia, undefined, mediaUrlGenerator)}
+                        src={getMediaUrl(
+                          selectedMedia,
+                          undefined,
+                          mediaUrlGenerator,
+                          apiClient
+                        )}
                         controls
                         className="w-full max-w-md"
                       />
-                    );
+                    )
                   }
-                  
+
                   return (
                     <div className="text-center">
-                      <div className="w-24 h-24 mx-auto mb-4 opacity-50">{getMediaTypeIcon(mediaType)}</div>
+                      <div className="w-24 h-24 mx-auto mb-4 opacity-50">
+                        {getMediaTypeIcon(mediaType)}
+                      </div>
                       <p className="text-gray-600 dark:text-gray-400 mb-4">
                         Preview not available for this file type
                       </p>
                     </div>
-                  );
+                  )
                 })()}
               </div>
-              
+
               {/* Image Variants Section */}
-              {getMediaTypeFromMime(selectedMedia.contentType) === 'image' && selectedMedia.metadata?.imageVariants && Object.keys(selectedMedia.metadata.imageVariants).length > 0 && (
-                <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                      Image Variants
-                    </h3>
-                    {apiClient?.regenerateVariants && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            logger?.info('Regenerating variants for', { mediaId: selectedMedia.id });
-                            await apiClient.regenerateVariants(selectedMedia.id);
-                            // Refresh media list to get updated variants
-                            loadMediaFiles();
-                          } catch (error) {
-                            logger?.error('Failed to regenerate variants', error);
-                          }
-                        }}
-                        className="text-xs px-2 py-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 border border-blue-600 dark:border-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      >
-                        Regenerate
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 overflow-x-auto pb-1">
-                    {/* Original variant */}
-                    <div className="flex-shrink-0 group relative">
-                      <div
-                        className={`cursor-pointer rounded border-2 transition-all ${
-                          selectedVariant === 'original'
-                            ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                        }`}
-                        onClick={() => setSelectedVariant('original')}
-                      >
-                        <img
-                          src={getMediaUrl(selectedMedia, undefined, mediaUrlGenerator)}
-                          alt="Original"
-                          className="w-16 h-16 object-cover rounded"
-                          loading="lazy"
-                        />
-                      </div>
-                      <div className="mt-1 text-center">
-                        <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                          Original
-                        </div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-500">
-                          {selectedMedia.metadata?.width} × {selectedMedia.metadata?.height}
-                        </div>
-                      </div>
+              {getMediaTypeFromMime(selectedMedia.contentType) === 'image' &&
+                selectedMedia.metadata?.imageVariants &&
+                Object.keys(selectedMedia.metadata.imageVariants).length >
+                  0 && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                        Image Variants
+                      </h3>
+                      {apiClient?.regenerateVariants && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              logger?.info('Regenerating variants for', {
+                                mediaId: selectedMedia.id,
+                              })
+                              await apiClient.regenerateVariants(
+                                selectedMedia.id
+                              )
+                              // Refresh media list to get updated variants
+                              loadMediaFiles()
+                            } catch (error) {
+                              logger?.error(
+                                'Failed to regenerate variants',
+                                error
+                              )
+                            }
+                          }}
+                          className="text-xs px-2 py-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 border border-blue-600 dark:border-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          Regenerate
+                        </button>
+                      )}
                     </div>
-                    {/* Available variants */}
-                    {Object.entries(selectedMedia.metadata.imageVariants).map(([variantName, variant]) => (
-                      <div key={variantName} className="flex-shrink-0 group relative">
+                    <div className="flex space-x-2 overflow-x-auto pb-1">
+                      {/* Original variant */}
+                      <div className="flex-shrink-0 group relative">
                         <div
                           className={`cursor-pointer rounded border-2 transition-all ${
-                            selectedVariant === variantName
+                            selectedVariant === 'original'
                               ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
                               : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                           }`}
-                          onClick={() => setSelectedVariant(variantName)}
+                          onClick={() => setSelectedVariant('original')}
                         >
                           <img
-                            src={getMediaUrl(selectedMedia, variantName, mediaUrlGenerator)}
-                            alt={`${variantName} variant`}
+                            src={getMediaUrl(
+                              selectedMedia,
+                              undefined,
+                              mediaUrlGenerator,
+                              apiClient
+                            )}
+                            alt="Original"
                             className="w-16 h-16 object-cover rounded"
                             loading="lazy"
                           />
                         </div>
                         <div className="mt-1 text-center">
-                          <div className="text-xs text-gray-600 dark:text-gray-400 capitalize truncate">
-                            {variantName}
+                          <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                            Original
                           </div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-500">
-                            {variant.width} × {variant.height}
+                            {selectedMedia.metadata?.width} ×{' '}
+                            {selectedMedia.metadata?.height}
                           </div>
                         </div>
                       </div>
-                    ))}
+                      {/* Available variants */}
+                      {Object.entries(selectedMedia.metadata.imageVariants).map(
+                        ([variantName, variant]) => (
+                          <div
+                            key={variantName}
+                            className="flex-shrink-0 group relative"
+                          >
+                            <div
+                              className={`cursor-pointer rounded border-2 transition-all ${
+                                selectedVariant === variantName
+                                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                              }`}
+                              onClick={() => setSelectedVariant(variantName)}
+                            >
+                              <img
+                                src={getMediaUrl(
+                                  selectedMedia,
+                                  variantName,
+                                  mediaUrlGenerator,
+                                  apiClient
+                                )}
+                                alt={`${variantName} variant`}
+                                className="w-16 h-16 object-cover rounded"
+                                loading="lazy"
+                              />
+                            </div>
+                            <div className="mt-1 text-center">
+                              <div className="text-xs text-gray-600 dark:text-gray-400 capitalize truncate">
+                                {variantName}
+                              </div>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-500">
+                                {variant.width} × {variant.height}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
-                  
-                </div>
-              )}
-              
+                )}
+
               {/* No variants section for images without variants */}
-              {getMediaTypeFromMime(selectedMedia.contentType) === 'image' && 
-               (!selectedMedia.metadata?.imageVariants || Object.keys(selectedMedia.metadata.imageVariants).length === 0) && (
-                <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                  <div className="text-center">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                      Image Variants
-                    </h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                      No variants available for this image.
-                    </p>
+              {getMediaTypeFromMime(selectedMedia.contentType) === 'image' &&
+                (!selectedMedia.metadata?.imageVariants ||
+                  Object.keys(selectedMedia.metadata.imageVariants).length ===
+                    0) && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                    <div className="text-center">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        Image Variants
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        No variants available for this image.
+                      </p>
+                    </div>
                   </div>
-                  
-                </div>
-              )}
+                )}
             </div>
 
             {/* Right sidebar: File Details */}
@@ -553,16 +772,18 @@ export function MediaBrowserContent({
                       {selectedMedia.contentType}
                     </dd>
                   </div>
-                  {selectedMedia.metadata?.width && selectedMedia.metadata?.height && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Dimensions
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedMedia.metadata.width} × {selectedMedia.metadata.height}
-                      </dd>
-                    </div>
-                  )}
+                  {selectedMedia.metadata?.width &&
+                    selectedMedia.metadata?.height && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          Dimensions
+                        </dt>
+                        <dd className="text-sm text-gray-900 dark:text-white">
+                          {selectedMedia.metadata.width} ×{' '}
+                          {selectedMedia.metadata.height}
+                        </dd>
+                      </div>
+                    )}
                   {selectedMedia.metadata?.title && (
                     <div>
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -592,7 +813,11 @@ export function MediaBrowserContent({
                   onClick={handleSelect}
                   className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                 >
-                  Select {selectedVariant === 'original' ? 'Original' : selectedVariant.charAt(0).toUpperCase() + selectedVariant.slice(1)}
+                  Select{' '}
+                  {selectedVariant === 'original'
+                    ? 'Original'
+                    : selectedVariant.charAt(0).toUpperCase() +
+                      selectedVariant.slice(1)}
                 </button>
               </div>
             </div>
@@ -601,119 +826,170 @@ export function MediaBrowserContent({
       ) : (
         <>
           {/* Selected Media Info in Grid View - Only for images with variants */}
-          {selectedMedia && viewMode === 'grid' && getMediaTypeFromMime(selectedMedia.contentType) === 'image' && selectedMedia.metadata?.imageVariants && Object.keys(selectedMedia.metadata.imageVariants).length > 0 && (
-            <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-600">
-              <div className="flex items-start space-x-4">
-                {/* Media preview */}
-                <div className="w-16 h-16 rounded overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                  {(() => {
-                    const mediaType = getMediaTypeFromMime(selectedMedia.contentType);
-                    
-                    if (mediaType === 'image') {
-                      return (
-                        <img
-                          src={getMediaUrl(selectedMedia, getBestPreviewVariant(selectedMedia), mediaUrlGenerator)}
-                          alt={selectedMedia.filename}
-                          className="w-full h-full object-cover"
-                        />
-                      );
-                    }
-                    
-                    return (
-                      <div className="w-6 h-6 text-gray-500 dark:text-gray-400">
-                        {getMediaTypeIcon(mediaType)}
-                      </div>
-                    );
-                  })()} 
-                </div>
-                
-                {/* Media info and variants */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4">
-                    {/* File info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-white truncate" title={selectedMedia.filename}>
-                        {selectedMedia.filename}
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {selectedMedia.metadata?.width && selectedMedia.metadata?.height 
-                          ? `${selectedMedia.metadata.width} × ${selectedMedia.metadata.height} • `
-                          : ''
-                        }{formatFileSize(selectedMedia.size)} MB
-                      </p>
-                    </div>
-                    
-                    {/* Variant Selector for Images */}
-                    {getMediaTypeFromMime(selectedMedia.contentType) === 'image' && selectedMedia.metadata?.imageVariants && Object.keys(selectedMedia.metadata.imageVariants).length > 0 && (
-                      <div className="flex-shrink-0">
-                        <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
-                          Variant
-                        </label>
-                        <div className="flex items-center space-x-1">
-                          {/* Original variant */}
-                          <label className={`cursor-pointer flex flex-col items-center px-2 py-1 rounded border text-xs transition-colors ${
-                            selectedVariant === 'original' 
-                              ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-                          }`}>
-                            <input
-                              type="radio"
-                              name="variant"
-                              value="original"
-                              checked={selectedVariant === 'original'}
-                              onChange={(e) => setSelectedVariant(e.target.value)}
-                              className="sr-only"
-                            />
-                            <div className="font-medium">Original</div>
-                            {selectedMedia.metadata?.originalDimensions && (
-                              <div className="text-gray-500 dark:text-gray-400">
-                                {selectedMedia.metadata.originalDimensions.width}×{selectedMedia.metadata.originalDimensions.height}
-                              </div>
-                            )}
-                          </label>
-                          
-                          {/* Available variants */}
-                          {Object.entries(selectedMedia.metadata.imageVariants).map(([variantName, variant]) => (
-                            <label 
-                              key={variantName}
-                              className={`cursor-pointer flex flex-col items-center px-2 py-1 rounded border text-xs transition-colors ${
-                                selectedVariant === variantName 
-                                  ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name="variant"
-                                value={variantName}
-                                checked={selectedVariant === variantName}
-                                onChange={(e) => setSelectedVariant(e.target.value)}
-                                className="sr-only"
-                              />
-                              <div className="font-medium capitalize">{variantName}</div>
-                              <div className="text-gray-500 dark:text-gray-400">
-                                {variant.width}×{variant.height}
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+          {selectedMedia &&
+            viewMode === 'grid' &&
+            getMediaTypeFromMime(selectedMedia.contentType) === 'image' &&
+            selectedMedia.metadata?.imageVariants &&
+            Object.keys(selectedMedia.metadata.imageVariants).length > 0 && (
+              <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-600">
+                <div className="flex items-start space-x-4">
+                  {/* Media preview */}
+                  <div className="w-16 h-16 rounded overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    {(() => {
+                      const mediaType = getMediaTypeFromMime(
+                        selectedMedia.contentType
+                      )
 
-                    {/* Select Button */}
-                    <div className="flex-shrink-0">
-                      <button
-                        onClick={handleSelect}
-                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-                      >
-                        Select
-                      </button>
+                      if (mediaType === 'image') {
+                        return (
+                          <img
+                            src={getMediaUrl(
+                              selectedMedia,
+                              getBestPreviewVariant(selectedMedia),
+                              mediaUrlGenerator,
+                              apiClient
+                            )}
+                            alt={selectedMedia.filename}
+                            className="w-full h-full object-cover"
+                          />
+                        )
+                      }
+
+                      return (
+                        <div className="w-6 h-6 text-gray-500 dark:text-gray-400">
+                          {getMediaTypeIcon(mediaType)}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Media info and variants */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      {/* File info */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="font-medium text-gray-900 dark:text-white truncate"
+                          title={selectedMedia.filename}
+                        >
+                          {selectedMedia.filename}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {selectedMedia.metadata?.width &&
+                          selectedMedia.metadata?.height
+                            ? `${selectedMedia.metadata.width} × ${selectedMedia.metadata.height} • `
+                            : ''}
+                          {formatFileSize(selectedMedia.size)} MB
+                        </p>
+                      </div>
+
+                      {/* Variant Selector for Images */}
+                      {getMediaTypeFromMime(selectedMedia.contentType) ===
+                        'image' &&
+                        selectedMedia.metadata?.imageVariants &&
+                        Object.keys(selectedMedia.metadata.imageVariants)
+                          .length > 0 && (
+                          <div className="flex-shrink-0">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
+                              Variant
+                            </label>
+                            <div className="flex items-center space-x-1">
+                              {/* Original variant */}
+                              <label
+                                className={`cursor-pointer flex flex-col items-center px-2 py-1 rounded border text-xs transition-colors ${
+                                  selectedVariant === 'original'
+                                    ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="variant"
+                                  value="original"
+                                  checked={selectedVariant === 'original'}
+                                  onChange={e => {
+                                    console.log(
+                                      '📝 Variant selection changed:',
+                                      {
+                                        from: selectedVariant,
+                                        to: e.target.value,
+                                      }
+                                    )
+                                    setSelectedVariant(e.target.value)
+                                  }}
+                                  className="sr-only"
+                                />
+                                <div className="font-medium">Original</div>
+                                {selectedMedia.metadata?.originalDimensions && (
+                                  <div className="text-gray-500 dark:text-gray-400">
+                                    {
+                                      selectedMedia.metadata.originalDimensions
+                                        .width
+                                    }
+                                    ×
+                                    {
+                                      selectedMedia.metadata.originalDimensions
+                                        .height
+                                    }
+                                  </div>
+                                )}
+                              </label>
+
+                              {/* Available variants */}
+                              {Object.entries(
+                                selectedMedia.metadata.imageVariants
+                              ).map(([variantName, variant]) => (
+                                <label
+                                  key={variantName}
+                                  className={`cursor-pointer flex flex-col items-center px-2 py-1 rounded border text-xs transition-colors ${
+                                    selectedVariant === variantName
+                                      ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="variant"
+                                    value={variantName}
+                                    checked={selectedVariant === variantName}
+                                    onChange={e => {
+                                      console.log(
+                                        '📝 Variant selection changed:',
+                                        {
+                                          from: selectedVariant,
+                                          to: e.target.value,
+                                        }
+                                      )
+                                      setSelectedVariant(e.target.value)
+                                    }}
+                                    className="sr-only"
+                                  />
+                                  <div className="font-medium capitalize">
+                                    {variantName}
+                                  </div>
+                                  <div className="text-gray-500 dark:text-gray-400">
+                                    {variant.width}×{variant.height}
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Select Button */}
+                      <div className="flex-shrink-0">
+                        <button
+                          onClick={handleSelect}
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                        >
+                          Select
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Media Grid */}
           <div className="flex-1 overflow-y-auto p-4 max-h-[600px]">
@@ -723,7 +999,7 @@ export function MediaBrowserContent({
               </div>
             ) : filteredMedia.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3">
-                {filteredMedia.map((media) => (
+                {filteredMedia.map(media => (
                   <div
                     key={media.id}
                     className={`relative cursor-pointer rounded-xl border transition-all duration-200 group overflow-hidden ${
@@ -732,66 +1008,78 @@ export function MediaBrowserContent({
                         : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md hover:transform hover:scale-[1.01]'
                     } bg-white dark:bg-gray-800 shadow-sm`}
                     onClick={() => {
-                      const mediaType = getMediaTypeFromMime(media.contentType);
-                      
+                      const mediaType = getMediaTypeFromMime(media.contentType)
+
                       if (mediaType === 'image') {
                         // For images, show single view (variant selector only appears if variants exist)
-                        setSelectedMedia(media);
-                        setSelectedVariant('original');
-                        setViewMode('single');
+                        setSelectedMedia(media)
+                        setSelectedVariant('original')
+                        setViewMode('single')
                       } else {
                         // For non-image files, directly select
                         const mediaValue: MediaFieldValue = {
                           _type: 'media',
                           asset: {
                             _ref: media.id,
-                            _type: 'mediaAsset'
+                            _type: 'mediaAsset',
                           },
                           alt: '',
                           caption: '',
                           title: '', // Leave empty by default - users can add their own meaningful title
-                          variant: 'original'
-                        };
-                        onSelect(mediaValue);
+                          variant: 'original',
+                        }
+                        onSelect(mediaValue)
                       }
                     }}
                   >
                     <div className="aspect-square relative overflow-hidden">
                       {/* Variant count badge */}
                       {(() => {
-                        const variantCount = media.metadata?.imageVariants ? Object.keys(media.metadata.imageVariants).length : 0;
+                        const variantCount = media.metadata?.imageVariants
+                          ? Object.keys(media.metadata.imageVariants).length
+                          : 0
                         return variantCount > 0 ? (
                           <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full z-10 font-medium shadow-sm">
                             {variantCount}
                           </div>
-                        ) : null;
+                        ) : null
                       })()}
                       {(() => {
-                        const mediaType = getMediaTypeFromMime(media.contentType);
-                        
+                        const mediaType = getMediaTypeFromMime(
+                          media.contentType
+                        )
+
                         if (mediaType === 'image') {
                           return (
                             <img
-                              src={getMediaUrl(media, getBestPreviewVariant(media), mediaUrlGenerator)}
+                              src={getMediaUrl(
+                                media,
+                                getBestPreviewVariant(media),
+                                mediaUrlGenerator,
+                                apiClient
+                              )}
                               alt={media.metadata?.title || media.filename}
                               className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                             />
-                          );
+                          )
                         }
-                        
+
                         return (
                           <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
                             <div className="w-8 h-8 text-gray-500 dark:text-gray-400">
                               {getMediaTypeIcon(mediaType)}
                             </div>
                           </div>
-                        );
+                        )
                       })()}
                     </div>
-                    
+
                     {/* Media info */}
                     <div className="p-2">
-                      <p className="text-xs font-medium text-gray-900 dark:text-white truncate" title={media.filename}>
+                      <p
+                        className="text-xs font-medium text-gray-900 dark:text-white truncate"
+                        title={media.filename}
+                      >
                         {media.filename}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -805,14 +1093,18 @@ export function MediaBrowserContent({
               <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
                 <div className="w-16 h-16 mb-4 opacity-50">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
                   </svg>
                 </div>
                 <p className="text-sm text-center">
-                  {mediaTypeFilter 
+                  {mediaTypeFilter
                     ? `No ${mediaTypeFilter} files found${searchTerm ? ' matching your search' : ''}`
-                    : `No media files found${searchTerm ? ' matching your search' : ''}`
-                  }
+                    : `No media files found${searchTerm ? ' matching your search' : ''}`}
                 </p>
                 {searchTerm && (
                   <button
@@ -828,5 +1120,5 @@ export function MediaBrowserContent({
         </>
       )}
     </div>
-  );
+  )
 }

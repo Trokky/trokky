@@ -1,14 +1,14 @@
 /**
  * @trokky/fields - Universal Field System
- * 
+ *
  * Works in browser, Node.js, and edge environments.
  * Based on proven legacy architecture from Trokky v1.
- * 
+ *
  * Usage:
  * ```typescript
  * // Integrated Studio (direct import)
  * import { FieldRenderer, fieldRegistry } from '@trokky/fields';
- * 
+ *
  * // Custom field registration
  * import { fieldRegistry } from '@trokky/fields/registry';
  * fieldRegistry.register(myCustomField);
@@ -16,11 +16,11 @@
  */
 
 // Auto-register built-in fields
-import './builtin.js';
+import './builtin.js'
 
 // Core exports
-export { FieldRenderer, FieldWrapper } from './components/index.js';
-export { fieldRegistry, FieldRegistry } from './registry/index.js';
+export { FieldRenderer, FieldWrapper } from './components/index.js'
+export { fieldRegistry, FieldRegistry } from './registry/index.js'
 
 // Type exports
 export type {
@@ -36,43 +36,39 @@ export type {
   FieldPluginSource,
   FieldComponentProps,
   ValidationState,
-  StudioContext
-} from './base/index.js';
+  StudioContext,
+} from './base/index.js'
 
 // Built-in field exports
 export {
   stringFieldPlugin,
   StringFieldComponent,
   StringFieldPreview,
-  validateStringField
-} from './definitions/StringField/index.js';
+  validateStringField,
+} from './definitions/StringField/index.js'
 
 export type {
   StringFieldDefinition,
   StringValidation,
-  StringFieldOptions
-} from './definitions/StringField/index.js';
+  StringFieldOptions,
+} from './definitions/StringField/index.js'
 
-export {
-  textareaFieldPlugin
-} from './definitions/TextareaField/index.js';
+export { textareaFieldPlugin } from './definitions/TextareaField/index.js'
 
 export type {
   TextareaFieldDefinition,
   TextareaValidation,
-  TextareaFieldOptions
-} from './definitions/TextareaField/index.js';
+  TextareaFieldOptions,
+} from './definitions/TextareaField/index.js'
 
 export {
   urlFieldPlugin,
   URLFieldComponent,
   URLFieldPreview,
-  validateURLField
-} from './definitions/URLField/index.js';
+  validateURLField,
+} from './definitions/URLField/index.js'
 
-export type {
-  URLFieldDefinition
-} from './definitions/URLField/index.js';
+export type { URLFieldDefinition } from './definitions/URLField/index.js'
 
 export {
   passwordFieldPlugin,
@@ -80,13 +76,13 @@ export {
   PasswordFieldPreview,
   validatePasswordField,
   calculatePasswordStrength,
-  generatePassword
-} from './definitions/PasswordField/index.js';
+  generatePassword,
+} from './definitions/PasswordField/index.js'
 
 export type {
   PasswordFieldDefinition,
-  PasswordGeneratorOptions
-} from './definitions/PasswordField/index.js';
+  PasswordGeneratorOptions,
+} from './definitions/PasswordField/index.js'
 
 export {
   numberFieldPlugin,
@@ -95,14 +91,14 @@ export {
   validateNumberField,
   formatNumber,
   parseFormattedNumber,
-  cleanNumberString
-} from './definitions/NumberField/index.js';
+  cleanNumberString,
+} from './definitions/NumberField/index.js'
 
 export type {
   NumberFieldDefinition,
   NumberValidation,
-  NumberFieldOptions
-} from './definitions/NumberField/index.js';
+  NumberFieldOptions,
+} from './definitions/NumberField/index.js'
 
 export {
   booleanFieldPlugin,
@@ -110,14 +106,14 @@ export {
   BooleanFieldPreview,
   validateBooleanField,
   convertToBoolean,
-  getBooleanDisplayText
-} from './definitions/BooleanField/index.js';
+  getBooleanDisplayText,
+} from './definitions/BooleanField/index.js'
 
 export type {
   BooleanFieldDefinition,
   BooleanValidation,
-  BooleanFieldOptions
-} from './definitions/BooleanField/index.js';
+  BooleanFieldOptions,
+} from './definitions/BooleanField/index.js'
 
 // Array and Object fields - now modernized with Record format
 export {
@@ -129,8 +125,8 @@ export {
   validateArrayRemove,
   validateArrayMove,
   getDefaultItemValue,
-  sanitizeArrayItem
-} from './definitions/ArrayField/index.js';
+  sanitizeArrayItem,
+} from './definitions/ArrayField/index.js'
 
 export type {
   ArrayFieldDefinition,
@@ -139,8 +135,8 @@ export type {
   ArrayLayout,
   ArrayItemDefinition,
   ArrayOperations,
-  ArrayFieldContext
-} from './definitions/ArrayField/index.js';
+  ArrayFieldContext,
+} from './definitions/ArrayField/index.js'
 
 export {
   ObjectFieldPlugin,
@@ -153,8 +149,8 @@ export {
   getDefaultObjectValue,
   sanitizeObjectValue,
   renderTemplate,
-  isFieldReadOnly
-} from './definitions/ObjectField/index.js';
+  isFieldReadOnly,
+} from './definitions/ObjectField/index.js'
 
 export type {
   ObjectFieldDefinition,
@@ -164,8 +160,8 @@ export type {
   NestedFieldDefinition,
   ObjectOperations,
   ObjectFieldContext,
-  ObjectFieldMetadata
-} from './definitions/ObjectField/index.js';
+  ObjectFieldMetadata,
+} from './definitions/ObjectField/index.js'
 
 export {
   mediaFieldPlugin,
@@ -173,8 +169,8 @@ export {
   MediaFieldPreview,
   validateMediaField,
   MEDIA_FIELD_DEFAULTS,
-  MEDIA_TYPE_PRESETS
-} from './definitions/MediaField/index.js';
+  MEDIA_TYPE_PRESETS,
+} from './definitions/MediaField/index.js'
 
 export type {
   MediaFieldDefinition,
@@ -182,45 +178,37 @@ export type {
   MediaValidation,
   MediaFieldOptions,
   MediaAssetReference,
-  MediaType
-} from './definitions/MediaField/index.js';
+  MediaType,
+} from './definitions/MediaField/index.js'
 
 // MediaField variants as separate field types
-export {
-  AudioFieldPlugin
-} from './definitions/AudioField/index.js';
+export { AudioFieldPlugin } from './definitions/AudioField/index.js'
 
 export type {
   AudioFieldDefinition,
-  AudioFieldValue
-} from './definitions/AudioField/index.js';
+  AudioFieldValue,
+} from './definitions/AudioField/index.js'
 
-export {
-  VideoFieldPlugin
-} from './definitions/VideoField/index.js';
+export { VideoFieldPlugin } from './definitions/VideoField/index.js'
 
 export type {
   VideoFieldDefinition,
-  VideoFieldValue
-} from './definitions/VideoField/index.js';
+  VideoFieldValue,
+} from './definitions/VideoField/index.js'
 
-export {
-  ImageFieldPlugin
-} from './definitions/ImageField/index.js';
+export { ImageFieldPlugin } from './definitions/ImageField/index.js'
 
 export type {
   ImageFieldDefinition,
-  ImageFieldValue
-} from './definitions/ImageField/index.js';
+  ImageFieldValue,
+} from './definitions/ImageField/index.js'
 
-export {
-  DocumentFieldPlugin
-} from './definitions/DocumentField/index.js';
+export { DocumentFieldPlugin } from './definitions/DocumentField/index.js'
 
 export type {
   DocumentFieldDefinition,
-  DocumentFieldValue
-} from './definitions/DocumentField/index.js';
+  DocumentFieldValue,
+} from './definitions/DocumentField/index.js'
 
 export {
   SlugFieldPlugin,
@@ -229,14 +217,14 @@ export {
   defaultSlugify,
   generateUniqueSlug,
   validateSlugFormat,
-  getSourceValue
-} from './definitions/SlugField/index.js';
+  getSourceValue,
+} from './definitions/SlugField/index.js'
 
 export type {
   SlugFieldDefinition,
   SlugFieldValue,
-  SlugifyOptions
-} from './definitions/SlugField/index.js';
+  SlugifyOptions,
+} from './definitions/SlugField/index.js'
 
 export {
   dateFieldPlugin,
@@ -245,15 +233,15 @@ export {
   validateDateField,
   getDefaultDateValue,
   formatDateForDisplay,
-  DATE_FIELD_DEFAULTS
-} from './definitions/DateField/index.js';
+  DATE_FIELD_DEFAULTS,
+} from './definitions/DateField/index.js'
 
 export type {
   DateFieldDefinition,
   DateFieldValue,
   DateValidation,
-  DateFieldOptions
-} from './definitions/DateField/index.js';
+  DateFieldOptions,
+} from './definitions/DateField/index.js'
 
 export {
   richtextFieldPlugin,
@@ -261,15 +249,29 @@ export {
   RichTextFieldPreview,
   validateRichTextField,
   getDefaultRichTextValue,
-  RICHTEXT_FIELD_DEFAULTS
-} from './definitions/RichTextField/index.js';
+  RICHTEXT_FIELD_DEFAULTS,
+} from './definitions/RichTextField/index.js'
 
 export type {
   RichTextFieldDefinition,
   RichTextContent,
   RichTextValidation,
-  RichTextFieldOptions
-} from './definitions/RichTextField/index.js';
+  RichTextFieldOptions,
+} from './definitions/RichTextField/index.js'
+
+export {
+  ColorFieldPlugin,
+  ColorFieldComponent,
+  ColorFieldPreview,
+  COLOR_FIELD_DEFAULTS,
+  DEFAULT_SWATCHES,
+} from './definitions/ColorField/index.js'
+
+export type {
+  ColorFieldDefinition,
+  ColorFieldOptions,
+  ColorFieldValidation,
+} from './definitions/ColorField/index.js'
 
 // Re-export registration function for manual control
-export { registerBuiltinFields } from './builtin.js';
+export { registerBuiltinFields } from './builtin.js'
