@@ -2,7 +2,7 @@
  * DocumentHeader - Document editor header with state management and controls
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   EyeIcon, 
   PencilIcon, 
@@ -46,10 +46,40 @@ export function DocumentHeader() {
     setShowStateMenu(false);
   };
 
-  const getDocumentTitle = () => {
-    if (!document) return 'New Document';
-    return document.title || document.name || document.slug || `New ${schema?.name || 'Document'}`;
-  };
+  const documentTitle = useMemo(() => {
+    if (!document) return `New ${schema?.title || schema?.name || 'Document'}`;
+    
+    // First, try to get the first field value (prioritize user input)
+    if (schema?.fields) {
+      const fields = Array.isArray(schema.fields) 
+        ? schema.fields 
+        : Object.entries(schema.fields).map(([name, field]) => ({ name, ...field }));
+      
+      const firstField = fields[0];
+      if (firstField && document[firstField.name]) {
+        const value = document[firstField.name];
+        if (typeof value === 'string' && value.trim()) {
+          // Don't use if it's just the default "New ..." title
+          if (!value.startsWith('New ')) {
+            return value;
+          }
+        }
+      }
+    }
+    
+    // Then try common title fields (but skip if they're default values)
+    if (document.title && !document.title.startsWith('New ')) {
+      return document.title;
+    }
+    if (document.name && !document.name.startsWith('New ')) {
+      return document.name;
+    }
+    if (document.slug) {
+      return document.slug;
+    }
+    
+    return `New ${schema?.title || schema?.name || 'Document'}`;
+  }, [document, schema]);
 
   const isSingletonDocument = schema?.singleton === true;
   // Show cancel button only when there are unsaved changes (for discarding changes)
@@ -170,7 +200,7 @@ export function DocumentHeader() {
         {/* Second line - Document title */}
         <div className="mb-2">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {getDocumentTitle()}
+            {documentTitle}
           </h1>
           {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
             <div className="flex items-center space-x-2 mt-0.5">
