@@ -20,7 +20,7 @@ export class HttpClient {
   constructor(config: ClientConfig) {
     this.config = {
       baseUrl: config.baseUrl,
-      apiVersion: config.apiVersion ?? 'v1', // Only default to v1 if undefined, not empty string
+      apiVersion: config.apiVersion ?? '', // Default to no versioning, not 'v1'
       token: config.token || '',
       refreshToken: config.refreshToken || '',
       apiToken: config.apiToken || '',
