@@ -98,6 +98,11 @@ export class TrokkyExpress {
         })
       }
 
+      // Trust the first proxy hop (common for SSL termination)
+      // This allows Express to respect X-Forwarded-Proto for generating secure URLs
+      app.set('trust proxy', 1)
+      this.logger.info('Express trust proxy enabled to handle x-forwarded-proto')
+
       // Apply CORS middleware FIRST (before any routes)
       if (this.config.server?.cors) {
         this.logger.debug('Applying CORS middleware', {
