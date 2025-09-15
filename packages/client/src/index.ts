@@ -3,14 +3,14 @@
  * TypeScript-native client for Trokky CMS with type generation
  */
 
-export { HttpClient } from './http/client'
-export { CacheManager } from './cache/manager'
-export { DocumentClient } from './document/client'
-export { TrokkyClient } from './client'
-export { MediaHelper } from './media/helper'
+export { HttpClient } from './http/client.js'
+export { CacheManager } from './cache/manager.js'
+export { DocumentClient } from './document/client.js'
+export { TrokkyClient } from './client.js'
+export { MediaHelper } from './media/helper.js'
 
 // Shortcode support
-export { ShortcodeResolver, createMediaUrlResolver } from './shortcodes/resolver'
+export { ShortcodeResolver, createMediaUrlResolver } from './shortcodes/resolver.js'
 export { 
   parseShortcodeAttrs,
   parseImageShortcode,
@@ -18,7 +18,7 @@ export {
   resolveShortcodes,
   hasShortcodes,
   extractImageShortcodes
-} from './shortcodes/parser'
+} from './shortcodes/parser.js'
 
 export type {
   ClientConfig,
@@ -48,13 +48,13 @@ export type {
   MediaFieldValue,
   MediaAssetReference,
   MediaType
-} from './types'
+} from './types/index.js'
 
 // Shortcode types
 export type {
   TrokkyImageShortcode,
   MediaUrlResolver
-} from './shortcodes/types'
+} from './shortcodes/types.js'
 
 // Type generator exports (for separate import)
 export { 
@@ -63,20 +63,20 @@ export {
   generateTypesFromSchema,
   DocumentGenerator,
   generateDocuments
-} from './generator'
+} from './generator/index.js'
 
 export type {
   FieldSchema,
   DocumentSchema,
   ProjectSchema
-} from './generator'
+} from './generator/index.js'
 
 // Media types
 export type {
   MediaVariant,
   MediaFile,
   MediaResponse
-} from './media/helper'
+} from './media/helper.js'
 
 // React integration (optional export path)
-export * as React from './react'
+export * as React from './react/index.js'

@@ -3,11 +3,11 @@
  * High-level client that orchestrates all SDK functionality
  */
 
-import { HttpClient } from './http/client'
-import { CacheManager } from './cache/manager'
-import { DocumentClient } from './document/client'
-import { MediaHelper } from './media/helper'
-import { ShortcodeResolver } from './shortcodes/resolver'
+import { HttpClient } from './http/client.js'
+import { CacheManager } from './cache/manager.js'
+import { DocumentClient } from './document/client.js'
+import { MediaHelper } from './media/helper.js'
+import { ShortcodeResolver } from './shortcodes/resolver.js'
 
 import type { 
   ClientConfig, 
@@ -18,7 +18,7 @@ import type {
   CollectionResult,
   MediaResult,
   BaseDocument
-} from './types'
+} from './types/index.js'
 
 export class TrokkyClient {
   public readonly http: HttpClient

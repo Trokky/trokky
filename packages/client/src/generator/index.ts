@@ -492,7 +492,7 @@ export class TypeGenerator {
     // Export document types
     for (const document of documents) {
       const filename = this.camelToKebab(document.name)
-      content += `export * from './${filename}'\n`
+      content += `export * from './${filename}.js'\n`
     }
 
     // Export utility types

@@ -7,4 +7,4 @@ export {
   useResolvedContent,
   useHasShortcodes,
   useContentMedia
-} from './hooks';
+} from './hooks.js';

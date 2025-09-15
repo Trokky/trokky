@@ -8,9 +8,9 @@ import type {
   DocumentResult, 
   CollectionResult,
   BaseDocument 
-} from '../types'
-import type { HttpClient } from '../http/client'
-import type { CacheManager } from '../cache/manager'
+} from '../types/index.js'
+import type { HttpClient } from '../http/client.js'
+import type { CacheManager } from '../cache/manager.js'
 
 export class DocumentClient {
   constructor(

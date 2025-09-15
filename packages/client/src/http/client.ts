@@ -9,7 +9,7 @@ import type {
   ApiError,
   AuthTokens,
   AuthConfig
-} from '../types'
+} from '../types/index.js'
 import { createLogger } from '@trokky/core'
 
 export class HttpClient {

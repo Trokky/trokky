@@ -3,10 +3,10 @@
  * High-level utilities for resolving shortcodes in client content
  */
 
-import type { HttpClient } from '../http/client';
-import type { MediaHelper } from '../media/helper';
-import type { MediaUrlResolver } from './types';
-import { resolveShortcodes, hasShortcodes, extractImageShortcodes } from './parser';
+import type { HttpClient } from '../http/client.js';
+import type { MediaHelper } from '../media/helper.js';
+import type { MediaUrlResolver } from './types.js';
+import { resolveShortcodes, hasShortcodes, extractImageShortcodes } from './parser.js';
 
 /**
  * Create a media URL resolver from TrokkyClient's MediaHelper

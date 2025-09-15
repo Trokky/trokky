@@ -3,7 +3,7 @@
  * Utilities for working with Trokky media assets with dynamic variant discovery
  */
 
-import type { HttpClient } from '../http/client'
+import type { HttpClient } from '../http/client.js'
 import type { MediaFieldValue } from '@trokky/types'
 
 export interface MediaVariant {

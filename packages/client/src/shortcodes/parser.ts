@@ -3,7 +3,7 @@
  * Handles parsing and resolving shortcodes in client applications
  */
 
-import type { TrokkyImageShortcode, MediaUrlResolver } from './types';
+import type { TrokkyImageShortcode, MediaUrlResolver } from './types.js';
 
 /**
  * Parse shortcode attributes from string

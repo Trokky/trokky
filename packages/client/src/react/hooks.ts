@@ -6,7 +6,7 @@
 // Note: This file assumes React is available in the consuming application
 // Import types only to avoid runtime dependency
 import type { DependencyList } from 'react';
-import type { TrokkyClient } from '../client';
+import type { TrokkyClient } from '../client.js';
 
 // Import React dynamically to avoid build-time dependency
 declare const React: any;

@@ -9,7 +9,7 @@ import type {
   DocumentSchema, 
   FieldSchema,
   BaseDocument 
-} from '../types'
+} from '../types/index.js'
 
 export class DocumentGenerator {
   private options: Required<DocumentGeneratorOptions>
@@ -363,7 +363,7 @@ export class DocumentGenerator {
     const interfaceName = `${this.capitalize(schemaName)}Document`
     
     let content = `/**\n * Generated test documents for ${schemaName}\n * Auto-generated with @faker-js/faker\n */\n\n`
-    content += `import type { ${interfaceName} } from '../types'\n\n`
+    content += `import type { ${interfaceName} } from '../types/index.js'\n\n`
     content += `export const ${schemaName}TestData: ${interfaceName}[] = `
     content += JSON.stringify(documents, null, 2)
     content += ' as const\n\n'

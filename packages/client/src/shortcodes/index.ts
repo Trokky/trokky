@@ -6,7 +6,7 @@
  * applications for portable content across environments.
  */
 
-export type { TrokkyImageShortcode, MediaUrlResolver } from './types';
+export type { TrokkyImageShortcode, MediaUrlResolver } from './types.js';
 
 export {
   parseShortcodeAttrs,
@@ -15,9 +15,9 @@ export {
   resolveShortcodes,
   hasShortcodes,
   extractImageShortcodes
-} from './parser';
+} from './parser.js';
 
 export {
   createMediaUrlResolver,
   ShortcodeResolver
-} from './resolver';
+} from './resolver.js';

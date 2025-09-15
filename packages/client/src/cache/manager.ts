@@ -3,7 +3,7 @@
  * Simple in-memory cache with TTL support
  */
 
-import type { CacheEntry } from '../types'
+import type { CacheEntry } from '../types/index.js'
 
 export class CacheManager {
   private cache = new Map<string, CacheEntry>()
