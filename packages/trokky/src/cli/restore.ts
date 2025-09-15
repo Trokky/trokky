@@ -75,6 +75,22 @@ export const restoreCommand = new Command('restore')
       const idMappings: Record<string, string> = {}
       let totalRestored = 0
 
+      // Clean existing media if --clean flag is set
+      if (options.clean) {
+        spinner.text = 'Cleaning existing media...'
+        try {
+          const existingMedia = await client.listMedia()
+          for (const media of existingMedia) {
+            await client.deleteMedia(media.id)
+          }
+          if (existingMedia.length > 0) {
+            spinner.succeed(`Deleted ${existingMedia.length} existing media files`)
+          }
+        } catch (error: any) {
+          spinner.warn(`Failed to clean existing media: ${error.message}`)
+        }
+      }
+
       // First, restore media to get ID mappings
       const mediaDir = join(tempDir, 'media')
       try {
