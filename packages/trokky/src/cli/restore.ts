@@ -7,6 +7,28 @@ import ora from 'ora'
 import unzipper from 'unzipper'
 import { TrokkyClient } from '../client.js'
 
+// Helper function to update references in a document
+function updateReferences(obj: any, idMappings: Record<string, string>): any {
+  if (typeof obj !== 'object' || obj === null) return obj
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => updateReferences(item, idMappings))
+  }
+  
+  const updated: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '_ref' && typeof value === 'string' && idMappings[value]) {
+      updated[key] = idMappings[value]
+    } else if (typeof value === 'object') {
+      updated[key] = updateReferences(value, idMappings)
+    } else {
+      updated[key] = value
+    }
+  }
+  
+  return updated
+}
+
 export const restoreCommand = new Command('restore')
   .description('Import content to a Trokky instance from a backup file')
   .requiredOption('--url <url>', 'Trokky instance URL')
@@ -33,15 +55,71 @@ export const restoreCommand = new Command('restore')
         .promise()
       spinner.succeed('Backup archive extracted')
 
-      // Read meta file
+      // Read meta file and reference map
       spinner.text = 'Reading backup metadata...'
       const meta = JSON.parse(await readFile(join(tempDir, 'meta.json'), 'utf-8'))
+      
+      let referenceMap: Record<string, string[]> = {}
+      try {
+        referenceMap = JSON.parse(await readFile(join(tempDir, 'references.json'), 'utf-8'))
+      } catch (error) {
+        // Reference map might not exist in older backups
+        spinner.info('No reference map found - references may not be preserved')
+      }
       
       const collectionsToRestore = options.collections 
         ? options.collections.split(',')
         : meta.collections
 
+      // Track ID mappings for reference updates
+      const idMappings: Record<string, string> = {}
       let totalRestored = 0
+
+      // First, restore media to get ID mappings
+      const mediaDir = join(tempDir, 'media')
+      try {
+        const files = await readdir(mediaDir)
+        const mediaFiles = files.filter(file => !file.endsWith('.meta.json'))
+
+        if (mediaFiles.length > 0) {
+          spinner.text = 'Restoring media and tracking ID mappings...'
+          let restoredMedia = 0
+          for (const file of mediaFiles) {
+            try {
+              const filePath = join(mediaDir, file)
+              const fileBuffer = await readFile(filePath)
+              const result = await client.uploadFile(fileBuffer, file)
+              
+              // Find corresponding metadata file by filename
+              const metaFiles = files.filter(f => f.endsWith('.meta.json'))
+              let oldId: string | null = null
+              
+              for (const metaFile of metaFiles) {
+                const metaContent = JSON.parse(await readFile(join(mediaDir, metaFile), 'utf-8'))
+                if (metaContent.filename === file) {
+                  oldId = metaContent.id
+                  break
+                }
+              }
+              
+              if (oldId && result.files && result.files[0]) {
+                const newId = result.files[0].id
+                idMappings[oldId] = newId
+                console.log(`Mapped ${oldId} -> ${newId}`)
+              }
+              
+              restoredMedia++
+            } catch (error: any) {
+              spinner.warn(`Failed to restore media file ${file}: ${error.message}`)
+            }
+          }
+          if (restoredMedia > 0) {
+            spinner.succeed(`Restored ${restoredMedia} media files with ID tracking`)
+          }
+        }
+      } catch (error: any) {
+        // Ignore if media directory does not exist
+      }
 
       // Restore each collection
       for (const collection of collectionsToRestore) {
@@ -79,27 +157,38 @@ export const restoreCommand = new Command('restore')
               // Remove system fields before creating
               const { id, _id, _createdAt, _updatedAt, _version, _revision, _status, _collection, _type, ...cleanDoc } = doc
               
+              // Update references with new IDs
+              const updatedDoc = updateReferences(cleanDoc, idMappings)
+              
+              // Track document ID mapping for cross-document references
+              const originalDocId = doc.id || doc._id
+              
               // Check if this might be a singleton (only one document in collection)
               const isSingleton = documents.length === 1 && (collection === 'homepage' || collection === 'settings')
               
               if (isSingleton) {
                 // For singletons, trigger auto-creation by trying to GET the expected singleton ID first
-                const originalId = doc.id || doc._id
                 try {
                   // Try to get the singleton - this will auto-create it if it doesn't exist
-                  await client.getDocument(collection, originalId)
+                  await client.getDocument(collection, originalDocId)
                   // If successful, update it with the backup data
-                  await client.updateDocument(collection, originalId, cleanDoc)
+                  await client.updateDocument(collection, originalDocId, updatedDoc)
+                  // Track singleton ID mapping (same ID)
+                  idMappings[originalDocId] = originalDocId
                 } catch (getError: any) {
                   // If GET fails, the singleton might not auto-create, try regular creation
                   try {
-                    await client.createDocument(collection, cleanDoc)
+                    const result = await client.createDocument(collection, updatedDoc)
+                    const newDocId = (result as any).document?.id || (result as any).id
+                    if (newDocId) idMappings[originalDocId] = newDocId
                   } catch (createError: any) {
                     throw createError
                   }
                 }
               } else {
-                await client.createDocument(collection, cleanDoc)
+                const result = await client.createDocument(collection, updatedDoc)
+                const newDocId = (result as any).document?.id || (result as any).id
+                if (newDocId) idMappings[originalDocId] = newDocId
               }
               restored++
             } catch (error: any) {
@@ -107,7 +196,8 @@ export const restoreCommand = new Command('restore')
                 spinner.text = `Overwriting existing document in ${collection}...`
                 const docId = doc.id || doc._id
                 const { id, _id, _createdAt, _updatedAt, _version, _revision, _status, _collection, _type, ...cleanDoc } = doc
-                await client.updateDocument(collection, docId, cleanDoc)
+                const updatedDoc = updateReferences(cleanDoc, idMappings)
+                await client.updateDocument(collection, docId, updatedDoc)
                 restored++
               } else {
                 spinner.warn(`Skipped existing document in ${collection}: ${error.message}`)
@@ -120,35 +210,6 @@ export const restoreCommand = new Command('restore')
         } catch (error: any) {
           spinner.warn(`Failed to restore ${collection}: ${error.message}`)
         }
-      }
-
-      // Restore media
-      const mediaDir = join(tempDir, 'media')
-      try {
-        const files = await readdir(mediaDir)
-        const mediaFiles = files.filter(file => !file.endsWith('.meta.json'))
-
-        if (mediaFiles.length > 0) {
-          spinner.text = 'Restoring media...'
-          let restoredMedia = 0
-          for (const file of mediaFiles) {
-            try {
-              const filePath = join(mediaDir, file)
-              const fileBuffer = await readFile(filePath)
-              await client.uploadFile(fileBuffer, file)
-              restoredMedia++
-            } catch (error: any) {
-              spinner.warn(`Failed to restore media file ${file}: ${error.message}`)
-            }
-          }
-          if (restoredMedia > 0) {
-            spinner.succeed(`Restored ${restoredMedia} media files`)
-          } else {
-            spinner.info('No media files to restore')
-          }
-        }
-      } catch (error: any) {
-        // Ignore if media directory does not exist
       }
 
       if (options.dryRun) {
