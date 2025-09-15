@@ -25,11 +25,16 @@ export interface DocumentResult<T = any> {
 
 // Collection result wrapper (from API responses)
 export interface CollectionResult<T = any> {
-  data: DocumentResult<T>[];
-  total: number;
-  offset: number;
-  limit: number;
-  hasMore: boolean;
+  documents: DocumentResult<T>[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+  meta: {
+    total: number;
+  };
 }
 
 // Document with content (for full document responses)
