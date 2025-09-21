@@ -1,7 +1,7 @@
 {
   "name": "@trokky/trokky",
   "version": "0.1.0",
-  "description": "TypeScript-native client SDK and CLI for Trokky CMS with built-in HTTP client",
+  "description": "TypeScript-native client SDK and CLI for Trokky CMS with backup/restore and migration tools",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +18,8 @@
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit",
     "test": "echo 'No tests configured for this package' && exit 0",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "cms",
@@ -26,6 +27,7 @@
     "sdk",
     "cli",
     "backup",
+    "restore",
     "migration",
     "typescript",
     "trokky",
@@ -55,7 +57,9 @@
     "url": "git+https://github.com/Trokky/trokky.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
