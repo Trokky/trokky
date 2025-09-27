@@ -37,6 +37,9 @@ Options:
 - `--token` - Authentication token (read permissions required)
 - `--output` - Output file path (default: `trokky-backup-[timestamp].zip`)
 - `--collections` - Specific collections to backup (comma-separated)
+- `--skip-media` - Skip media files (not recommended - may break references)
+
+**Media files are included by default** to ensure media references work correctly after restore.
 
 ### Restore
 
@@ -56,11 +59,58 @@ Options:
 
 ### Migration
 
-Migrate content between different Trokky instances:
+Migrate content between different Trokky instances with smart reference mapping:
 
 ```bash
-trokky migrate --from https://old-site.com/api --to https://new-site.com/api --from-token TOKEN1 --to-token TOKEN2
+# Preview migration first
+trokky migrate --from https://staging.com/api --to https://dev.com/api --from-token READ_TOKEN --to-token WRITE_TOKEN --dry-run
+
+# Perform migration with clean target
+trokky migrate --from https://staging.com/api --to https://dev.com/api --from-token READ_TOKEN --to-token WRITE_TOKEN --clean
 ```
+
+Options:
+- `--from` - Source Trokky instance URL
+- `--to` - Target Trokky instance URL
+- `--from-token` - Source authentication token (read permissions)
+- `--to-token` - Target authentication token (write permissions)
+- `--collections` - Specific collections to migrate (auto-discovers if not specified)
+- `--skip-media` - Skip media files (not recommended - may break references)
+- `--clean` - Clean target instance before migration
+- `--dry-run` - Preview changes without applying them
+- `--force` - Skip production URL warnings (use with extreme caution)
+
+**Migration Features:**
+- **Auto-discovery**: Automatically discovers all collections from source
+- **Media migration**: Includes media files by default with reference mapping
+- **Reference updates**: Updates media and document references to new IDs
+- **Production safety**: Detects and warns about production URLs
+- **Clean migration**: Option to clean target before migration
+
+### Clean
+
+Remove all content from a Trokky instance (useful for development/testing):
+
+```bash
+trokky clean --url https://dev-site.com/api --token YOUR_TOKEN --dry-run
+trokky clean --url https://dev-site.com/api --token YOUR_TOKEN --confirm
+```
+
+Options:
+- `--url` - API endpoint URL
+- `--token` - Authentication token (write permissions required)
+- `--collections` - Specific collections to clean (comma-separated)
+- `--media-only` - Clean only media files, leave documents intact
+- `--documents-only` - Clean only documents, leave media files intact
+- `--dry-run` - Preview what would be deleted without actually deleting
+- `--confirm` - Required flag to confirm destructive operation
+- `--force` - Skip production URL safety warnings (use with extreme caution)
+
+**Safety Features:**
+- **Production detection**: Automatically detects and warns about production URLs
+- **Double confirmation**: Requires explicit `--confirm` flag for actual deletion
+- **Dry run mode**: Preview deletions with `--dry-run` before committing
+- **Selective cleaning**: Clean only specific collections or media vs documents
 
 ## SDK Usage
 
@@ -89,8 +139,9 @@ const media = await client.uploadFile(file)
 ## Features
 
 ### Smart Reference Mapping
-- Automatically updates media references during restore
-- Handles cross-document relationships
+- **Media References**: Automatically detects and updates media field references (`asset._ref` pattern)
+- **Cross-Document References**: Handles document-to-document relationships
+- **Nested References**: Processes references at any depth in document structure
 - Preserves content integrity across environments
 
 ### Clean Deployments
@@ -142,6 +193,39 @@ trokky restore --url https://site.com/api --token TOKEN --input backup.zip --col
 ```bash
 # See what would be restored without making changes
 trokky restore --url https://site.com/api --token TOKEN --input backup.zip --dry-run
+```
+
+### Development Workflow with Clean
+
+```bash
+# 1. Preview what would be deleted
+trokky clean --url https://dev.example.com/api --token TOKEN --dry-run
+
+# 2. Clean everything for fresh start
+trokky clean --url https://dev.example.com/api --token TOKEN --confirm
+
+# 3. Restore from production backup
+trokky restore --url https://dev.example.com/api --token TOKEN --input prod-backup.zip --clean
+
+# Or clean just specific collections
+trokky clean --url https://dev.example.com/api --token TOKEN --collections articles,authors --confirm
+```
+
+### Complete Migration Workflow
+
+```bash
+# 1. Preview migration to see what would be transferred
+trokky migrate --from https://staging.com/api --to https://dev.com/api \
+  --from-token STAGING_READ_TOKEN --to-token DEV_WRITE_TOKEN --dry-run
+
+# 2. Perform clean migration (recommended for fresh environment)
+trokky migrate --from https://staging.com/api --to https://dev.com/api \
+  --from-token STAGING_READ_TOKEN --to-token DEV_WRITE_TOKEN --clean
+
+# 3. Selective migration of specific collections
+trokky migrate --from https://prod.com/api --to https://staging.com/api \
+  --from-token PROD_READ_TOKEN --to-token STAGING_WRITE_TOKEN \
+  --collections articles,authors,media --clean
 ```
 
 ## Requirements

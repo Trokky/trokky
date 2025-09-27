@@ -7,25 +7,57 @@ import ora from 'ora'
 import unzipper from 'unzipper'
 import { TrokkyClient } from '../client.js'
 
+// Helper function to find all references in a document (matches backup logic)
+function findDocumentReferences(obj: any, refs: string[] = []): string[] {
+  if (typeof obj !== 'object' || obj === null) return refs
+
+  if (Array.isArray(obj)) {
+    obj.forEach(item => findDocumentReferences(item, refs))
+  } else {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_ref' && typeof value === 'string') {
+        refs.push(value)
+      } else if (key === 'asset' && typeof value === 'object' && value !== null &&
+                 (value as any)._ref && typeof (value as any)._ref === 'string') {
+        // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
+        refs.push((value as any)._ref)
+      } else if (typeof value === 'object') {
+        findDocumentReferences(value, refs)
+      }
+    }
+  }
+
+  return refs
+}
+
 // Helper function to update references in a document
 function updateReferences(obj: any, idMappings: Record<string, string>): any {
   if (typeof obj !== 'object' || obj === null) return obj
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => updateReferences(item, idMappings))
   }
-  
+
   const updated: any = {}
   for (const [key, value] of Object.entries(obj)) {
     if (key === '_ref' && typeof value === 'string' && idMappings[value]) {
+      // Handle direct references
       updated[key] = idMappings[value]
+    } else if (key === 'asset' && typeof value === 'object' && value !== null &&
+               (value as any)._ref && typeof (value as any)._ref === 'string' &&
+               idMappings[(value as any)._ref]) {
+      // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
+      updated[key] = {
+        ...(value as any),
+        _ref: idMappings[(value as any)._ref]
+      }
     } else if (typeof value === 'object') {
       updated[key] = updateReferences(value, idMappings)
     } else {
       updated[key] = value
     }
   }
-  
+
   return updated
 }
 
@@ -74,6 +106,7 @@ export const restoreCommand = new Command('restore')
       // Track ID mappings for reference updates
       const idMappings: Record<string, string> = {}
       let totalRestored = 0
+      let totalReferencesUpdated = 0
 
       // Clean existing media if --clean flag is set
       if (options.clean) {
@@ -121,7 +154,9 @@ export const restoreCommand = new Command('restore')
               if (oldId && result.files && result.files[0]) {
                 const newId = result.files[0].id
                 idMappings[oldId] = newId
-                console.log(`Mapped ${oldId} -> ${newId}`)
+                spinner.info(`📸 Media mapping: ${oldId} -> ${newId} (${file})`)
+              } else {
+                spinner.warn(`⚠️  Failed to map media file ${file} - no metadata found`)
               }
               
               restoredMedia++
@@ -172,13 +207,27 @@ export const restoreCommand = new Command('restore')
             try {
               // Remove system fields before creating
               const { id, _id, _createdAt, _updatedAt, _version, _revision, _status, _collection, _type, ...cleanDoc } = doc
-              
-              // Update references with new IDs
-              const updatedDoc = updateReferences(cleanDoc, idMappings)
-              
+
               // Track document ID mapping for cross-document references
               const originalDocId = doc.id || doc._id
-              
+
+              // Update references with new IDs
+              const originalRefs = findDocumentReferences(cleanDoc)
+              const updatedDoc = updateReferences(cleanDoc, idMappings)
+              const updatedRefs = findDocumentReferences(updatedDoc)
+
+              if (originalRefs.length > 0) {
+                let refsUpdatedInDoc = 0
+                spinner.info(`🔗 Updating ${originalRefs.length} references in document ${originalDocId}`)
+                for (let i = 0; i < originalRefs.length; i++) {
+                  if (originalRefs[i] !== updatedRefs[i]) {
+                    spinner.info(`   ${originalRefs[i]} -> ${updatedRefs[i]}`)
+                    refsUpdatedInDoc++
+                  }
+                }
+                totalReferencesUpdated += refsUpdatedInDoc
+              }
+
               // Check if this might be a singleton (only one document in collection)
               const isSingleton = documents.length === 1 && (collection === 'homepage' || collection === 'settings')
               
@@ -238,6 +287,8 @@ export const restoreCommand = new Command('restore')
       console.log(chalk.green(`
 Restore Summary:`))
       console.log(chalk.white(`   Documents restored: ${totalRestored}`))
+      console.log(chalk.white(`   Media mappings: ${Object.keys(idMappings).length}`))
+      console.log(chalk.white(`   References updated: ${totalReferencesUpdated}`))
       console.log(chalk.white(`   Collections: ${collectionsToRestore.join(', ')}`))
       console.log(chalk.white(`   Mode: ${options.dryRun ? 'Dry run' : 'Live restore'}`))
       

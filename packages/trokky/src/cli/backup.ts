@@ -10,19 +10,23 @@ import { TrokkyClient } from '../client.js'
 // Helper function to find all references in a document
 function findReferences(obj: any, refs: string[] = []): string[] {
   if (typeof obj !== 'object' || obj === null) return refs
-  
+
   if (Array.isArray(obj)) {
     obj.forEach(item => findReferences(item, refs))
   } else {
     for (const [key, value] of Object.entries(obj)) {
       if (key === '_ref' && typeof value === 'string') {
         refs.push(value)
+      } else if (key === 'asset' && typeof value === 'object' && value !== null &&
+                 (value as any)._ref && typeof (value as any)._ref === 'string') {
+        // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
+        refs.push((value as any)._ref)
       } else if (typeof value === 'object') {
         findReferences(value, refs)
       }
     }
   }
-  
+
   return refs
 }
 
@@ -32,7 +36,7 @@ export const backupCommand = new Command('backup')
   .requiredOption('--token <token>', 'Authentication token')
   .requiredOption('--output <file>', 'Output file path (e.g., backup.zip)')
   .option('--collections <collections>', 'Comma-separated list of collections (auto-discovers if not specified)')
-  .option('--include-media', 'Include media files in backup')
+  .option('--skip-media', 'Skip media files (not recommended - may break references)')
   .action(async (options) => {
     const spinner = ora('Starting backup...').start()
     const tempDir = join(process.cwd(), `backup-temp-${Date.now()}`)
@@ -125,8 +129,8 @@ export const backupCommand = new Command('backup')
       await writeFile(join(tempDir, 'references.json'), JSON.stringify(referenceMap, null, 2))
       spinner.succeed('Reference map created')
 
-      // Backup media if --include-media flag is set
-      if (options.includeMedia) {
+      // Backup media by default (unless --skip-media flag is set)
+      if (!options.skipMedia) {
         spinner.text = 'Backing up media...'
         const mediaDir = join(tempDir, 'media')
         await mkdir(mediaDir, { recursive: true })
@@ -179,6 +183,7 @@ export const backupCommand = new Command('backup')
 Backup Summary:`))
       console.log(chalk.white(`   Documents: ${totalDocs}`))
       console.log(chalk.white(`   Collections: ${collections.join(', ')}`))
+      console.log(chalk.white(`   Media: ${options.skipMedia ? 'Skipped' : 'Included'}`))
       console.log(chalk.white(`   File: ${options.output}`))
       
     } catch (error: any) {

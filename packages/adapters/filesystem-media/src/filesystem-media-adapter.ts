@@ -278,14 +278,55 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       const metadataFiles = files.filter(file => file.endsWith('.meta.json'))
 
       const mediaFiles: MediaFile[] = []
-      
+
       for (const metadataFile of metadataFiles) {
         try {
           const id = metadataFile.replace('.meta.json', '')
-          const mediaFile = await this.getFile(id)
-          if (mediaFile) {
-            mediaFiles.push(mediaFile)
+
+          // Read metadata directly - trust metadata as source of truth for listing
+          const metadataPath = this.getMediaMetadataPath(id)
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8')
+          const fileMetadata: FileMetadata = this.safeParseJSON<FileMetadata>(metadataContent)
+
+          // Check if actual file exists for logging purposes, but don't filter it out
+          const filePath = this.getMediaPath(id, fileMetadata.extension)
+          let fileExists = false
+          try {
+            await fs.access(filePath, constants.F_OK)
+            fileExists = true
+          } catch {
+            // File doesn't exist, but we'll still include it in the listing
+            // Individual file serving will handle the missing file error when accessed
+            this.logger.warn(`Media file ${id} has metadata but file is missing at ${filePath}`)
           }
+
+          const relativeUrl = path.relative(process.cwd(), filePath).replace(/\\/g, '/')
+
+          const mediaFile: MediaFile = {
+            id: fileMetadata.id,
+            filename: fileMetadata.filename,
+            contentType: fileMetadata.contentType,
+            size: fileMetadata.size,
+            metadata: {
+              path: relativeUrl,
+              extension: fileMetadata.extension,
+              originalFilename: fileMetadata.filename,
+              title: fileMetadata.title,
+              alt: fileMetadata.alt,
+              author: fileMetadata.author,
+              credit: fileMetadata.credit,
+              tags: fileMetadata.tags,
+              imageVariants: fileMetadata.imageVariants ?
+                await this.updateVariantUrls(fileMetadata.imageVariants, fileMetadata.id) :
+                undefined,
+              originalDimensions: fileMetadata.originalDimensions,
+              // Add file existence status for debugging
+              _fileExists: fileExists
+            },
+            _createdAt: fileMetadata.createdAt
+          }
+
+          mediaFiles.push(mediaFile)
         } catch (error) {
           this.logger.warn(`Skipping invalid metadata file ${metadataFile}`, error)
           continue
