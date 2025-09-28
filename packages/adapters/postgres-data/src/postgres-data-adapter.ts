@@ -42,6 +42,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   private pool: Pool
   private logger = createLogger('adapter', 'PostgresDataAdapter')
   private initialized = false
+  private initializationPromise: Promise<void> | null = null
 
   // Security limits
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
@@ -85,38 +86,78 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     })
 
     this.pool.on('connect', (client) => {
-      if (this.config.enableQueryLogging) {
-        this.logger.debug('New PostgreSQL client connected')
-      }
+      this.logger.info('New PostgreSQL client connected')
     })
+
+    this.logger.info('PostgresDataAdapter constructed', {
+      schema: this.config.schema,
+      tablePrefix: this.config.tablePrefix,
+      autoMigrate: this.config.autoMigrate,
+      enableQueryLogging: this.config.enableQueryLogging
+    })
+
+    // Initialize immediately like filesystem adapter - but async
+    // Store initialization promise for later awaiting
+    if (this.config.autoMigrate) {
+      this.logger.info('Starting PostgreSQL auto-migration during construction')
+      this.initializationPromise = this.initialize()
+      // Start initialization but don't block construction
+      this.initializationPromise
+        .then(() => {
+          this.logger.info('PostgreSQL adapter initialization completed successfully during construction')
+        })
+        .catch(error => {
+          this.logger.error('Failed to initialize PostgreSQL adapter during construction', error)
+        })
+    } else {
+      this.logger.info('PostgreSQL auto-migration disabled in config')
+    }
   }
 
   private async initialize(): Promise<void> {
-    if (this.initialized) return
+    if (this.initialized) {
+      this.logger.debug('PostgreSQL adapter already initialized, skipping')
+      return
+    }
+
+    this.logger.info('Starting PostgreSQL adapter initialization')
 
     try {
       // Test connection
-      await this.healthCheck()
+      this.logger.info('Testing PostgreSQL connection...')
+      const isHealthy = await this.healthCheck()
+      this.logger.info('PostgreSQL connection test result', { healthy: isHealthy })
 
       // Run migrations if enabled
       if (this.config.autoMigrate) {
+        this.logger.info('Running PostgreSQL migrations...')
         await this.runMigrations()
+        this.logger.info('PostgreSQL migrations completed')
+      } else {
+        this.logger.info('PostgreSQL auto-migration disabled, skipping migrations')
       }
 
       this.initialized = true
-      this.logger.info('PostgreSQL adapter initialized successfully', {
+      this.logger.info('✅ PostgreSQL adapter initialized successfully', {
         schema: this.config.schema,
-        tablePrefix: this.config.tablePrefix
+        tablePrefix: this.config.tablePrefix,
+        autoMigrate: this.config.autoMigrate
       })
     } catch (error) {
-      this.logger.error('Failed to initialize PostgreSQL adapter', error)
+      this.logger.error('❌ Failed to initialize PostgreSQL adapter', error)
       throw error
     }
   }
 
   private async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
-      await this.initialize()
+      // If we have an initialization promise from constructor, await it
+      if (this.initializationPromise) {
+        await this.initializationPromise
+      } else {
+        // Fallback: initialize now if not done during construction
+        await this.initialize()
+      }
     }
   }
 
@@ -136,6 +177,21 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       return result
     } catch (error) {
       this.logger.error('Query failed', { text, params, error })
+      throw error
+    }
+  }
+
+  private async directQuery(text: string, params?: any[]): Promise<any> {
+    // Direct query without ensureInitialized() - used during initialization
+    if (this.config.enableQueryLogging) {
+      this.logger.debug('Executing direct query', { text, params })
+    }
+
+    try {
+      const result = await this.pool.query(text, params)
+      return result
+    } catch (error) {
+      this.logger.error('Direct query failed', { text, params, error })
       throw error
     }
   }
@@ -421,32 +477,210 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   }
 
   // ==========================================================================
-  // USER OPERATIONS (Placeholder - to be implemented)
+  // USER OPERATIONS
   // ==========================================================================
 
   async getUser(id: string): Promise<User | null> {
-    // TODO: Implement user operations
-    throw new Error('User operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('users')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: UserRow = result.rows[0]
+    return this.mapRowToUser(row)
   }
 
   async saveUser(id: string, userData: CreateUserData | Partial<UpdateUserData>): Promise<User> {
-    throw new Error('User operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const now = new Date().toISOString()
+
+    try {
+      // Check if this is an update (user exists) or create (new user)
+      const existingUser = await this.getUser(id)
+
+      if (existingUser) {
+        // Update existing user
+        const updateData = userData as Partial<UpdateUserData>
+        const result = await this.query(`
+          UPDATE ${this.tableName('users')}
+          SET
+            username = COALESCE($2, username),
+            email = COALESCE($3, email),
+            first_name = COALESCE($4, first_name),
+            last_name = COALESCE($5, last_name),
+            role = COALESCE($6, role),
+            permissions = COALESCE($7, permissions),
+            is_active = COALESCE($8, is_active),
+            profile_image = COALESCE($9, profile_image),
+            preferences = COALESCE($10, preferences),
+            updated_at = $11
+          WHERE id = $1
+          RETURNING *
+        `, [
+          id,
+          updateData.username,
+          updateData.email,
+          updateData.firstName,
+          updateData.lastName,
+          updateData.role,
+          JSON.stringify(updateData.permissions || []),
+          updateData.isActive,
+          updateData.profileImage,
+          JSON.stringify(updateData.preferences || {}),
+          now
+        ])
+
+        const row: UserRow = result.rows[0]
+        return this.mapRowToUser(row)
+      } else {
+        // Create new user
+        const createData = userData as CreateUserData
+        // Use passwordHash from caller (like filesystem adapter)
+        const passwordHash = (createData as any).passwordHash || ''
+
+        const result = await this.query(`
+          INSERT INTO ${this.tableName('users')}
+          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+          RETURNING *
+        `, [
+          id,
+          createData.username,
+          createData.email,
+          passwordHash,
+          createData.firstName,
+          createData.lastName,
+          createData.role,
+          JSON.stringify(createData.permissions || []),
+          createData.isActive ?? true,
+          createData.profileImage,
+          JSON.stringify(createData.preferences || {}),
+          now
+        ])
+
+        const row: UserRow = result.rows[0]
+        return this.mapRowToUser(row)
+      }
+    } catch (error) {
+      this.logger.error('Failed to save user', { id, userData, error })
+      throw error
+    }
   }
 
-  async listUsers(options?: UserListOptions): Promise<User[]> {
-    throw new Error('User operations not yet implemented')
+  async listUsers(options: UserListOptions = {}): Promise<User[]> {
+    const limit = Math.min(options.limit || 50, this.MAX_LIST_LIMIT)
+    const offset = options.offset || 0
+
+    let query = `SELECT * FROM ${this.tableName('users')}`
+    const params: any[] = []
+    const conditions: string[] = []
+
+    // Add filtering
+    if (options.role) {
+      conditions.push(`role = $${params.length + 1}`)
+      params.push(options.role)
+    }
+
+    if (options.isActive !== undefined) {
+      conditions.push(`is_active = $${params.length + 1}`)
+      params.push(options.isActive)
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
+
+    const result = await this.query(query, params)
+
+    return result.rows.map((row: UserRow) => this.mapRowToUser(row))
   }
 
   async deleteUser(id: string): Promise<void> {
-    throw new Error('User operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `DELETE FROM ${this.tableName('users')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rowCount === 0) {
+      throw new InvalidInputError(`User ${id} not found`)
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | null> {
-    throw new Error('User operations not yet implemented')
+    if (!username || typeof username !== 'string') {
+      throw new InvalidInputError('Username is required')
+    }
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('users')} WHERE username = $1`,
+      [username]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: UserRow = result.rows[0]
+    return this.mapRowToUser(row)
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
-    throw new Error('User operations not yet implemented')
+    if (!email || typeof email !== 'string') {
+      throw new InvalidInputError('Email is required')
+    }
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('users')} WHERE email = $1`,
+      [email]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: UserRow = result.rows[0]
+    return this.mapRowToUser(row)
+  }
+
+  async isUsernameAvailable(username: string): Promise<boolean> {
+    const user = await this.getUserByUsername(username)
+    return user === null
+  }
+
+  async isEmailAvailable(email: string): Promise<boolean> {
+    const user = await this.getUserByEmail(email)
+    return user === null
+  }
+
+  private mapRowToUser(row: UserRow): User {
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      passwordHash: row.password_hash,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.role as any,
+      permissions: row.permissions as any[],
+      isActive: row.is_active,
+      profileImage: row.profile_image,
+      preferences: row.preferences as any,
+      lastLoginAt: row.last_login_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }
   }
 
   // ==========================================================================
@@ -478,8 +712,9 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   // ==========================================================================
 
   private async runMigrations(): Promise<void> {
+    this.logger.info('Creating migrations tracking table...')
     // Create migrations table if it doesn't exist
-    await this.query(`
+    await this.directQuery(`
       CREATE TABLE IF NOT EXISTS ${this.tableName('migrations')} (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -488,13 +723,16 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       )
     `)
 
+    this.logger.info('Running initial schema migrations...')
     // Run initial schema migrations
     await this.createTables()
+    this.logger.info('Schema migrations completed')
   }
 
   private async createTables(): Promise<void> {
+    this.logger.info('Creating documents table...')
     // Documents table
-    await this.query(`
+    await this.directQuery(`
       CREATE TABLE IF NOT EXISTS ${this.tableName('documents')} (
         collection VARCHAR(255) NOT NULL,
         id VARCHAR(255) NOT NULL,
@@ -507,24 +745,26 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       )
     `)
 
+    this.logger.info('Creating performance indexes for documents...')
     // Create indexes for better performance
-    await this.query(`
+    await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}documents_collection_idx
       ON ${this.tableName('documents')} (collection)
     `)
 
-    await this.query(`
+    await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}documents_updated_at_idx
       ON ${this.tableName('documents')} (updated_at DESC)
     `)
 
-    await this.query(`
+    await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}documents_data_gin_idx
       ON ${this.tableName('documents')} USING GIN (data)
     `)
 
+    this.logger.info('Creating audit logs table...')
     // Audit logs table
-    await this.query(`
+    await this.directQuery(`
       CREATE TABLE IF NOT EXISTS ${this.tableName('audit_logs')} (
         id VARCHAR(255) PRIMARY KEY,
         operation VARCHAR(100) NOT NULL,
@@ -538,17 +778,105 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       )
     `)
 
-    await this.query(`
+    this.logger.info('Creating performance indexes for audit logs...')
+    await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}audit_logs_resource_idx
       ON ${this.tableName('audit_logs')} (resource_type, resource_id)
     `)
 
-    await this.query(`
+    await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}audit_logs_timestamp_idx
       ON ${this.tableName('audit_logs')} (timestamp DESC)
     `)
 
-    this.logger.info('Database tables created successfully')
+    this.logger.info('Creating users table...')
+    // Users table
+    await this.directQuery(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName('users')} (
+        id VARCHAR(255) PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(255) NOT NULL,
+        last_name VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'viewer',
+        permissions JSONB DEFAULT '[]',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        profile_image VARCHAR(500),
+        last_login_at VARCHAR(50),
+        preferences JSONB DEFAULT '{}',
+        created_at VARCHAR(50) NOT NULL,
+        updated_at VARCHAR(50) NOT NULL
+      )
+    `)
+
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_username_idx
+      ON ${this.tableName('users')} (username)
+    `)
+
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_email_idx
+      ON ${this.tableName('users')} (email)
+    `)
+
+    this.logger.info('Creating app tokens table...')
+    // App tokens table
+    await this.directQuery(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName('app_tokens')} (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        hash VARCHAR(255) UNIQUE NOT NULL,
+        permissions JSONB DEFAULT '[]',
+        created_by VARCHAR(255) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        last_used_at TIMESTAMP,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
+
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}app_tokens_hash_idx
+      ON ${this.tableName('app_tokens')} (hash)
+    `)
+
+    this.logger.info('Creating webhooks table...')
+    // Webhooks table
+    await this.directQuery(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName('webhooks')} (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        url VARCHAR(500) NOT NULL,
+        events JSONB DEFAULT '[]',
+        headers JSONB DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        secret VARCHAR(255),
+        timeout_ms INTEGER DEFAULT 5000,
+        retry_attempts INTEGER DEFAULT 3,
+        created_by VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
+
+    this.logger.info('Creating settings table...')
+    // Settings table
+    await this.directQuery(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName('settings')} (
+        id VARCHAR(255) PRIMARY KEY,
+        public_url VARCHAR(500),
+        studio_title VARCHAR(255) DEFAULT 'Trokky Studio',
+        default_theme VARCHAR(50) DEFAULT 'system',
+        config JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        updated_by VARCHAR(255)
+      )
+    `)
+
+    this.logger.info('✅ All database tables and indexes created successfully')
   }
 }
 

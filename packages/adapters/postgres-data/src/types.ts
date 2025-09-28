@@ -73,12 +73,16 @@ export interface UserRow {
   username: string
   email: string
   password_hash: string
+  first_name: string
+  last_name: string
   role: string
+  permissions: any // JSONB array
   is_active: boolean
-  last_login_at?: Date
+  profile_image?: string
+  last_login_at?: string // ISO string
   preferences: any // JSONB data
-  created_at: Date
-  updated_at: Date
+  created_at: string // ISO string
+  updated_at: string // ISO string
 }
 
 export interface AppTokenRow {
