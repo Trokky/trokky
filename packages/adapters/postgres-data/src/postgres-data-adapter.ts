@@ -684,27 +684,174 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   }
 
   // ==========================================================================
-  // APP TOKEN OPERATIONS (Placeholder - to be implemented)
+  // APP TOKEN OPERATIONS
   // ==========================================================================
 
   async getAppToken(id: string): Promise<AppToken | null> {
-    throw new Error('App token operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('app_tokens')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: AppTokenRow = result.rows[0]
+    return this.mapRowToAppToken(row)
   }
 
   async saveAppToken(id: string, tokenData: CreateAppTokenData | Partial<UpdateAppTokenData>): Promise<AppToken> {
-    throw new Error('App token operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const now = new Date()
+
+    try {
+      // Check if this is an update (token exists) or create (new token)
+      const existingToken = await this.getAppToken(id)
+
+      if (existingToken) {
+        // Update existing token
+        const updateData = tokenData as Partial<UpdateAppTokenData>
+        const result = await this.query(`
+          UPDATE ${this.tableName('app_tokens')}
+          SET
+            name = COALESCE($2, name),
+            permissions = COALESCE($3, permissions),
+            is_active = COALESCE($4, is_active),
+            expires_at = COALESCE($5, expires_at),
+            updated_at = $6
+          WHERE id = $1
+          RETURNING *
+        `, [
+          id,
+          updateData.name,
+          JSON.stringify(updateData.permissions || []),
+          updateData.isActive,
+          updateData.expiresAt ? new Date(updateData.expiresAt) : null,
+          now
+        ])
+
+        const row: AppTokenRow = result.rows[0]
+        return this.mapRowToAppToken(row)
+      } else {
+        // Create new token
+        const createData = tokenData as CreateAppTokenData
+        // Use tokenHash from caller (this should be set by the calling code)
+        const tokenHash = (createData as any).tokenHash || ''
+        const createdBy = (createData as any).createdBy || 'system'
+
+        const result = await this.query(`
+          INSERT INTO ${this.tableName('app_tokens')}
+          (id, name, hash, permissions, created_by, is_active, expires_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+          RETURNING *
+        `, [
+          id,
+          createData.name,
+          tokenHash,
+          JSON.stringify(createData.permissions || []),
+          createdBy,
+          true,
+          createData.expiresAt ? new Date(createData.expiresAt) : null,
+          now
+        ])
+
+        const row: AppTokenRow = result.rows[0]
+        return this.mapRowToAppToken(row)
+      }
+    } catch (error) {
+      this.logger.error('Failed to save app token', { id, tokenData, error })
+      throw error
+    }
   }
 
-  async listAppTokens(options?: AppTokenListOptions): Promise<AppToken[]> {
-    throw new Error('App token operations not yet implemented')
+  async listAppTokens(options: AppTokenListOptions = {}): Promise<AppToken[]> {
+    const limit = Math.min(options.limit || 50, this.MAX_LIST_LIMIT)
+    const offset = options.offset || 0
+
+    let query = `SELECT * FROM ${this.tableName('app_tokens')}`
+    const params: any[] = []
+    const conditions: string[] = []
+
+    // Add filtering
+    if (options.createdBy) {
+      conditions.push(`created_by = $${params.length + 1}`)
+      params.push(options.createdBy)
+    }
+
+    if (options.isActive !== undefined) {
+      conditions.push(`is_active = $${params.length + 1}`)
+      params.push(options.isActive)
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
+
+    const result = await this.query(query, params)
+
+    return result.rows.map((row: AppTokenRow) => this.mapRowToAppToken(row))
   }
 
   async deleteAppToken(id: string): Promise<void> {
-    throw new Error('App token operations not yet implemented')
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `DELETE FROM ${this.tableName('app_tokens')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rowCount === 0) {
+      throw new InvalidInputError(`App token ${id} not found`)
+    }
   }
 
   async getAppTokenByHash(hash: string): Promise<AppToken | null> {
-    throw new Error('App token operations not yet implemented')
+    if (!hash || typeof hash !== 'string') {
+      throw new InvalidInputError('Token hash is required')
+    }
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('app_tokens')} WHERE hash = $1 AND is_active = true`,
+      [hash]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: AppTokenRow = result.rows[0]
+
+    // Update last_used_at
+    await this.query(
+      `UPDATE ${this.tableName('app_tokens')} SET last_used_at = $1 WHERE id = $2`,
+      [new Date(), row.id]
+    )
+
+    return this.mapRowToAppToken(row)
+  }
+
+  private mapRowToAppToken(row: AppTokenRow): AppToken {
+    return {
+      id: row.id,
+      name: row.name,
+      description: '', // Not stored in current schema, could be added
+      tokenHash: row.hash,
+      permissions: row.permissions as any[],
+      createdBy: row.created_by,
+      isActive: row.is_active,
+      lastUsedAt: row.last_used_at ? row.last_used_at.toISOString() : undefined,
+      usageCount: 0, // Not tracked in current schema, could be added
+      expiresAt: row.expires_at ? row.expires_at.toISOString() : undefined,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString()
+    }
   }
 
   // ==========================================================================

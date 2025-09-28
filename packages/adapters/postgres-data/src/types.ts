@@ -92,10 +92,10 @@ export interface AppTokenRow {
   permissions: any // JSONB array
   created_by: string
   is_active: boolean
-  last_used_at?: Date
-  expires_at?: Date
-  created_at: Date
-  updated_at: Date
+  last_used_at?: Date // TIMESTAMP from database
+  expires_at?: Date // TIMESTAMP from database
+  created_at: Date // TIMESTAMP from database
+  updated_at: Date // TIMESTAMP from database
 }
 
 export interface AuditLogRow {
