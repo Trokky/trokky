@@ -429,7 +429,8 @@ export class TrokkyExpress {
       logger.info('✅ TrokkyCore initialized with professional config')
 
       // Set global studio config for API endpoint access
-      if (fullConfig.studio?.enabled) {
+      // Note: Register config even when studio.enabled=false to support standalone Studio services
+      if (fullConfig.studio) {
         ;(global as any).__TROKKY_STUDIO_CONFIG__ = fullConfig.studio
 
         // Always create mediaUrlGenerator configuration for Studio
