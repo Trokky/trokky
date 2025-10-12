@@ -73,4 +73,5 @@ export interface DocumentContext {
   allValues?: Record<string, any>; // Current form values for field interactions
   currentUser?: any;
   permissions?: string[];
+  nestingLevel?: number; // Nesting level for object fields (0 = top-level, 1+ = nested)
 }

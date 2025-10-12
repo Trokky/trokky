@@ -337,12 +337,13 @@ export function DocumentForm() {
   // Create document context for field rendering
   const documentContext = useMemo(() => {
     if (!schema || !document) return undefined;
-    
+
     return {
       documentId: documentId || undefined,
       schema: schema.name,
       isNewDocument: isNewDocument || false,
-      allValues: document // Current form values for field interactions
+      allValues: document, // Current form values for field interactions
+      nestingLevel: 0 // Top-level document fields start at level 0
     };
   }, [schema, document, documentId, isNewDocument]);
 

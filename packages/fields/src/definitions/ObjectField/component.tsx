@@ -1,16 +1,16 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { 
-  ObjectFieldDefinition, 
-  NestedFieldDefinition, 
-  ObjectOperations, 
+import type {
+  ObjectFieldDefinition,
+  NestedFieldDefinition,
+  ObjectOperations,
   ObjectFieldMetadata,
-  ObjectLayout 
+  ObjectLayout
 } from './definition.js';
-import { 
-  validateObjectField, 
-  getObjectMetadata, 
-  evaluateConditional, 
+import {
+  validateObjectField,
+  getObjectMetadata,
+  evaluateConditional,
   getDefaultObjectValue,
   sanitizeObjectValue,
   isFieldReadOnly,
@@ -18,6 +18,7 @@ import {
 } from './validation.js';
 import { fieldRegistry } from '../../registry/FieldRegistry.js';
 import { getOrderedFields } from './definition.js';
+import { ObjectModal } from './ObjectModal.js';
 
 // ObjectField component props
 type ObjectFieldComponentProps = FieldComponentProps;
@@ -43,6 +44,11 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const [collapseState, setCollapseState] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+
+  // Detect nesting level from documentContext (0 = top-level, 1+ = nested)
+  const nestingLevel = (props.documentContext as any)?.nestingLevel ?? 0;
+  const isTopLevel = nestingLevel === 0;
   
   // Initialize active tab
   useEffect(() => {
@@ -166,7 +172,10 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           hasError={fieldHasError}
           isDisabled={isDisabled}
           isReadonly={fieldIsReadOnly}
-          documentContext={props.documentContext}
+          documentContext={props.documentContext ? {
+            ...props.documentContext,
+            nestingLevel: nestingLevel + 1  // Increment nesting level for child fields
+          } : undefined}
           studioContext={props.studioContext}
           onValidationChange={(result) => {
             // Handle nested field validation
@@ -208,8 +217,9 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const renderHeader = () => {
     const isCollapsible = options.collapsible !== false; // Default to true
     const isCollapsed = getCollapseState('main');
-    const displayTitle = getDisplayTitle();
-    
+    // Only use dynamic title if explicitly configured via titleTemplate
+    const displayTitle = options.titleTemplate ? getDisplayTitle() : definition.title;
+
     return (
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -220,19 +230,19 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
               onClick={() => setCollapseStateForKey('main', !isCollapsed)}
               className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             >
-              <svg 
+              <svg
                 className={`w-4 h-4 mr-2 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
-                fill="none" 
-                stroke="currentColor" 
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {displayTitle || definition.title}
+              {displayTitle}
             </button>
           ) : (
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {displayTitle || definition.title}
+              {displayTitle}
             </h3>
           )}
           
@@ -298,20 +308,17 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Render preview when collapsed
   const renderPreview = () => {
+    // Disable preview entirely unless explicitly configured with template or fields
     if (!getCollapseState('main') || !options.preview) return null;
-    
+
     const { fields: previewFields = [], template, maxLength = 150, showCount = false } = options.preview;
-    // const { fields: previewFields = [], template, maxLength = 150, showCount } = options.preview;
-    
+
+    // Only show preview if explicitly configured with template
     if (template) {
-      const fieldsArray = Array.isArray(objectDefinition.fields) 
-        ? objectDefinition.fields 
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, type: field.type, title: field.title || name }));
-      
-      const normalizedFields = Array.isArray(objectDefinition.fields) 
-        ? objectDefinition.fields 
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ 
-            name, 
+      const normalizedFields = Array.isArray(objectDefinition.fields)
+        ? objectDefinition.fields
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({
+            name,
             type: field.type,
             title: field.title || name,
             description: field.description,
@@ -320,34 +327,35 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
             options: field.options,
             defaultValue: field.defaultValue
           }));
-      
+
       const rendered = renderTemplate(template, {
         values: objectValue,
         fields: normalizedFields.reduce((acc, f) => ({ ...acc, [f.name]: f }), {}),
         metadata
       });
-      return (
-        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
-          {rendered.slice(0, maxLength)}{rendered.length > maxLength && '...'}
-        </div>
-      );
+
+      // Only render if template produced actual content
+      if (rendered && rendered.trim()) {
+        return (
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
+            {rendered.slice(0, maxLength)}{rendered.length > maxLength && '...'}
+          </div>
+        );
+      }
     }
-    
-    if (previewFields.length > 0) {
-      const fieldsArray = Array.isArray(objectDefinition.fields) 
-        ? objectDefinition.fields 
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, type: field.type, title: field.title || name }));
-      
-      const previewFieldsArray = Array.isArray(objectDefinition.fields) 
-        ? objectDefinition.fields 
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ 
-            name, 
+
+    // Only show field-based preview if explicitly configured
+    if (previewFields && previewFields.length > 0) {
+      const previewFieldsArray = Array.isArray(objectDefinition.fields)
+        ? objectDefinition.fields
+        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({
+            name,
             type: field.type,
             title: field.title || name,
             description: field.description,
             required: field.required
           }));
-      
+
       const previewText = previewFields
         .map(fieldName => {
           const field = previewFieldsArray.find(f => f.name === fieldName);
@@ -357,7 +365,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         })
         .filter(Boolean)
         .join(', ');
-        
+
       if (previewText) {
         return (
           <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
@@ -369,7 +377,8 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         );
       }
     }
-    
+
+    // No preview configured or no content - return null
     return null;
   };
   
@@ -594,6 +603,62 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     );
   };
   
+  // Render top-level collapsed card (clickable to open modal)
+  const renderTopLevelCard = () => {
+    // Ensure we get numeric counts, not arrays or objects
+    const filledCount = typeof metadata.filledFields === 'number'
+      ? metadata.filledFields
+      : (Array.isArray(metadata.filledFields) ? metadata.filledFields.length : 0);
+    const totalCount = typeof metadata.visibleFields === 'number'
+      ? metadata.visibleFields
+      : (Array.isArray(metadata.visibleFields) ? metadata.visibleFields.length : 0);
+
+    return (
+      <button
+        type="button"
+        onClick={() => setIsModalOpen(true)}
+        disabled={isDisabled || isReadonly}
+        className={`
+          w-full text-left
+          border border-gray-300 dark:border-gray-600 rounded-md p-4
+          hover:border-gray-400 dark:hover:border-gray-500
+          hover:bg-gray-50 dark:hover:bg-gray-800/50
+          transition-colors cursor-pointer
+          ${hasError ? 'border-red-300 dark:border-red-600' : ''}
+          ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-5 h-5 text-gray-400 dark:text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                {definition.title}
+              </h3>
+              {definition.description && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {definition.description}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>{filledCount}/{totalCount} fields</span>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   // Main render
   const wrapperClasses = useMemo(() => {
     const classes = ['object-field'];
@@ -618,45 +683,49 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     return classes.join(' ');
   }, [options.layout, isDisabled, isReadonly, hasError]);
   
+  // Conditional render based on nesting level
+  if (isTopLevel) {
+    // Top-level: Show collapsed card + modal
+    return (
+      <>
+        {renderTopLevelCard()}
+
+        <ObjectModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          definition={objectDefinition}
+          value={objectValue}
+          onChange={onChange}
+          fieldId={fieldId}
+          isDisabled={isDisabled}
+          isReadonly={isReadonly}
+          studioContext={props.studioContext}
+          documentContext={props.documentContext ? {
+            ...props.documentContext,
+            nestingLevel: nestingLevel + 1
+          } : undefined}
+          visibleFields={visibleFields}
+          renderField={renderField}
+        />
+      </>
+    );
+  }
+
+  // Nested level 1+: Show traditional accordion behavior
   return (
     <div className={wrapperClasses}>
       {/* Always render header for collapsible functionality */}
       {renderHeader()}
-      
+
       {/* Content - only show when not collapsed */}
       {!getCollapseState('main') && (
         <div className={options.animations?.enabled ? 'transition-all duration-200' : ''}>
           {renderMainContent()}
         </div>
       )}
-      
-      {/* Preview when collapsed */}
-      {getCollapseState('main') && renderPreview()}
-      
-      {/* Required fields warning */}
-      {/* {metadata.missingRequiredFields.length > 0 && (
-        <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-amber-400 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 19c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium !text-amber-800 dark:!text-amber-200">
-                Required fields missing
-              </p>
-              <p className="text-sm !text-amber-700 dark:!text-amber-300 mt-1">
-                {metadata.missingRequiredFields.map(fieldName => {
-                  const errorFieldsArray = Array.isArray(objectDefinition.fields) 
-                    ? objectDefinition.fields 
-                    : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({ name, ...field }));
-                  const field = errorFieldsArray.find(f => f.name === fieldName);
-                  return field?.title || fieldName;
-                }).join(', ')}
-              </p>
-            </div>
-          </div>
-        </div>
-      )} */}
+
+      {/* Preview when collapsed - DISABLED for now to debug concatenation issue */}
+      {/* {getCollapseState('main') && renderPreview()} */}
     </div>
   );
 }
