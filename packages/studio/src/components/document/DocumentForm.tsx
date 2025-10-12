@@ -25,6 +25,106 @@ function formatFieldName(fieldName: string): string {
     .trim();
 }
 
+// Conditional visibility evaluation functions (copied from ObjectField)
+function evaluateCondition(actualValue: any, expectedValue: any, operator: string): boolean {
+  switch (operator) {
+    case 'equals':
+      return actualValue === expectedValue;
+    case 'notEquals':
+      return actualValue !== expectedValue;
+    case 'contains':
+      if (typeof actualValue === 'string') {
+        return actualValue.includes(String(expectedValue));
+      }
+      if (Array.isArray(actualValue)) {
+        return actualValue.includes(expectedValue);
+      }
+      return false;
+    case 'notContains':
+      if (typeof actualValue === 'string') {
+        return !actualValue.includes(String(expectedValue));
+      }
+      if (Array.isArray(actualValue)) {
+        return !actualValue.includes(expectedValue);
+      }
+      return true;
+    case 'exists':
+      return actualValue !== undefined && actualValue !== null && actualValue !== '';
+    case 'notExists':
+      return actualValue === undefined || actualValue === null || actualValue === '';
+    case 'greaterThan':
+      return typeof actualValue === 'number' && typeof expectedValue === 'number' && actualValue > expectedValue;
+    case 'lessThan':
+      return typeof actualValue === 'number' && typeof expectedValue === 'number' && actualValue < expectedValue;
+    default:
+      console.warn(`Unknown conditional operator: ${operator}`);
+      return false;
+  }
+}
+
+function evaluateConditional(
+  fieldDefinition: any,
+  documentValues: Record<string, any>
+): { visible: boolean; reason: string; evaluatedFields: string[] } {
+  // Handle function-based hidden property
+  if (typeof fieldDefinition.hidden === 'function') {
+    try {
+      const isHidden = fieldDefinition.hidden(documentValues);
+      return {
+        visible: !isHidden,
+        reason: isHidden ? 'Hidden by function' : 'Visible by function',
+        evaluatedFields: Object.keys(documentValues)
+      };
+    } catch (error) {
+      console.error('Error evaluating hidden function:', error);
+      return { visible: true, reason: 'Function error - defaulting to visible', evaluatedFields: [] };
+    }
+  }
+
+  // Handle boolean hidden property
+  if (typeof fieldDefinition.hidden === 'boolean') {
+    return {
+      visible: !fieldDefinition.hidden,
+      reason: fieldDefinition.hidden ? 'Hidden by boolean' : 'Visible by boolean',
+      evaluatedFields: []
+    };
+  }
+
+  // Handle conditional visibility
+  if (fieldDefinition.conditional) {
+    const { field, value, operator = 'equals', conditions, logic = 'and' } = fieldDefinition.conditional;
+    const evaluatedFields = [field];
+
+    // Single condition
+    if (!conditions) {
+      const actualValue = documentValues[field];
+      const result = evaluateCondition(actualValue, value, operator);
+      return {
+        visible: result,
+        reason: result ? `Condition met: ${field} ${operator} ${value}` : `Condition not met: ${field} ${operator} ${value}`,
+        evaluatedFields
+      };
+    }
+
+    // Multiple conditions
+    const results = conditions.map((condition: any) => {
+      evaluatedFields.push(condition.field);
+      const actualValue = documentValues[condition.field];
+      return evaluateCondition(actualValue, condition.value, condition.operator || 'equals');
+    });
+
+    const visible = logic === 'and' ? results.every((r: boolean) => r) : results.some((r: boolean) => r);
+    return {
+      visible,
+      reason: `Multiple conditions (${logic}): ${visible ? 'met' : 'not met'}`,
+      evaluatedFields
+    };
+  }
+
+  // Default to visible
+  return { visible: true, reason: 'No conditions - default visible', evaluatedFields: [] };
+}
+
 export function DocumentForm() {
   logger.debug('Component initializing');
   
@@ -197,7 +297,19 @@ export function DocumentForm() {
   useEffect(() => {
     if (saving && schema && document) {
       const fieldsArray = getFieldsArray(schema.fields);
-      validateAllFields(fieldsArray);
+      // Filter to only validate visible fields
+      const visibleFieldsForValidation = fieldsArray.filter(field => {
+        const conditionalResult = evaluateConditional(
+          {
+            name: field.name,
+            conditional: field.conditional,
+            hidden: field.hidden
+          },
+          document
+        );
+        return conditionalResult.visible;
+      });
+      validateAllFields(visibleFieldsForValidation);
     }
   }, [saving, schema, document, getFieldsArray, validateAllFields]);
 
@@ -337,14 +449,38 @@ export function DocumentForm() {
 
   const fieldsArray = useMemo(() => getFieldsArray(schema.fields), [schema.fields, getFieldsArray]);
 
+  // Filter fields based on conditional visibility
+  const visibleFields = useMemo(() => {
+    if (!fieldsArray || !document) return fieldsArray || [];
+
+    return fieldsArray.filter(field => {
+      const conditionalResult = evaluateConditional(
+        {
+          name: field.name,
+          conditional: field.conditional,
+          hidden: field.hidden
+        },
+        document
+      );
+
+      logger.debug('Field visibility evaluation', {
+        fieldName: field.name,
+        visible: conditionalResult.visible,
+        reason: conditionalResult.reason
+      });
+
+      return conditionalResult.visible;
+    });
+  }, [fieldsArray, document]);
+
   return (
     <div className="flex-1 overflow-auto">
       <div className="max-w-4xl mx-auto p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="p-6">
-            {fieldsArray.length > 0 && renderFormSection(fieldsArray)}
+            {visibleFields.length > 0 && renderFormSection(visibleFields)}
             
-            {fieldsArray.length === 0 && (
+            {visibleFields.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-gray-400">
                   No fields defined in schema
