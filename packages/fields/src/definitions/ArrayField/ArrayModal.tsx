@@ -1,49 +1,33 @@
 /**
- * ObjectModal - Modal/Drawer for editing top-level object fields
+ * ArrayModal - Modal/Drawer for editing top-level array fields
  *
- * Provides a focused editing experience for complex objects without cluttering the main form.
+ * Provides a focused editing experience for arrays without cluttering the main form.
  * Opens as a slide-in drawer from the right side of the screen.
  */
 
 import React from 'react';
-import type { ObjectFieldDefinition, NestedFieldDefinition } from './definition.js';
-import { fieldRegistry } from '../../registry/FieldRegistry.js';
+import type { ArrayFieldDefinition } from './definition.js';
 
-interface ObjectModalProps {
+interface ArrayModalProps {
   /** Whether the modal is open */
   isOpen: boolean;
   /** Function to close the modal */
   onClose: () => void;
-  /** Object field definition */
-  definition: ObjectFieldDefinition;
-  /** Current object value */
-  value: Record<string, any>;
-  /** Callback when value changes */
-  onChange: (newValue: Record<string, any>) => void;
-  /** Field ID for nested field IDs */
-  fieldId: string;
-  /** Whether the field is disabled */
-  isDisabled?: boolean;
-  /** Whether the field is readonly */
-  isReadonly?: boolean;
-  /** Studio context (for nested fields) */
-  studioContext?: any;
-  /** Document context (for nested fields) */
-  documentContext?: any;
-  /** Visible fields to render */
-  visibleFields: Array<{ name: string; definition: NestedFieldDefinition }>;
-  /** Render function for individual fields */
-  renderField: (fieldName: string, fieldDef: NestedFieldDefinition) => React.ReactNode;
+  /** Array field definition */
+  definition: ArrayFieldDefinition;
+  /** Current array value */
+  value: any[];
+  /** Render function for array content */
+  renderContent: () => React.ReactNode;
 }
 
-export function ObjectModal({
+export function ArrayModal({
   isOpen,
   onClose,
   definition,
   value,
-  visibleFields,
-  renderField,
-}: ObjectModalProps) {
+  renderContent,
+}: ArrayModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -60,13 +44,11 @@ export function ObjectModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {definition.title || 'Edit Object'}
+              {definition.title || 'Edit Array'}
             </h2>
-            {definition.description && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {definition.description}
-              </p>
-            )}
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              ({value.length} item{value.length !== 1 ? 's' : ''})
+            </span>
           </div>
           <button
             type="button"
@@ -82,21 +64,7 @@ export function ObjectModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="space-y-6">
-            {visibleFields.length > 0 ? (
-              visibleFields.map(field => (
-                <div key={field.name}>
-                  {renderField(field.name, field.definition)}
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400">
-                  No fields defined
-                </p>
-              </div>
-            )}
-          </div>
+          {renderContent()}
         </div>
 
         {/* Footer */}

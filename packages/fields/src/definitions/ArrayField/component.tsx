@@ -2,11 +2,18 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
 import { fieldRegistry } from '../../registry/index.js';
+import { ArrayModal } from './ArrayModal.js';
 
 // Simple SVG icons inline to avoid external dependencies
 const PlusIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+);
+
+const TrashIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
   </svg>
 );
 
@@ -28,9 +35,14 @@ const ChevronRightIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Bars3Icon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+const GripVerticalIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <circle cx="9" cy="5" r="1.5" />
+    <circle cx="9" cy="12" r="1.5" />
+    <circle cx="9" cy="19" r="1.5" />
+    <circle cx="15" cy="5" r="1.5" />
+    <circle cx="15" cy="12" r="1.5" />
+    <circle cx="15" cy="19" r="1.5" />
   </svg>
 );
 
@@ -56,11 +68,18 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   } = props;
   const arrayDefinition = definition as ArrayFieldDefinition;
   
+  // Detect nesting level from documentContext (0 = top-level, 1+ = nested)
+  const nestingLevel = (documentContext as any)?.nestingLevel ?? 0;
+  const isTopLevel = nestingLevel === 0;
+
   const lastValidatedValue = useRef(value);
-  const [isCollapsed, setIsCollapsed] = useState(arrayDefinition.options?.collapsed ?? true);
+  // For nested arrays (level 1+), default to expanded for better UX
+  const defaultCollapsed = isTopLevel ? true : (arrayDefinition.options?.collapsed ?? false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [newItemInput, setNewItemInput] = useState('');
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Ensure value is always an array
   const arrayValue = Array.isArray(value) ? value : [];
@@ -238,7 +257,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     return (
       <div
         key={index}
-        className={`group relative bg-white dark:bg-gray-800 border rounded-lg p-3 transition-colors ${
+        className={`group relative bg-white dark:bg-gray-800 border rounded-lg p-5 transition-colors ${
           itemHasError ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
         } ${draggedIndex === index ? 'opacity-50' : ''}`}
         draggable={sortable && !isDisabled && !isReadonly}
@@ -254,13 +273,13 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
       >
         {/* Drag handle */}
         {sortable && !isDisabled && !isReadonly && (
-          <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Bars3Icon className="h-5 w-5 text-gray-400 dark:text-gray-400 cursor-move" />
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVerticalIcon className="h-5 w-5 text-gray-400 dark:text-gray-400 cursor-move" />
           </div>
         )}
 
         {/* Field component */}
-        <div className={sortable ? 'ml-6' : ''}>
+        <div className={sortable ? 'ml-8 mr-8' : 'mr-8'}>
           <FieldComponent
             fieldId={`${fieldId}.${index}`}
             value={item}
@@ -269,7 +288,10 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
             hasError={itemHasError}
             isDisabled={isDisabled}
             isReadonly={isReadonly}
-            documentContext={documentContext}
+            documentContext={documentContext ? {
+              ...documentContext,
+              nestingLevel: nestingLevel + 1  // Increment nesting level for child fields
+            } : undefined}
             studioContext={props.studioContext}
             onValidationChange={(result) => {
               // Handle nested field validation
@@ -293,10 +315,10 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           <button
             type="button"
             onClick={() => operations.remove(index)}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-opacity"
+            className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-opacity"
             title="Remove item"
           >
-            <XMarkIcon className="h-4 w-4" />
+            <TrashIcon className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -381,7 +403,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
       );
     }
 
-    const containerClass = layout === 'grid' 
+    const containerClass = layout === 'grid'
       ? 'grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
       : 'space-y-3';
 
@@ -392,11 +414,103 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     );
   };
 
-  // Main render
+  // Render top-level card (for nestingLevel 0)
+  const renderTopLevelCard = () => {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsModalOpen(true)}
+        disabled={isDisabled || isReadonly}
+        className={`w-full text-left border border-gray-300 dark:border-gray-600 rounded-md p-4 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+          hasError ? 'border-red-300 dark:border-red-600' : ''
+        } ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ChevronRightIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                {arrayDefinition.title}
+              </h3>
+              {arrayDefinition.description && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {arrayDefinition.description}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>
+              {arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  // Main render - Conditional based on nesting level
+  if (isTopLevel) {
+    // Top-level: Show collapsed card + modal
+    return (
+      <>
+        {renderTopLevelCard()}
+        <ArrayModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          definition={arrayDefinition}
+          value={arrayValue}
+          renderContent={() => (
+            <div className="space-y-4">
+              {/* Add button at top of modal */}
+              {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <PlusIcon className="h-3 w-3 mr-1" />
+                    {addButtonText}
+                  </button>
+                </div>
+              )}
+
+              {/* Array content */}
+              {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
+
+              {/* Validation info */}
+              {arrayDefinition.validation && (
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+                    <span>
+                      {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
+                    </span>
+                  )}
+                  {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
+                    <span>
+                      Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+                    <span>
+                      Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        />
+      </>
+    );
+  }
+
+  // Nested level 1+: Show traditional accordion behavior
   return (
     <div className="array-field border border-gray-200 dark:border-gray-700 rounded-lg p-4">
       {renderHeader()}
-      
+
       {!isCollapsed && (
         <div className={`space-y-4 ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
           {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
