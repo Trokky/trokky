@@ -41,24 +41,35 @@ export class ApiClient {
    */
   initialize(): void {
     // Priority order for backend URL:
-    // 1. Saved URL from localStorage (user's custom setting)
-    // 2. Injected backend URL from server (integrated deployment)
-    // 3. Build-time environment variable (VITE_BACKEND_URL)
+    // 1. Injected backend URL from server (integrated deployment) - highest priority
+    // 2. Build-time environment variable (VITE_BACKEND_URL)
+    // 3. Saved URL from localStorage (user's custom setting) - only if no config provided
+    // 4. Development mode fallback
 
-    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL)
     const config = (window as any).TROKKY_CONFIG
     const injectedBackendUrl = config?.backendUrl
     const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL
+    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL)
 
-    if (savedBackendUrl) {
-      // Use saved backend URL from localStorage
-      this.setBackendUrl(savedBackendUrl)
-    } else if (injectedBackendUrl) {
+    if (injectedBackendUrl) {
       // Use server-injected backend URL (integrated deployment)
       this.setBackendUrl(injectedBackendUrl)
+      // Clear any stale localStorage URL when config is provided
+      if (savedBackendUrl && savedBackendUrl !== injectedBackendUrl) {
+        storageService.remove(STORAGE_KEYS.BACKEND_URL)
+        this.logger.debug('Cleared stale backend URL from localStorage')
+      }
     } else if (buildTimeBackendUrl) {
       // Use build-time configured backend URL
       this.setBackendUrl(buildTimeBackendUrl)
+      // Clear any stale localStorage URL when build-time config is provided
+      if (savedBackendUrl && savedBackendUrl !== buildTimeBackendUrl) {
+        storageService.remove(STORAGE_KEYS.BACKEND_URL)
+        this.logger.debug('Cleared stale backend URL from localStorage')
+      }
+    } else if (savedBackendUrl) {
+      // Use saved backend URL from localStorage (only when no config provided)
+      this.setBackendUrl(savedBackendUrl)
     } else if (import.meta.env.DEV) {
       // Development mode fallback - assume API is on localhost:3000
       const devBackendUrl = 'http://localhost:3000/api'
