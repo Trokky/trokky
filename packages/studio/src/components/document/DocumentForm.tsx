@@ -211,20 +211,6 @@ export function DocumentForm() {
     
     if (Array.isArray(fields)) {
       logger.debug('DocumentForm - Using array fields', { count: fields.length });
-      
-      // Debug each field to see what properties they have
-      fields.forEach((field, index) => {
-        if (field.type === 'slug') {
-          logger.debug('🐛 Array field slug found:', {
-            index,
-            field,
-            hasSource: 'source' in field,
-            hasAutoGenerate: 'autoGenerate' in field,
-            hasUnique: 'unique' in field
-          });
-        }
-      });
-      
       return fields;
     }
     
@@ -239,28 +225,7 @@ export function DocumentForm() {
           title, // Ensure title is always present
           ...field
         };
-        
-        // Debug media field processing
-        if (field.type === 'media') {
-          logger.debug('Processing media field in getFieldsArray', {
-            fieldName: name,
-            hasOptions: !!field.options
-          });
-        }
-        
-        // Debug slug field processing
-        if (field.type === 'slug') {
-          logger.debug('🐛 Processing slug field in getFieldsArray', {
-            fieldName: name,
-            originalField: field,
-            processedField,
-            allProperties: Object.keys(field),
-            hasSource: 'source' in field,
-            hasAutoGenerate: 'autoGenerate' in field,
-            hasUnique: 'unique' in field
-          });
-        }
-        
+
         return processedField;
       });
       
@@ -385,29 +350,6 @@ export function DocumentForm() {
     const value = document[field.name];
     const error = fieldErrors[field.name];
 
-    // Debug field definition for media fields
-    if (field.type === 'media') {
-      logger.debug('Rendering media field in DocumentForm', {
-        fieldName: field.name,
-        hasOptions: !!field.options,
-        enableUpload: field.options?.enableUpload,
-        enableBrowse: field.options?.enableBrowse
-      });
-    }
-    
-    // Debug field definition for slug fields
-    if (field.type === 'slug') {
-      logger.debug('🐛 Rendering slug field in DocumentForm', {
-        fieldName: field.name,
-        fieldDefinition: field,
-        source: field.source,
-        autoGenerate: field.autoGenerate,
-        unique: field.unique,
-        documentContext: !!documentContext,
-        allValues: documentContext?.allValues
-      });
-    }
-
     // Use FieldRenderer for all field types (same as FieldsDemo)
     // Add extra padding wrapper for object fields to create space from the left border
     const fieldRenderer = (
@@ -475,9 +417,9 @@ export function DocumentForm() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto px-8 py-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="p-6">
+          <div className="px-8 py-6">
             {visibleFields.length > 0 && renderFormSection(visibleFields)}
             
             {visibleFields.length === 0 && (
