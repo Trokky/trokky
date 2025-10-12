@@ -66,7 +66,7 @@ export interface RoutesConfig {
 
 // CORS configuration
 export interface CorsOptions {
-  origin?: string | string[] | boolean
+  origin?: string | string[] | boolean | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => void)
   methods?: HttpMethod[]
   allowedHeaders?: string[]
   credentials?: boolean

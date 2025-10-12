@@ -69,7 +69,12 @@ const MEDIA_TYPE_ICONS = {
 }
 
 // Get media type from MIME type
-function getMediaTypeFromMime(mimeType: string): MediaType {
+function getMediaTypeFromMime(mimeType: string | undefined | null): MediaType {
+  // Guard against undefined/null mimeType
+  if (!mimeType || typeof mimeType !== 'string') {
+    return 'document' // Default fallback
+  }
+
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType.startsWith('video/')) return 'video'
   if (mimeType.startsWith('audio/')) return 'audio'
@@ -83,7 +88,12 @@ function getMediaTypeFromMime(mimeType: string): MediaType {
 }
 
 // Format file size for display
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number | undefined | null): string {
+  // Guard against undefined/null bytes
+  if (bytes === undefined || bytes === null || typeof bytes !== 'number') {
+    return 'Unknown size'
+  }
+
   const units = ['B', 'KB', 'MB', 'GB']
   let size = bytes
   let unitIndex = 0
@@ -131,6 +141,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showMetadataEditor, setShowMetadataEditor] = useState(false)
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null)
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null)
@@ -151,8 +162,21 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
   // Load asset when value changes
   useEffect(() => {
+    console.log('🔄 MediaField value changed', {
+      hasValue: !!value,
+      value,
+      hasAssetRef: !!value?.asset?._ref,
+      assetRef: value?.asset?._ref,
+      variant: value?.variant
+    })
+
     const loadAsset = async () => {
       if (!value?.asset?._ref || !studioContext?.apiClient) {
+        console.log('⏭️ Skipping asset load', {
+          hasValue: !!value,
+          hasAssetRef: !!value?.asset?._ref,
+          hasApiClient: !!studioContext?.apiClient
+        })
         setCurrentAsset(null)
         setAssetLoadError(null)
         return
@@ -160,7 +184,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       try {
         setAssetLoadError(null)
-        studioContext.logger?.debug('Loading asset', {
+        console.log('🔍 Loading asset from API', {
           assetId: value.asset._ref,
         })
 
@@ -224,10 +248,45 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         }, 100)
 
         // Use secure upload implementation
-        const uploadedAsset = await secureUpload(file)
+        const uploadResponse: any = await secureUpload(file)
 
         clearInterval(uploadInterval)
         setUploadProgress(100)
+
+        // Log the upload response to debug
+        console.log('📤 Upload response received', {
+          uploadResponse,
+          hasFiles: !!uploadResponse.files,
+          filesLength: uploadResponse.files?.length,
+          allKeys: Object.keys(uploadResponse)
+        })
+
+        // Extract the actual asset from the response (API returns {files: [asset], meta: {...}})
+        const uploadedAsset: MediaAsset = uploadResponse.files?.[0] || uploadResponse
+
+        console.log('📦 Extracted uploaded asset', {
+          uploadedAsset,
+          hasId: !!uploadedAsset.id,
+          id: uploadedAsset.id,
+          hasFilename: !!uploadedAsset.filename,
+          hasSize: !!uploadedAsset.size,
+          hasContentType: !!uploadedAsset.contentType,
+          hasUrl: !!uploadedAsset.url,
+          allKeys: Object.keys(uploadedAsset)
+        })
+
+        // Enhance the uploaded asset with file properties if missing
+        const enrichedAsset: MediaAsset = {
+          ...uploadedAsset,
+          filename: uploadedAsset.filename || file.name,
+          size: uploadedAsset.size || file.size,
+          contentType: uploadedAsset.contentType || file.type,
+          title: uploadedAsset.title || file.name,
+        }
+
+        // Set the enriched asset immediately to avoid loading state
+        setCurrentAsset(enrichedAsset)
+        setAssetLoadError(null)
 
         // Create media field value
         const newValue: MediaFieldValue = {
@@ -236,16 +295,25 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             _ref: uploadedAsset.id,
             _type: 'mediaAsset',
           },
+          // Don't set variant - let it default to 'thumbnail' which is a proper variant
+          // 'original' is NOT a variant in Trokky, it's the actual file at /file endpoint
           alt: '',
           caption: '',
           title: uploadedAsset.title || file.name,
         }
+
+        console.log('💾 Setting field value', {
+          newValue,
+          assetRef: newValue.asset._ref,
+          variant: newValue.variant
+        })
 
         onChange(newValue)
 
         setTimeout(() => {
           setIsUploading(false)
           setUploadProgress(0)
+          setShowUploadDialog(false) // Close modal after successful upload
         }, 500)
       } catch (error) {
         studioContext?.logger?.error('Upload failed', error)
@@ -353,6 +421,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       studioContext.utils.showMediaBrowser({
         onSelect: (selectedValue: MediaFieldValue) => {
           onChange(selectedValue)
+          setShowUploadDialog(false) // Close modal after selecting from browser
         },
         mediaTypeFilter: validation.restrictToMediaType,
         showVariantSelector: options.showVariantSelector,
@@ -416,97 +485,226 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     return IconComponent
   }
 
-  // Render upload area
-  const renderUploadArea = () => (
-    <div
-      ref={dropZoneRef}
+  // Get image URL with fallback logic for variants
+  const getImageUrl = useCallback((assetRef: string, preferredVariant?: string): string => {
+    const asset = currentAsset
+
+    console.log('🖼️ MediaField getImageUrl called', {
+      assetRef,
+      preferredVariant,
+      hasAsset: !!asset,
+      assetUrl: asset?.url,
+      hasMetadata: !!asset?.metadata,
+      hasImageVariants: !!asset?.metadata?.imageVariants,
+      imageVariants: asset?.metadata?.imageVariants ? Object.keys(asset.metadata.imageVariants) : []
+    })
+
+    // Special case: "original" variant should use the base asset URL directly
+    if (preferredVariant === 'original' && asset?.url) {
+      console.log('✅ Using original variant with asset URL', { url: asset.url })
+      return asset.url
+    }
+
+    // Try to get URL from mediaUrlGenerator or apiClient
+    if (studioContext?.mediaUrlGenerator) {
+      const variant = preferredVariant || 'thumbnail'
+      const generatedUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetRef, variant)
+      // If URL generation succeeded, return it
+      if (generatedUrl) {
+        console.log('✅ URL from mediaUrlGenerator', { variant, url: generatedUrl })
+        return generatedUrl
+      }
+    }
+
+    if (studioContext?.apiClient?.getMediaUrl) {
+      const variant = preferredVariant || 'thumbnail'
+      const generatedUrl = studioContext.apiClient.getMediaUrl(assetRef, variant)
+      // If URL generation succeeded, return it
+      if (generatedUrl) {
+        console.log('✅ URL from apiClient.getMediaUrl', { variant, url: generatedUrl })
+        return generatedUrl
+      }
+    }
+
+    // Fallback to metadata variants in order: preferred → thumbnail → original → any available → base URL
+    if (asset?.metadata?.imageVariants) {
+      const variants = asset.metadata.imageVariants
+
+      // Try preferred variant first
+      if (preferredVariant && variants[preferredVariant]?.url) {
+        console.log('✅ URL from metadata preferred variant', { variant: preferredVariant, url: variants[preferredVariant].url })
+        return variants[preferredVariant].url
+      }
+
+      // Try thumbnail
+      if (variants.thumbnail?.url) {
+        console.log('✅ URL from metadata thumbnail variant', { url: variants.thumbnail.url })
+        return variants.thumbnail.url
+      }
+
+      // Try original
+      if (variants.original?.url) {
+        console.log('✅ URL from metadata original variant', { url: variants.original.url })
+        return variants.original.url
+      }
+
+      // Try any available variant
+      const anyVariant = Object.values(variants).find(v => v?.url)
+      if (anyVariant?.url) {
+        console.log('✅ URL from any available variant', { url: anyVariant.url })
+        return anyVariant.url
+      }
+    }
+
+    // Final fallback to base asset URL
+    const finalUrl = asset?.url || ''
+    console.log(finalUrl ? '✅ Using base asset URL' : '❌ No URL found', { url: finalUrl })
+    return finalUrl
+  }, [currentAsset, studioContext])
+
+  // Render compact button for empty state
+  const renderCompactButton = () => (
+    <button
+      type="button"
+      onClick={() => setShowUploadDialog(true)}
+      disabled={isDisabled || isReadonly}
       className={`
-        relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
-        ${
-          isDragOver
-            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-300 dark:border-gray-600'
-        }
-        ${hasError ? '!border-red-400' : ''}
+        w-full px-4 py-2.5 border rounded-md text-left hover:bg-gray-50 dark:hover:bg-gray-800
+        flex items-center gap-2 transition-colors
+        ${hasError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'}
         ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
       `}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onClick={!isDisabled && !isReadonly ? handleUploadClick : undefined}
     >
-      {isUploading ? (
-        <div className="space-y-4">
-          <CloudArrowUpIcon className="mx-auto h-12 w-12 text-blue-500 animate-pulse" />
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Uploading...
-            </p>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-            <p className="text-xs text-gray-500">{uploadProgress}%</p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-              {options.enableDragDrop
-                ? 'Drop files here or click to upload'
-                : 'Click to upload'}
+      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+      <span className="text-sm text-gray-700 dark:text-gray-300">
+        {options.placeholder || 'Select image'}
+      </span>
+    </button>
+  )
+
+  // Render upload dialog (modal)
+  const renderUploadDialog = () => {
+    if (!showUploadDialog) return null
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUploadDialog(false)}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              {validation.restrictToMediaType ? `Upload ${validation.restrictToMediaType}` : 'Upload media'}
             </h3>
-            <p className="text-xs text-gray-500">
-              {validation.maxFileSize
-                ? `Max size: ${formatFileSize(validation.maxFileSize)}`
-                : 'Select a file to upload'}
-            </p>
-            {validation.allowedExtensions && (
-              <p className="text-xs text-gray-500">
-                Allowed: {validation.allowedExtensions.join(', ')}
-              </p>
+            <button
+              type="button"
+              onClick={() => setShowUploadDialog(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div
+            ref={dropZoneRef}
+            className={`
+              relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
+              ${
+                isDragOver
+                  ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-300 dark:border-gray-600'
+              }
+              ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={!isDisabled && !isReadonly ? handleUploadClick : undefined}
+          >
+            {isUploading ? (
+              <div className="space-y-4">
+                <CloudArrowUpIcon className="mx-auto h-12 w-12 text-blue-500 animate-pulse" />
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Uploading...
+                  </p>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">{uploadProgress}%</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    {options.enableDragDrop
+                      ? 'Drop files here or click to upload'
+                      : 'Click to upload'}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {validation.maxFileSize
+                      ? `Max size: ${formatFileSize(validation.maxFileSize)}`
+                      : 'Select a file to upload'}
+                  </p>
+                  {validation.allowedExtensions && (
+                    <p className="text-xs text-gray-500">
+                      Allowed: {validation.allowedExtensions.join(', ')}
+                    </p>
+                  )}
+                </div>
+
+                {(options.enableUpload || options.enableBrowse) && (
+                  <div className="flex justify-center space-x-3">
+                    {options.enableUpload && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:bg-blue-900/50 dark:border-blue-700 dark:text-blue-400"
+                        onClick={e => {
+                          e.stopPropagation()
+                          handleUploadClick()
+                        }}
+                      >
+                        <PlusIcon className="w-4 h-4 mr-1" />
+                        Upload
+                      </button>
+                    )}
+
+                    {options.enableBrowse && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
+                        onClick={e => {
+                          e.stopPropagation()
+                          handleBrowseClick()
+                        }}
+                      >
+                        <FolderOpenIcon className="w-4 h-4 mr-1" />
+                        Browse
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {(options.enableUpload || options.enableBrowse) && (
-            <div className="flex justify-center space-x-3">
-              {options.enableUpload && (
-                <button
-                  type="button"
-                  className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:bg-blue-900/50 dark:border-blue-700 dark:text-blue-400"
-                  onClick={e => {
-                    e.stopPropagation()
-                    handleUploadClick()
-                  }}
-                >
-                  <PlusIcon className="w-4 h-4 mr-1" />
-                  Upload
-                </button>
-              )}
-
-              {options.enableBrowse && (
-                <button
-                  type="button"
-                  className="inline-flex items-center px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
-                  onClick={e => {
-                    e.stopPropagation()
-                    handleBrowseClick()
-                  }}
-                >
-                  <FolderOpenIcon className="w-4 h-4 mr-1" />
-                  Browse
-                </button>
-              )}
-            </div>
-          )}
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowUploadDialog(false)}
+              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
 
   // Render selected media preview with proper asset resolution
   const renderMediaPreview = () => {
@@ -580,103 +778,80 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     const MediaIcon = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon
 
     return (
-      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          {/* Cell 1: Thumbnail - Fixed width */}
-          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center flex-shrink-0">
-            {asset?.url && mediaType === 'image' ? (
-              <img
-                src={(() => {
-                  // Use MediaUrlGenerator if available from Studio Context
-                  if (studioContext?.mediaUrlGenerator) {
-                    return studioContext.mediaUrlGenerator.getMediaUrl(
-                      value.asset._ref,
-                      value.variant || 'thumbnail'
-                    )
-                  }
-                  // Fallback to apiClient.getMediaUrl if available
-                  if (studioContext?.apiClient?.getMediaUrl) {
-                    return studioContext.apiClient.getMediaUrl(
-                      value.asset._ref,
-                      value.variant || 'thumbnail'
-                    )
-                  }
-                  // Fallback: Try to use thumbnail variant if available
-                  if (asset.metadata?.imageVariants?.thumbnail) {
-                    return asset.metadata.imageVariants.thumbnail.url
-                  }
-                  // Fallback to main URL
-                  return asset.url
-                })()}
-                alt={value?.alt || asset.title || asset.filename}
-                className="w-full h-full object-cover rounded-md"
-                onError={e => {
-                  // Fallback to icon if image fails to load
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                }}
-              />
-            ) : null}
+      <div className="border border-gray-200 dark:border-gray-600 rounded-md p-3 space-y-3">
+        <div className="flex items-center gap-3">
+          {/* Compact Thumbnail */}
+          <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center flex-shrink-0">
+            {mediaType === 'image' && (() => {
+              const imgUrl = getImageUrl(value.asset._ref, value.variant)
+
+              console.log('🎨 Rendering image thumbnail', {
+                assetRef: value.asset._ref,
+                variant: value.variant,
+                imgUrl,
+                hasImgUrl: !!imgUrl,
+                mediaType,
+                currentAsset: !!currentAsset
+              })
+
+              return imgUrl ? (
+                <img
+                  src={imgUrl}
+                  alt={value?.alt || asset?.title || asset?.filename}
+                  className="w-full h-full object-cover rounded"
+                  onError={e => {
+                    console.error('❌ Image failed to load', { src: imgUrl })
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully', { src: imgUrl })
+                  }}
+                />
+              ) : null
+            })()}
             <MediaIcon
-              className={`w-8 h-8 text-gray-400 ${asset?.url && mediaType === 'image' ? 'hidden' : ''}`}
+              className={`w-6 h-6 text-gray-400 ${mediaType === 'image' && getImageUrl(value.asset._ref, value.variant) ? 'hidden' : ''}`}
             />
           </div>
 
-          {/* Cell 2: Content - Flexible width with truncation */}
+          {/* File Info - Compact */}
           <div className="min-w-0 flex-1">
             <h4
               className="text-sm font-medium text-gray-900 dark:text-white truncate"
-              title={
-                value?.title || asset?.title || asset?.filename || 'Media Asset'
-              }
+              title={value?.title || asset?.title || asset?.filename || 'Media Asset'}
             >
               {truncateText(
-                value?.title ||
-                  asset?.title ||
-                  asset?.filename ||
-                  'Media Asset',
-                50
+                value?.title || asset?.title || asset?.filename || 'Media Asset',
+                40
               )}
             </h4>
-            <div className="space-y-0.5">
-              <p
-                className="text-xs text-gray-500 truncate"
-                title={asset?.filename}
-              >
-                <span className="font-medium">File:</span>{' '}
-                {truncateText(asset?.filename || 'Unknown', 40)}
-              </p>
-              <p className="text-xs text-gray-500">
-                <span className="font-medium">Size:</span>{' '}
-                {asset ? formatFileSize(asset.size) : 'Unknown'}
-              </p>
-              {asset?.contentType && (
-                <p
-                  className="text-xs text-gray-500 truncate"
-                  title={asset.contentType}
-                >
-                  <span className="font-medium">Type:</span> {asset.contentType}
-                </p>
-              )}
-              {value?.variant && mediaType === 'image' && (
-                <p className="text-xs text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Variant:</span> {value.variant}
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
+              {truncateText(asset?.filename || 'Unknown', 35)} • {asset ? formatFileSize(asset.size) : 'Unknown'}
+            </p>
           </div>
 
-          {/* Cell 3: Actions - Fixed width */}
-          <div className="flex items-start space-x-2 flex-shrink-0">
+          {/* Actions - Compact */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             {!isReadonly && (
-              <button
-                type="button"
-                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                onClick={handleRemove}
-                title="Remove media"
-              >
-                <XMarkIcon className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors text-xs"
+                  onClick={() => setShowUploadDialog(true)}
+                  title="Change media"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
+                  onClick={handleRemove}
+                  title="Remove media"
+                >
+                  Remove
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -760,8 +935,11 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         disabled={isDisabled || isReadonly}
       />
 
-      {/* Render upload area or preview */}
-      {value ? renderMediaPreview() : renderUploadArea()}
+      {/* Render compact button or preview */}
+      {value ? renderMediaPreview() : renderCompactButton()}
+
+      {/* Upload dialog modal */}
+      {renderUploadDialog()}
 
       {/* TODO: Add metadata editor modal */}
     </div>

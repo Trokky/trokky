@@ -1836,6 +1836,11 @@ export class TrokkyRoutes {
         headers['Access-Control-Allow-Origin'] = cors.origin
       } else if (Array.isArray(cors.origin)) {
         headers['Access-Control-Allow-Origin'] = cors.origin.join(', ')
+      } else if (typeof cors.origin === 'function') {
+        // For function-based CORS checks, use wildcard
+        // The function-based check is already handled by Express middleware for access control
+        // For static file responses (like media), we need to set actual headers
+        headers['Access-Control-Allow-Origin'] = '*'
       }
     }
 
