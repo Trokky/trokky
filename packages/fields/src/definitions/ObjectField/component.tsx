@@ -53,7 +53,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Get field-specific collapse state
   const getCollapseState = (key: string): boolean => {
-    return collapseState[`${fieldId}.${key}`] ?? (options.collapsed || false);
+    return collapseState[`${fieldId}.${key}`] ?? (options.collapsed ?? true);
   };
   
   const setCollapseStateForKey = (key: string, collapsed: boolean) => {
@@ -206,7 +206,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
 
   // Render object header with progress
   const renderHeader = () => {
-    const isCollapsible = options.collapsible !== false; // Default to true like ArrayField
+    const isCollapsible = options.collapsible !== false; // Default to true
     const isCollapsed = getCollapseState('main');
     const displayTitle = getDisplayTitle();
     

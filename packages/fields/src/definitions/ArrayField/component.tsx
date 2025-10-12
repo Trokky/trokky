@@ -57,7 +57,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   const arrayDefinition = definition as ArrayFieldDefinition;
   
   const lastValidatedValue = useRef(value);
-  const [isCollapsed, setIsCollapsed] = useState(arrayDefinition.options?.collapsed || false);
+  const [isCollapsed, setIsCollapsed] = useState(arrayDefinition.options?.collapsed ?? true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [newItemInput, setNewItemInput] = useState('');
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
