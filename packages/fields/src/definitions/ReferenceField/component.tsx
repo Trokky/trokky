@@ -79,6 +79,8 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [resolvedReferences, setResolvedReferences] = useState<ReferenceValue[]>([]);
   const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const [availableCount, setAvailableCount] = useState<number | null>(null);
   
   // Performance refs
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -220,10 +222,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      
+
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
-      
+
       setIsLoading(true);
       try {
         const apiClient = studioContext?.apiClient || props.studioContext?.apiClient;
@@ -235,7 +237,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
 
         // Generate cache key
         const cacheKey = `${query}:${(types || targetTypes.map(t => t.type)).join(',')}`;
-        
+
         // Check cache first
         const cachedResults = globalSearchCache.get(cacheKey);
         if (cachedResults) {
@@ -251,12 +253,15 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         const searchResults: ReferenceSearchResult[] = [];
         const searchTypes = types || targetTypes.map(t => t.type);
 
+        // Determine limit based on whether it's initial load or search
+        const limit = query.trim() ? 15 : 25; // More results for initial load
+
         // Search each target type with abort signal
         const searchPromises = searchTypes.map(async (searchType) => {
           try {
             const response = await apiClient.getDocuments(searchType, {
-              search: query,
-              limit: 15 // Increased for better UX
+              search: query.trim() || undefined, // Don't pass empty string, pass undefined
+              limit
             });
 
             if (signal.aborted) return [];
@@ -280,12 +285,12 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
 
         const allResults = await Promise.all(searchPromises);
         const flatResults = allResults.flat();
-        
+
         if (signal.aborted) return [];
 
         // Cache results
         globalSearchCache.set(cacheKey, flatResults);
-        
+
         // Update selection status
         const resultsWithSelection = flatResults.map(result => ({
           ...result,
@@ -293,6 +298,12 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         }));
 
         setSearchResults(resultsWithSelection);
+
+        // Store available count for button display
+        if (!query.trim()) {
+          setAvailableCount(resultsWithSelection.length);
+        }
+
         return resultsWithSelection;
       } catch (error) {
         if (!abortControllerRef.current?.signal.aborted) {
@@ -334,24 +345,35 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     }
   }), [currentReferences, isMultiple, onChange, props.studioContext, targetTypes]);
   
+  // Auto-load initial results when dropdown opens
+  useEffect(() => {
+    if (isSearchOpen && !hasLoadedInitial && searchResults.length === 0 && !isLoading) {
+      // Load initial documents when dropdown first opens
+      setHasLoadedInitial(true);
+      const types = selectedTypeFilter ? [selectedTypeFilter] : targetTypes.map(t => t.type);
+      operations.searchDocuments('', types); // Empty query loads all
+    }
+  }, [isSearchOpen, hasLoadedInitial, searchResults.length, isLoading, selectedTypeFilter, targetTypes, operations]);
+
   // Optimized search handler with improved debouncing
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    
+
     // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
-    
+
     // Update current search ref for cancellation
     currentSearchRef.current = query;
-    
+
+    // For empty query, load all documents (no debounce needed)
     if (!query.trim()) {
-      setSearchResults([]);
-      setIsLoading(false);
+      const types = selectedTypeFilter ? [selectedTypeFilter] : targetTypes.map(t => t.type);
+      operations.searchDocuments('', types);
       return;
     }
-    
+
     // Debounced search with shorter delay for better UX
     searchTimeoutRef.current = setTimeout(() => {
       // Only proceed if this is still the current search
@@ -456,21 +478,26 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     
     return (
       <div className={positionClasses}>
-        <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder={options.searchPlaceholder || 'Search documents...'}
+              placeholder={options.searchPlaceholder || 'Filter documents...'}
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
               autoFocus
             />
-            
+
             {targetTypes.length > 1 && (
               <select
                 value={selectedTypeFilter}
-                onChange={(e) => setSelectedTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setSelectedTypeFilter(e.target.value);
+                  // Trigger reload with new type filter
+                  setHasLoadedInitial(false);
+                  setSearchResults([]);
+                }}
                 className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">All types</option>
@@ -531,12 +558,28 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               </button>
             ))
           ) : searchQuery ? (
-            <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-              No results found for "{searchQuery}"
+            <div className="p-8 text-center">
+              <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No results found for "{searchQuery}"
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Try a different search term
+              </p>
             </div>
           ) : (
-            <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-              Start typing to search documents
+            <div className="p-8 text-center">
+              <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No documents available
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Create documents first to reference them here
+              </p>
             </div>
           )}
         </div>
@@ -580,16 +623,27 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 if (!isSearchOpen) {
                   const direction = calculateDropdownDirection();
                   setDropdownDirection(direction);
+                } else {
+                  // Reset when closing
+                  setSearchQuery('');
+                  setHasLoadedInitial(false);
                 }
                 setIsSearchOpen(!isSearchOpen);
               }}
-              className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-colors text-left"
             >
-              <div className="flex items-center justify-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                {options.placeholder || 'Select reference...'}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span>{options.placeholder || 'Select reference...'}</span>
+                </div>
+                {availableCount !== null && availableCount > 0 && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {availableCount} available
+                  </span>
+                )}
               </div>
             </button>
           ) : null}
