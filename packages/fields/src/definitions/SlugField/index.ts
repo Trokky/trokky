@@ -23,6 +23,7 @@ export interface SlugFieldDefinition extends BaseFieldDefinition {
   readOnly?: boolean;                 // Default: false (allow manual override)
   preserveCase?: boolean;             // Default: false (convert to lowercase)
   allowedChars?: string;              // Additional allowed characters beyond a-z0-9-
+  allowSlashes?: boolean;             // Default: false (allow / for hierarchical paths)
   
   // Prefix/suffix options
   prefix?: string;                    // Prefix to add to generated slugs
@@ -35,6 +36,7 @@ export interface SlugFieldDefinition extends BaseFieldDefinition {
 export interface SlugifyOptions {
   preserveCase?: boolean;
   allowedChars?: string;
+  allowSlashes?: boolean;
   prefix?: string;
   suffix?: string;
 }
@@ -55,6 +57,7 @@ export function defaultSlugify(input: string, options: SlugifyOptions = {}): str
   const {
     preserveCase = false,
     allowedChars = '',
+    allowSlashes = false,
     prefix = '',
     suffix = ''
   } = options;
@@ -72,9 +75,10 @@ export function defaultSlugify(input: string, options: SlugifyOptions = {}): str
 
   // Build character class for allowed characters
   const baseChars = preserveCase ? 'a-zA-Z0-9' : 'a-z0-9';
+  const slashChar = allowSlashes ? '\\/' : '';
   const escapedAllowedChars = allowedChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const allowedPattern = `[^${baseChars}\\s\\-${escapedAllowedChars}]`;
-  
+  const allowedPattern = `[^${baseChars}\\s\\-${slashChar}${escapedAllowedChars}]`;
+
   slug = slug
     .replace(new RegExp(allowedPattern, 'g'), '')  // Remove invalid characters
     .replace(/\s+/g, '-')                          // Replace spaces with hyphens
@@ -111,6 +115,8 @@ export function generateUniqueSlug(
 }
 
 // Validation function for slug format
+// TODO(#8): This validation is duplicated in packages/core/src/validation/validator.ts
+// See: https://github.com/Trokky/trokky/issues/8
 export function validateSlugFormat(slug: string, definition: SlugFieldDefinition): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -149,9 +155,10 @@ export function validateSlugFormat(slug: string, definition: SlugFieldDefinition
   if (!definition.pattern) {
     const baseChars = definition.preserveCase ? 'a-zA-Z0-9' : 'a-z0-9';
     const allowedChars = definition.allowedChars || '';
+    const slashChar = definition.allowSlashes ? '\\/' : '';
     const escapedAllowed = allowedChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const validPattern = new RegExp(`^[${baseChars}\\-${escapedAllowed}]+$`);
-    
+    const validPattern = new RegExp(`^[${baseChars}\\-${slashChar}${escapedAllowed}]+$`);
+
     if (!validPattern.test(slug)) {
       errors.push('Slug contains invalid characters');
     }
@@ -220,6 +227,7 @@ export const SlugFieldPlugin: FieldPlugin<SlugFieldDefinition, string> = {
       readOnly: definition.readOnly,
       preserveCase: definition.preserveCase,
       allowedChars: definition.allowedChars,
+      allowSlashes: definition.allowSlashes,
       prefix: definition.prefix,
       suffix: definition.suffix
     };
@@ -240,6 +248,7 @@ export const SlugFieldPlugin: FieldPlugin<SlugFieldDefinition, string> = {
       readOnly: schemaField.readOnly || false,
       preserveCase: schemaField.preserveCase || false,
       allowedChars: schemaField.allowedChars || '',
+      allowSlashes: schemaField.allowSlashes || false,
       prefix: schemaField.prefix || '',
       suffix: schemaField.suffix || ''
     };

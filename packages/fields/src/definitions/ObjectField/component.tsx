@@ -33,12 +33,48 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   const objectDefinition = definition as ObjectFieldDefinition;
   const options = objectDefinition.options || {};
-  
-  // Ensure value is always an object and sanitized
-  const objectValue = useMemo(() => 
-    sanitizeObjectValue(value), 
-    [value]
-  );
+
+  // Ensure value is always an object and selectively sanitized
+  const objectValue = useMemo(() => {
+    // If not an object, return empty object
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    // Selectively sanitize: preserve richtext fields, sanitize others
+    const sanitized: Record<string, any> = {};
+    const dangerousProps = ['__proto__', 'constructor', 'prototype'];
+
+    for (const [key, val] of Object.entries(value)) {
+      // Skip dangerous properties
+      if (dangerousProps.includes(key)) {
+        continue;
+      }
+
+      // Validate key format
+      if (typeof key !== 'string' || key.length > 100 || !/^[a-zA-Z0-9_-]+$/.test(key)) {
+        continue;
+      }
+
+      // Check if this field is a richtext field
+      const fieldDef = objectDefinition.fields?.[key];
+      const isRichtext = fieldDef?.type === 'richtext';
+
+      // Preserve richtext field values as-is (they're already sanitized by RichTextField)
+      // Sanitize other string fields to prevent XSS
+      if (isRichtext || typeof val !== 'string') {
+        sanitized[key] = val;
+      } else {
+        // Basic XSS prevention for non-richtext string fields
+        sanitized[key] = val
+          .replace(/javascript:/gi, '')
+          .replace(/data:/gi, '')
+          .slice(0, 10000);
+      }
+    }
+
+    return sanitized;
+  }, [value, objectDefinition.fields]);
   
   // Local state for UI interactions
   const [collapseState, setCollapseState] = useState<Record<string, boolean>>({});
@@ -78,7 +114,27 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const operations: ObjectOperations = useMemo(() => ({
     updateField: (fieldName: string, fieldValue: any) => {
       const newValue = { ...objectValue, [fieldName]: fieldValue };
-      onChange(sanitizeObjectValue(newValue));
+
+      // Selectively sanitize: preserve richtext fields, sanitize others
+      const sanitized: Record<string, any> = {};
+      for (const [key, val] of Object.entries(newValue)) {
+        const fieldDef = objectDefinition.fields?.[key];
+        const isRichtext = fieldDef?.type === 'richtext';
+
+        // Preserve richtext field values as-is (they're already sanitized by RichTextField)
+        // Sanitize other string fields to prevent XSS
+        if (isRichtext || typeof val !== 'string') {
+          sanitized[key] = val;
+        } else {
+          // Basic XSS prevention for non-richtext string fields
+          sanitized[key] = val
+            .replace(/javascript:/gi, '')
+            .replace(/data:/gi, '')
+            .slice(0, 10000);
+        }
+      }
+
+      onChange(sanitized);
     },
     
     getField: (fieldName: string) => {
