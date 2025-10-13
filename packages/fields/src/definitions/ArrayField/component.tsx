@@ -559,7 +559,12 @@ function getDefaultItemValue(itemDefinition: any): any {
     case 'array':
       return [];
     case 'object':
-      return {};
+      // Include _type field for object items if specified
+      const baseObject: any = {};
+      if (itemDefinition.name) {
+        baseObject._type = itemDefinition.name;
+      }
+      return baseObject;
     case 'reference':
       return undefined; // ReferenceField expects undefined for empty state
     default:

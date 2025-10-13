@@ -533,17 +533,6 @@ export class TrokkyRoutes {
       // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
       await this.validateSingletonCreation(collection, id)
       
-      // Check validation before saving to get detailed error info
-      const validation = this.core.validateDocument(collection, { ...data, id })
-      if (!validation.valid) {
-        this.logger.error('Document validation failed', {
-          collection,
-          errors: validation.errors,
-          data: { ...data, id }
-        })
-        throw new Error(`Document validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`)
-      }
-      
       const document = await this.core.saveDocument(collection, { ...data, id }, auditContext)
       return this.successResponse({ document }, 201)
     } catch (error) {
@@ -1794,7 +1783,12 @@ export class TrokkyRoutes {
       } else if (error.name === 'ValidationError') {
         statusCode = 400
         errorCode = 'VALIDATION_ERROR'
-        errorMessage = error.message
+        // Extract detailed validation errors if available
+        if ('validationErrors' in error && Array.isArray(error.validationErrors)) {
+          errorMessage = `Document validation failed: ${error.validationErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ')}`
+        } else {
+          errorMessage = error.message
+        }
       } else if (error.name === 'RateLimitError') {
         statusCode = 429
         errorCode = 'RATE_LIMIT_EXCEEDED'
@@ -1809,7 +1803,11 @@ export class TrokkyRoutes {
       success: false,
       error: {
         code: errorCode,
-        message: errorMessage
+        message: errorMessage,
+        // Include validation details for ValidationError
+        ...(error instanceof Error && error.name === 'ValidationError' && 'validationErrors' in error && Array.isArray(error.validationErrors)
+          ? { details: error.validationErrors } 
+          : {})
       }
     }
 
@@ -2643,6 +2641,13 @@ export class TrokkyRoutes {
    * Get default data for specific singleton types
    */
   private getDefaultSingletonData(collection: string, documentId: string): Record<string, any> {
+    // Get schema to generate proper defaults
+    const schema = this.core.getSchema(collection);
+    if (schema) {
+      return this.generateSchemaDefaults(schema);
+    }
+
+    // Fallback to hardcoded defaults
     switch (collection) {
       case 'homePage':
         return {
@@ -2659,6 +2664,56 @@ export class TrokkyRoutes {
         }
       default:
         return {}
+    }
+  }
+
+  /**
+   * Generate default values based on schema definition
+   */
+  private generateSchemaDefaults(schema: any): Record<string, any> {
+    const defaults: Record<string, any> = {};
+    
+    if (schema.fields) {
+      for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+        const field = fieldDef as any;
+        if (field.default !== undefined) {
+          defaults[fieldName] = field.default;
+        } else {
+          defaults[fieldName] = this.getFieldTypeDefault(field);
+        }
+      }
+    }
+    
+    return defaults;
+  }
+
+  /**
+   * Get default value for a field type
+   */
+  private getFieldTypeDefault(field: any): any {
+    switch (field.type) {
+      case 'string':
+        return '';
+      case 'number':
+        return 0;
+      case 'boolean':
+        return false;
+      case 'date':
+        return new Date().toISOString();
+      case 'array':
+        // Create empty array - items will be added through UI with proper _type
+        return [];
+      case 'object':
+        // Include _type field for object items if specified
+        const baseObject: any = {};
+        if (field.name) {
+          baseObject._type = field.name;
+        }
+        return baseObject;
+      case 'reference':
+        return undefined;
+      default:
+        return null;
     }
   }
 

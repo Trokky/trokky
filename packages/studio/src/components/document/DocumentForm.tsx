@@ -352,8 +352,7 @@ export function DocumentForm() {
     const error = fieldErrors[field.name];
 
     // Use FieldRenderer for all field types (same as FieldsDemo)
-    // Add extra padding wrapper for object fields to create space from the left border
-    const fieldRenderer = (
+    return (
       <FieldRenderer
         key={field.name}
         fieldId={field.name}
@@ -369,17 +368,6 @@ export function DocumentForm() {
         documentContext={documentContext}
       />
     );
-
-    // Wrap object fields with extra left padding to create space from their border
-    if (field.type === 'object') {
-      return (
-        <div key={field.name} className="pl-2">
-          {fieldRenderer}
-        </div>
-      );
-    }
-
-    return fieldRenderer;
   }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, documentContext, isReadOnly]);
 
   const renderFormSection = (fields: any[]) => {

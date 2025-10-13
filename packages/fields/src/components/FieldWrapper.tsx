@@ -27,21 +27,19 @@ export function FieldWrapper({
 }: FieldWrapperProps) {
   return (
     <div className="space-y-2">
-      {/* Field label */}
-      <label 
+      {/* Field label with inline description */}
+      <label
         htmlFor={fieldId}
         className="block text-sm font-medium text-gray-700 dark:text-gray-300"
       >
         {definition.title}
         {definition.required && <span className="text-red-500 ml-1">*</span>}
+        {definition.description && (
+          <span className="font-normal text-xs text-gray-400 dark:text-gray-500">
+            {' '}- {definition.description}
+          </span>
+        )}
       </label>
-
-      {/* Field description */}
-      {definition.description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {definition.description}
-        </p>
-      )}
 
       {/* Field component */}
       <div className={`
