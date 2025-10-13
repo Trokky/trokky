@@ -273,5 +273,19 @@ export type {
   ColorFieldValidation,
 } from './definitions/ColorField/index.js'
 
+export {
+  geoCoordinateFieldPlugin,
+  GeoCoordinateFieldComponent,
+  GeoCoordinateFieldPreview,
+  validateGeoCoordinate,
+} from './definitions/GeoCoordinateField/index.js'
+
+export type {
+  GeoCoordinate,
+  GeoCoordinateFieldDefinition,
+  GeoCoordinateValidation,
+  GeoCoordinateFieldOptions,
+} from './definitions/GeoCoordinateField/index.js'
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js'

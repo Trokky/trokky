@@ -50,6 +50,7 @@ export type FieldCategory =
   | 'media'       // Image, Video, Audio, Document
   | 'reference'   // Reference, CrossReference
   | 'structure'   // Array, Object, Group
+  | 'location'    // GeoCoordinate, Address
   | 'custom';     // Custom field types
 
 // Base value interface that all field values extend

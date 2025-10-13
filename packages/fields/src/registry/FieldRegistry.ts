@@ -118,6 +118,7 @@ export class FieldRegistry {
       media: 0,
       reference: 0,
       structure: 0,
+      location: 0,
       custom: 0
     };
 
