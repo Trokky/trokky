@@ -61,6 +61,109 @@ function updateReferences(obj: any, idMappings: Record<string, string>): any {
   return updated
 }
 
+// Helper function to analyze dependencies and sort collections using topological sort
+async function sortCollectionsByDependencies(
+  collections: string[],
+  tempDir: string,
+  referenceMap: Record<string, string[]>
+): Promise<string[]> {
+  // Build dependency graph by analyzing documents in each collection
+  const dependencies: Record<string, Set<string>> = {}
+
+  for (const collection of collections) {
+    dependencies[collection] = new Set()
+
+    try {
+      const collectionDir = join(tempDir, 'collections', collection)
+      const files = await readdir(collectionDir)
+      const documents = await Promise.all(
+        files.map(file => readFile(join(collectionDir, file), 'utf-8').then(JSON.parse))
+      )
+
+      // Find all references in documents of this collection
+      for (const doc of documents) {
+        const refs = findDocumentReferences(doc)
+        for (const ref of refs) {
+          // Skip media references (they're handled separately)
+          if (ref.startsWith('media-')) continue
+
+          // Extract collection name from reference ID pattern
+          // Most Trokky IDs follow pattern: collectionName-randomid or prefix-randomid
+          // Try to match against known collection names
+          let refCollection: string | null = null
+
+          // Try to extract from ID pattern
+          const parts = ref.split('-')
+          if (parts.length >= 2) {
+            // Try first part as collection name
+            const possibleCollection = parts[0]
+            if (collections.includes(possibleCollection)) {
+              refCollection = possibleCollection
+            }
+          }
+
+          if (refCollection && refCollection !== collection) {
+            dependencies[collection].add(refCollection)
+          }
+        }
+      }
+    } catch (error) {
+      // Collection directory might not exist, skip
+    }
+  }
+
+  // Topological sort using Kahn's algorithm
+  const sorted: string[] = []
+  const inDegree: Record<string, number> = {}
+
+  // Initialize in-degree counts
+  for (const collection of collections) {
+    inDegree[collection] = 0
+  }
+
+  // Calculate in-degrees
+  for (const collection of collections) {
+    for (const dep of dependencies[collection]) {
+      if (collections.includes(dep)) {
+        inDegree[collection]++
+      }
+    }
+  }
+
+  // Queue of collections with no dependencies
+  const queue: string[] = []
+  for (const collection of collections) {
+    if (inDegree[collection] === 0) {
+      queue.push(collection)
+    }
+  }
+
+  // Process queue
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    sorted.push(current)
+
+    // For each collection that depends on current
+    for (const collection of collections) {
+      if (dependencies[collection].has(current)) {
+        inDegree[collection]--
+        if (inDegree[collection] === 0) {
+          queue.push(collection)
+        }
+      }
+    }
+  }
+
+  // If there are cycles or remaining collections, add them at the end
+  for (const collection of collections) {
+    if (!sorted.includes(collection)) {
+      sorted.push(collection)
+    }
+  }
+
+  return sorted
+}
+
 export const restoreCommand = new Command('restore')
   .description('Import content to a Trokky instance from a backup file')
   .requiredOption('--url <url>', 'Trokky instance URL')
@@ -172,8 +275,13 @@ export const restoreCommand = new Command('restore')
         // Ignore if media directory does not exist
       }
 
+      // Sort collections by dependency order to avoid reference validation errors
+      spinner.text = 'Analyzing collection dependencies...'
+      const sortedCollections = await sortCollectionsByDependencies(collectionsToRestore, tempDir, referenceMap)
+      spinner.info(`Restore order: ${sortedCollections.join(' → ')}`)
+
       // Restore each collection
-      for (const collection of collectionsToRestore) {
+      for (const collection of sortedCollections) {
         spinner.text = `Restoring ${collection}...`
         const collectionDir = join(tempDir, 'collections', collection)
         
