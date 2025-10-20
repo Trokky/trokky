@@ -211,8 +211,9 @@ export const restoreCommand = new Command('restore')
       let totalRestored = 0
       let totalReferencesUpdated = 0
 
-      // Clean existing media if --clean flag is set
+      // Clean ALL existing data if --clean flag is set (before any restore)
       if (options.clean) {
+        // Clean media first
         spinner.text = 'Cleaning existing media...'
         try {
           const existingMedia = await client.listMedia()
@@ -224,6 +225,29 @@ export const restoreCommand = new Command('restore')
           }
         } catch (error: any) {
           spinner.warn(`Failed to clean existing media: ${error.message}`)
+        }
+
+        // Clean all collections that will be restored
+        spinner.text = 'Cleaning existing documents...'
+        let totalDeleted = 0
+        for (const collection of collectionsToRestore) {
+          try {
+            const existingDocs = await client.queryDocuments(collection, { limit: 10000 })
+            for (const doc of existingDocs.documents) {
+              const docId = (doc as any).id || doc._id
+              try {
+                await client.deleteDocument(collection, docId)
+                totalDeleted++
+              } catch (delError: any) {
+                spinner.warn(`Failed to delete ${collection}/${docId}: ${delError.message}`)
+              }
+            }
+          } catch (error: any) {
+            // Collection might not exist or be accessible, continue
+          }
+        }
+        if (totalDeleted > 0) {
+          spinner.succeed(`Deleted ${totalDeleted} existing documents`)
         }
       }
 
@@ -292,17 +316,6 @@ export const restoreCommand = new Command('restore')
           if (documents.length === 0) {
             spinner.info(`No documents found for ${collection}`)
             continue
-          }
-
-          if (options.clean) {
-            spinner.text = `Deleting existing documents in ${collection}...`
-            const existingDocs = await client.queryDocuments(collection, { limit: 1000 })
-            for (const doc of existingDocs.documents) {
-              // Use the correct ID field
-              const docId = (doc as any).id || doc._id
-              await client.deleteDocument(collection, docId)
-            }
-            spinner.succeed(`Deleted existing documents in ${collection}`)
           }
 
           if (options.dryRun) {
