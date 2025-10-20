@@ -45,7 +45,7 @@ export function GeoCoordinateFieldPreview(props: FieldComponentProps) {
         className="text-blue-500 hover:text-blue-700 text-sm"
         title="View on Google Maps"
       >
-        🗺️
+        Map
       </button>
     </div>
   );

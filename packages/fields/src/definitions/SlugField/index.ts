@@ -87,10 +87,14 @@ export function defaultSlugify(input: string, options: SlugifyOptions = {}): str
 
   // Add prefix and suffix
   if (prefix && slug) {
-    slug = prefix + (slug.startsWith('-') ? '' : '-') + slug;
+    // Don't add separator if prefix already ends with one (/, -, etc.)
+    const needsSeparator = !prefix.endsWith('/') && !prefix.endsWith('-') && !slug.startsWith('-');
+    slug = prefix + (needsSeparator ? '-' : '') + slug;
   }
   if (suffix && slug) {
-    slug = slug + (slug.endsWith('-') ? '' : '-') + suffix;
+    // Don't add separator if suffix already starts with one or slug ends with one
+    const needsSeparator = !suffix.startsWith('/') && !suffix.startsWith('-') && !slug.endsWith('-');
+    slug = slug + (needsSeparator ? '-' : '') + suffix;
   }
 
   return slug;

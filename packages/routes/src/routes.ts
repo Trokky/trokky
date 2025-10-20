@@ -1133,9 +1133,19 @@ export class TrokkyRoutes {
 
       // Validate collection name and slug format
       SecurityValidator.validateCollectionName(collection)
-      
-      if (!slug.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)) {
-        return this.successResponse({ 
+
+      // Get the schema to check if slashes are allowed in slug field
+      const schema = this.core.getSchema(collection)
+      const slugField = schema?.fields?.slug as any
+      const allowSlashes = slugField?.allowSlashes || false
+
+      // Use appropriate regex pattern based on schema configuration
+      const slugPattern = allowSlashes
+        ? /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/
+        : /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+      if (!slug.match(slugPattern)) {
+        return this.successResponse({
           unique: false,
           reason: 'Invalid slug format'
         })

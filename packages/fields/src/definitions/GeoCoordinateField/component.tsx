@@ -58,13 +58,13 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
     <div className="geo-coordinate-field">
       {/* Mode Toggle */}
       {options.inputMode === 'both' && (
-        <div className="flex gap-2 mb-3">
+        <div className="flex gap-2 mb-2">
           <button
             type="button"
             onClick={() => setInputMode('manual')}
-            className={`px-3 py-1 text-sm rounded ${
-              inputMode === 'manual' 
-                ? 'bg-blue-500 text-white' 
+            className={`px-2 py-0.5 text-xs rounded ${
+              inputMode === 'manual'
+                ? 'bg-blue-500 text-white'
                 : 'bg-gray-200 text-gray-700'
             }`}
             disabled={isDisabled}
@@ -74,9 +74,9 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           <button
             type="button"
             onClick={() => setInputMode('map')}
-            className={`px-3 py-1 text-sm rounded ${
-              inputMode === 'map' 
-                ? 'bg-blue-500 text-white' 
+            className={`px-2 py-0.5 text-xs rounded ${
+              inputMode === 'map'
+                ? 'bg-blue-500 text-white'
                 : 'bg-gray-200 text-gray-700'
             }`}
             disabled={isDisabled}
@@ -88,10 +88,10 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
 
       {/* Manual Input Mode */}
       {(inputMode === 'manual' || options.inputMode === 'manual') && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="space-y-1.5">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700">
                 Latitude
               </label>
               <input
@@ -101,7 +101,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 max="90"
                 value={formatCoordinate(coord?.lat)}
                 onChange={(e) => handleCoordinateChange({ lat: parseFloat(e.target.value) || 0 })}
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-sm border rounded-md ${
                   hasError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="40.7128"
@@ -109,8 +109,8 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 readOnly={isReadonly}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700">
                 Longitude
               </label>
               <input
@@ -120,7 +120,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 max="180"
                 value={formatCoordinate(coord?.lng)}
                 onChange={(e) => handleCoordinateChange({ lng: parseFloat(e.target.value) || 0 })}
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-sm border rounded-md ${
                   hasError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="-74.0060"
@@ -128,11 +128,22 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 readOnly={isReadonly}
               />
             </div>
+            {options.enableGeolocation && (
+              <button
+                type="button"
+                onClick={handleGeolocation}
+                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 whitespace-nowrap"
+                disabled={isDisabled || isReadonly}
+                title="Use current location"
+              >
+                GPS
+              </button>
+            )}
           </div>
 
           {options.showAltitude && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700">
                 Altitude (meters)
               </label>
               <input
@@ -140,7 +151,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 step="any"
                 value={formatCoordinate(coord?.alt)}
                 onChange={(e) => handleCoordinateChange({ alt: parseFloat(e.target.value) || undefined })}
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-2 py-1 text-sm border rounded-md ${
                   hasError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder="10"
@@ -152,27 +163,16 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
 
           {options.showAccuracy && coord?.accuracy && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700">
                 Accuracy (meters)
               </label>
               <input
                 type="number"
                 value={formatCoordinate(coord.accuracy)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md bg-gray-50"
                 readOnly
               />
             </div>
-          )}
-
-          {options.enableGeolocation && (
-            <button
-              type="button"
-              onClick={handleGeolocation}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
-              disabled={isDisabled || isReadonly}
-            >
-              📍 Use Current Location
-            </button>
           )}
         </div>
       )}
@@ -184,7 +184,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           style={{ height: options.mapHeight || 300 }}
         >
           <div className="text-center text-gray-500">
-            <div className="text-2xl mb-2">🗺️</div>
+            <div className="text-2xl mb-2">Map</div>
             <div>Interactive Map</div>
             <div className="text-sm">(Coming soon)</div>
             {coord && (
@@ -198,8 +198,8 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
 
       {/* Current Value Display */}
       {coord && (
-        <div className="mt-2 text-xs text-gray-500">
-          Current: {formatCoordinate(coord.lat)}, {formatCoordinate(coord.lng)}
+        <div className="mt-1 text-[10px] text-gray-400">
+          {formatCoordinate(coord.lat)}, {formatCoordinate(coord.lng)}
           {coord.alt && ` (${formatCoordinate(coord.alt)}m)`}
         </div>
       )}
