@@ -606,9 +606,9 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       await this.atomicWriteFile(filePath, jsonContent)
 
       if (!this.config.silent) {
-        this.logger.info(`App token ${isUpdate ? 'updated' : 'created'}`, { 
-          id, 
-          name: tokenFile.name 
+        this.logger.debug(`App token ${isUpdate ? 'updated' : 'created'}`, {
+          id,
+          name: tokenFile.name
         })
       }
 
@@ -678,7 +678,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       try {
         await fs.unlink(filePath)
         if (!this.config.silent) {
-          this.logger.info('App token deleted', { id })
+          this.logger.debug('App token deleted', { id })
         }
       } catch (error: any) {
         if (error.code === 'ENOENT') {

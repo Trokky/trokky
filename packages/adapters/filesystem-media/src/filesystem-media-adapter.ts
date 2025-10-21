@@ -420,7 +420,7 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       }
 
       if (!this.config.silent) {
-        this.logger.info('File deleted', { id })
+        this.logger.debug('File deleted', { id })
       }
     } catch (error) {
       this.logger.error(`Failed to delete file ${id}`, error)
@@ -532,7 +532,7 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
         await fs.rm(parentVariantsDir, { recursive: true, force: true })
         
         if (!this.config.silent) {
-          this.logger.info('Variant files deleted', { parentId })
+          this.logger.debug('Variant files deleted', { parentId })
         }
       } catch {
         // Directory doesn't exist, nothing to delete
