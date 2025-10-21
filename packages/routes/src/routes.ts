@@ -610,14 +610,24 @@ export class TrokkyRoutes {
       SecurityValidator.validateDocumentData(data)
 
       // Get existing document to merge with updates
+      // For singletons, allow upsert (create if doesn't exist)
+      const schema = this.core.getSchema(collection)
+      const isSingleton = schema?.singleton === true
+
       const existingDoc = await this.core.getDocument(collection, id)
-      if (!existingDoc) {
+      if (!existingDoc && !isSingleton) {
         return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
       }
 
       // Merge data (excluding system fields including audit fields)
-      const { _id, _collection, _createdAt, _updatedAt, _revision, _status, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
-      const mergedData = { ...existingData, ...data }
+      let mergedData
+      if (existingDoc) {
+        const { _id, _collection, _createdAt, _updatedAt, _revision, _status, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
+        mergedData = { ...existingData, ...data }
+      } else {
+        // Singleton doesn't exist yet - create with provided data
+        mergedData = data
+      }
 
       const document = await this.core.saveDocument(collection, { ...mergedData, id }, auditContext)
       return this.successResponse({ document })
@@ -2140,13 +2150,15 @@ export class TrokkyRoutes {
       
       const configWithMediaGenerator = {
         ...studioConfig,
-        mediaUrlGenerator
+        mediaUrlGenerator,
+        media: studioConfig.media || { variants: [] }, // Include media variants for pre-flight checks
       }
-      
-      this.logger.debug('Serving studio configuration', { 
+
+      this.logger.debug('Serving studio configuration', {
         title: studioConfig.branding?.title,
         enabled: studioConfig.enabled,
-        hasMediaUrlGenerator: true
+        hasMediaUrlGenerator: true,
+        mediaVariantsCount: studioConfig.media?.variants?.length || 0
       })
 
       return this.successResponse({ studioConfig: configWithMediaGenerator })
@@ -2536,6 +2548,7 @@ export class TrokkyRoutes {
           id: documentId,
           _type: collection,
           title: this.formatSchemaTitle(collection),
+          slug: documentId, // Use documentId as slug for singletons
           ...this.getDefaultSingletonData(collection, documentId)
         }
         
@@ -2682,18 +2695,29 @@ export class TrokkyRoutes {
    */
   private generateSchemaDefaults(schema: any): Record<string, any> {
     const defaults: Record<string, any> = {};
-    
+
     if (schema.fields) {
       for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
         const field = fieldDef as any;
+
+        // Skip fields that start with underscore (system fields)
+        if (fieldName.startsWith('_')) {
+          continue;
+        }
+
         if (field.default !== undefined) {
           defaults[fieldName] = field.default;
         } else {
-          defaults[fieldName] = this.getFieldTypeDefault(field);
+          const defaultValue = this.getFieldTypeDefault(field);
+          // Only include fields that have non-null/non-undefined defaults
+          // This prevents validation errors for optional fields like media, references, etc.
+          if (defaultValue !== null && defaultValue !== undefined) {
+            defaults[fieldName] = defaultValue;
+          }
         }
       }
     }
-    
+
     return defaults;
   }
 
@@ -2704,6 +2728,9 @@ export class TrokkyRoutes {
     switch (field.type) {
       case 'string':
         return '';
+      case 'slug':
+        // Slug fields are auto-generated from title, don't provide a default
+        return undefined;
       case 'number':
         return 0;
       case 'boolean':
@@ -2721,6 +2748,9 @@ export class TrokkyRoutes {
         }
         return baseObject;
       case 'reference':
+        return undefined;
+      case 'media':
+        // Media fields are optional, don't provide a default
         return undefined;
       default:
         return null;

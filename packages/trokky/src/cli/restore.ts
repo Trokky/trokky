@@ -202,9 +202,145 @@ export const restoreCommand = new Command('restore')
         spinner.info('No reference map found - references may not be preserved')
       }
       
-      const collectionsToRestore = options.collections 
+      const collectionsToRestore = options.collections
         ? options.collections.split(',')
         : meta.collections
+
+      // ============================================================
+      // PRE-FLIGHT CHECKS - All validation before destructive ops
+      // ============================================================
+
+      spinner.text = 'Running pre-flight compatibility checks...'
+
+      // Pre-flight check 1: Validate target instance has required collections
+      spinner.text = 'Validating target instance schema...'
+      let availableCollections: string[] = []
+      const singletonCollections: Set<string> = new Set() // Track which collections are singletons
+      try {
+        const collectionsData = await client.getCollections()
+        availableCollections = collectionsData.map((c: any) => c.name)
+
+        // Build singleton set from schema metadata
+        for (const collectionData of collectionsData) {
+          if (collectionData.singleton) {
+            singletonCollections.add(collectionData.name)
+            spinner.info(`📌 Detected singleton: ${collectionData.name}`)
+          }
+        }
+
+        spinner.info(`Target instance has ${availableCollections.length} collections (${singletonCollections.size} singletons)`)
+      } catch (error: any) {
+        spinner.warn(`Failed to fetch target collections: ${error.message}`)
+      }
+
+      // Check for missing collections
+      const missingCollections = collectionsToRestore.filter(
+        (col: string) => !availableCollections.includes(col)
+      )
+
+      if (missingCollections.length > 0) {
+        spinner.fail('Schema validation failed!')
+        console.log(chalk.red(`
+❌ Target instance is missing ${missingCollections.length} collection(s) from the backup:
+
+Missing collections:
+${missingCollections.map((c: string) => `   - ${c}`).join('\n')}
+
+Available collections in target:
+${availableCollections.map((c: string) => `   - ${c}`).join('\n')}
+
+Backup collections:
+${collectionsToRestore.map((c: string) => `   - ${c}`).join('\n')}
+
+This usually means:
+1. You're restoring to the wrong Trokky instance
+2. The target instance has a different schema configuration
+
+Solutions:
+- Restore to the correct instance (the one this backup came from)
+- Update the target instance's schema configuration to include missing collections
+- Use --collections flag to restore only matching collections
+
+Example:
+   trokky restore --url ${options.url} --token <token> --input ${options.input} --collections ${availableCollections.join(',')}
+`))
+        process.exit(1)
+      }
+
+      spinner.succeed(`✅ All ${collectionsToRestore.length} collections exist in target instance`)
+
+      // Pre-flight check 2: Verify media variant compatibility
+      const mediaDir = join(tempDir, 'media')
+      try {
+        spinner.text = 'Checking media variant compatibility...'
+        const files = await readdir(mediaDir)
+        const metaFiles = files.filter(f => f.endsWith('.meta.json'))
+
+        if (metaFiles.length > 0) {
+          // Collect all unique variants from backup media
+          const backupVariants = new Set<string>()
+
+          for (const metaFile of metaFiles) {
+            const metaContent = JSON.parse(await readFile(join(mediaDir, metaFile), 'utf-8'))
+            if (metaContent.metadata?.imageVariants) {
+              Object.keys(metaContent.metadata.imageVariants).forEach(variant => {
+                backupVariants.add(variant)
+              })
+            }
+          }
+
+          if (backupVariants.size > 0) {
+            // Fetch target system's configured variants
+            const configResponse = await client.getStudioConfig()
+            const targetVariants = new Set<string>(
+              configResponse.studioConfig?.media?.variants?.map((v: any) => v.name) || []
+            )
+
+            // Check for missing variants
+            const missingVariants = Array.from(backupVariants).filter(v => !targetVariants.has(v))
+
+            if (missingVariants.length > 0) {
+              spinner.fail('Media variant compatibility check failed')
+              console.log(chalk.red(`
+❌ Media Variant Mismatch Detected
+
+The backup contains media files with variants that don't exist in your target system configuration.
+
+Backup variants found: ${Array.from(backupVariants).join(', ')}
+Target variants configured: ${Array.from(targetVariants).join(', ')}
+Missing variants: ${missingVariants.join(', ')}
+
+This will cause media thumbnails to not display correctly after restore.
+
+To fix this, update your trokky.config.ts media variants configuration to include:
+
+${missingVariants.map(v => `  {
+    name: '${v}',
+    width: 800,    // adjust to your needs
+    height: 600,   // adjust to your needs
+    format: 'webp' as const,
+    quality: 85,
+    fit: 'cover' as const,
+  },`).join('\n')}
+
+Then restart your Trokky instance and run the restore command again.
+`))
+              process.exit(1)
+            }
+
+            spinner.succeed(`Media variants compatible (${Array.from(backupVariants).join(', ')})`)
+          }
+        }
+      } catch (error: any) {
+        if (error.code !== 'ENOENT') {
+          spinner.warn(`Could not verify media variant compatibility: ${error.message}`)
+        }
+        // Continue if media directory doesn't exist
+      }
+
+      // ============================================================
+      // All pre-flight checks passed - Begin restoration
+      // ============================================================
 
       // Track ID mappings for reference updates
       const idMappings: Record<string, string> = {}
@@ -252,7 +388,6 @@ export const restoreCommand = new Command('restore')
       }
 
       // First, restore media to get ID mappings
-      const mediaDir = join(tempDir, 'media')
       try {
         const files = await readdir(mediaDir)
         const mediaFiles = files.filter(file => !file.endsWith('.meta.json'))
@@ -308,9 +443,20 @@ export const restoreCommand = new Command('restore')
       for (const collection of sortedCollections) {
         spinner.text = `Restoring ${collection}...`
         const collectionDir = join(tempDir, 'collections', collection)
-        
+
         try {
-          const files = await readdir(collectionDir)
+          // Check if collection directory exists
+          let files: string[]
+          try {
+            files = await readdir(collectionDir)
+          } catch (error: any) {
+            if (error.code === 'ENOENT') {
+              spinner.info(`No backup data found for ${collection} - skipping`)
+              continue
+            }
+            throw error
+          }
+
           const documents = await Promise.all(files.map(file => readFile(join(collectionDir, file), 'utf-8').then(JSON.parse)))
 
           if (documents.length === 0) {
@@ -326,8 +472,8 @@ export const restoreCommand = new Command('restore')
           let restored = 0
           for (const doc of documents) {
             try {
-              // Remove system fields before creating
-              const { id, _id, _createdAt, _updatedAt, _version, _revision, _status, _collection, _type, ...cleanDoc } = doc
+              // Remove system fields before creating (but preserve _status for published state)
+              const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, ...cleanDoc } = doc
 
               // Track document ID mapping for cross-document references
               const originalDocId = doc.id || doc._id
@@ -349,29 +495,34 @@ export const restoreCommand = new Command('restore')
                 totalReferencesUpdated += refsUpdatedInDoc
               }
 
-              // Check if this might be a singleton (only one document in collection)
-              const isSingleton = documents.length === 1 && (collection === 'homepage' || collection === 'settings')
-              
+              // Check if this is a singleton collection
+              const isSingleton = singletonCollections.has(collection)
+
               if (isSingleton) {
-                // For singletons, trigger auto-creation by trying to GET the expected singleton ID first
+                // For singletons, preserve the backup document's ID using PUT (upsert)
+                const singletonId = originalDocId
+                spinner.info(`📌 Restoring singleton ${collection} with ID: ${singletonId}`)
+
                 try {
-                  // Try to get the singleton - this will auto-create it if it doesn't exist
-                  await client.getDocument(collection, originalDocId)
-                  // If successful, update it with the backup data
-                  await client.updateDocument(collection, originalDocId, updatedDoc)
-                  // Track singleton ID mapping (same ID)
-                  idMappings[originalDocId] = originalDocId
-                } catch (getError: any) {
-                  // If GET fails, the singleton might not auto-create, try regular creation
-                  try {
-                    const result = await client.createDocument(collection, updatedDoc)
-                    const newDocId = (result as any).document?.id || (result as any).id
-                    if (newDocId) idMappings[originalDocId] = newDocId
-                  } catch (createError: any) {
-                    throw createError
+                  // Use PUT for upsert - will create if doesn't exist, update if exists
+                  await client.updateDocument(collection, singletonId, updatedDoc)
+                  idMappings[originalDocId] = singletonId
+                  spinner.info(`   ID preserved: ${singletonId}`)
+                } catch (error: any) {
+                  // Show detailed validation errors if available
+                  if (error.details && error.details.errors) {
+                    spinner.warn(`   Failed to restore singleton ${collection}:`)
+                    spinner.warn(`   ${error.message}`)
+                    error.details.errors.forEach((err: any) => {
+                      spinner.warn(`      - ${err.field}: ${err.message} (${err.code})`)
+                    })
+                  } else {
+                    spinner.warn(`   Failed to restore singleton ${collection}: ${error.message}`)
                   }
+                  throw error
                 }
               } else {
+                // Regular document - create new with new ID
                 const result = await client.createDocument(collection, updatedDoc)
                 const newDocId = (result as any).document?.id || (result as any).id
                 if (newDocId) idMappings[originalDocId] = newDocId

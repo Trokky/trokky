@@ -159,6 +159,9 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         }
       } catch {
         // Document doesn't exist, this is a new document
+        // Extract _status from data if provided (for restore), otherwise default to 'draft'
+        const status = (data as any)._status || 'draft'
+
         documentFile = {
           id,
           collection,
@@ -167,7 +170,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             createdAt: new Date(),
             updatedAt: new Date(),
             revision: 1,
-            status: 'draft',
+            status,
             createdBy: auditContext?.userId,
             createdByType: auditContext?.userType,
             updatedBy: auditContext?.userId,

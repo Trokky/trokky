@@ -444,8 +444,14 @@ export class TrokkyExpress {
             },
           },
         }
+
+        // Include media variants in studio config for restore pre-flight checks
+        ;(global as any).__TROKKY_STUDIO_CONFIG__.media = {
+          variants: fullConfig.media.variants || [],
+        }
+
         logger.debug(
-          '✅ Studio configuration registered globally with mediaUrlGenerator'
+          '✅ Studio configuration registered globally with mediaUrlGenerator and media variants'
         )
 
         // Also register structure separately for structure service access

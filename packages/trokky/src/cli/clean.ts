@@ -3,28 +3,6 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { TrokkyClient } from '../client.js'
 
-// Helper to prompt for user confirmation
-async function promptConfirmation(message: string): Promise<boolean> {
-  // In a real implementation, we'd use a proper prompt library like inquirer
-  // For now, we'll require explicit --confirm flag for safety
-  console.log(chalk.yellow(`⚠️  ${message}`))
-  console.log(chalk.red('Use --confirm flag to proceed with this destructive operation'))
-  return false
-}
-
-// Helper to detect if URL looks like production
-function isProductionUrl(url: string): boolean {
-  const productionPatterns = [
-    /^https:\/\/(?!.*\b(?:dev|test|staging|local)\b).*\.com/i,
-    /^https:\/\/(?!.*\b(?:dev|test|staging|local)\b).*\.org/i,
-    /^https:\/\/(?!.*\b(?:dev|test|staging|local)\b).*\.io/i,
-    /production/i,
-    /prod\./i
-  ]
-
-  return productionPatterns.some(pattern => pattern.test(url))
-}
-
 export const cleanCommand = new Command('clean')
   .description('Clean (delete) all content from a Trokky instance')
   .requiredOption('--url <url>', 'Trokky instance URL')
@@ -34,7 +12,6 @@ export const cleanCommand = new Command('clean')
   .option('--documents-only', 'Clean only documents, leave media files intact')
   .option('--dry-run', 'Show what would be deleted without actually deleting')
   .option('--confirm', 'Confirm destructive operation (required for actual deletion)')
-  .option('--force', 'Skip production URL warnings (use with extreme caution)')
   .action(async (options) => {
     const spinner = ora('Starting clean operation...').start()
 
@@ -43,25 +20,6 @@ export const cleanCommand = new Command('clean')
         baseUrl: options.url,
         apiToken: options.token
       })
-
-      // Safety check: detect production-like URLs
-      if (!options.force && isProductionUrl(options.url)) {
-        spinner.fail('Production URL detected!')
-        console.log(chalk.red(`
-🚨 DANGER: This appears to be a production URL!
-   ${options.url}
-
-Production URLs typically include:
-- Main domain names (.com, .org, .io) without dev/test/staging
-- "production" or "prod" in the URL
-
-If you really want to clean a production instance:
-1. Create a backup first: trokky backup --url ${options.url} --token <token> --output backup.zip
-2. Use --force flag to override this safety check
-
-Aborting for safety.`))
-        process.exit(1)
-      }
 
       // Require confirmation for non-dry-run operations
       if (!options.dryRun && !options.confirm) {

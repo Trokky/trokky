@@ -68,9 +68,12 @@ export class TrokkyClient {
 
   // Media
   async uploadFile(file: File | Buffer, filename?: string): Promise<any> {
-    const url = `${(this.http as any).config.baseUrl}/media/upload`
+    // Construct URL using the baseUrl from HttpClient config
+    // This ensures consistency with other API calls
+    const baseUrl = (this.http as any).config.baseUrl
+    const url = `${baseUrl}/media/upload`
     const headers: Record<string, string> = {}
-    
+
     if ((this.http as any).tokens?.accessToken) {
       headers.Authorization = `Bearer ${(this.http as any).tokens.accessToken}`
     } else if ((this.http as any).config.apiToken) {
@@ -99,7 +102,7 @@ export class TrokkyClient {
         }
         return mimeTypes[ext || ''] || 'application/octet-stream'
       }
-      
+
       const mimeType = filename ? getMimeType(filename) : 'application/octet-stream'
       const blob = new Blob([file], { type: mimeType })
       formData.append('files', blob, filename || 'file')
@@ -139,5 +142,10 @@ export class TrokkyClient {
 
   async deleteMedia(id: string): Promise<void> {
     return this.http.delete(`/media/${id}`)
+  }
+
+  // Configuration
+  async getStudioConfig(): Promise<any> {
+    return this.http.get('/config/studio')
   }
 }
