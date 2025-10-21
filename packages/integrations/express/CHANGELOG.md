@@ -1,5 +1,13 @@
 # @trokky/express
 
+## 0.1.2
+
+### Patch Changes
+
+- Republish with media variants fix (v0.1.1 was published without the fix)
+
+  Ensures global studio config includes media.variants even when studio.enabled=false
+
 ## 0.1.1
 
 ### Patch Changes
