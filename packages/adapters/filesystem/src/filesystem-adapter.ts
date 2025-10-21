@@ -536,8 +536,9 @@ export class FilesystemAdapter implements StorageAdapter {
 
       const filePath = this.getMediaPath(id, extension)
 
-      // Delete both the file and metadata
-      // Only ignore ENOENT errors (file doesn't exist), throw other errors
+      // Delete metadata FIRST, then main file
+      // This ensures if file deletion fails, the file won't show up in listMedia()
+      // since listMedia() uses metadata files as source of truth
       const unlinkWithErrorCheck = async (path: string) => {
         try {
           await fs.unlink(path)
@@ -549,10 +550,9 @@ export class FilesystemAdapter implements StorageAdapter {
         }
       }
 
-      await Promise.all([
-        unlinkWithErrorCheck(filePath),
-        unlinkWithErrorCheck(metadataPath)
-      ])
+      // Delete metadata first, then file
+      await unlinkWithErrorCheck(metadataPath)
+      await unlinkWithErrorCheck(filePath)
     } catch (error) {
       throw new Error(`Failed to delete file ${id}: ${error}`)
     }

@@ -392,19 +392,29 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
       // Delete variant files first
       await this.deleteVariantFiles(id)
 
-      // Delete main file and metadata
+      // Delete metadata FIRST, then main file
+      // This ensures if file deletion fails, the file won't show up in listMedia()
+      // since listMedia() uses metadata files as source of truth
       try {
-        await fs.unlink(filePath)
+        await fs.unlink(metadataPath)
       } catch (error: any) {
         if (error.code !== 'ENOENT') {
           throw error
         }
       }
 
+      // Then delete main file
       try {
-        await fs.unlink(metadataPath)
+        await fs.unlink(filePath)
       } catch (error: any) {
         if (error.code !== 'ENOENT') {
+          // File deletion failed after metadata removal
+          // Log for manual cleanup, but metadata is already gone
+          this.logger.error('File deletion failed after metadata removal', {
+            id,
+            filePath,
+            error: error.message
+          })
           throw error
         }
       }

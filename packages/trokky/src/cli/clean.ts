@@ -41,6 +41,7 @@ Or use --dry-run to preview what would be deleted first.`))
 
       let totalDocsDeleted = 0
       let totalMediaDeleted = 0
+      const failedDeletions: Array<{ id: string; filename: string; error: string }> = []
 
       // Clean documents (unless media-only flag is set)
       if (!options.mediaOnly) {
@@ -112,17 +113,40 @@ Or use --dry-run to preview what would be deleted first.`))
               spinner.info(`[DRY RUN] Would delete ${mediaAssets.length} media files`)
               totalMediaDeleted = mediaAssets.length
             } else {
-              for (const asset of mediaAssets) {
+              // Delete files sequentially for reliability
+              // Sequential deletion ensures each file is fully processed before moving to the next
+              for (let i = 0; i < mediaAssets.length; i++) {
+                const asset = mediaAssets[i]
+                spinner.text = `Deleting media files (${i + 1}/${mediaAssets.length})...`
+
                 try {
                   await client.deleteMedia(asset.id)
                   totalMediaDeleted++
                 } catch (error: any) {
-                  spinner.warn(`Failed to delete media file ${asset.filename}: ${error.message}`)
+                  const errorMessage = error?.message || 'Unknown error'
+                  spinner.warn(`Failed to delete ${asset.filename}: ${errorMessage}`)
+                  failedDeletions.push({
+                    id: asset.id,
+                    filename: asset.filename,
+                    error: errorMessage
+                  })
                 }
               }
 
               if (totalMediaDeleted > 0) {
                 spinner.succeed(`Deleted ${totalMediaDeleted}/${mediaAssets.length} media files`)
+              }
+
+              // Verify cleanup
+              if (failedDeletions.length === 0) {
+                try {
+                  const remainingMedia = await client.listMedia()
+                  if (remainingMedia.length > 0) {
+                    spinner.warn(`${remainingMedia.length} media files remain after deletion`)
+                  }
+                } catch (error: any) {
+                  // Ignore verification errors
+                }
               }
             }
           }
@@ -153,6 +177,17 @@ Clean Summary:`))
 
       console.log(chalk.white(`   Instance: ${options.url}`))
       console.log(chalk.white(`   Mode: ${options.dryRun ? 'Dry run' : 'Live deletion'}`))
+
+      if (failedDeletions.length > 0) {
+        console.log(chalk.red(`\n⚠️  Failed Deletions: ${failedDeletions.length}`))
+        failedDeletions.slice(0, 5).forEach(failure => {
+          console.log(chalk.red(`   - ${failure.filename}: ${failure.error}`))
+        })
+        if (failedDeletions.length > 5) {
+          console.log(chalk.red(`   ... and ${failedDeletions.length - 5} more`))
+        }
+        console.log(chalk.yellow(`\nTo retry failed deletions, run the clean command again.`))
+      }
 
       if (options.dryRun) {
         console.log(chalk.yellow(`

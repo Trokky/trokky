@@ -129,7 +129,8 @@ export class TrokkyClient {
 
   async listMedia(): Promise<any[]> {
     const result: any = await this.http.get('/media')
-    return result || []
+    // HttpClient already extracts .data from successful responses
+    return Array.isArray(result) ? result : []
   }
 
   async downloadMedia(url: string): Promise<ArrayBuffer> {
