@@ -1,5 +1,11 @@
 # @trokky/routes
 
+## 0.1.1
+
+### Patch Changes
+
+- Add backup and restore endpoints with pre-flight checks and singleton support
+
 ## 0.2.0
 
 ### Minor Changes
