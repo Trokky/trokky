@@ -537,9 +537,21 @@ export class FilesystemAdapter implements StorageAdapter {
       const filePath = this.getMediaPath(id, extension)
 
       // Delete both the file and metadata
+      // Only ignore ENOENT errors (file doesn't exist), throw other errors
+      const unlinkWithErrorCheck = async (path: string) => {
+        try {
+          await fs.unlink(path)
+        } catch (error: any) {
+          // Only ignore "file not found" errors, throw everything else
+          if (error.code !== 'ENOENT') {
+            throw error
+          }
+        }
+      }
+
       await Promise.all([
-        fs.unlink(filePath).catch(() => {}), // Don't fail if file is already missing
-        fs.unlink(metadataPath).catch(() => {}) // Don't fail if metadata is already missing
+        unlinkWithErrorCheck(filePath),
+        unlinkWithErrorCheck(metadataPath)
       ])
     } catch (error) {
       throw new Error(`Failed to delete file ${id}: ${error}`)
