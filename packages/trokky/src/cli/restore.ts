@@ -61,6 +61,33 @@ function updateReferences(obj: any, idMappings: Record<string, string>): any {
   return updated
 }
 
+// Helper function to sanitize document data by removing null values
+// This handles schema evolution where fields that were nullable are now non-nullable
+function sanitizeDocument(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) return obj
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeDocument(item)).filter(item => item !== null)
+  }
+
+  const sanitized: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip null values entirely - let the schema provide defaults or treat as undefined
+    if (value === null) {
+      continue
+    }
+
+    // Recursively sanitize nested objects and arrays
+    if (typeof value === 'object') {
+      sanitized[key] = sanitizeDocument(value)
+    } else {
+      sanitized[key] = value
+    }
+  }
+
+  return sanitized
+}
+
 // Helper function to analyze dependencies and sort collections using topological sort
 async function sortCollectionsByDependencies(
   collections: string[],
@@ -473,14 +500,18 @@ Then restart your Trokky instance and run the restore command again.
           for (const doc of documents) {
             try {
               // Remove system fields before creating (but preserve _status for published state)
-              const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, ...cleanDoc } = doc
+              const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, _createdBy, _updatedBy, _createdByType, _updatedByType, ...cleanDoc } = doc
 
               // Track document ID mapping for cross-document references
               const originalDocId = doc.id || doc._id
 
               // Update references with new IDs
               const originalRefs = findDocumentReferences(cleanDoc)
-              const updatedDoc = updateReferences(cleanDoc, idMappings)
+              let updatedDoc = updateReferences(cleanDoc, idMappings)
+
+              // Sanitize document to remove null values (handles schema evolution)
+              updatedDoc = sanitizeDocument(updatedDoc)
+
               const updatedRefs = findDocumentReferences(updatedDoc)
 
               if (originalRefs.length > 0) {
@@ -499,27 +530,41 @@ Then restart your Trokky instance and run the restore command again.
               const isSingleton = singletonCollections.has(collection)
 
               if (isSingleton) {
-                // For singletons, preserve the backup document's ID using PUT (upsert)
+                // For singletons, we need to preserve the ID from the backup
+                // Try to create with the specific ID first
                 const singletonId = originalDocId
                 spinner.info(`📌 Restoring singleton ${collection} with ID: ${singletonId}`)
 
                 try {
-                  // Use PUT for upsert - will create if doesn't exist, update if exists
-                  await client.updateDocument(collection, singletonId, updatedDoc)
+                  // Create document with explicit ID
+                  const docWithId = { ...updatedDoc, id: singletonId }
+                  await client.createDocument(collection, docWithId)
                   idMappings[originalDocId] = singletonId
                   spinner.info(`   ID preserved: ${singletonId}`)
-                } catch (error: any) {
-                  // Show detailed validation errors if available
-                  if (error.details && error.details.errors) {
-                    spinner.warn(`   Failed to restore singleton ${collection}:`)
-                    spinner.warn(`   ${error.message}`)
-                    error.details.errors.forEach((err: any) => {
-                      spinner.warn(`      - ${err.field}: ${err.message} (${err.code})`)
-                    })
+                } catch (createError: any) {
+                  // If creation failed, try to update existing document
+                  if (createError.message && createError.message.includes('409')) {
+                    try {
+                      await client.updateDocument(collection, singletonId, updatedDoc)
+                      idMappings[originalDocId] = singletonId
+                      spinner.info(`   ID preserved (updated): ${singletonId}`)
+                    } catch (updateError: any) {
+                      spinner.warn(`   Failed to restore singleton ${collection}: ${updateError.message}`)
+                      throw updateError
+                    }
                   } else {
-                    spinner.warn(`   Failed to restore singleton ${collection}: ${error.message}`)
+                    // Show detailed validation errors if available
+                    if (createError.details && createError.details.errors) {
+                      spinner.warn(`   Failed to restore singleton ${collection}:`)
+                      spinner.warn(`   ${createError.message}`)
+                      createError.details.errors.forEach((err: any) => {
+                        spinner.warn(`      - ${err.field}: ${err.message} (${err.code})`)
+                      })
+                    } else {
+                      spinner.warn(`   Failed to restore singleton ${collection}: ${createError.message}`)
+                    }
+                    throw createError
                   }
-                  throw error
                 }
               } else {
                 // Regular document - create new with new ID
@@ -537,7 +582,13 @@ Then restart your Trokky instance and run the restore command again.
                 await client.updateDocument(collection, docId, updatedDoc)
                 restored++
               } else {
+                // Show detailed error information for debugging
                 spinner.warn(`Skipped existing document in ${collection}: ${error.message}`)
+                if (error.details && error.details.errors) {
+                  error.details.errors.forEach((err: any) => {
+                    spinner.warn(`   - ${err.field || err.path?.join('.')}: ${err.message}`)
+                  })
+                }
               }
             }
           }
