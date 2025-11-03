@@ -25,7 +25,7 @@ export const cleanCommand = new Command('clean')
       if (!options.dryRun && !options.confirm) {
         spinner.fail('Confirmation required for destructive operation')
         console.log(chalk.red(`
-🗑️  This operation will PERMANENTLY DELETE content from:
+WARNING: This operation will PERMANENTLY DELETE content from:
    ${options.url}
 
 To proceed, add --confirm flag:
@@ -179,7 +179,7 @@ Clean Summary:`))
       console.log(chalk.white(`   Mode: ${options.dryRun ? 'Dry run' : 'Live deletion'}`))
 
       if (failedDeletions.length > 0) {
-        console.log(chalk.red(`\n⚠️  Failed Deletions: ${failedDeletions.length}`))
+        console.log(chalk.red(`\nFailed Deletions: ${failedDeletions.length}`))
         failedDeletions.slice(0, 5).forEach(failure => {
           console.log(chalk.red(`   - ${failure.filename}: ${failure.error}`))
         })

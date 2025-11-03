@@ -1,45 +1,25 @@
 import { Command } from 'commander'
-import { writeFile, mkdir, rm, readdir, readFile } from 'fs/promises'
+import { writeFile, mkdir, rm } from 'fs/promises'
 import { createWriteStream } from 'fs'
 import { join } from 'path'
 import chalk from 'chalk'
 import ora from 'ora'
 import archiver from 'archiver'
 import { TrokkyClient } from '../client.js'
-
-// Helper function to find all references in a document
-function findReferences(obj: any, refs: string[] = []): string[] {
-  if (typeof obj !== 'object' || obj === null) return refs
-
-  if (Array.isArray(obj)) {
-    obj.forEach(item => findReferences(item, refs))
-  } else {
-    for (const [key, value] of Object.entries(obj)) {
-      if (key === '_ref' && typeof value === 'string') {
-        refs.push(value)
-      } else if (key === 'asset' && typeof value === 'object' && value !== null &&
-                 (value as any)._ref && typeof (value as any)._ref === 'string') {
-        // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
-        refs.push((value as any)._ref)
-      } else if (typeof value === 'object') {
-        findReferences(value, refs)
-      }
-    }
-  }
-
-  return refs
-}
+import { SchemaAnalyzer } from './schema-analyzer.js'
+import type { BackupManifest, SchemaDefinition, MediaIndex, BackupStatistics } from './types.js'
 
 export const backupCommand = new Command('backup')
-  .description('Export content from a Trokky instance')
+  .description('Create a schema-driven backup of a Trokky instance')
   .requiredOption('--url <url>', 'Trokky instance URL')
   .requiredOption('--token <token>', 'Authentication token')
   .requiredOption('--output <file>', 'Output file path (e.g., backup.zip)')
-  .option('--collections <collections>', 'Comma-separated list of collections (auto-discovers if not specified)')
-  .option('--skip-media', 'Skip media files (not recommended - may break references)')
+  .option('--collections <collections>', 'Comma-separated list of collections to backup (backups all if not specified)')
+  .option('--skip-media', 'Skip media files')
+  .option('--description <text>', 'Backup description for documentation')
   .action(async (options) => {
-    const spinner = ora('Starting backup...').start()
-    const tempDir = join(process.cwd(), `backup-temp-${Date.now()}`)
+    const spinner = ora('Initializing backup...').start()
+    const tempDir = join(process.cwd(), `trokky-backup-${Date.now()}`)
 
     try {
       const client = new TrokkyClient({
@@ -47,150 +27,167 @@ export const backupCommand = new Command('backup')
         apiToken: options.token
       })
 
-      // Create temporary directory
       await mkdir(tempDir, { recursive: true })
 
-      // Discover collections if not specified
-      let collections: string[]
+      // Step 1: Fetch schemas
+      spinner.text = 'Fetching schemas...'
+      const allSchemas = await client.getCollections()
+      const schemas: SchemaDefinition[] = allSchemas
+
+      if (schemas.length === 0) {
+        spinner.fail('No schemas found in target instance')
+        process.exit(1)
+      }
+
+      // Filter schemas if specific collections requested
+      let schemasToBackup = schemas
       if (options.collections) {
-        collections = options.collections.split(',')
-        spinner.info(`Using specified collections: ${collections.join(', ')}`)
+        const requestedCollections = options.collections.split(',').map((s: string) => s.trim())
+        schemasToBackup = schemas.filter(s => requestedCollections.includes(s.name))
+
+        if (schemasToBackup.length === 0) {
+          spinner.fail('None of the requested collections exist')
+          process.exit(1)
+        }
+
+        spinner.info(`Selected ${schemasToBackup.length} collection(s): ${schemasToBackup.map(s => s.name).join(', ')}`)
       } else {
-        spinner.text = 'Discovering collections...'
-        const collectionsData = await client.getCollections()
-        collections = collectionsData.map((c: any) => c.name)
-        spinner.info(`Discovered ${collections.length} collections: ${collections.join(', ')}`)
+        spinner.info(`Discovered ${schemas.length} collection(s)`)
       }
 
-      const meta = {
-        timestamp: new Date().toISOString(),
-        collections: collections,
-      }
+      // Step 2: Build dependency graph
+      spinner.text = 'Analyzing schema dependencies...'
+      const dependencyGraph = SchemaAnalyzer.buildDependencyGraph(schemasToBackup)
+      const restoreOrder = SchemaAnalyzer.getRestoreOrder(dependencyGraph)
+      spinner.succeed(`Restore order: ${restoreOrder.join(' → ')}`)
 
-      await writeFile(join(tempDir, 'meta.json'), JSON.stringify(meta, null, 2))
+      // Step 3: Backup media
+      const mediaIndex: MediaIndex = {}
+      let mediaCount = 0
 
-      let totalDocs = 0
-
-      // Backup each collection
-      const collectionsDir = join(tempDir, 'collections')
-      await mkdir(collectionsDir, { recursive: true })
-      for (const collection of collections) {
-        spinner.text = `Backing up ${collection}...`
-        const collectionDir = join(collectionsDir, collection)
-        await mkdir(collectionDir, { recursive: true })
-        
-        try {
-          const result = await client.queryDocuments(collection, { limit: 1000 })
-          const documents = result.documents || []
-          
-          for (const doc of documents) {
-            // Handle both id and _id fields (API inconsistency)
-            const docId = (doc as any).id || doc._id || 'unknown'
-            const docPath = join(collectionDir, `${docId}.json`)
-            await writeFile(docPath, JSON.stringify(doc, null, 2))
-          }
-
-          const count = documents.length
-          totalDocs += count
-          if (count > 0) {
-            spinner.succeed(`Backed up ${count} ${collection} documents`)
-          } else {
-            spinner.info(`No documents in ${collection}`)
-          }
-        } catch (error: any) {
-          spinner.warn(`Failed to backup ${collection}: ${error.message}`)
-        }
-      }
-
-      // Create reference map for faster restore
-      spinner.text = 'Building reference map...'
-      const referenceMap: Record<string, string[]> = {}
-      
-      for (const collection of collections) {
-        const collectionDir = join(tempDir, 'collections', collection)
-        try {
-          const files = await readdir(collectionDir)
-          for (const file of files) {
-            const doc = JSON.parse(await readFile(join(collectionDir, file), 'utf-8'))
-            const docId = doc.id || doc._id
-            
-            // Find all references in this document
-            const refs = findReferences(doc)
-            if (refs.length > 0) {
-              referenceMap[docId] = refs
-            }
-          }
-        } catch (error) {
-          // Skip if collection directory doesn't exist
-        }
-      }
-      
-      // Save reference map
-      await writeFile(join(tempDir, 'references.json'), JSON.stringify(referenceMap, null, 2))
-      spinner.succeed('Reference map created')
-
-      // Backup media by default (unless --skip-media flag is set)
       if (!options.skipMedia) {
-        spinner.text = 'Backing up media...'
+        spinner.text = 'Backing up media files...'
         const mediaDir = join(tempDir, 'media')
         await mkdir(mediaDir, { recursive: true })
 
         try {
           const mediaAssets = await client.listMedia()
-          let backedUpMedia = 0
 
           for (const asset of mediaAssets) {
             try {
-              // Construct media URL using the correct pattern: /media/{id}/file
               const mediaUrl = `${options.url}/media/${asset.id}/file`
               const mediaData = await client.downloadMedia(mediaUrl)
               const mediaPath = join(mediaDir, asset.filename)
               await writeFile(mediaPath, Buffer.from(mediaData))
 
-              const metaPath = join(mediaDir, `${asset.id}.meta.json`)
-              await writeFile(metaPath, JSON.stringify(asset, null, 2))
-              backedUpMedia++
+              mediaIndex[asset.id] = {
+                filename: asset.filename,
+                mimeType: asset.mimeType || 'application/octet-stream',
+                size: asset.size || mediaData.byteLength,
+                metadata: asset.metadata
+              }
+
+              mediaCount++
             } catch (error: any) {
-              spinner.warn(`Failed to backup media file ${asset.filename}: ${error.message}`)
+              spinner.warn(`Failed to backup media: ${asset.filename}`)
             }
           }
 
-          if (backedUpMedia > 0) {
-            spinner.succeed(`Backed up ${backedUpMedia} media files`)
-          } else {
-            spinner.info('No media files to backup')
-          }
+          spinner.succeed(`Backed up ${mediaCount} media file(s)`)
         } catch (error: any) {
-          spinner.warn(`Failed to backup media: ${error.message}`)
+          spinner.warn(`Media backup failed: ${error.message}`)
         }
       }
 
-      // Create a zip archive
-      spinner.text = 'Creating backup archive...'
+      // Step 4: Backup documents
+      const collectionsDir = join(tempDir, 'collections')
+      await mkdir(collectionsDir, { recursive: true })
+
+      const collectionStats: Record<string, number> = {}
+      let totalDocuments = 0
+
+      for (const schema of schemasToBackup) {
+        spinner.text = `Backing up collection: ${schema.name}...`
+        const collectionDir = join(collectionsDir, schema.name)
+        await mkdir(collectionDir, { recursive: true })
+
+        try {
+          const result = await client.queryDocuments(schema.name, { limit: 10000 })
+          const documents = result.documents || []
+
+          for (const doc of documents) {
+            const docId = (doc as any).id || (doc as any)._id || `doc-${Date.now()}`
+            const docPath = join(collectionDir, `${docId}.json`)
+            await writeFile(docPath, JSON.stringify(doc, null, 2))
+          }
+
+          collectionStats[schema.name] = documents.length
+          totalDocuments += documents.length
+
+          spinner.succeed(`${schema.name}: ${documents.length} document(s)`)
+        } catch (error: any) {
+          spinner.warn(`Failed to backup ${schema.name}: ${error.message}`)
+          collectionStats[schema.name] = 0
+        }
+      }
+
+      // Step 5: Create manifest
+      spinner.text = 'Creating backup manifest...'
+      const statistics: BackupStatistics = {
+        totalDocuments,
+        totalMedia: mediaCount,
+        collections: collectionStats,
+        backupSizeBytes: 0 // Will be calculated after zip creation
+      }
+
+      const manifest: BackupManifest = {
+        version: '2.0',
+        timestamp: new Date().toISOString(),
+        source: {
+          url: options.url,
+          description: options.description || 'Trokky backup'
+        },
+        schemas: schemasToBackup,
+        dependencyGraph,
+        restoreOrder,
+        mediaIndex,
+        statistics
+      }
+
+      await writeFile(join(tempDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
+      spinner.succeed('Manifest created')
+
+      // Step 6: Create zip archive
+      spinner.text = 'Creating archive...'
       const output = createWriteStream(options.output)
-      const archive = archiver('zip', {
-        zlib: { level: 9 } // Sets the compression level.
-      });
+      const archive = archiver('zip', { zlib: { level: 9 } })
 
       archive.pipe(output)
       archive.directory(tempDir, false)
       await archive.finalize()
 
-      spinner.succeed(`Backup completed: ${options.output}`)
-      
+      await new Promise((resolve, reject) => {
+        output.on('close', resolve)
+        output.on('error', reject)
+      })
+
+      spinner.succeed('Backup completed successfully')
+
       // Summary
-      console.log(chalk.green(`
-Backup Summary:`))
-      console.log(chalk.white(`   Documents: ${totalDocs}`))
-      console.log(chalk.white(`   Collections: ${collections.join(', ')}`))
-      console.log(chalk.white(`   Media: ${options.skipMedia ? 'Skipped' : 'Included'}`))
-      console.log(chalk.white(`   File: ${options.output}`))
-      
+      console.log(chalk.bold('\nBackup Summary'))
+      console.log(chalk.gray('─'.repeat(50)))
+      console.log(`Output file:     ${chalk.cyan(options.output)}`)
+      console.log(`Documents:       ${chalk.cyan(totalDocuments)}`)
+      console.log(`Media files:     ${chalk.cyan(mediaCount)}`)
+      console.log(`Collections:     ${chalk.cyan(schemasToBackup.length)}`)
+      console.log(`Archive size:    ${chalk.cyan((archive.pointer() / 1024 / 1024).toFixed(2) + ' MB')}`)
+      console.log(chalk.gray('─'.repeat(50)))
+
     } catch (error: any) {
       spinner.fail(`Backup failed: ${error.message}`)
+      console.error(chalk.red('\nError details:'), error.stack || error.message)
       process.exit(1)
     } finally {
-      // Clean up temporary directory
       await rm(tempDir, { recursive: true, force: true })
     }
   })
