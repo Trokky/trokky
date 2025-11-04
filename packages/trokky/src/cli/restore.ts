@@ -10,6 +10,56 @@ import { SchemaAnalyzer } from './schema-analyzer.js'
 import { ReferenceScanner } from './reference-scanner.js'
 import type { BackupManifest, IdMapping, SchemaDefinition } from './types.js'
 
+// Helper function to sanitize document data by removing null values and empty objects
+// This handles schema evolution where fields that were nullable are now non-nullable
+// or where empty objects would fail validation due to required nested fields
+function sanitizeDocument(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) return obj
+
+  if (Array.isArray(obj)) {
+    // Filter out null values and empty objects from arrays
+    return obj
+      .map(item => sanitizeDocument(item))
+      .filter(item => {
+        if (item === null) return false
+        if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) return false
+        return true
+      })
+  }
+
+  const sanitized: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip null values entirely - let the schema provide defaults or treat as undefined
+    if (value === null) {
+      continue
+    }
+
+    // Recursively sanitize nested objects and arrays
+    if (typeof value === 'object') {
+      const sanitizedValue = sanitizeDocument(value)
+
+      // Skip empty objects - they might have required nested fields
+      // An empty object {} will fail validation if it has required nested fields
+      if (!Array.isArray(sanitizedValue) && Object.keys(sanitizedValue).length === 0) {
+        continue
+      }
+
+      // Special case: Skip old media format that has 'src' property
+      // Old format: { _type: "media", src: "/path", alt, width, height }
+      // New format: { _type: "media", asset: { _ref: "media-xxx" }, alt }
+      if (sanitizedValue._type === 'media' && sanitizedValue.src && !sanitizedValue.asset) {
+        continue
+      }
+
+      sanitized[key] = sanitizedValue
+    } else {
+      sanitized[key] = value
+    }
+  }
+
+  return sanitized
+}
+
 export const restoreCommand = new Command('restore')
   .description('Restore content from a Trokky backup file')
   .requiredOption('--url <url>', 'Target Trokky instance URL')
@@ -253,21 +303,27 @@ export const restoreCommand = new Command('restore')
 
             totalReferencesUpdated += updateCount
 
+            // Sanitize document to handle schema evolution
+            // - Remove null values (schemas may have changed from nullable to non-nullable)
+            // - Remove empty objects (may have required nested fields)
+            // - Remove old media format (src-based instead of asset._ref)
+            const sanitizedDoc = sanitizeDocument(updatedDoc)
+
             // Restore document
             if (isSingleton && originalDocId) {
               // Preserve ID for singletons using PUT (upsert)
               try {
-                await client.updateDocument(collectionName, originalDocId, updatedDoc)
+                await client.updateDocument(collectionName, originalDocId, sanitizedDoc)
                 idMappings[originalDocId] = originalDocId // Same ID
               } catch (error: any) {
                 // If update fails, try create
-                const result = await client.createDocument(collectionName, updatedDoc)
+                const result = await client.createDocument(collectionName, sanitizedDoc)
                 const newId = (result as any).document?.id || (result as any).id
                 if (newId) idMappings[originalDocId] = newId
               }
             } else {
               // Regular document - create new
-              const result = await client.createDocument(collectionName, updatedDoc)
+              const result = await client.createDocument(collectionName, sanitizedDoc)
               const newId = (result as any).document?.id || (result as any).id
               if (newId && originalDocId) {
                 idMappings[originalDocId] = newId
@@ -282,7 +338,8 @@ export const restoreCommand = new Command('restore')
                 const docId = doc.id || doc._id
                 const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, ...cleanDoc } = doc
                 const { document: updatedDoc } = ReferenceScanner.updateReferences(cleanDoc, schema, idMappings)
-                await client.updateDocument(collectionName, docId, updatedDoc)
+                const sanitizedDoc = sanitizeDocument(updatedDoc)
+                await client.updateDocument(collectionName, docId, sanitizedDoc)
                 restored++
               } catch (updateError: any) {
                 spinner.warn(`Failed to restore document in ${collectionName}: ${error.message}`)
