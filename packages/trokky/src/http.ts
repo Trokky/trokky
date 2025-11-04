@@ -77,8 +77,10 @@ export class HttpClient {
     })
 
     if (!response.ok) {
-      const error: any = await response.json().catch(() => ({ message: response.statusText }))
-      throw new Error(error.message || `HTTP ${response.status}`)
+      const errorBody: any = await response.json().catch(() => ({ message: response.statusText }))
+      // Handle Trokky API error format: { success: false, error: { code: "...", message: "..." } }
+      const errorMessage = errorBody.error?.message || errorBody.message || response.statusText
+      throw new Error(errorMessage || `HTTP ${response.status}`)
     }
 
     const result: any = await response.json()

@@ -47,7 +47,10 @@ export class ReferenceScanner {
   ): void {
     if (!value || typeof value !== 'object') return
 
-    const fieldArray = Array.isArray(fields) ? fields : Object.values(fields)
+    // Convert fields to array with proper name property
+    const fieldArray = Array.isArray(fields)
+      ? fields
+      : Object.entries(fields).map(([name, field]) => ({ ...field, name }))
     const fieldMap = new Map(fieldArray.map(f => [f.name, f]))
 
     for (const [key, val] of Object.entries(value)) {
@@ -114,7 +117,10 @@ export class ReferenceScanner {
       return value.map(item => this.updateValue(item, fields, idMappings, onUpdate))
     }
 
-    const fieldArray = Array.isArray(fields) ? fields : Object.values(fields)
+    // Convert fields to array with proper name property
+    const fieldArray = Array.isArray(fields)
+      ? fields
+      : Object.entries(fields).map(([name, field]) => ({ ...field, name }))
     const fieldMap = new Map(fieldArray.map(f => [f.name, f]))
 
     const updated: Record<string, any> = {}
@@ -133,7 +139,7 @@ export class ReferenceScanner {
         const ref = this.extractReference(val)
         if (ref && idMappings[ref]) {
           onUpdate(ref, idMappings[ref])
-          updated[key] = { ...val, _ref: idMappings[ref] }
+          updated[key] = { ...(val as any), _ref: idMappings[ref] }
         } else {
           updated[key] = val
         }
@@ -144,9 +150,10 @@ export class ReferenceScanner {
         const ref = this.extractMediaReference(val)
         if (ref && idMappings[ref]) {
           onUpdate(ref, idMappings[ref])
+          const valObj = val as any
           updated[key] = {
-            ...val,
-            asset: { ...val.asset, _ref: idMappings[ref] }
+            ...valObj,
+            asset: { ...valObj.asset, _ref: idMappings[ref] }
           }
         } else {
           updated[key] = val

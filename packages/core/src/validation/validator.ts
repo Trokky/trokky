@@ -146,17 +146,17 @@ export class DocumentValidator {
       case 'slug':
         // TODO(#8): Refactor to use field plugin validation instead of duplicating logic
         // See: https://github.com/Trokky/trokky/issues/8
-        // Slug fields are URL-friendly strings
-        // Support hierarchical paths with / when allowSlashes is true
-        const allowSlashes = (fieldDef as any).allowSlashes || false
-        const slugPattern = allowSlashes
-          ? /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/
-          : /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-
+        //
+        // Removed overly restrictive regex validation - let field plugin handle format validation
+        // This allows slugs to be flexible and respect schema-level options like:
+        // - allowSlashes (for hierarchical paths like "blog/posts/my-article")
+        // - preserveCase (for case-sensitive slugs)
+        // - allowedChars (for additional characters like underscores, dots, etc.)
+        //
+        // Basic validation: just ensure it's a non-empty string within length limits
         return z.string()
-          .regex(slugPattern, 'Invalid slug format')
           .min(1, 'Slug cannot be empty')
-          .max(200, 'Slug is too long')
+          .max((fieldDef as any).maxLength || 200, 'Slug is too long')
       
       default:
         return z.unknown()

@@ -185,8 +185,9 @@ export class SchemaAnalyzer {
       }
 
       // Check field compatibility (basic check)
-      const backupFieldNames = new Set(backupSchema.fields.map(f => f.name))
-      const targetFieldNames = new Set(targetSchema.fields.map(f => f.name))
+      // fields is an object/map, not an array
+      const backupFieldNames = new Set(Object.keys(backupSchema.fields))
+      const targetFieldNames = new Set(Object.keys(targetSchema.fields))
 
       for (const fieldName of backupFieldNames) {
         if (!targetFieldNames.has(fieldName)) {
