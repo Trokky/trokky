@@ -1,5 +1,15 @@
 # @trokky/routes
 
+## 0.1.2
+
+### Patch Changes
+
+- Remove restrictive slug validation in checkSlugUniqueness endpoint
+
+  The slug uniqueness check was using a rigid regex that rejected valid slugs,
+  causing backup/restore failures. Now only validates non-empty slugs, allowing
+  the schema field definition to handle format validation.
+
 ## 0.1.1
 
 ### Patch Changes

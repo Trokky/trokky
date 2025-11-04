@@ -1,5 +1,22 @@
 # @trokky/core
 
+## 0.1.2
+
+### Patch Changes
+
+- Remove overly restrictive slug validation regex
+
+  The slug validator was using a rigid regex pattern that rejected valid slugs with
+  forward slashes, even when the schema had `allowSlashes: true` configured. This
+  caused backup/restore failures and prevented users from using hierarchical slugs
+  like "blog/posts/my-article".
+
+  Changes:
+  - Removed regex validation that ignored schema-level slug options
+  - Now only validates basic constraints (non-empty, length limits)
+  - Respects schema configuration for allowSlashes, preserveCase, allowedChars
+  - Fixes backup/restore compatibility with hierarchical slugs
+
 ## 0.2.0
 
 ### Minor Changes

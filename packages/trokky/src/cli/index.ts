@@ -10,8 +10,8 @@ const program = new Command()
 
 program
   .name('trokky')
-  .description('Trokky CMS CLI - backup, restore, clean, and migration tools')
-  .version('0.1.0')
+  .description('Trokky CMS CLI - Schema-driven backup, restore, and migration tools')
+  .version('2.0.0')
 
 program.addCommand(backupCommand)
 program.addCommand(restoreCommand)

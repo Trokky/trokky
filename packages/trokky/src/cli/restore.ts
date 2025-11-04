@@ -1,224 +1,28 @@
 import { Command } from 'commander'
-import { readFile, readdir, rm } from 'fs/promises'
+import { readFile, rm } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { join } from 'path'
 import chalk from 'chalk'
 import ora from 'ora'
 import unzipper from 'unzipper'
 import { TrokkyClient } from '../client.js'
-
-// Helper function to find all references in a document (matches backup logic)
-function findDocumentReferences(obj: any, refs: string[] = []): string[] {
-  if (typeof obj !== 'object' || obj === null) return refs
-
-  if (Array.isArray(obj)) {
-    obj.forEach(item => findDocumentReferences(item, refs))
-  } else {
-    for (const [key, value] of Object.entries(obj)) {
-      if (key === '_ref' && typeof value === 'string') {
-        refs.push(value)
-      } else if (key === 'asset' && typeof value === 'object' && value !== null &&
-                 (value as any)._ref && typeof (value as any)._ref === 'string') {
-        // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
-        refs.push((value as any)._ref)
-      } else if (typeof value === 'object') {
-        findDocumentReferences(value, refs)
-      }
-    }
-  }
-
-  return refs
-}
-
-// Helper function to update references in a document
-function updateReferences(obj: any, idMappings: Record<string, string>): any {
-  if (typeof obj !== 'object' || obj === null) return obj
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => updateReferences(item, idMappings))
-  }
-
-  const updated: any = {}
-  for (const [key, value] of Object.entries(obj)) {
-    if (key === '_ref' && typeof value === 'string' && idMappings[value]) {
-      // Handle direct references
-      updated[key] = idMappings[value]
-    } else if (key === 'asset' && typeof value === 'object' && value !== null &&
-               (value as any)._ref && typeof (value as any)._ref === 'string' &&
-               idMappings[(value as any)._ref]) {
-      // Handle media field references: { asset: { _ref: 'media-id', _type: 'mediaAsset' } }
-      updated[key] = {
-        ...(value as any),
-        _ref: idMappings[(value as any)._ref]
-      }
-    } else if (typeof value === 'object') {
-      updated[key] = updateReferences(value, idMappings)
-    } else {
-      updated[key] = value
-    }
-  }
-
-  return updated
-}
-
-// Helper function to sanitize document data by removing null values and empty objects
-// This handles schema evolution where fields that were nullable are now non-nullable
-// or where empty objects would fail validation due to required nested fields
-function sanitizeDocument(obj: any): any {
-  if (typeof obj !== 'object' || obj === null) return obj
-
-  if (Array.isArray(obj)) {
-    // Filter out null values and empty objects from arrays
-    return obj
-      .map(item => sanitizeDocument(item))
-      .filter(item => {
-        if (item === null) return false
-        if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) return false
-        return true
-      })
-  }
-
-  const sanitized: any = {}
-  for (const [key, value] of Object.entries(obj)) {
-    // Skip null values entirely - let the schema provide defaults or treat as undefined
-    if (value === null) {
-      continue
-    }
-
-    // Recursively sanitize nested objects and arrays
-    if (typeof value === 'object') {
-      const sanitizedValue = sanitizeDocument(value)
-
-      // Skip empty objects - they might have required nested fields
-      // An empty object {} will fail validation if it has required nested fields
-      if (!Array.isArray(sanitizedValue) && Object.keys(sanitizedValue).length === 0) {
-        continue
-      }
-
-      sanitized[key] = sanitizedValue
-    } else {
-      sanitized[key] = value
-    }
-  }
-
-  return sanitized
-}
-
-// Helper function to analyze dependencies and sort collections using topological sort
-async function sortCollectionsByDependencies(
-  collections: string[],
-  tempDir: string,
-  referenceMap: Record<string, string[]>
-): Promise<string[]> {
-  // Build dependency graph by analyzing documents in each collection
-  const dependencies: Record<string, Set<string>> = {}
-
-  for (const collection of collections) {
-    dependencies[collection] = new Set()
-
-    try {
-      const collectionDir = join(tempDir, 'collections', collection)
-      const files = await readdir(collectionDir)
-      const documents = await Promise.all(
-        files.map(file => readFile(join(collectionDir, file), 'utf-8').then(JSON.parse))
-      )
-
-      // Find all references in documents of this collection
-      for (const doc of documents) {
-        const refs = findDocumentReferences(doc)
-        for (const ref of refs) {
-          // Skip media references (they're handled separately)
-          if (ref.startsWith('media-')) continue
-
-          // Extract collection name from reference ID pattern
-          // Most Trokky IDs follow pattern: collectionName-randomid or prefix-randomid
-          // Try to match against known collection names
-          let refCollection: string | null = null
-
-          // Try to extract from ID pattern
-          const parts = ref.split('-')
-          if (parts.length >= 2) {
-            // Try first part as collection name
-            const possibleCollection = parts[0]
-            if (collections.includes(possibleCollection)) {
-              refCollection = possibleCollection
-            }
-          }
-
-          if (refCollection && refCollection !== collection) {
-            dependencies[collection].add(refCollection)
-          }
-        }
-      }
-    } catch (error) {
-      // Collection directory might not exist, skip
-    }
-  }
-
-  // Topological sort using Kahn's algorithm
-  const sorted: string[] = []
-  const inDegree: Record<string, number> = {}
-
-  // Initialize in-degree counts
-  for (const collection of collections) {
-    inDegree[collection] = 0
-  }
-
-  // Calculate in-degrees
-  for (const collection of collections) {
-    for (const dep of dependencies[collection]) {
-      if (collections.includes(dep)) {
-        inDegree[collection]++
-      }
-    }
-  }
-
-  // Queue of collections with no dependencies
-  const queue: string[] = []
-  for (const collection of collections) {
-    if (inDegree[collection] === 0) {
-      queue.push(collection)
-    }
-  }
-
-  // Process queue
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    sorted.push(current)
-
-    // For each collection that depends on current
-    for (const collection of collections) {
-      if (dependencies[collection].has(current)) {
-        inDegree[collection]--
-        if (inDegree[collection] === 0) {
-          queue.push(collection)
-        }
-      }
-    }
-  }
-
-  // If there are cycles or remaining collections, add them at the end
-  for (const collection of collections) {
-    if (!sorted.includes(collection)) {
-      sorted.push(collection)
-    }
-  }
-
-  return sorted
-}
+import { SchemaAnalyzer } from './schema-analyzer.js'
+import { ReferenceScanner } from './reference-scanner.js'
+import type { BackupManifest, IdMapping, SchemaDefinition } from './types.js'
 
 export const restoreCommand = new Command('restore')
-  .description('Import content to a Trokky instance from a backup file')
-  .requiredOption('--url <url>', 'Trokky instance URL')
+  .description('Restore content from a Trokky backup file')
+  .requiredOption('--url <url>', 'Target Trokky instance URL')
   .requiredOption('--token <token>', 'Authentication token')
-  .requiredOption('--input <file>', 'Input backup file (e.g., backup.zip)')
-  .option('--collections <collections>', 'Comma-separated list of collections to restore')
-  .option('--dry-run', 'Preview changes without applying them')
+  .requiredOption('--input <file>', 'Backup file path (e.g., backup.zip)')
+  .option('--collections <collections>', 'Comma-separated list of collections to restore (restores all if not specified)')
+  .option('--with-dependencies', 'Include all dependencies of specified collections')
+  .option('--clean', 'Delete all existing content before restore')
   .option('--overwrite', 'Overwrite existing documents')
-  .option('--clean', 'Delete all existing documents before restoring')
+  .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
-    const spinner = ora('Starting restore...').start()
-    const tempDir = join(process.cwd(), `restore-temp-${Date.now()}`)
+    const spinner = ora('Initializing restore...').start()
+    const tempDir = join(process.cwd(), `trokky-restore-${Date.now()}`)
 
     try {
       const client = new TrokkyClient({
@@ -226,416 +30,294 @@ export const restoreCommand = new Command('restore')
         apiToken: options.token
       })
 
-      // Extract the backup archive
+      // Step 1: Extract backup
       spinner.text = 'Extracting backup archive...'
       await createReadStream(options.input)
         .pipe(unzipper.Extract({ path: tempDir }))
         .promise()
-      spinner.succeed('Backup archive extracted')
 
-      // Read meta file and reference map
-      spinner.text = 'Reading backup metadata...'
-      const meta = JSON.parse(await readFile(join(tempDir, 'meta.json'), 'utf-8'))
-      
-      let referenceMap: Record<string, string[]> = {}
-      try {
-        referenceMap = JSON.parse(await readFile(join(tempDir, 'references.json'), 'utf-8'))
-      } catch (error) {
-        // Reference map might not exist in older backups
-        spinner.info('No reference map found - references may not be preserved')
-      }
-      
-      const collectionsToRestore = options.collections
-        ? options.collections.split(',')
-        : meta.collections
+      // Step 2: Read manifest
+      spinner.text = 'Reading backup manifest...'
+      const manifestPath = join(tempDir, 'manifest.json')
+      const manifestContent = await readFile(manifestPath, 'utf-8')
+      const manifest: BackupManifest = JSON.parse(manifestContent)
 
-      // ============================================================
-      // PRE-FLIGHT CHECKS - All validation before destructive ops
-      // ============================================================
-
-      spinner.text = 'Running pre-flight compatibility checks...'
-
-      // Pre-flight check 1: Validate target instance has required collections
-      spinner.text = 'Validating target instance schema...'
-      let availableCollections: string[] = []
-      const singletonCollections: Set<string> = new Set() // Track which collections are singletons
-      try {
-        const collectionsData = await client.getCollections()
-        availableCollections = collectionsData.map((c: any) => c.name)
-
-        // Build singleton set from schema metadata
-        for (const collectionData of collectionsData) {
-          if (collectionData.singleton) {
-            singletonCollections.add(collectionData.name)
-            spinner.info(`📌 Detected singleton: ${collectionData.name}`)
-          }
-        }
-
-        spinner.info(`Target instance has ${availableCollections.length} collections (${singletonCollections.size} singletons)`)
-      } catch (error: any) {
-        spinner.warn(`Failed to fetch target collections: ${error.message}`)
-      }
-
-      // Check for missing collections
-      const missingCollections = collectionsToRestore.filter(
-        (col: string) => !availableCollections.includes(col)
-      )
-
-      if (missingCollections.length > 0) {
-        spinner.fail('Schema validation failed!')
-        console.log(chalk.red(`
-❌ Target instance is missing ${missingCollections.length} collection(s) from the backup:
-
-Missing collections:
-${missingCollections.map((c: string) => `   - ${c}`).join('\n')}
-
-Available collections in target:
-${availableCollections.map((c: string) => `   - ${c}`).join('\n')}
-
-Backup collections:
-${collectionsToRestore.map((c: string) => `   - ${c}`).join('\n')}
-
-This usually means:
-1. You're restoring to the wrong Trokky instance
-2. The target instance has a different schema configuration
-
-Solutions:
-- Restore to the correct instance (the one this backup came from)
-- Update the target instance's schema configuration to include missing collections
-- Use --collections flag to restore only matching collections
-
-Example:
-   trokky restore --url ${options.url} --token <token> --input ${options.input} --collections ${availableCollections.join(',')}
-`))
+      if (manifest.version !== '2.0') {
+        spinner.fail(`Unsupported backup version: ${manifest.version}. This tool requires version 2.0`)
         process.exit(1)
       }
 
-      spinner.succeed(`✅ All ${collectionsToRestore.length} collections exist in target instance`)
+      spinner.succeed(`Backup from ${new Date(manifest.timestamp).toLocaleString()}`)
 
-      // Pre-flight check 2: Verify media variant compatibility
-      const mediaDir = join(tempDir, 'media')
-      try {
-        spinner.text = 'Checking media variant compatibility...'
-        const files = await readdir(mediaDir)
-        const metaFiles = files.filter(f => f.endsWith('.meta.json'))
+      // Step 3: Determine collections to restore
+      let collectionsToRestore = manifest.schemas.map(s => s.name)
 
-        if (metaFiles.length > 0) {
-          // Collect all unique variants from backup media
-          const backupVariants = new Set<string>()
+      if (options.collections) {
+        const requested = options.collections.split(',').map((s: string) => s.trim())
 
-          for (const metaFile of metaFiles) {
-            const metaContent = JSON.parse(await readFile(join(mediaDir, metaFile), 'utf-8'))
-            if (metaContent.metadata?.imageVariants) {
-              Object.keys(metaContent.metadata.imageVariants).forEach(variant => {
-                backupVariants.add(variant)
-              })
-            }
+        if (options.withDependencies) {
+          // Include dependencies
+          const withDeps = new Set<string>()
+          for (const coll of requested) {
+            withDeps.add(coll)
+            const deps = manifest.dependencyGraph[coll] || []
+            deps.forEach(d => withDeps.add(d))
           }
-
-          if (backupVariants.size > 0) {
-            // Fetch target system's configured variants
-            const configResponse = await client.getStudioConfig()
-            const targetVariants = new Set<string>(
-              configResponse.studioConfig?.media?.variants?.map((v: any) => v.name) || []
-            )
-
-            // Check for missing variants
-            const missingVariants = Array.from(backupVariants).filter(v => !targetVariants.has(v))
-
-            if (missingVariants.length > 0) {
-              spinner.fail('Media variant compatibility check failed')
-              console.log(chalk.red(`
-❌ Media Variant Mismatch Detected
-
-The backup contains media files with variants that don't exist in your target system configuration.
-
-Backup variants found: ${Array.from(backupVariants).join(', ')}
-Target variants configured: ${Array.from(targetVariants).join(', ')}
-Missing variants: ${missingVariants.join(', ')}
-
-This will cause media thumbnails to not display correctly after restore.
-
-To fix this, update your trokky.config.ts media variants configuration to include:
-
-${missingVariants.map(v => `  {
-    name: '${v}',
-    width: 800,    // adjust to your needs
-    height: 600,   // adjust to your needs
-    format: 'webp' as const,
-    quality: 85,
-    fit: 'cover' as const,
-  },`).join('\n')}
-
-Then restart your Trokky instance and run the restore command again.
-`))
-              process.exit(1)
-            }
-
-            spinner.succeed(`Media variants compatible (${Array.from(backupVariants).join(', ')})`)
-          }
+          collectionsToRestore = Array.from(withDeps)
+        } else {
+          collectionsToRestore = requested
         }
-      } catch (error: any) {
-        if (error.code !== 'ENOENT') {
-          spinner.warn(`Could not verify media variant compatibility: ${error.message}`)
+
+        // Validate requested collections exist in backup
+        const missing = collectionsToRestore.filter(c =>
+          !manifest.schemas.find(s => s.name === c)
+        )
+
+        if (missing.length > 0) {
+          spinner.fail(`Collections not found in backup: ${missing.join(', ')}`)
+          process.exit(1)
         }
-        // Continue if media directory doesn't exist
+
+        spinner.info(`Selected ${collectionsToRestore.length} collection(s) for restore`)
       }
 
-      // ============================================================
-      // All pre-flight checks passed - Begin restoration
-      // ============================================================
+      // Filter schemas and build restore order
+      const schemasToRestore = manifest.schemas.filter(s =>
+        collectionsToRestore.includes(s.name)
+      )
 
-      // Track ID mappings for reference updates
-      const idMappings: Record<string, string> = {}
-      let totalRestored = 0
-      let totalReferencesUpdated = 0
+      const filteredGraph = Object.fromEntries(
+        Object.entries(manifest.dependencyGraph).filter(([k]) =>
+          collectionsToRestore.includes(k)
+        )
+      )
 
-      // Clean ALL existing data if --clean flag is set (before any restore)
-      if (options.clean) {
+      const restoreOrder = SchemaAnalyzer.getRestoreOrder(filteredGraph)
+      spinner.info(`Restore order: ${restoreOrder.join(' → ')}`)
+
+      // Step 4: Pre-flight validation
+      spinner.text = 'Validating target instance...'
+      const targetSchemas = await client.getCollections()
+      const targetSchemaMap = new Map(targetSchemas.map((s: any) => [s.name, s]))
+
+      const validation = SchemaAnalyzer.validateSchemaCompatibility(
+        schemasToRestore,
+        targetSchemas
+      )
+
+      if (!validation.compatible) {
+        spinner.fail('Schema validation failed')
+        console.log(chalk.red('\nErrors:'))
+        validation.errors.forEach(err => console.log(chalk.red(`  - ${err}`)))
+        process.exit(1)
+      }
+
+      if (validation.warnings.length > 0) {
+        spinner.warn('Schema validation warnings:')
+        validation.warnings.forEach(warn => console.log(chalk.yellow(`  - ${warn}`)))
+      } else {
+        spinner.succeed('Schema validation passed')
+      }
+
+      if (options.dryRun) {
+        console.log(chalk.bold('\n[DRY RUN MODE] - No changes will be made'))
+      }
+
+      // Step 5: Clean existing data if requested
+      if (options.clean && !options.dryRun) {
+        spinner.text = 'Cleaning existing data...'
+
         // Clean media first
-        spinner.text = 'Cleaning existing media...'
         try {
           const existingMedia = await client.listMedia()
           for (const media of existingMedia) {
             await client.deleteMedia(media.id)
           }
           if (existingMedia.length > 0) {
-            spinner.succeed(`Deleted ${existingMedia.length} existing media files`)
+            spinner.info(`Deleted ${existingMedia.length} media file(s)`)
           }
         } catch (error: any) {
-          spinner.warn(`Failed to clean existing media: ${error.message}`)
+          spinner.warn(`Failed to clean media: ${error.message}`)
         }
 
-        // Clean all collections that will be restored
-        spinner.text = 'Cleaning existing documents...'
-        let totalDeleted = 0
+        // Clean documents
+        let deletedCount = 0
         for (const collection of collectionsToRestore) {
           try {
-            const existingDocs = await client.queryDocuments(collection, { limit: 10000 })
-            for (const doc of existingDocs.documents) {
-              const docId = (doc as any).id || doc._id
-              try {
-                await client.deleteDocument(collection, docId)
-                totalDeleted++
-              } catch (delError: any) {
-                spinner.warn(`Failed to delete ${collection}/${docId}: ${delError.message}`)
-              }
+            const result = await client.queryDocuments(collection, { limit: 10000 })
+            for (const doc of result.documents) {
+              const docId = (doc as any).id || (doc as any)._id
+              await client.deleteDocument(collection, docId)
+              deletedCount++
             }
           } catch (error: any) {
-            // Collection might not exist or be accessible, continue
+            // Continue if collection doesn't exist
           }
         }
-        if (totalDeleted > 0) {
-          spinner.succeed(`Deleted ${totalDeleted} existing documents`)
+
+        if (deletedCount > 0) {
+          spinner.succeed(`Cleaned ${deletedCount} document(s)`)
         }
       }
 
-      // First, restore media to get ID mappings
-      try {
-        const files = await readdir(mediaDir)
-        const mediaFiles = files.filter(file => !file.endsWith('.meta.json'))
+      // Step 6: Restore media
+      const idMappings: IdMapping = {}
+      let mediaRestored = 0
 
-        if (mediaFiles.length > 0) {
-          spinner.text = 'Restoring media and tracking ID mappings...'
-          let restoredMedia = 0
-          for (const file of mediaFiles) {
-            try {
-              const filePath = join(mediaDir, file)
-              const fileBuffer = await readFile(filePath)
-              const result = await client.uploadFile(fileBuffer, file)
-              
-              // Find corresponding metadata file by filename
-              const metaFiles = files.filter(f => f.endsWith('.meta.json'))
-              let oldId: string | null = null
-              
-              for (const metaFile of metaFiles) {
-                const metaContent = JSON.parse(await readFile(join(mediaDir, metaFile), 'utf-8'))
-                if (metaContent.filename === file) {
-                  oldId = metaContent.id
-                  break
-                }
-              }
-              
-              if (oldId && result.files && result.files[0]) {
-                const newId = result.files[0].id
-                idMappings[oldId] = newId
-                spinner.info(`📸 Media mapping: ${oldId} -> ${newId} (${file})`)
-              } else {
-                spinner.warn(`⚠️  Failed to map media file ${file} - no metadata found`)
-              }
-              
-              restoredMedia++
-            } catch (error: any) {
-              spinner.warn(`Failed to restore media file ${file}: ${error.message}`)
+      const mediaDir = join(tempDir, 'media')
+      const mediaEntries = Object.entries(manifest.mediaIndex)
+
+      if (mediaEntries.length > 0 && !options.dryRun) {
+        spinner.text = 'Restoring media files...'
+
+        for (const [oldId, mediaInfo] of mediaEntries) {
+          try {
+            const mediaPath = join(mediaDir, mediaInfo.filename)
+            const fileBuffer = await readFile(mediaPath)
+            const result = await client.uploadFile(fileBuffer, mediaInfo.filename)
+
+            if (result.files && result.files[0]) {
+              const newId = result.files[0].id
+              idMappings[oldId] = newId
+              mediaRestored++
             }
-          }
-          if (restoredMedia > 0) {
-            spinner.succeed(`Restored ${restoredMedia} media files with ID tracking`)
+          } catch (error: any) {
+            spinner.warn(`Failed to restore media: ${mediaInfo.filename}`)
           }
         }
-      } catch (error: any) {
-        // Ignore if media directory does not exist
+
+        spinner.succeed(`Restored ${mediaRestored} media file(s)`)
+      } else if (options.dryRun && mediaEntries.length > 0) {
+        spinner.info(`[DRY RUN] Would restore ${mediaEntries.length} media file(s)`)
       }
 
-      // Sort collections by dependency order to avoid reference validation errors
-      spinner.text = 'Analyzing collection dependencies...'
-      const sortedCollections = await sortCollectionsByDependencies(collectionsToRestore, tempDir, referenceMap)
-      spinner.info(`Restore order: ${sortedCollections.join(' → ')}`)
+      // Step 7: Restore documents
+      let totalRestored = 0
+      let totalReferencesUpdated = 0
 
-      // Restore each collection
-      for (const collection of sortedCollections) {
-        spinner.text = `Restoring ${collection}...`
-        const collectionDir = join(tempDir, 'collections', collection)
+      for (const collectionName of restoreOrder) {
+        if (!collectionsToRestore.includes(collectionName)) continue
+
+        const schema = schemasToRestore.find(s => s.name === collectionName)
+        if (!schema) continue
+
+        spinner.text = `Restoring collection: ${collectionName}...`
+
+        // Read documents from backup
+        const collectionDir = join(tempDir, 'collections', collectionName)
+        let documents: any[] = []
 
         try {
-          // Check if collection directory exists
-          let files: string[]
-          try {
-            files = await readdir(collectionDir)
-          } catch (error: any) {
-            if (error.code === 'ENOENT') {
-              spinner.info(`No backup data found for ${collection} - skipping`)
-              continue
-            }
-            throw error
+          const fs = await import('fs/promises')
+          const files = await fs.readdir(collectionDir)
+
+          for (const file of files) {
+            if (!file.endsWith('.json')) continue
+            const docPath = join(collectionDir, file)
+            const docContent = await readFile(docPath, 'utf-8')
+            documents.push(JSON.parse(docContent))
           }
-
-          const documents = await Promise.all(files.map(file => readFile(join(collectionDir, file), 'utf-8').then(JSON.parse)))
-
-          if (documents.length === 0) {
-            spinner.info(`No documents found for ${collection}`)
-            continue
-          }
-
-          if (options.dryRun) {
-            spinner.info(`[DRY RUN] Would restore ${documents.length} ${collection} documents`)
-            continue
-          }
-
-          let restored = 0
-          for (const doc of documents) {
-            try {
-              // Remove system fields before creating (but preserve _status for published state)
-              const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, _createdBy, _updatedBy, _createdByType, _updatedByType, ...cleanDoc } = doc
-
-              // Track document ID mapping for cross-document references
-              const originalDocId = doc.id || doc._id
-
-              // Update references with new IDs
-              const originalRefs = findDocumentReferences(cleanDoc)
-              let updatedDoc = updateReferences(cleanDoc, idMappings)
-
-              // Sanitize document to remove null values (handles schema evolution)
-              updatedDoc = sanitizeDocument(updatedDoc)
-
-              const updatedRefs = findDocumentReferences(updatedDoc)
-
-              if (originalRefs.length > 0) {
-                let refsUpdatedInDoc = 0
-                spinner.info(`🔗 Updating ${originalRefs.length} references in document ${originalDocId}`)
-                for (let i = 0; i < originalRefs.length; i++) {
-                  if (originalRefs[i] !== updatedRefs[i]) {
-                    spinner.info(`   ${originalRefs[i]} -> ${updatedRefs[i]}`)
-                    refsUpdatedInDoc++
-                  }
-                }
-                totalReferencesUpdated += refsUpdatedInDoc
-              }
-
-              // Check if this is a singleton collection
-              const isSingleton = singletonCollections.has(collection)
-
-              if (isSingleton) {
-                // For singletons, we need to preserve the ID from the backup
-                // Try to create with the specific ID first
-                const singletonId = originalDocId
-                spinner.info(`📌 Restoring singleton ${collection} with ID: ${singletonId}`)
-
-                try {
-                  // Create document with explicit ID
-                  const docWithId = { ...updatedDoc, id: singletonId }
-                  await client.createDocument(collection, docWithId)
-                  idMappings[originalDocId] = singletonId
-                  spinner.info(`   ID preserved: ${singletonId}`)
-                } catch (createError: any) {
-                  // If creation failed, try to update existing document
-                  if (createError.message && createError.message.includes('409')) {
-                    try {
-                      await client.updateDocument(collection, singletonId, updatedDoc)
-                      idMappings[originalDocId] = singletonId
-                      spinner.info(`   ID preserved (updated): ${singletonId}`)
-                    } catch (updateError: any) {
-                      spinner.warn(`   Failed to restore singleton ${collection}: ${updateError.message}`)
-                      throw updateError
-                    }
-                  } else {
-                    // Show detailed validation errors if available
-                    if (createError.details && createError.details.errors) {
-                      spinner.warn(`   Failed to restore singleton ${collection}:`)
-                      spinner.warn(`   ${createError.message}`)
-                      createError.details.errors.forEach((err: any) => {
-                        spinner.warn(`      - ${err.field}: ${err.message} (${err.code})`)
-                      })
-                    } else {
-                      spinner.warn(`   Failed to restore singleton ${collection}: ${createError.message}`)
-                    }
-                    throw createError
-                  }
-                }
-              } else {
-                // Regular document - create new with new ID
-                const result = await client.createDocument(collection, updatedDoc)
-                const newDocId = (result as any).document?.id || (result as any).id
-                if (newDocId) idMappings[originalDocId] = newDocId
-              }
-              restored++
-            } catch (error: any) {
-              if (options.overwrite && (doc.id || doc._id)) {
-                spinner.text = `Overwriting existing document in ${collection}...`
-                const docId = doc.id || doc._id
-                const { id, _id, _createdAt, _updatedAt, _version, _revision, _status, _collection, _type, ...cleanDoc } = doc
-                const updatedDoc = updateReferences(cleanDoc, idMappings)
-                await client.updateDocument(collection, docId, updatedDoc)
-                restored++
-              } else {
-                // Show detailed error information for debugging
-                spinner.warn(`Skipped existing document in ${collection}: ${error.message}`)
-                if (error.details && error.details.errors) {
-                  error.details.errors.forEach((err: any) => {
-                    spinner.warn(`   - ${err.field || err.path?.join('.')}: ${err.message}`)
-                  })
-                }
-              }
-            }
-          }
-
-          totalRestored += restored
-          spinner.succeed(`Restored ${restored}/${documents.length} ${collection} documents`)
         } catch (error: any) {
-          spinner.warn(`Failed to restore ${collection}: ${error.message}`)
+          spinner.warn(`No documents found for ${collectionName}`)
+          continue
         }
+
+        if (documents.length === 0) {
+          spinner.info(`${collectionName}: no documents`)
+          continue
+        }
+
+        if (options.dryRun) {
+          spinner.info(`[DRY RUN] Would restore ${documents.length} document(s) to ${collectionName}`)
+          continue
+        }
+
+        // Check if singleton
+        const targetSchema = targetSchemaMap.get(collectionName)
+        const isSingleton = targetSchema?.singleton === true
+
+        let restored = 0
+
+        for (const doc of documents) {
+          try {
+            // Remove system fields
+            const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, ...cleanDoc } = doc
+            const originalDocId = id || _id
+
+            // Update references
+            const { document: updatedDoc, updateCount } = ReferenceScanner.updateReferences(
+              cleanDoc,
+              schema,
+              idMappings
+            )
+
+            totalReferencesUpdated += updateCount
+
+            // Restore document
+            if (isSingleton && originalDocId) {
+              // Preserve ID for singletons using PUT (upsert)
+              try {
+                await client.updateDocument(collectionName, originalDocId, updatedDoc)
+                idMappings[originalDocId] = originalDocId // Same ID
+              } catch (error: any) {
+                // If update fails, try create
+                const result = await client.createDocument(collectionName, updatedDoc)
+                const newId = (result as any).document?.id || (result as any).id
+                if (newId) idMappings[originalDocId] = newId
+              }
+            } else {
+              // Regular document - create new
+              const result = await client.createDocument(collectionName, updatedDoc)
+              const newId = (result as any).document?.id || (result as any).id
+              if (newId && originalDocId) {
+                idMappings[originalDocId] = newId
+              }
+            }
+
+            restored++
+          } catch (error: any) {
+            if (options.overwrite && (doc.id || doc._id)) {
+              // Try to overwrite existing document
+              try {
+                const docId = doc.id || doc._id
+                const { id, _id, _createdAt, _updatedAt, _version, _revision, _collection, _type, ...cleanDoc } = doc
+                const { document: updatedDoc } = ReferenceScanner.updateReferences(cleanDoc, schema, idMappings)
+                await client.updateDocument(collectionName, docId, updatedDoc)
+                restored++
+              } catch (updateError: any) {
+                spinner.warn(`Failed to restore document in ${collectionName}: ${error.message}`)
+              }
+            } else {
+              spinner.warn(`Failed to restore document in ${collectionName}: ${error.message}`)
+            }
+          }
+        }
+
+        totalRestored += restored
+        spinner.succeed(`${collectionName}: ${restored}/${documents.length} document(s)`)
       }
 
+      // Final summary
       if (options.dryRun) {
         spinner.succeed('Dry run completed - no changes made')
       } else {
-        spinner.succeed(`Restore completed: ${totalRestored} documents`)
+        spinner.succeed('Restore completed successfully')
       }
 
-      // Summary
-      console.log(chalk.green(`
-Restore Summary:`))
-      console.log(chalk.white(`   Documents restored: ${totalRestored}`))
-      console.log(chalk.white(`   Media mappings: ${Object.keys(idMappings).length}`))
-      console.log(chalk.white(`   References updated: ${totalReferencesUpdated}`))
-      console.log(chalk.white(`   Collections: ${collectionsToRestore.join(', ')}`))
-      console.log(chalk.white(`   Mode: ${options.dryRun ? 'Dry run' : 'Live restore'}`))
-      
+      console.log(chalk.bold('\nRestore Summary'))
+      console.log(chalk.gray('─'.repeat(50)))
+      console.log(`Documents restored:    ${chalk.cyan(totalRestored)}`)
+      console.log(`Media restored:        ${chalk.cyan(mediaRestored)}`)
+      console.log(`References updated:    ${chalk.cyan(totalReferencesUpdated)}`)
+      console.log(`Collections:           ${chalk.cyan(collectionsToRestore.length)}`)
+      console.log(`Mode:                  ${chalk.cyan(options.dryRun ? 'Dry run' : 'Live restore')}`)
+      console.log(chalk.gray('─'.repeat(50)))
+
     } catch (error: any) {
       spinner.fail(`Restore failed: ${error.message}`)
+      console.error(chalk.red('\nError details:'), error.stack || error.message)
       process.exit(1)
     } finally {
-      // Clean up temporary directory
       await rm(tempDir, { recursive: true, force: true })
     }
   })
