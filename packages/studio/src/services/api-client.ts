@@ -71,8 +71,8 @@ export class ApiClient {
       // Use saved backend URL from localStorage (only when no config provided)
       this.setBackendUrl(savedBackendUrl)
     } else if (import.meta.env.DEV) {
-      // Development mode fallback - assume API is on localhost:3000
-      const devBackendUrl = 'http://localhost:3000/api'
+      // Development mode fallback - assume API is on localhost:3210
+      const devBackendUrl = 'http://localhost:3210/api'
       this.setBackendUrl(devBackendUrl)
     } else {
       // No backend URL configured - Studio will show login form to set it

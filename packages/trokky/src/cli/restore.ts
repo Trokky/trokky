@@ -61,13 +61,21 @@ function updateReferences(obj: any, idMappings: Record<string, string>): any {
   return updated
 }
 
-// Helper function to sanitize document data by removing null values
+// Helper function to sanitize document data by removing null values and empty objects
 // This handles schema evolution where fields that were nullable are now non-nullable
+// or where empty objects would fail validation due to required nested fields
 function sanitizeDocument(obj: any): any {
   if (typeof obj !== 'object' || obj === null) return obj
 
   if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeDocument(item)).filter(item => item !== null)
+    // Filter out null values and empty objects from arrays
+    return obj
+      .map(item => sanitizeDocument(item))
+      .filter(item => {
+        if (item === null) return false
+        if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) return false
+        return true
+      })
   }
 
   const sanitized: any = {}
@@ -79,7 +87,15 @@ function sanitizeDocument(obj: any): any {
 
     // Recursively sanitize nested objects and arrays
     if (typeof value === 'object') {
-      sanitized[key] = sanitizeDocument(value)
+      const sanitizedValue = sanitizeDocument(value)
+
+      // Skip empty objects - they might have required nested fields
+      // An empty object {} will fail validation if it has required nested fields
+      if (!Array.isArray(sanitizedValue) && Object.keys(sanitizedValue).length === 0) {
+        continue
+      }
+
+      sanitized[key] = sanitizedValue
     } else {
       sanitized[key] = value
     }
