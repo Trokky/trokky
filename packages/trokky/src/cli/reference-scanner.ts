@@ -86,7 +86,12 @@ export class ReferenceScanner {
       // Array field
       else if (field.type === 'array' && Array.isArray(val) && field.of) {
         for (let i = 0; i < val.length; i++) {
-          this.scanValue(val[i], [field.of], [...currentPath, i.toString()], references)
+          // If array items are objects, pass the object's fields directly
+          // This ensures nested media/reference fields are properly scanned
+          const itemFields = field.of.type === 'object' && field.of.fields
+            ? field.of.fields
+            : [field.of]
+          this.scanValue(val[i], itemFields, [...currentPath, i.toString()], references)
         }
       }
 
@@ -162,9 +167,14 @@ export class ReferenceScanner {
 
       // Array field
       else if (field.type === 'array' && Array.isArray(val) && field.of) {
-        updated[key] = val.map(item =>
-          this.updateValue(item, [field.of!], idMappings, onUpdate)
-        )
+        updated[key] = val.map(item => {
+          // If array items are objects, pass the object's fields directly
+          // This ensures nested media/reference fields are properly updated
+          const itemFields = field.of!.type === 'object' && field.of!.fields
+            ? field.of!.fields
+            : [field.of!]
+          return this.updateValue(item, itemFields, idMappings, onUpdate)
+        })
       }
 
       // Object field
