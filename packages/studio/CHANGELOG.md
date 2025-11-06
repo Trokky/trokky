@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 0.1.3
+
+### Patch Changes
+
+- Update @trokky/fields dependency to v0.1.2 with reference field fix
+
 ## 2.1.0
 
 ### Minor Changes
