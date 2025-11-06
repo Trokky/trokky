@@ -151,7 +151,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                   ...ref,
                   _type: refType, // Update the type
                   _cached: {
-                    title: doc.name || doc.title || doc.id,
+                    title: doc.name || doc.title || doc._id || doc.id,
                     name: doc.name,
                     description: doc.description || doc.bio || doc.excerpt
                   }
@@ -268,9 +268,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
 
             if (response.success && response.data?.documents) {
               return response.data.documents.map((doc: any) => ({
-                id: doc.id,
+                id: doc._id || doc.id,
                 type: searchType,
-                title: doc.name || doc.title || doc.id,
+                title: doc.name || doc.title || doc._id || doc.id,
                 description: doc.description || doc.bio || doc.excerpt || `${searchType} document`,
                 isSelected: false // Will be updated below
               }));
@@ -330,8 +330,8 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           if (response.success && response.data) {
             const doc = response.data;
             return {
-              id: doc.id,
-              title: doc.name || doc.title || doc.id,
+              id: doc._id || doc.id,
+              title: doc.name || doc.title || doc._id || doc.id,
               type: targetType.type
             };
           }
