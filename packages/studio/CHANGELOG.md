@@ -1,5 +1,13 @@
 # @trokky/studio
 
+## 0.1.4
+
+### Patch Changes
+
+- Rebuild Studio with @trokky/fields v0.1.2 fix
+  - Ensures reference field document ID fix is bundled in Studio assets
+  - Previous build was missing the \_id field mapping fix
+
 ## 0.1.3
 
 ### Patch Changes
