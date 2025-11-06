@@ -39,3 +39,7 @@ export type {
   SendAccountApprovedOptions,
   SendAccountRejectedOptions,
 } from './mail-service.js'
+
+// Notification service
+export { MailNotificationService } from './notification-service.js'
+export type { MailNotificationConfig } from './notification-service.js'

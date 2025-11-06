@@ -99,6 +99,11 @@ export class TrokkyRoutes {
     this.addRoute('POST', `${basePath}/auth/validate`, this.validateToken.bind(this))
     this.addRoute('POST', `${basePath}/auth/refresh`, this.refreshToken.bind(this))
 
+    // Password reset routes (public)
+    this.addRoute('POST', `${basePath}/auth/request-reset`, this.requestPasswordReset.bind(this))
+    this.addRoute('POST', `${basePath}/auth/reset-password`, this.resetPassword.bind(this))
+    this.addRoute('POST', `${basePath}/auth/verify-reset-token`, this.verifyResetToken.bind(this))
+
     // Token management routes (admin/user)
     this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
     this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
@@ -3279,5 +3284,73 @@ export class TrokkyRoutes {
     } catch (error) {
       return this.errorResponse(error)
     }
+  }
+}
+
+  // ==========================================================================
+  // PASSWORD RESET ROUTES
+  // ==========================================================================
+
+  /**
+   * Request password reset
+   * POST /auth/request-reset
+   */
+  private async requestPasswordReset(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { requestPasswordReset: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
+  }
+
+  /**
+   * Reset password with token
+   * POST /auth/reset-password
+   */
+  private async resetPassword(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { resetPassword: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
+  }
+
+  /**
+   * Verify reset token validity
+   * POST /auth/verify-reset-token
+   */
+  private async verifyResetToken(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { verifyResetToken: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
+
+  // ==========================================================================
+  // PASSWORD RESET ROUTES
+  // ==========================================================================
+
+  /**
+   * Request password reset
+   * POST /auth/request-reset
+   */
+  private async requestPasswordReset(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { requestPasswordReset: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
+  }
+
+  /**
+   * Reset password with token
+   * POST /auth/reset-password
+   */
+  private async resetPassword(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { resetPassword: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
+  }
+
+  /**
+   * Verify reset token validity
+   * POST /auth/verify-reset-token
+   */
+  private async verifyResetToken(request: HttpRequest): Promise<HttpResponse> {
+    // Import password reset handler dynamically
+    const { verifyResetToken: handler } = await import('./auth/password-reset.js')
+    return handler(request, this.core)
   }
 }

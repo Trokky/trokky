@@ -359,6 +359,8 @@ export interface TrokkyConfig {
     validateInput?: boolean
     rateLimitEnabled?: boolean
   }
+  // Mail configuration
+  mail?: import('./mail.js').MailConfig
 }
 
 // User management types (system entities, not user-defined schemas)
@@ -404,3 +406,11 @@ export type {
   WebhookListOptions,
   SettingsConfig
 } from './storage-adapters.js'
+
+// Mail types
+export type {
+  MailConfig,
+  PasswordResetToken,
+  PasswordResetRequest,
+  PasswordResetVerification
+} from './mail.js'
