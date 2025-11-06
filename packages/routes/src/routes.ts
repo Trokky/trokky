@@ -3285,40 +3285,6 @@ export class TrokkyRoutes {
       return this.errorResponse(error)
     }
   }
-}
-
-  // ==========================================================================
-  // PASSWORD RESET ROUTES
-  // ==========================================================================
-
-  /**
-   * Request password reset
-   * POST /auth/request-reset
-   */
-  private async requestPasswordReset(request: HttpRequest): Promise<HttpResponse> {
-    // Import password reset handler dynamically
-    const { requestPasswordReset: handler } = await import('./auth/password-reset.js')
-    return handler(request, this.core)
-  }
-
-  /**
-   * Reset password with token
-   * POST /auth/reset-password
-   */
-  private async resetPassword(request: HttpRequest): Promise<HttpResponse> {
-    // Import password reset handler dynamically
-    const { resetPassword: handler } = await import('./auth/password-reset.js')
-    return handler(request, this.core)
-  }
-
-  /**
-   * Verify reset token validity
-   * POST /auth/verify-reset-token
-   */
-  private async verifyResetToken(request: HttpRequest): Promise<HttpResponse> {
-    // Import password reset handler dynamically
-    const { verifyResetToken: handler } = await import('./auth/password-reset.js')
-    return handler(request, this.core)
 
   // ==========================================================================
   // PASSWORD RESET ROUTES

@@ -4,6 +4,8 @@ import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -62,6 +64,19 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
+    // Handle password reset routes (accessible without authentication)
+    const currentPath = window.location.pathname;
+    const basePath = (window as any).TROKKY_CONFIG?.basePath || '';
+    const normalizedPath = currentPath.replace(basePath, '');
+
+    if (normalizedPath === '/forgot-password') {
+      return <ForgotPasswordPage />;
+    }
+
+    if (normalizedPath === '/reset-password') {
+      return <ResetPasswordPage />;
+    }
+
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 

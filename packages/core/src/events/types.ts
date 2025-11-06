@@ -119,7 +119,7 @@ export interface MediaEvent extends TrokkyEvent {
  * User-related events
  */
 export interface UserEvent extends TrokkyEvent {
-  type: 'user.created' | 'user.updated' | 'user.deleted' | 'user.login' | 'user.logout' | 'user.password_changed' | 'user.role_changed'
+  type: 'user.created' | 'user.updated' | 'user.deleted' | 'user.login' | 'user.logout' | 'user.password_changed' | 'user.password_reset_requested' | 'user.role_changed' | 'user.invited'
   data: {
     /** User ID */
     userId: string
@@ -140,6 +140,14 @@ export interface UserEvent extends TrokkyEvent {
       reason?: string
       ipAddress?: string
     }
+    /** Password reset token (for password_reset_requested) */
+    resetToken?: string
+    /** Invite token (for user.invited) */
+    inviteToken?: string
+    /** Inviter name (for user.invited) */
+    inviterName?: string
+    /** Email (for user.invited) */
+    email?: string
   }
 }
 

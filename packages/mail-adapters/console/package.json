@@ -23,8 +23,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/mail": "workspace:*",
-    "@trokky/core": "workspace:*"
+    "@trokky/mail": "^0.1.0",
+    "@trokky/core": "^0.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

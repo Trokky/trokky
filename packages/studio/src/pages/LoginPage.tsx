@@ -174,8 +174,17 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <span className="text-gray-600 dark:text-gray-400">Stay signed in</span>
               </label>
 
-              {/* Only show advanced settings if no backend URL is configured */}
-              {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && (
+              <a
+                href="/forgot-password"
+                className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+              >
+                Forgot password?
+              </a>
+            </div>
+
+            {/* Advanced settings toggle */}
+            {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && (
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
@@ -188,8 +197,8 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   )}
                   Advanced
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Advanced settings panel */}
             {!import.meta.env.VITE_BACKEND_URL && !(window as any).TROKKY_CONFIG?.backendUrl && showAdvanced && (
