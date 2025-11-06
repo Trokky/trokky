@@ -10,11 +10,13 @@ import {
   SecurityValidator,
   InvalidInputError,
   createLogger,
+  detectCryptoAdapter,
   type PasswordResetRequest,
   type PasswordResetVerification,
   type PasswordResetToken,
+  type User,
 } from '@trokky/core'
-import { generateRandomHex, getUniversalCrypto } from '@trokky/core'
+import { generateRandomHex } from '@trokky/core'
 
 const logger = createLogger('routes', 'PasswordReset')
 
@@ -30,15 +32,51 @@ function generateResetToken(): string {
 }
 
 /**
- * Hash a reset token for storage
+ * Hash a reset token for storage using SHA-256
+ * Works in both Node.js and edge environments
  */
 async function hashResetToken(token: string): Promise<string> {
-  const crypto = getUniversalCrypto()
   const encoder = new TextEncoder()
   const data = encoder.encode(token)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+  // Try Web Crypto API first (works in modern Node, browsers, edge runtimes)
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.subtle) {
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  // Fallback to Node.js crypto (should be rare with modern Node)
+  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+    try {
+      const requireFunc = typeof require !== 'undefined' ? require : null
+      if (!requireFunc) throw new Error('require not available')
+      const crypto = requireFunc('crypto')
+      const hash = crypto.createHash('sha256')
+      hash.update(token)
+      return hash.digest('hex')
+    } catch (err) {
+      logger.error('Failed to hash token with Node crypto', err)
+      throw new Error('Crypto not available for hashing')
+    }
+  }
+
+  throw new Error('No crypto implementation available for hashing')
+}
+
+/**
+ * Find user by reset token
+ */
+async function findUserByResetToken(core: TrokkyCore, hashedToken: string): Promise<User | null> {
+  const users = await core.listUsers()
+  return users.find((u) => {
+    const resetData = u.preferences?.passwordReset as PasswordResetToken | undefined
+    return (
+      resetData &&
+      resetData.token === hashedToken &&
+      resetData.expiresAt > Date.now()
+    )
+  }) || null
 }
 
 // =============================================================================
@@ -65,8 +103,8 @@ export async function requestPasswordReset(
 
     logger.info('Password reset requested', { email: body.email })
 
-    // Find user by email
-    const user = await core.storage.data.getUserByEmail(body.email)
+    // Find user by email using public API
+    const user = await core.getUserByEmail(body.email)
 
     // SECURITY: Don't reveal if user exists or not
     // Always return success to prevent email enumeration
@@ -76,6 +114,7 @@ export async function requestPasswordReset(
       })
       return {
         status: 200,
+        headers: {},
         body: {
           success: true,
           message: 'If the email exists, a reset link has been sent',
@@ -91,6 +130,7 @@ export async function requestPasswordReset(
       })
       return {
         status: 200,
+        headers: {},
         body: {
           success: true,
           message: 'If the email exists, a reset link has been sent',
@@ -112,18 +152,17 @@ export async function requestPasswordReset(
       ipAddress: body.ipAddress,
     }
 
-    await core.storage.data.saveUser(user.id, {
+    // Update user with reset token using public API
+    await core.updateUser(user.id, {
       preferences: {
         ...user.preferences,
         passwordReset: resetData,
       },
     })
 
-    // Emit event for email notification
-    await core.events.emit({
-      id: `password-reset-${Date.now()}`,
+    // Emit event for email notification using public API
+    await core.events.emitEvent({
       type: 'user.password_reset_requested',
-      timestamp: new Date(),
       source: 'api',
       data: {
         user,
@@ -139,6 +178,7 @@ export async function requestPasswordReset(
 
     return {
       status: 200,
+      headers: {},
       body: {
         success: true,
         message: 'If the email exists, a reset link has been sent',
@@ -150,6 +190,7 @@ export async function requestPasswordReset(
     if (error instanceof InvalidInputError) {
       return {
         status: 400,
+        headers: {},
         body: {
           success: false,
           error: error.message,
@@ -159,6 +200,7 @@ export async function requestPasswordReset(
 
     return {
       status: 500,
+      headers: {},
       body: {
         success: false,
         error: 'Failed to process password reset request',
@@ -200,21 +242,14 @@ export async function resetPassword(
     // Hash the provided token to compare with stored hash
     const hashedToken = await hashResetToken(body.token)
 
-    // Find user with this reset token
-    const users = await core.storage.data.listUsers()
-    const user = users.find((u) => {
-      const resetData = u.preferences?.passwordReset as PasswordResetToken | undefined
-      return (
-        resetData &&
-        resetData.token === hashedToken &&
-        resetData.expiresAt > Date.now()
-      )
-    })
+    // Find user with this reset token using public API
+    const user = await findUserByResetToken(core, hashedToken)
 
     if (!user) {
       logger.warn('Invalid or expired reset token used')
       return {
         status: 400,
+        headers: {},
         body: {
           success: false,
           error: 'Invalid or expired reset token',
@@ -222,17 +257,14 @@ export async function resetPassword(
       }
     }
 
-    // Hash the new password
-    const crypto = await import('@trokky/core')
-    const cryptoAdapter = crypto.detectCryptoAdapter({
-      jwtSecret: 'temp', // Not used for hashing
-      jwtExpiresIn: '1h',
-      bcryptRounds: 10,
+    // Hash the new password using crypto adapter
+    const cryptoAdapter = detectCryptoAdapter({
+      saltRounds: 10,
     })
     const passwordHash = await cryptoAdapter.hashPassword(body.newPassword)
 
-    // Update user password and clear reset token
-    await core.storage.data.saveUser(user.id, {
+    // Update user password and clear reset token using public API
+    await core.updateUser(user.id, {
       passwordHash,
       preferences: {
         ...user.preferences,
@@ -240,11 +272,9 @@ export async function resetPassword(
       },
     })
 
-    // Emit event for password changed notification
-    await core.events.emit({
-      id: `password-changed-${Date.now()}`,
+    // Emit event for password changed notification using public API
+    await core.events.emitEvent({
       type: 'user.password_changed',
-      timestamp: new Date(),
       source: 'api',
       data: {
         user,
@@ -256,6 +286,7 @@ export async function resetPassword(
 
     return {
       status: 200,
+      headers: {},
       body: {
         success: true,
         message: 'Password has been reset successfully',
@@ -267,6 +298,7 @@ export async function resetPassword(
     if (error instanceof InvalidInputError) {
       return {
         status: 400,
+        headers: {},
         body: {
           success: false,
           error: error.message,
@@ -276,6 +308,7 @@ export async function resetPassword(
 
     return {
       status: 500,
+      headers: {},
       body: {
         success: false,
         error: 'Failed to reset password',
@@ -302,20 +335,13 @@ export async function verifyResetToken(
     // Hash the provided token
     const hashedToken = await hashResetToken(body.token)
 
-    // Find user with this reset token
-    const users = await core.storage.data.listUsers()
-    const user = users.find((u) => {
-      const resetData = u.preferences?.passwordReset as PasswordResetToken | undefined
-      return (
-        resetData &&
-        resetData.token === hashedToken &&
-        resetData.expiresAt > Date.now()
-      )
-    })
+    // Find user with this reset token using public API
+    const user = await findUserByResetToken(core, hashedToken)
 
     if (!user) {
       return {
         status: 200,
+        headers: {},
         body: {
           valid: false,
           message: 'Invalid or expired reset token',
@@ -328,6 +354,7 @@ export async function verifyResetToken(
 
     return {
       status: 200,
+      headers: {},
       body: {
         valid: true,
         expiresIn,
@@ -339,6 +366,7 @@ export async function verifyResetToken(
 
     return {
       status: 500,
+      headers: {},
       body: {
         valid: false,
         error: 'Failed to verify reset token',

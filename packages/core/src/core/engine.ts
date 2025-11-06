@@ -237,6 +237,21 @@ export class TrokkyCore {
     }
   }
 
+  // Public getters for external access
+  /**
+   * Get the event bus instance for emitting custom events
+   */
+  public get events(): TrokkyEventBus {
+    return this.eventBus
+  }
+
+  /**
+   * Get the configuration
+   */
+  public get configuration(): TrokkyConfig {
+    return this.config
+  }
+
   // Helper methods for adapter management
   private isTrokkyStorageAdapters(adapter: any): adapter is TrokkyStorageAdapters {
     return adapter && 

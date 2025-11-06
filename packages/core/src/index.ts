@@ -232,3 +232,11 @@ export type {
   EventBusConfig,
   MemoryEventStorageConfig
 } from './events/index.js'
+
+// Mail types
+export type {
+  MailConfig,
+  PasswordResetToken,
+  PasswordResetRequest,
+  PasswordResetVerification
+} from './types/mail.js'

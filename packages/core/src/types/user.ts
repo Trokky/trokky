@@ -118,6 +118,7 @@ export interface UpdateUserData {
   profileImage?: string
   preferences?: UserPreferences
   lastLoginAt?: string
+  passwordHash?: string
 }
 
 export interface UserListOptions {
