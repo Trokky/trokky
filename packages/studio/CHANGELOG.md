@@ -1,5 +1,13 @@
 # @trokky/studio
 
+## 0.1.5
+
+### Patch Changes
+
+- Final clean build of Studio with reference field fixes
+  - Removed debug console logging
+  - Confirmed working reference field search and selection
+
 ## 0.1.4
 
 ### Patch Changes
