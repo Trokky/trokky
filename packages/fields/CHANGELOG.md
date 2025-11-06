@@ -1,5 +1,14 @@
 # @trokky/fields
 
+## 0.1.2
+
+### Patch Changes
+
+- Fix reference field search and selection - use \_id instead of id for document IDs
+  - Fixed search filtering to correctly map document.\_id to result.id
+  - Fixed selection handling to properly identify selected references
+  - Added backward compatibility by using doc.\_id || doc.id fallback pattern
+
 ## 2.1.0
 
 ### Minor Changes
