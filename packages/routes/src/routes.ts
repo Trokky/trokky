@@ -436,14 +436,14 @@ export class TrokkyRoutes {
       await this.validateAuthentication(request)
       const { collection } = request.params
       await this.validateSchemaAccess(request, collection, 'read')
-      const { limit, offset, filter, sort, page } = request.query
+      const { limit, offset, filter, sort, page, search } = request.query
 
       // Validate collection name
       SecurityValidator.validateCollectionName(collection)
 
       // Build list options - handle both offset and page-based pagination
       const options: any = {}
-      
+
       // Handle pagination (page-based or offset-based)
       if (page && limit) {
         const pageNum = parseInt(String(page), 10)
@@ -454,7 +454,7 @@ export class TrokkyRoutes {
         if (limit) options.limit = parseInt(String(limit), 10)
         if (offset) options.offset = parseInt(String(offset), 10)
       }
-      
+
       // Handle filters
       if (filter) {
         try {
@@ -463,11 +463,30 @@ export class TrokkyRoutes {
           throw new InvalidInputError('Invalid filter format', 'filter')
         }
       }
-      
+
       // Handle sorting
       if (sort) options.sort = sort
 
-      const documents = await this.core.listDocuments(collection, options)
+      let documents = await this.core.listDocuments(collection, options)
+
+      // Handle search filtering - simple client-side text search
+      if (search && typeof search === 'string' && search.trim()) {
+        const searchLower = search.trim().toLowerCase()
+        documents = documents.filter(doc => {
+          // Search across common text fields
+          const searchableText = [
+            doc.name,
+            doc.title,
+            doc.description,
+            doc.excerpt,
+            doc.bio,
+            doc.slug,
+            doc._id
+          ].filter(Boolean).join(' ').toLowerCase()
+
+          return searchableText.includes(searchLower)
+        })
+      }
       const total = documents.length // Note: This is post-filter count, not total collection count
 
       // Calculate pagination metadata
