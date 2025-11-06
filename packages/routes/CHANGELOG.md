@@ -1,5 +1,14 @@
 # @trokky/routes
 
+## 0.1.3
+
+### Patch Changes
+
+- Add search parameter support to listDocuments endpoint
+  - Added search query parameter to GET /collections/:collection endpoint
+  - Implements client-side text filtering across common fields (name, title, description, etc.)
+  - Enables reference field search functionality in Studio
+
 ## 0.1.2
 
 ### Patch Changes
