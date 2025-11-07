@@ -15,7 +15,7 @@ import type {
 } from '@trokky/mail'
 
 export class ConsoleMailAdapter implements MailAdapter {
-  private config: Required<ConsoleMailAdapterConfig>
+  private config: Required<Omit<ConsoleMailAdapterConfig, 'fromName'>> & { fromName?: string }
   private logger = createLogger('mail', 'ConsoleMailAdapter')
   private emailCount = 0
 

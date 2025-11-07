@@ -102,6 +102,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Load dynamic schema permissions
   const { dynamicPermissions, loading: permissionsLoading, error: permissionsError } = useDynamicPermissions();
@@ -196,10 +197,13 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   };
 
   useEffect(() => {
+    // Clear error when modal opens/closes
+    setError(null);
+
     if (user) {
       const userPermissions = user.permissions || [];
       const isCustom = checkCustomPermissions(user.role, userPermissions);
-      
+
       setFormData({
         username: user.username,
         email: user.email,
@@ -223,16 +227,20 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
       });
       setHasCustomPermissions(false);
     }
-  }, [user]);
+  }, [user, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     try {
       await onSave(formData);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to save user', error);
+      // Extract error message - ApiClientError has message directly
+      const errorMessage = error?.message || 'Failed to save user. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -269,6 +277,16 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
       size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Alert */}
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+                <span className="text-sm text-red-800 dark:text-red-200">{error}</span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Basic Information */}
             <div className="space-y-3">

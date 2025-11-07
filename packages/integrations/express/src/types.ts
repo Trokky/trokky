@@ -137,6 +137,7 @@ export interface ExpressIntegration {
   studioRouter?: Router
   middleware: ExpressMiddleware[]
   config: ExpressIntegrationConfig
+  core?: TrokkyCore
 
   /** Auto-mount all routers to the Express app */
   mount: (

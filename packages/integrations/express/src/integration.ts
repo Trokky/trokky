@@ -135,6 +135,7 @@ export class TrokkyExpress {
       studioRouter,
       middleware,
       config: this.config,
+      core: this.config.core, // Expose core for mail and other integrations
       mount,
       getMountedApiPath: () => this.getMountedApiPath(),
       getMountedStudioPath: () => this.getMountedStudioPath(),
@@ -577,8 +578,32 @@ export class TrokkyExpress {
       }
 
       // 6. Create final integration
+      logger.debug('Creating integration with expressConfig', {
+        hasCore: !!expressConfig.core,
+        coreId: expressConfig.core ? 'present' : 'missing',
+      })
+
       const integration = new TrokkyExpress(expressConfig)
       const result = await integration.createIntegration()
+
+      // Debug: Check result.core before and after assignment
+      logger.debug('Integration result before core assignment', {
+        hasCore: !!result.core,
+        configCore: !!expressConfig.core,
+        localCore: !!core,
+      })
+
+      // Ensure core is accessible in the result
+      if (!result.core) {
+        logger.warn('result.core is undefined, assigning from local core variable')
+        result.core = core
+      }
+
+      // Final verification
+      logger.debug('Integration result after core assignment', {
+        hasCore: !!result.core,
+        hasEvents: !!result.core?.events,
+      })
 
       logger.info('🎉 Professional setup complete!')
       return result

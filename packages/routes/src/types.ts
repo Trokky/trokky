@@ -23,6 +23,7 @@ export interface HttpRequest {
   headers: Record<string, string | string[] | undefined>
   body?: unknown
   files?: File[]
+  user?: User // Authenticated user (set by auth middleware)
 }
 
 // Framework-agnostic response interface

@@ -18,6 +18,18 @@ export function ResetPasswordPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
 
+  // Ensure dark mode is applied on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('trokky_theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme === 'dark' || (savedTheme === 'system' && systemPrefersDark) || (!savedTheme && systemPrefersDark)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   useEffect(() => {
     // Get token from URL
     const urlParams = new URLSearchParams(window.location.search);

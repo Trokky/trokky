@@ -10,7 +10,6 @@ import {
   SecurityValidator,
   InvalidInputError,
   createLogger,
-  detectCryptoAdapter,
   type PasswordResetRequest,
   type PasswordResetVerification,
   type PasswordResetToken,
@@ -257,11 +256,10 @@ export async function resetPassword(
       }
     }
 
-    // Hash the new password using crypto adapter
-    const cryptoAdapter = detectCryptoAdapter({
-      saltRounds: 10,
-    })
-    const passwordHash = await cryptoAdapter.hashPassword(body.newPassword)
+    // Hash the new password using TrokkyCore's crypto adapter to ensure consistency
+    // This ensures the same crypto adapter configuration is used for both password
+    // hashing (during reset) and password verification (during login)
+    const passwordHash = await core.hashPassword(body.newPassword)
 
     // Update user password and clear reset token using public API
     await core.updateUser(user.id, {

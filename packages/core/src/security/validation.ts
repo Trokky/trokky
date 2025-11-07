@@ -305,4 +305,46 @@ export class SecurityValidator {
       throw new InvalidInputError('Email domain too long (max 253 characters)', 'email')
     }
   }
+
+  public static validatePassword(password: string): void {
+    if (typeof password !== 'string') {
+      throw new InvalidInputError('Password must be a string', 'password')
+    }
+
+    if (!password || password.length === 0) {
+      throw new InvalidInputError('Password cannot be empty', 'password')
+    }
+
+    if (password.length < 8) {
+      throw new InvalidInputError('Password must be at least 8 characters long', 'password')
+    }
+
+    if (password.length > 128) {
+      throw new InvalidInputError('Password too long (max 128 characters)', 'password')
+    }
+
+    // Check password strength (optional but recommended)
+    const hasUpperCase = /[A-Z]/.test(password)
+    const hasLowerCase = /[a-z]/.test(password)
+    const hasNumber = /[0-9]/.test(password)
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+
+    const strengthCount = [hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar].filter(Boolean).length
+
+    if (strengthCount < 2) {
+      throw new InvalidInputError(
+        'Password must contain at least 2 of: uppercase letters, lowercase letters, numbers, special characters',
+        'password'
+      )
+    }
+
+    // Check for common weak passwords
+    const weakPasswords = [
+      'password', '12345678', 'qwerty', 'abc123', 'password123',
+      'admin', 'letmein', 'welcome', 'monkey', '1234567890'
+    ]
+    if (weakPasswords.includes(password.toLowerCase())) {
+      throw new InvalidInputError('Password is too common, please choose a stronger password', 'password')
+    }
+  }
 }

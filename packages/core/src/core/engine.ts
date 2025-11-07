@@ -1246,7 +1246,18 @@ export class TrokkyCore {
         permissions: userData.permissions || this.getDefaultPermissions(userData.role)
       }
     })
-    
+
+    // Emit user.created event for welcome email notification
+    await this.events.emitEvent({
+      type: 'user.created',
+      source: 'api',
+      data: {
+        user: createdUser,
+        userId: createdUser.id,
+        temporaryPassword: userData.password, // Plain text password for email
+      },
+    })
+
     return createdUser
   }
 
@@ -1512,7 +1523,11 @@ export class TrokkyCore {
     return await this.cryptoAdapter.verifyPassword(plainPassword, hashedPassword)
   }
 
-  private async hashPassword(password: string): Promise<string> {
+  /**
+   * Hash a password using the configured crypto adapter
+   * Exposed publicly to ensure consistent hashing across all password operations
+   */
+  public async hashPassword(password: string): Promise<string> {
     return await this.cryptoAdapter.hashPassword(password)
   }
 

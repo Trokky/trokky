@@ -104,6 +104,9 @@ export class TrokkyRoutes {
     this.addRoute('POST', `${basePath}/auth/reset-password`, this.resetPassword.bind(this))
     this.addRoute('POST', `${basePath}/auth/verify-reset-token`, this.verifyResetToken.bind(this))
 
+    // Password change route (authenticated users)
+    this.addRoute('POST', `${basePath}/auth/change-password`, this.changePassword.bind(this))
+
     // Token management routes (admin/user)
     this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
     this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
@@ -1358,18 +1361,34 @@ export class TrokkyRoutes {
         throw new InvalidInputError('Request body is required', 'body')
       }
 
-      const body = request.body as Record<string, unknown>
-      if (!('userData' in body) || !body.userData || typeof body.userData !== 'object') {
-        throw new InvalidInputError('User data is required', 'userData')
+      let userData = request.body as Record<string, unknown>
+
+      // Transform fullName to firstName and lastName if present
+      if (userData.fullName && typeof userData.fullName === 'string') {
+        const fullName = userData.fullName.trim()
+        const nameParts = fullName.split(' ')
+        userData = {
+          ...userData,
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || ''
+        }
+        delete userData.fullName
       }
 
-      const { userData } = body as unknown as CreateUserRequest
+      // Transform 'active' to 'isActive' if present
+      if ('active' in userData) {
+        userData.isActive = userData.active
+        delete userData.active
+      }
 
-      const user = await this.core.createUser(userData)
-      
+      // Debug: Log what data we're receiving
+      this.logger.debug('Creating user with transformed data:', { userData })
+
+      const user = await this.core.createUser(userData as any)
+
       // Remove password hash from response
       const { passwordHash, ...safeUser } = user
-      
+
       return this.successResponse({ user: safeUser }, 201)
     } catch (error) {
       return this.errorResponse(error)
@@ -3319,4 +3338,15 @@ export class TrokkyRoutes {
     const { verifyResetToken: handler } = await import('./auth/password-reset.js')
     return handler(request, this.core)
   }
+
+  /**
+   * Change password (authenticated users)
+   * POST /auth/change-password
+   */
+  private async changePassword(request: HttpRequest): Promise<HttpResponse> {
+    // Import change password handler dynamically
+    const { changePassword: handler } = await import('./auth/change-password.js')
+    return handler(request, this.core)
+  }
+
 }

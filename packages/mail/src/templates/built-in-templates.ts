@@ -52,6 +52,7 @@ export class BuiltInTemplateRenderer implements TemplateRenderer {
     'password-reset': this.renderPasswordReset.bind(this),
     'password-changed': this.renderPasswordChanged.bind(this),
     'user-invite': this.renderUserInvite.bind(this),
+    'user-created': this.renderUserCreated.bind(this),
     'welcome': this.renderWelcome.bind(this),
     'otp-verification': this.renderOTPVerification.bind(this),
     'security-alert': this.renderSecurityAlert.bind(this),
@@ -243,6 +244,86 @@ ${inviterName} has invited you to join ${this.brandName}.
 Accept invitation: ${inviteUrl}
 
 ${expiresAt ? `This invitation expires on ${expiresAt.toLocaleDateString()}.` : ''}
+      `.trim(),
+    }
+  }
+
+  private renderUserCreated(data: TemplateData): RenderedTemplate {
+    const { firstName, email, username, temporaryPassword, loginUrl } = data as {
+      firstName: string
+      email: string
+      username: string
+      temporaryPassword: string
+      loginUrl?: string
+    }
+
+    return {
+      subject: `Your ${this.brandName} account has been created`,
+      html: this.wrapInLayout(`
+        <h1>Welcome to ${this.brandName}! 🎉</h1>
+        <p>Hello ${this.escapeHtml(firstName)},</p>
+        <p>An administrator has created an account for you. Here are your login credentials:</p>
+
+        <div style="background: #f8f9fa; border: 2px solid ${this.brandColor}; border-radius: 8px; padding: 20px; margin: 25px 0;">
+          <div style="margin-bottom: 15px;">
+            <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Email</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: #333;">${this.escapeHtml(email)}</p>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Username</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: #333;">${this.escapeHtml(username)}</p>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Temporary Password</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: ${this.brandColor}; font-family: monospace;">${this.escapeHtml(temporaryPassword)}</p>
+          </div>
+        </div>
+
+        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-weight: bold; color: #856404;">🔒 Security Recommendation:</p>
+          <p style="margin: 10px 0 0 0; color: #856404;">Please change your password after your first login to ensure your account security.</p>
+        </div>
+
+        ${loginUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${this.escapeHtml(loginUrl)}" style="background: ${this.brandColor}; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Log In Now</a>
+        </div>
+        ` : ''}
+
+        <p>You can now:</p>
+        <ul style="color: #666;">
+          <li>Create and manage content</li>
+          <li>Collaborate with your team</li>
+          <li>Publish to your website</li>
+        </ul>
+
+        <p>If you have any questions, feel free to reach out to our support team${this.supportEmail ? ` at ${this.supportEmail}` : ''}.</p>
+
+        ${loginUrl ? `
+        <p style="font-size: 12px; color: #999; margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:<br>
+        <a href="${this.escapeHtml(loginUrl)}" style="color: #667eea; word-break: break-all;">${this.escapeHtml(loginUrl)}</a></p>
+        ` : ''}
+      `),
+      text: `
+Welcome to ${this.brandName}!
+
+Hello ${firstName},
+
+An administrator has created an account for you. Here are your login credentials:
+
+Email: ${email}
+Username: ${username}
+Temporary Password: ${temporaryPassword}
+
+SECURITY RECOMMENDATION: Please change your password after your first login to ensure your account security.
+
+${loginUrl ? `Log in here: ${loginUrl}\n` : ''}
+You can now:
+- Create and manage content
+- Collaborate with your team
+- Publish to your website
+
+If you have any questions, feel free to reach out to our support team${this.supportEmail ? ` at ${this.supportEmail}` : ''}.
       `.trim(),
     }
   }

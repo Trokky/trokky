@@ -9,3 +9,5 @@ export {
   resetPassword,
   verifyResetToken,
 } from './password-reset.js'
+
+export { changePassword } from './change-password.js'

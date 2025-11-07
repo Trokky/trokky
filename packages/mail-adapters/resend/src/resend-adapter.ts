@@ -17,7 +17,7 @@ import type {
 
 export class ResendMailAdapter implements MailAdapter {
   private resend: Resend
-  private config: Required<ResendMailAdapterConfig>
+  private config: ResendMailAdapterConfig & { from: string; timeout: number; debug: boolean }
   private logger = createLogger('mail', 'ResendMailAdapter')
 
   constructor(config: ResendMailAdapterConfig) {
@@ -26,10 +26,8 @@ export class ResendMailAdapter implements MailAdapter {
     }
 
     this.config = {
-      apiKey: config.apiKey,
-      apiUrl: config.apiUrl,
+      ...config,
       from: config.from || 'noreply@example.com',
-      fromName: config.fromName,
       timeout: config.timeout || 10000,
       debug: config.debug ?? false,
     }
@@ -94,7 +92,7 @@ export class ResendMailAdapter implements MailAdapter {
         return {
           success: false,
           error: response.error.message,
-          providerData: response.error,
+          providerData: response.error as unknown as Record<string, unknown>,
         }
       }
 
@@ -102,7 +100,7 @@ export class ResendMailAdapter implements MailAdapter {
         success: true,
         messageId: response.data?.id,
         timestamp: new Date(),
-        providerData: response.data,
+        providerData: response.data ? (response.data as unknown as Record<string, unknown>) : undefined,
       }
     } catch (error) {
       this.logger.error('Failed to send email via Resend', error)

@@ -90,6 +90,15 @@ export interface SendUserInviteOptions {
   expiresAt?: Date
 }
 
+export interface SendUserCreatedOptions {
+  /** User that was created */
+  user: User
+  /** Temporary password for the user */
+  temporaryPassword: string
+  /** Optional login URL */
+  loginUrl?: string
+}
+
 export interface SendWelcomeOptions {
   /** User to welcome */
   user: User
@@ -297,6 +306,35 @@ export class MailService {
       from: this.defaultFrom,
       fromName: this.defaultFromName,
       to: options.to,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    })
+  }
+
+  /**
+   * Send user created email with credentials
+   */
+  async sendUserCreated(options: SendUserCreatedOptions): Promise<MailResult> {
+    this.ensureInitialized()
+
+    const template = this.templateRenderer.render('user-created', {
+      firstName: options.user.firstName,
+      email: options.user.email,
+      username: options.user.username,
+      temporaryPassword: options.temporaryPassword,
+      loginUrl: options.loginUrl,
+    })
+
+    this.logger.info('Sending user created email with credentials', {
+      to: options.user.email,
+      userId: options.user.id,
+    })
+
+    return this.adapter.send({
+      from: this.defaultFrom,
+      fromName: this.defaultFromName,
+      to: options.user.email,
       subject: template.subject,
       html: template.html,
       text: template.text,

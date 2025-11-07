@@ -114,10 +114,21 @@ export class MailNotificationService {
       if (!this.enabled.userCreated) return
 
       try {
-        const { user } = event.data as { user: User }
-        await this.sendWelcomeEmail(user)
+        const data = event.data as any
+        const user = data.user as User
+        const temporaryPassword = data.temporaryPassword as string
+
+        if (!user || !temporaryPassword) {
+          this.logger.warn('User created event missing required data', {
+            hasUser: !!user,
+            hasPassword: !!temporaryPassword,
+          })
+          return
+        }
+
+        await this.sendUserCreatedEmail(user, temporaryPassword)
       } catch (error) {
-        this.logger.error('Failed to send welcome email', error)
+        this.logger.error('Failed to send user created email', error)
       }
     })
 
@@ -196,16 +207,20 @@ export class MailNotificationService {
   }
 
   /**
-   * Send welcome email to new user
+   * Send user created email with credentials
    */
-  private async sendWelcomeEmail(user: User): Promise<void> {
-    this.logger.info('Sending welcome email', {
+  private async sendUserCreatedEmail(user: User, temporaryPassword: string): Promise<void> {
+    this.logger.info('Sending user created email with credentials', {
       userId: user.id,
       email: user.email,
     })
 
-    await this.mailService.sendWelcome({
+    const loginUrl = `${this.baseUrl}/login`
+
+    await this.mailService.sendUserCreated({
       user,
+      temporaryPassword,
+      loginUrl,
     })
   }
 

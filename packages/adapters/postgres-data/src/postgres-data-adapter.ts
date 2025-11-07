@@ -513,20 +513,22 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           SET
             username = COALESCE($2, username),
             email = COALESCE($3, email),
-            first_name = COALESCE($4, first_name),
-            last_name = COALESCE($5, last_name),
-            role = COALESCE($6, role),
-            permissions = COALESCE($7, permissions),
-            is_active = COALESCE($8, is_active),
-            profile_image = COALESCE($9, profile_image),
-            preferences = COALESCE($10, preferences),
-            updated_at = $11
+            password_hash = COALESCE($4, password_hash),
+            first_name = COALESCE($5, first_name),
+            last_name = COALESCE($6, last_name),
+            role = COALESCE($7, role),
+            permissions = COALESCE($8, permissions),
+            is_active = COALESCE($9, is_active),
+            profile_image = COALESCE($10, profile_image),
+            preferences = COALESCE($11, preferences),
+            updated_at = $12
           WHERE id = $1
           RETURNING *
         `, [
           id,
           updateData.username,
           updateData.email,
+          (updateData as any).passwordHash,
           updateData.firstName,
           updateData.lastName,
           updateData.role,

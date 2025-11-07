@@ -11,7 +11,8 @@ import {
   PhotoIcon,
   UsersIcon,
   BeakerIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  KeyIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +24,7 @@ import { useStudioBranding } from '@/hooks/useStudioConfig';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
 import { SimpleSearchModal } from '@/components/SimpleSearchModal';
+import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -44,6 +46,7 @@ export function Header({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   
   // Get available document types for create dropdown (excluding singletons)
@@ -354,7 +357,18 @@ export function Header({
                       <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
                       Preferences
                     </Link>
-                    
+
+                    <button
+                      className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setChangePasswordOpen(true);
+                      }}
+                    >
+                      <KeyIcon className="h-4 w-4 mr-2 text-gray-400" />
+                      Change Password
+                    </button>
+
                     {/* Theme submenu */}
                     <div className="px-3 py-2">
                       <div className="flex items-center justify-between mb-1">
@@ -417,9 +431,15 @@ export function Header({
       )}
 
       {/* Simple Search Modal */}
-      <SimpleSearchModal 
-        isOpen={searchOpen} 
-        onClose={closeSearch} 
+      <SimpleSearchModal
+        isOpen={searchOpen}
+        onClose={closeSearch}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
       />
     </header>
   );
