@@ -1,5 +1,17 @@
 # @trokky/studio
 
+## 0.2.0
+
+### Minor Changes
+
+- Add comprehensive password reset functionality with secure UI flows:
+  - Add ForgotPasswordPage for requesting password reset links
+  - Add ResetPasswordPage with token verification and password strength validation
+  - Add password reset links to LoginPage
+  - Implement dark mode support for all password reset pages
+  - Add visual password strength indicators and validation feedback
+  - Support token expiration warnings and invalid token handling
+
 ## 0.1.5
 
 ### Patch Changes
