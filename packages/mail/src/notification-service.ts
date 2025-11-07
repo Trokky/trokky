@@ -5,7 +5,7 @@
  * Listens to system events and sends appropriate emails.
  */
 
-import type { TrokkyEventBus, UserEvent, User } from '@trokky/core'
+import type { TrokkyEventBus, UserEvent, User, TrokkyCore } from '@trokky/core'
 import { createLogger } from '@trokky/core'
 
 // Import mail service types (will be available once @trokky/mail is built)
@@ -17,6 +17,9 @@ export interface MailNotificationConfig {
 
   /** Base URL for the application (used in email links) */
   baseUrl: string
+
+  /** TrokkyCore instance for secure callback registration */
+  core: TrokkyCore
 
   /** Notification settings */
   enabled?: {
@@ -34,6 +37,7 @@ export interface MailNotificationConfig {
 export class MailNotificationService {
   private mailService: MailService
   private eventBus: TrokkyEventBus
+  private core: TrokkyCore
   private baseUrl: string
   private enabled: Required<NonNullable<MailNotificationConfig['enabled']>>
   private logger = createLogger('mail', 'MailNotificationService')
@@ -42,6 +46,7 @@ export class MailNotificationService {
   constructor(eventBus: TrokkyEventBus, config: MailNotificationConfig) {
     this.eventBus = eventBus
     this.mailService = config.mailService
+    this.core = config.core
     this.baseUrl = config.baseUrl
 
     // Default all notifications to enabled
@@ -72,6 +77,16 @@ export class MailNotificationService {
     try {
       // Setup event listeners
       this.setupEventListeners()
+
+      // Register secure callback for user creation with passwords
+      this.core.onUserCreatedWithPassword(async (user, temporaryPassword) => {
+        if (!this.enabled.userCreated) return
+        try {
+          await this.sendUserCreatedEmail(user, temporaryPassword)
+        } catch (error) {
+          this.logger.error('Failed to send user created email', error)
+        }
+      })
 
       this.initialized = true
       this.logger.info('Mail notification service initialized')
@@ -109,28 +124,7 @@ export class MailNotificationService {
       }
     })
 
-    // Listen for user creation
-    this.eventBus.on('user.created', async (event: UserEvent) => {
-      if (!this.enabled.userCreated) return
-
-      try {
-        const data = event.data as any
-        const user = data.user as User
-        const temporaryPassword = data.temporaryPassword as string
-
-        if (!user || !temporaryPassword) {
-          this.logger.warn('User created event missing required data', {
-            hasUser: !!user,
-            hasPassword: !!temporaryPassword,
-          })
-          return
-        }
-
-        await this.sendUserCreatedEmail(user, temporaryPassword)
-      } catch (error) {
-        this.logger.error('Failed to send user created email', error)
-      }
-    })
+    // User creation emails are handled via secure callback (registered in initialize())
 
     // Listen for user invitations
     this.eventBus.on('user.invited', async (event: UserEvent) => {

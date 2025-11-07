@@ -210,9 +210,10 @@ Integrate with Trokky's event system for automatic emails:
 ```typescript
 import { MailNotificationService } from '@trokky/mail'
 
-const notificationService = new MailNotificationService(eventBus, {
+const notificationService = new MailNotificationService(core.events, {
   mailService,
   baseUrl: 'https://example.com',
+  core, // Required for secure callback registration
   enabled: {
     passwordReset: true,
     passwordChanged: true,

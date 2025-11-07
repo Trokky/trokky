@@ -128,6 +128,9 @@ export class TrokkyCore {
   private eventBus: TrokkyEventBus
   private eventsEnabled: boolean
 
+  // Secure callbacks for sensitive operations (not logged in events)
+  private userCreatedWithPasswordCallback?: (user: User, temporaryPassword: string) => Promise<void>
+
   // Constructor overloads for both unified and split adapters
   constructor(
     config: TrokkyConfig, 
@@ -250,6 +253,26 @@ export class TrokkyCore {
    */
   public get configuration(): TrokkyConfig {
     return this.config
+  }
+
+  /**
+   * Register a secure callback for when users are created with temporary passwords
+   * This callback is NOT part of the event system and does not get logged
+   * Used by mail services to send welcome emails with credentials
+   */
+  public onUserCreatedWithPassword(callback: (user: User, temporaryPassword: string) => Promise<void>): void {
+    this.userCreatedWithPasswordCallback = callback
+    this.logger.debug('Registered secure callback for user creation with password')
+  }
+
+  /**
+   * Check rate limit for a specific operation
+   * Allows routes and external code to use the rate limiter
+   */
+  public async checkRateLimit(operation: string, context?: Record<string, unknown>): Promise<void> {
+    if (this.rateLimiter) {
+      await this.rateLimiter.checkRateLimit(operation, context)
+    }
   }
 
   // Helper methods for adapter management
@@ -1247,16 +1270,24 @@ export class TrokkyCore {
       }
     })
 
-    // Emit user.created event for welcome email notification
+    // Emit user.created event (WITHOUT password for security)
     await this.events.emitEvent({
       type: 'user.created',
       source: 'api',
       data: {
         user: createdUser,
         userId: createdUser.id,
-        temporaryPassword: userData.password, // Plain text password for email
       },
     })
+
+    // Securely send password via callback (not logged in events)
+    if (this.userCreatedWithPasswordCallback) {
+      try {
+        await this.userCreatedWithPasswordCallback(createdUser, userData.password)
+      } catch (error) {
+        this.logger.warn('User created callback failed (non-blocking)', error)
+      }
+    }
 
     return createdUser
   }

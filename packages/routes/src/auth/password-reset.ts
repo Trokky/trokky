@@ -64,6 +64,27 @@ async function hashResetToken(token: string): Promise<string> {
 }
 
 /**
+ * Constant-time string comparison to prevent timing attacks
+ * Compares two strings without leaking information through timing
+ */
+function constantTimeCompare(a: string, b: string): boolean {
+  // If lengths differ, still perform a comparison to maintain constant time
+  const aLen = a.length
+  const bLen = b.length
+  const maxLen = Math.max(aLen, bLen)
+
+  let result = aLen === bLen ? 0 : 1
+
+  for (let i = 0; i < maxLen; i++) {
+    const aChar = i < aLen ? a.charCodeAt(i) : 0
+    const bChar = i < bLen ? b.charCodeAt(i) : 0
+    result |= aChar ^ bChar
+  }
+
+  return result === 0
+}
+
+/**
  * Find user by reset token
  */
 async function findUserByResetToken(core: TrokkyCore, hashedToken: string): Promise<User | null> {
@@ -72,7 +93,7 @@ async function findUserByResetToken(core: TrokkyCore, hashedToken: string): Prom
     const resetData = u.preferences?.passwordReset as PasswordResetToken | undefined
     return (
       resetData &&
-      resetData.token === hashedToken &&
+      constantTimeCompare(resetData.token, hashedToken) &&
       resetData.expiresAt > Date.now()
     )
   }) || null
@@ -99,6 +120,10 @@ export async function requestPasswordReset(
     }
 
     SecurityValidator.validateEmail(body.email)
+
+    // Rate limiting: Limit password reset requests per email
+    // 3 requests per email per hour to prevent abuse and enumeration
+    await core.checkRateLimit('password-reset', { email: body.email })
 
     logger.info('Password reset requested', { email: body.email })
 
@@ -228,13 +253,14 @@ export async function resetPassword(
       throw new InvalidInputError('New password is required', 'newPassword')
     }
 
-    // Validate password strength (minimum 8 characters)
-    if (body.newPassword.length < 8) {
-      throw new InvalidInputError(
-        'Password must be at least 8 characters long',
-        'newPassword'
-      )
-    }
+    // Validate password strength using SecurityValidator
+    SecurityValidator.validatePassword(body.newPassword)
+
+    // Rate limiting: Limit password reset verification attempts
+    // Prevents brute-force token guessing
+    await core.checkRateLimit('password-reset-verify', {
+      tokenPrefix: body.token.substring(0, 8)
+    })
 
     logger.info('Password reset attempt', { token: body.token.substring(0, 8) + '...' })
 
