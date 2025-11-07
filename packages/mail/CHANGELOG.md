@@ -1,46 +1,45 @@
 # @trokky/mail
 
-## 0.2.0
+## 0.1.0
 
-### Minor Changes
+### Initial Release
 
-- Fix critical security vulnerabilities in password reset and mail system
+Complete mail layer for Trokky CMS with security-first design:
 
-  **Security Fixes:**
-  1. **Removed plain text passwords from event system** - Passwords are no longer logged in events, preventing exposure in logs and event storage
-  2. **Constant-time token comparison** - Password reset tokens now use constant-time comparison to prevent timing attacks
-  3. **Unified password validation** - Reset flow now enforces same strong password requirements as change password
-  4. **Rate limiting on password reset** - Added rate limiting to prevent abuse, spam, and enumeration attacks
+**Features:**
+- Event-driven email notification system
+- Multiple mail adapters: Resend, SMTP, Console (for development)
+- Built-in email templates for common workflows
+- Template rendering with customization support
+- Password reset with secure token handling
+- User creation welcome emails
+- Password change notifications
 
-  **New Features:**
-  - `TrokkyCore.onUserCreatedWithPassword()` - Secure callback for sending temporary passwords without logging
-  - `TrokkyCore.checkRateLimit()` - Public method for routes to use rate limiter
+**Security Features:**
+- Secure callback system for sensitive data (passwords not logged in events)
+- Constant-time token comparison to prevent timing attacks
+- Rate limiting integration for abuse prevention
 
-  **Breaking Changes:**
-  - `MailNotificationService` now requires `core` parameter in config for secure callback registration
+**Usage:**
 
-  **Migration Guide:**
+```typescript
+import { MailService, MailNotificationService } from '@trokky/mail'
 
-  Update your MailNotificationService initialization:
+const mailService = new MailService({
+  adapter: resendAdapter,
+  templateRenderer,
+  defaultFrom: 'noreply@example.com',
+})
 
-  ```typescript
-  // Before:
-  new MailNotificationService(eventBus, {
-    mailService,
-    baseUrl: 'https://example.com',
-    // ...
-  })
+const notificationService = new MailNotificationService(core.events, {
+  mailService,
+  baseUrl: 'https://example.com',
+  core, // Required for secure callback registration
+})
 
-  // After:
-  new MailNotificationService(core.events, {
-    mailService,
-    baseUrl: 'https://example.com',
-    core, // Required for secure callback registration
-    // ...
-  })
-  ```
+await notificationService.initialize()
+```
 
-### Patch Changes
+### Dependencies
 
-- Updated dependencies
-  - @trokky/core@0.1.3
+- @trokky/core@0.1.3
