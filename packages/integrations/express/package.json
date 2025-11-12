@@ -1,6 +1,6 @@
 {
   "name": "@trokky/express",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Express.js integration for Trokky v2 CMS",
   "type": "module",
   "main": "dist/index.js",
@@ -28,8 +28,8 @@
   "dependencies": {
     "@trokky/adapter-filesystem-data": "^0.1.0",
     "@trokky/adapter-filesystem-media": "^0.1.0",
-    "@trokky/core": "^0.1.0",
-    "@trokky/routes": "^0.1.0",
+    "@trokky/core": "^0.1.4",
+    "@trokky/routes": "^0.1.5",
     "@types/busboy": "^1.5.4",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
