@@ -10,12 +10,13 @@
  * - Development with immediate processing
  */
 
-import { 
-  ImageProcessor, 
-  type ImageProcessorConfig, 
-  type ProcessedImage, 
-  type ProcessedImageVariant 
+import {
+  ImageProcessor,
+  type ImageProcessorConfig,
+  type ProcessedImage,
+  type ProcessedImageVariant
 } from './types.js'
+import { createLogger } from '../../utils/logger.js'
 
 // Type for dynamically imported Sharp
 type SharpInstance = any
@@ -25,6 +26,7 @@ type SharpInstance = any
  */
 export class SharpImageProcessor extends ImageProcessor {
   private sharp: SharpInstance
+  private logger = createLogger('media', 'SharpImageProcessor')
 
   constructor(config: ImageProcessorConfig) {
     super(config)
@@ -118,7 +120,7 @@ export class SharpImageProcessor extends ImageProcessor {
         }
         
       } catch (error) {
-        console.warn(`Failed to process variant ${variant.name}:`, error)
+        this.logger.warn('Failed to process variant', { variantName: variant.name, error })
       }
     }
 
@@ -147,7 +149,7 @@ export class SharpImageProcessor extends ImageProcessor {
       }).png().toBuffer()
       return true
     } catch (error) {
-      console.error('Sharp health check failed:', error)
+      this.logger.error('Sharp health check failed', error)
       return false
     }
   }

@@ -23,6 +23,9 @@
 
 import { ImageProcessor } from './types.js'
 import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types.js'
+import { createLogger } from '../../utils/logger.js'
+
+const logger = createLogger('media', 'CloudflareTransformStore')
 
 export interface CloudflareTransformStoreConfig extends ImageProcessorConfig {
   type: 'cloudflare-transform-store'
@@ -165,7 +168,7 @@ export class CloudflareTransformStoreProcessor extends ImageProcessor {
           buffer: transformedData.buffer
         }
       } catch (error) {
-        console.error(`Failed to transform variant ${variant.name}:`, error)
+        logger.error('Failed to transform variant', { variantName: variant.name, error })
         // Continue with other variants even if one fails
       }
     }
@@ -201,7 +204,7 @@ export class CloudflareTransformStoreProcessor extends ImageProcessor {
       return { buffer: Buffer.from(arrayBuffer) }
     } catch (error) {
       // Fallback: If we can't fetch from CDN, return original with a warning
-      console.warn(`Could not fetch transformation from CDN, using original:`, error)
+      logger.warn('Could not fetch transformation from CDN, using original', error)
       return { buffer: Buffer.from(imageBuffer) }
     }
   }
@@ -263,7 +266,7 @@ export class CloudflareTransformStoreProcessor extends ImageProcessor {
    */
   private async storeVariant(key: string, buffer: Buffer): Promise<void> {
     if (!this.r2Bucket) {
-      console.warn('R2 bucket not available, cannot store variant:', key)
+      logger.warn('R2 bucket not available, cannot store variant', { key })
       return
     }
     
@@ -275,7 +278,7 @@ export class CloudflareTransformStoreProcessor extends ImageProcessor {
         }
       })
     } catch (error) {
-      console.error('Failed to store variant in R2:', error)
+      logger.error('Failed to store variant in R2', error)
       throw error
     }
   }

@@ -1183,17 +1183,14 @@ export class TrokkyRoutes {
       }
 
       // Check if slug exists in the collection
-      console.log('🔍 Checking for documents with slug:', slug, 'in collection:', collection);
       const documents = await this.core.listDocuments(collection, {
         filter: { slug: slug }
       })
-      console.log('📄 Found documents:', documents.length, documents);
 
       // If excludeId is provided, filter out that document (for updates)
-      const conflictingDocs = excludeId 
+      const conflictingDocs = excludeId
         ? documents.filter(doc => doc._id !== excludeId)
         : documents
-      console.log('⚡ Conflicting docs after exclusion:', conflictingDocs.length);
 
       const isUnique = conflictingDocs.length === 0
 
@@ -1203,11 +1200,10 @@ export class TrokkyRoutes {
         collection: collection,
         ...(isUnique ? {} : { reason: 'Slug already exists in collection' })
       };
-      console.log('📤 Sending response:', responseData);
 
       return this.successResponse(responseData)
     } catch (error) {
-      console.error('❌ Error in checkSlugUniqueness:', error);
+      this.logger.error('Error in checkSlugUniqueness', error)
       return this.errorResponse(error)
     }
   }
@@ -1545,14 +1541,6 @@ export class TrokkyRoutes {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }
 
-      console.log('🔍 Auth result from core:', {
-        hasUser: !!authResult.user,
-        hasToken: !!authResult.token,
-        hasRefreshToken: !!authResult.refreshToken,
-        refreshTokenLength: authResult.refreshToken?.length || 0,
-        tokenLength: authResult.token?.length || 0
-      });
-
       const { user: authenticatedUser, token, refreshToken } = authResult
       
       // Get token expiration time
@@ -1565,15 +1553,6 @@ export class TrokkyRoutes {
         user: authenticatedUser,
         expiresAt: session?.expiresAt
       }
-
-      console.log('🚀 Final login response:', {
-        success: response.success,
-        hasToken: !!response.token,
-        hasRefreshToken: !!response.refreshToken,
-        hasUser: !!response.user,
-        hasExpiresAt: !!response.expiresAt,
-        refreshTokenLength: response.refreshToken?.length || 0
-      });
 
       return this.successResponse(response)
     } catch (error) {

@@ -1,16 +1,18 @@
 import type { Request, Response, NextFunction } from 'express'
 import type { HttpRequest, HttpResponse, RouteHandler } from '@trokky/routes'
 import type { ExpressRequestWithFiles, ExpressRouteHandler } from './types.js'
+import { createLogger } from '@trokky/core'
 
 /**
  * Express.js Framework Adapter
- * 
- * Converts between Express Request/Response objects and Trokky's 
+ *
+ * Converts between Express Request/Response objects and Trokky's
  * framework-agnostic HttpRequest/HttpResponse interfaces.
  */
 export class ExpressAdapter {
   public readonly name = 'express'
   private maxFileSize: number
+  private logger = createLogger('express', 'ExpressAdapter')
 
   constructor(options?: { maxFileSize?: number }) {
     this.maxFileSize = options?.maxFileSize || 50 * 1024 * 1024 // Default 50MB
@@ -52,7 +54,7 @@ export class ExpressAdapter {
         files = formData.files
         body = formData.fields
       } catch (error) {
-        console.warn('Failed to parse FormData:', error)
+        this.logger.warn('Failed to parse FormData', error)
       }
     }
 

@@ -86,7 +86,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     })
 
     this.pool.on('connect', (client) => {
-      this.logger.info('New PostgreSQL client connected')
+      this.logger.debug('New PostgreSQL client connected')
     })
 
     this.logger.info('PostgresDataAdapter constructed', {

@@ -15,6 +15,9 @@
 
 import type { Request, Response, NextFunction } from 'express'
 import type { TrokkyCore } from '@trokky/core'
+import { createLogger } from '@trokky/core'
+
+const logger = createLogger('express', 'MediaRewrite')
 
 export interface MediaRewriteOptions {
   /**
@@ -90,9 +93,7 @@ export function createMediaRewriteMiddleware(options: MediaRewriteOptions = {}) 
     const match = originalPath.match(mediaPathRegex)
     
     if (!match) {
-      if (config.debug) {
-        console.log(`[MediaRewrite] No match for path: ${originalPath}`)
-      }
+      logger.debug('No match for path', { path: originalPath })
       return next()
     }
     
@@ -100,9 +101,7 @@ export function createMediaRewriteMiddleware(options: MediaRewriteOptions = {}) 
     
     // Validate media ID format (basic security check)
     if (!isValidMediaId(mediaId)) {
-      if (config.debug) {
-        console.log(`[MediaRewrite] Invalid media ID: ${mediaId}`)
-      }
+      logger.debug('Invalid media ID', { mediaId })
       return next()
     }
     
@@ -113,9 +112,7 @@ export function createMediaRewriteMiddleware(options: MediaRewriteOptions = {}) 
       const isValidVariant = await isVariantSupported(mediaId, variant, config, variantCache)
       
       if (!isValidVariant) {
-        if (config.debug) {
-          console.log(`[MediaRewrite] Unsupported variant: ${variant} for media: ${mediaId}`)
-        }
+        logger.debug('Unsupported variant', { variant, mediaId })
         return next()
       }
       
@@ -128,11 +125,9 @@ export function createMediaRewriteMiddleware(options: MediaRewriteOptions = {}) 
     
     // Update request URL (path is automatically updated)
     req.url = req.url.replace(originalPath, newPath)
-    
-    if (config.debug) {
-      console.log(`[MediaRewrite] ${originalPath} → ${newPath}`)
-    }
-    
+
+    logger.debug('Rewriting media URL', { from: originalPath, to: newPath })
+
     next()
   }
 }
@@ -169,9 +164,7 @@ async function isVariantSupported(
     const mediaFile = await config.core.getMedia(mediaId)
     
     if (!mediaFile) {
-      if (config.debug) {
-        console.log(`[MediaRewrite] Media file not found: ${mediaId}`)
-      }
+      logger.debug('Media file not found', { mediaId })
       return false
     }
     
@@ -192,18 +185,14 @@ async function isVariantSupported(
         timestamp: Date.now()
       })
     }
-    
-    if (config.debug) {
-      console.log(`[MediaRewrite] Available variants for ${mediaId}:`, Array.from(availableVariants))
-    }
-    
+
+    logger.debug('Available variants for media', { mediaId, variants: Array.from(availableVariants) })
+
     return availableVariants.has(variant)
     
   } catch (error) {
-    if (config.debug) {
-      console.log(`[MediaRewrite] Error checking variants for ${mediaId}:`, error)
-    }
-    
+    logger.debug('Error checking variants for media', { mediaId, error })
+
     // Fallback to configured variants on error
     return config.fallbackVariants.includes(variant)
   }
@@ -268,9 +257,7 @@ export class MediaUrlGenerator {
           }
         }
       } catch (error) {
-        if (this.options.debug) {
-          console.log(`[MediaUrlGenerator] Error discovering variants for ${mediaId}:`, error)
-        }
+        logger.debug('Error discovering variants for media', { mediaId, error })
       }
     }
     
@@ -296,9 +283,7 @@ export class MediaUrlGenerator {
           }
         }
       } catch (error) {
-        if (this.options.debug) {
-          console.log(`[MediaUrlGenerator] Error getting variants for ${mediaId}:`, error)
-        }
+        logger.debug('Error getting variants for media', { mediaId, error })
       }
     }
     

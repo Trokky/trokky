@@ -21,6 +21,9 @@
 
 import { ImageProcessor } from './types.js'
 import type { ImageProcessorConfig, ImageVariant, ProcessedImage, ProcessedImageVariant } from './types.js'
+import { createLogger } from '../../utils/logger.js'
+
+const logger = createLogger('media', 'WorkersImages')
 
 export interface WorkersImagesConfig extends ImageProcessorConfig {
   type: 'workers-images'
@@ -131,7 +134,7 @@ export class WorkersImagesProcessor extends ImageProcessor {
           
           variants[variant.name] = transformedData
         } catch (error) {
-          console.error(`Failed to process variant ${variant.name}:`, error)
+          logger.error('Failed to process variant', { variantName: variant.name, error })
           // Create a URL-only variant as fallback
           variants[variant.name] = this.createOnDemandVariant(metadata.id, variant)
         }
@@ -192,7 +195,7 @@ export class WorkersImagesProcessor extends ImageProcessor {
         buffer: Buffer.from(transformedBuffer)
       }
     } catch (error) {
-      console.error('Transformation failed, using on-demand URL:', error)
+      logger.error('Transformation failed, using on-demand URL', error)
       return this.createOnDemandVariant(imageId, variant)
     }
   }
@@ -291,7 +294,7 @@ export class WorkersImagesProcessor extends ImageProcessor {
         }
       })
     } catch (error) {
-      console.error(`Failed to store variant ${key}:`, error)
+      logger.error('Failed to store variant', { key, error })
     }
   }
 
