@@ -127,7 +127,7 @@ export class DocumentValidator {
         ])
       
       case 'media':
-        // Media fields can be either a string ID or a complex object with asset reference
+        // Media fields can be either a string ID, a complex object with asset reference, or null (when removed)
         return z.union([
           z.string(),
           z.object({
@@ -140,7 +140,8 @@ export class DocumentValidator {
             caption: z.string().optional(),
             title: z.string().optional(),
             variant: z.string().optional()
-          }).passthrough()
+          }).passthrough(),
+          z.null()
         ])
       
       case 'slug':
