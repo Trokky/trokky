@@ -1,7 +1,7 @@
 # Studio Branding Enhancements
 
 ## Summary
-Enhanced Studio branding system with configurable organization name, colors, and logo. Added support for storing branding configuration in backend database and displaying it across authentication pages.
+Enhanced Studio branding system with configurable organization name, colors, and logo. Added support for storing branding configuration in backend database and displaying it across authentication pages and throughout the entire authenticated Studio interface.
 
 ## Packages Affected
 
@@ -40,6 +40,20 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Color pickers for brand colors
   - Logo preview
   - Save branding to backend
+- **Enhanced** `App.tsx`:
+  - Load branding globally on app startup
+  - Apply CSS custom properties for dynamic theming
+  - Listen for settings updates to refresh branding in real-time
+  - Pass branding to StudioContextProvider
+- **Enhanced** `StudioContext.tsx`:
+  - Accept branding prop and distribute through context
+  - Make branding available to all Studio components
+- **Enhanced** `Header.tsx`:
+  - Use branding from StudioContext
+  - Display organization name instead of default "Trokky Studio"
+  - Show custom logo when configured
+- **Added** `useStudioBranding.ts` hook:
+  - Convenience hook for accessing branding from StudioContext
 
 ## Breaking Changes
 None. All changes are backward compatible with fallback to default branding.
@@ -50,7 +64,7 @@ No migration required. Existing installations will continue to work with default
 1. Navigate to Studio Settings
 2. Configure Organization Name, Primary Color, Secondary Color, and Logo URL
 3. Save changes
-4. Branding will be applied to login and forgot password pages
+4. Branding will be applied throughout the entire Studio interface (login, forgot password, header, and all pages)
 
 ## Testing Done
 - ✅ Settings save successfully to PostgreSQL database
@@ -58,6 +72,10 @@ No migration required. Existing installations will continue to work with default
 - ✅ Colors apply correctly via CSS custom properties
 - ✅ Forgot password page uses brand colors
 - ✅ Settings page displays color pickers and logo preview
+- ✅ Header displays organization name and custom logo
+- ✅ Branding distributed throughout app via StudioContext
+- ✅ Real-time branding updates when settings change
+- ✅ All UI elements using primary/secondary Tailwind classes reflect brand colors
 - ✅ Tested with npm link in a production site-trokky project
 
 ## Database Changes
@@ -84,6 +102,10 @@ No migration required. Existing installations will continue to work with default
 - `packages/studio/src/pages/LoginPage.tsx`
 - `packages/studio/src/pages/ForgotPasswordPage.tsx`
 - `packages/studio/src/pages/SettingsPage.tsx`
+- `packages/studio/src/app/App.tsx`
+- `packages/studio/src/contexts/StudioContext.tsx`
+- `packages/studio/src/components/layout/Header.tsx`
+- `packages/studio/src/hooks/useStudioBranding.ts` (new file)
 
 ## Version Bump Summary
 ```
@@ -92,6 +114,22 @@ No migration required. Existing installations will continue to work with default
 @trokky/adapter-postgres-data: 0.1.x -> 0.1.y (PATCH - implementation fixes)
 @trokky/studio: 0.2.0 -> 0.3.0 (MINOR - new branding features)
 ```
+
+## Implementation Details
+
+### Architecture
+The branding system uses a layered approach:
+1. **App.tsx** - Loads branding once on startup, applies CSS custom properties globally
+2. **StudioContext** - Distributes branding to all components via React Context
+3. **CSS Variables** - Dynamic theming via `--color-primary-*` and `--color-secondary-*`
+4. **Components** - Access branding via context or use Tailwind classes that reference CSS variables
+
+### Key Features
+- Single source of truth for branding loaded at app level
+- Real-time updates when settings change via custom events
+- All Tailwind classes using `primary-*` or `secondary-*` automatically reflect configured colors
+- Fallback to default "Trokky Studio" branding if API fails or values are empty
+- Backward compatible - existing installations work without configuration
 
 ## Notes
 - All helper functions consolidated in shared utility to avoid code duplication
