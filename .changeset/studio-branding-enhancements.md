@@ -29,7 +29,13 @@ Enhanced Studio branding system with configurable organization name, colors, and
 - **Fixed** table name handling using `this.tableName()` helper
 - **Location**: `packages/adapters/postgres-data/src/postgres-data-adapter.ts`
 
+### @trokky/fields - PATCH bump (bug fixes)
+- **Fixed** TipTap duplicate extension warnings by disabling `gapcursor` and `codeBlock` in StarterKit configuration
+- **Removed** excessive console.log statements from MediaField component for cleaner console output
+- **Location**: `packages/fields/src/definitions/RichTextField/component.tsx`, `packages/fields/src/definitions/MediaField/component.tsx`
+
 ### @trokky/studio - MINOR bump (new features)
+- **Removed** excessive debug console.log statements from PermissionsDebugPanel for cleaner console output
 - **Added** shared branding utilities (`packages/studio/src/utils/branding.ts`):
   - `hexToRgb()` - Convert hex colors to RGB format
   - `applyBrandColors()` - Apply brand colors to CSS variables
@@ -149,9 +155,10 @@ No migration required. Existing installations will continue to work with default
 ## Version Bump Summary
 ```
 @trokky/core: 0.1.x -> 0.2.0 (MINOR - new fields in SettingsConfig)
-@trokky/routes: 0.1.x -> 0.1.y (PATCH - endpoint improvements)
+@trokky/routes: 0.1.x -> 0.1.y (PATCH - endpoint improvements & auth fixes)
 @trokky/adapter-postgres-data: 0.1.x -> 0.1.y (PATCH - implementation fixes)
-@trokky/studio: 0.2.0 -> 0.3.0 (MINOR - new branding features)
+@trokky/fields: 0.1.x -> 0.1.y (PATCH - TipTap fix & console cleanup)
+@trokky/studio: 0.2.0 -> 0.3.0 (MINOR - new branding features & console cleanup)
 ```
 
 ## Implementation Details

@@ -60,35 +60,8 @@ export function PermissionsDebugPanel({
       (typeof window !== 'undefined' &&
         window.localStorage.getItem('trokky_debug_permissions') === 'true')
 
-    console.log('[PermissionsDebugPanel] Initial debug check:', {
-      isDev: import.meta.env.DEV,
-      localStorage:
-        typeof window !== 'undefined'
-          ? window.localStorage.getItem('trokky_debug_permissions')
-          : 'N/A',
-      debugEnabled,
-    })
-
     return debugEnabled
   })
-
-  useEffect(() => {
-    console.log('[PermissionsDebugPanel] Component mounted:', {
-      isDebugMode,
-      documentType,
-      documentId,
-      fieldsCount: fields.length,
-      isNew,
-      user: user?.username,
-    })
-  }, [
-    isDebugMode,
-    documentType,
-    documentId,
-    fields.length,
-    isNew,
-    user?.username,
-  ])
 
   // Show panel if debug mode is enabled
   if (!isDebugMode) {

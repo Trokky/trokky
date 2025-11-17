@@ -162,21 +162,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
   // Load asset when value changes
   useEffect(() => {
-    console.log('🔄 MediaField value changed', {
-      hasValue: !!value,
-      value,
-      hasAssetRef: !!value?.asset?._ref,
-      assetRef: value?.asset?._ref,
-      variant: value?.variant
-    })
-
     const loadAsset = async () => {
       if (!value?.asset?._ref || !studioContext?.apiClient) {
-        console.log('⏭️ Skipping asset load', {
-          hasValue: !!value,
-          hasAssetRef: !!value?.asset?._ref,
-          hasApiClient: !!studioContext?.apiClient
-        })
         setCurrentAsset(null)
         setAssetLoadError(null)
         return
@@ -184,9 +171,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       try {
         setAssetLoadError(null)
-        console.log('🔍 Loading asset from API', {
-          assetId: value.asset._ref,
-        })
 
         const response = await studioContext.apiClient.getMediaById(
           value.asset._ref
@@ -253,27 +237,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         clearInterval(uploadInterval)
         setUploadProgress(100)
 
-        // Log the upload response to debug
-        console.log('📤 Upload response received', {
-          uploadResponse,
-          hasFiles: !!uploadResponse.files,
-          filesLength: uploadResponse.files?.length,
-          allKeys: Object.keys(uploadResponse)
-        })
-
         // Extract the actual asset from the response (API returns {files: [asset], meta: {...}})
         const uploadedAsset: MediaAsset = uploadResponse.files?.[0] || uploadResponse
-
-        console.log('📦 Extracted uploaded asset', {
-          uploadedAsset,
-          hasId: !!uploadedAsset.id,
-          id: uploadedAsset.id,
-          hasFilename: !!uploadedAsset.filename,
-          hasSize: !!uploadedAsset.size,
-          hasContentType: !!uploadedAsset.contentType,
-          hasUrl: !!uploadedAsset.url,
-          allKeys: Object.keys(uploadedAsset)
-        })
 
         // Enhance the uploaded asset with file properties if missing
         const enrichedAsset: MediaAsset = {
@@ -301,12 +266,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           caption: '',
           title: uploadedAsset.title || file.name,
         }
-
-        console.log('💾 Setting field value', {
-          newValue,
-          assetRef: newValue.asset._ref,
-          variant: newValue.variant
-        })
 
         onChange(newValue)
 
@@ -489,19 +448,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const getImageUrl = useCallback((assetRef: string, preferredVariant?: string): string => {
     const asset = currentAsset
 
-    console.log('🖼️ MediaField getImageUrl called', {
-      assetRef,
-      preferredVariant,
-      hasAsset: !!asset,
-      assetUrl: asset?.url,
-      hasMetadata: !!asset?.metadata,
-      hasImageVariants: !!asset?.metadata?.imageVariants,
-      imageVariants: asset?.metadata?.imageVariants ? Object.keys(asset.metadata.imageVariants) : []
-    })
-
     // Special case: "original" variant should use the base asset URL directly
     if (preferredVariant === 'original' && asset?.url) {
-      console.log('✅ Using original variant with asset URL', { url: asset.url })
       return asset.url
     }
 
@@ -509,9 +457,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     if (studioContext?.mediaUrlGenerator) {
       const variant = preferredVariant || 'thumbnail'
       const generatedUrl = studioContext.mediaUrlGenerator.getMediaUrl(assetRef, variant)
-      // If URL generation succeeded, return it
       if (generatedUrl) {
-        console.log('✅ URL from mediaUrlGenerator', { variant, url: generatedUrl })
         return generatedUrl
       }
     }
@@ -519,9 +465,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     if (studioContext?.apiClient?.getMediaUrl) {
       const variant = preferredVariant || 'thumbnail'
       const generatedUrl = studioContext.apiClient.getMediaUrl(assetRef, variant)
-      // If URL generation succeeded, return it
       if (generatedUrl) {
-        console.log('✅ URL from apiClient.getMediaUrl', { variant, url: generatedUrl })
         return generatedUrl
       }
     }
@@ -532,34 +476,28 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
       // Try preferred variant first
       if (preferredVariant && variants[preferredVariant]?.url) {
-        console.log('✅ URL from metadata preferred variant', { variant: preferredVariant, url: variants[preferredVariant].url })
         return variants[preferredVariant].url
       }
 
       // Try thumbnail
       if (variants.thumbnail?.url) {
-        console.log('✅ URL from metadata thumbnail variant', { url: variants.thumbnail.url })
         return variants.thumbnail.url
       }
 
       // Try original
       if (variants.original?.url) {
-        console.log('✅ URL from metadata original variant', { url: variants.original.url })
         return variants.original.url
       }
 
       // Try any available variant
       const anyVariant = Object.values(variants).find(v => v?.url)
       if (anyVariant?.url) {
-        console.log('✅ URL from any available variant', { url: anyVariant.url })
         return anyVariant.url
       }
     }
 
     // Final fallback to base asset URL
-    const finalUrl = asset?.url || ''
-    console.log(finalUrl ? '✅ Using base asset URL' : '❌ No URL found', { url: finalUrl })
-    return finalUrl
+    return asset?.url || ''
   }, [currentAsset, studioContext])
 
   // Render compact button for empty state
@@ -785,27 +723,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             {mediaType === 'image' && (() => {
               const imgUrl = getImageUrl(value.asset._ref, value.variant)
 
-              console.log('🎨 Rendering image thumbnail', {
-                assetRef: value.asset._ref,
-                variant: value.variant,
-                imgUrl,
-                hasImgUrl: !!imgUrl,
-                mediaType,
-                currentAsset: !!currentAsset
-              })
-
               return imgUrl ? (
                 <img
                   src={imgUrl}
                   alt={value?.alt || asset?.title || asset?.filename}
                   className="w-full h-full object-cover rounded"
                   onError={e => {
-                    console.error('❌ Image failed to load', { src: imgUrl })
                     e.currentTarget.style.display = 'none'
                     e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                  }}
-                  onLoad={() => {
-                    console.log('✅ Image loaded successfully', { src: imgUrl })
                   }}
                 />
               ) : null

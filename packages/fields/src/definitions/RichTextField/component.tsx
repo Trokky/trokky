@@ -479,6 +479,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         heading: {
           levels: (options.headingLevels || [1, 2, 3]) as any,
         },
+        // Disable gapcursor and codeBlock from StarterKit since we add them manually
+        gapcursor: false,
+        codeBlock: false,
       }),
       Underline,
       Link.configure({
