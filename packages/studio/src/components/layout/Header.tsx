@@ -266,6 +266,24 @@ export function Header({
             </div>
           )}
 
+          {/* Theme toggle */}
+          <button
+            onClick={() => {
+              const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
+              handleThemeChange(nextTheme);
+            }}
+            className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+            title={`Theme: ${theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'}`}
+          >
+            {theme === 'light' ? (
+              <SunIcon className="h-5 w-5" />
+            ) : theme === 'dark' ? (
+              <MoonIcon className="h-5 w-5" />
+            ) : (
+              <ComputerDesktopIcon className="h-5 w-5" />
+            )}
+          </button>
+
           {/* User menu */}
           {showUserMenu && (
             <div className="relative">
@@ -341,33 +359,6 @@ export function Header({
                       <KeyIcon className="h-4 w-4 mr-2 text-gray-400" />
                       Change Password
                     </button>
-
-                    {/* Theme submenu */}
-                    <div className="px-3 py-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Theme</span>
-                      </div>
-                      <div className="flex space-x-1">
-                        {themeOptions.map(({ key, label, icon: Icon }) => (
-                          <button
-                            key={key}
-                            onClick={() => {
-                              handleThemeChange(key);
-                              setUserMenuOpen(false);
-                            }}
-                            className={cn(
-                              'flex items-center justify-center w-6 h-6 rounded transition-colors',
-                              theme === key
-                                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                                : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            )}
-                            title={label}
-                          >
-                            <Icon className="h-3 w-3" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
 
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     

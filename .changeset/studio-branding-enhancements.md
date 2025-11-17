@@ -56,6 +56,9 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Display organization name instead of default "Trokky Studio"
   - Show custom logo when configured
   - Create menu now displays schema titles (e.g., "Service") instead of structure titles (e.g., "Liste des Services")
+  - Removed "Fields Demo" from Settings menu (page still accessible via /fields-demo URL)
+  - Removed "Preferences" link from User menu
+  - Moved theme toggle to header for one-click access (between Settings and User menu)
 - **Added** `useStudioBranding.ts` hook:
   - Convenience hook for accessing branding from StudioContext
 - **Enhanced** `useDocumentTitle.ts`:
