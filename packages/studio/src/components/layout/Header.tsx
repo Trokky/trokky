@@ -10,7 +10,6 @@ import {
   Bars3Icon,
   PhotoIcon,
   UsersIcon,
-  BeakerIcon,
   ChevronDownIcon,
   KeyIcon
 } from '@heroicons/react/24/outline';
@@ -262,24 +261,6 @@ export function Header({
                     </div>
                   </Link>
                 )}
-
-                {/* Separator */}
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-
-                {/* Fields Demo option - admin only */}
-                {hasPermission(SETTINGS_PERMISSIONS.WRITE) && (
-                  <Link
-                    to="/fields-demo"
-                    onClick={() => setSettingsMenuOpen(false)}
-                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <BeakerIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium">Fields Demo</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Test field components</div>
-                    </div>
-                  </Link>
-                )}
               </div>
             )}
             </div>
@@ -350,15 +331,6 @@ export function Header({
 
                   {/* Menu items */}
                   <div className="py-1">
-                    <Link
-                      to="/user/preferences"
-                      className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
-                      Preferences
-                    </Link>
-
                     <button
                       className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => {
