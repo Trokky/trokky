@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   DocumentTextIcon,
@@ -9,7 +9,11 @@ import {
   UserIcon,
   DocumentIcon,
   Bars3Icon,
-  HomeIcon
+  HomeIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useNavigation } from '@/hooks/useStructure';
@@ -23,6 +27,8 @@ interface MainSidebarProps {
 export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const { navigation, loading, error } = useNavigation();
 
   const getIconComponent = (iconName: string) => {
@@ -75,6 +81,141 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
+  // Check if a group contains the active route
+  const groupContainsActiveRoute = (item: StructureNavigationItem): boolean => {
+    if (item.type !== 'group' || !item.children) return false;
+
+    return item.children.some(child => {
+      if (child.type === 'group') {
+        return groupContainsActiveRoute(child);
+      }
+
+      // Generate path for the child
+      let childPath = child.path;
+      if (!childPath) {
+        const schemaType = (child as any).schemaType;
+        if (schemaType) {
+          if (child.type === 'documentList') {
+            childPath = `/content/${schemaType}`;
+          } else if (child.type === 'singleton') {
+            const documentId = (child as any).documentId || schemaType;
+            childPath = `/content/${schemaType}/${documentId}`;
+          }
+        }
+      }
+
+      return childPath ? isActiveRoute(childPath) : false;
+    });
+  };
+
+  // Toggle group expansion
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  // Auto-expand groups containing active route on mount and route change
+  useEffect(() => {
+    if (!navigation) return;
+
+    const groupsToExpand = new Set<string>();
+
+    const findActiveGroups = (items: StructureNavigationItem[]) => {
+      items.forEach(item => {
+        if (item.type === 'group' && groupContainsActiveRoute(item)) {
+          groupsToExpand.add(item.id);
+          if (item.children) {
+            findActiveGroups(item.children);
+          }
+        }
+      });
+    };
+
+    findActiveGroups(navigation.items);
+    setExpandedGroups(groupsToExpand);
+  }, [location.pathname, navigation]);
+
+  // Normalize string: remove accents and convert to lowercase
+  const normalizeString = (str: string): string => {
+    return str
+      .normalize('NFD') // Decompose accented characters
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .toLowerCase()
+      .trim();
+  };
+
+  // Filter navigation items based on search query
+  const filteredNavigation = useMemo(() => {
+    if (!navigation || !searchQuery.trim()) return navigation;
+
+    const query = normalizeString(searchQuery);
+
+    const filterItems = (items: StructureNavigationItem[]): StructureNavigationItem[] => {
+      return items.reduce((acc, item) => {
+        // Check if item title matches (accent and case insensitive)
+        const titleMatches = item.title ? normalizeString(item.title).includes(query) : false;
+
+        if (item.type === 'group' && item.children) {
+          // Filter children
+          const filteredChildren = filterItems(item.children);
+
+          // Include group if it has matching children or if its title matches
+          if (filteredChildren.length > 0 || titleMatches) {
+            acc.push({
+              ...item,
+              children: filteredChildren.length > 0 ? filteredChildren : item.children
+            });
+          }
+        } else if (item.type === 'divider') {
+          // Keep dividers if previous item exists
+          if (acc.length > 0) {
+            acc.push(item);
+          }
+        } else {
+          // Include non-group items if they match
+          if (titleMatches) {
+            acc.push(item);
+          }
+        }
+
+        return acc;
+      }, [] as StructureNavigationItem[]);
+    };
+
+    return {
+      ...navigation,
+      items: filterItems(navigation.items)
+    };
+  }, [navigation, searchQuery]);
+
+  // Auto-expand all groups when searching
+  useEffect(() => {
+    if (!filteredNavigation || !searchQuery.trim()) return;
+
+    const allGroupIds = new Set<string>();
+
+    const collectGroupIds = (items: StructureNavigationItem[]) => {
+      items.forEach(item => {
+        if (item.type === 'group') {
+          allGroupIds.add(item.id);
+          if (item.children) {
+            collectGroupIds(item.children);
+          }
+        }
+      });
+    };
+
+    collectGroupIds(filteredNavigation.items);
+    setExpandedGroups(allGroupIds);
+  }, [searchQuery, filteredNavigation]);
+
   const renderNavigationItem = (item: StructureNavigationItem, depth = 0) => {
     const IconComponent = getIconComponent(item.icon || 'document-text');
     
@@ -119,14 +260,46 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
     }
 
     if (item.type === 'group') {
+      const isExpanded = expandedGroups.has(item.id);
+      const hasActiveChild = groupContainsActiveRoute(item);
+
       return (
         <div key={item.id} className="space-y-1">
-          {!isCollapsed && (
-            <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {item.title}
+          {/* Group header - clickable to toggle */}
+          <button
+            onClick={() => toggleGroup(item.id)}
+            className={cn(
+              'w-full flex items-center justify-between px-3 py-2 text-xs font-medium uppercase tracking-wider rounded-lg transition-colors',
+              isCollapsed
+                ? 'justify-center'
+                : '',
+              hasActiveChild
+                ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300'
+            )}
+            title={isCollapsed ? item.title : undefined}
+          >
+            {!isCollapsed && (
+              <>
+                <span>{item.title}</span>
+                {isExpanded ? (
+                  <ChevronUpIcon className="h-4 w-4" />
+                ) : (
+                  <ChevronDownIcon className="h-4 w-4" />
+                )}
+              </>
+            )}
+            {isCollapsed && (
+              <FolderIcon className="h-5 w-5" />
+            )}
+          </button>
+
+          {/* Group children - only shown when expanded */}
+          {isExpanded && !isCollapsed && item.children && (
+            <div className="space-y-1">
+              {item.children.map(child => renderNavigationItem(child, depth + 1))}
             </div>
           )}
-          {item.children?.map(child => renderNavigationItem(child, depth + 1))}
         </div>
       );
     }
@@ -215,6 +388,31 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         </div>
       )}
 
+      {/* Search/Filter */}
+      {!isCollapsed && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search navigation..."
+              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                title="Clear search"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Navigation items */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-1">
         {loading && (
@@ -235,11 +433,23 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         )}
         
         {/* Structure-driven navigation - use if available */}
-        {navigation && navigation.items.length > 0 ? (
+        {filteredNavigation && filteredNavigation.items.length > 0 ? (
           <>
             {/* Render user-provided structure */}
-            {navigation.items.map(item => renderNavigationItem(item))}
+            {filteredNavigation.items.map(item => renderNavigationItem(item))}
           </>
+        ) : searchQuery && navigation ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No results found for "{searchQuery}"
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <>
             {/* Fallback navigation when no structure is provided */}

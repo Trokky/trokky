@@ -65,6 +65,15 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Simplified to use branding.title directly from API (already merged with correct priority on backend)
   - Removed redundant authentication checks and fallback logic
   - Consistent document title across login and authenticated states
+- **Enhanced** `MainSidebar.tsx`:
+  - Implemented collapsible navigation groups for cleaner sidebar
+  - Added search/filter input at top of sidebar for quick navigation
+  - Search is accent-insensitive and case-insensitive (e.g., "reseau" matches "Réseau")
+  - Groups auto-expand when containing the active page
+  - Groups auto-expand when search matches children
+  - Clickable group headers with chevron icons (up/down)
+  - Visual highlighting for groups containing active pages
+  - "No results found" state with clear button when search has no matches
 
 ## Breaking Changes
 None. All changes are backward compatible with fallback to default branding.
@@ -90,6 +99,12 @@ No migration required. Existing installations will continue to work with default
 - ✅ Create menu displays schema titles (e.g., "Service", "some schemas") instead of structure titles
 - ✅ Create menu only shows documentList items (collections), not singletons
 - ✅ Structure API enriches documentList items with `schemaTitle` field
+- ✅ Navigation groups collapse/expand correctly
+- ✅ Search filters navigation items in real-time
+- ✅ Accent-insensitive search works ("reseau" finds "Réseau")
+- ✅ Groups auto-expand when containing active page
+- ✅ Groups auto-expand when search matches children
+- ✅ Clear search button works correctly
 - ✅ Tested with npm link in a production site-trokky project
 
 ## Database Changes
@@ -119,6 +134,7 @@ No migration required. Existing installations will continue to work with default
 - `packages/studio/src/app/App.tsx`
 - `packages/studio/src/contexts/StudioContext.tsx`
 - `packages/studio/src/components/layout/Header.tsx`
+- `packages/studio/src/components/layout/MainSidebar.tsx`
 - `packages/studio/src/hooks/useStudioBranding.ts` (new file)
 
 ## Version Bump Summary
