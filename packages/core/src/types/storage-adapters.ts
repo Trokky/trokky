@@ -47,6 +47,14 @@ export interface SettingsConfig {
   studioTitle: string
   /** Default theme for new users */
   defaultTheme: 'light' | 'dark' | 'system'
+  /** Organization/company name for branding */
+  organizationName?: string
+  /** Primary brand color (hex format) */
+  primaryColor?: string
+  /** Secondary brand color (hex format) */
+  secondaryColor?: string
+  /** Logo URL or path */
+  logo?: string
   /** Settings creation timestamp */
   _createdAt?: string
   /** Settings last update timestamp */
@@ -321,7 +329,7 @@ export interface DataStorageAdapter {
    * @throws Error if storage fails
    */
   getSettings?(): Promise<SettingsConfig | null>
-  
+
   /**
    * Create or update studio settings
    * @param settings - The settings configuration

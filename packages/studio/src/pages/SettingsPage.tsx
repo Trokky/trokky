@@ -24,6 +24,10 @@ export function SettingsPage() {
   // All hooks must be called before any conditional logic
   const [publicUrl, setPublicUrl] = useState('');
   const [studioTitle, setStudioTitle] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [secondaryColor, setSecondaryColor] = useState('');
+  const [logo, setLogo] = useState('');
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -88,25 +92,37 @@ export function SettingsPage() {
         const settings = response.data.settings;
         setPublicUrl(settings.publicUrl || getDefaultPublicUrl());
         setStudioTitle(settings.studioTitle || 'Trokky Studio');
+        setOrganizationName(settings.organizationName || '');
+        setPrimaryColor(settings.primaryColor || '');
+        setSecondaryColor(settings.secondaryColor || '');
+        setLogo(settings.logo || '');
         setTheme(settings.defaultTheme || 'system');
-        
+
         logger.info('Settings loaded successfully', { settings });
       } else {
         // Use defaults if no settings found
         setPublicUrl(getDefaultPublicUrl());
         setStudioTitle(branding?.title || 'Trokky Studio');
+        setOrganizationName('');
+        setPrimaryColor('');
+        setSecondaryColor('');
+        setLogo('');
         setTheme('system');
-        
+
         logger.warn('No settings found, using defaults');
       }
     } catch (error) {
       logger.error('Failed to load settings', error);
-      
+
       // Fallback to defaults
       setPublicUrl(getDefaultPublicUrl());
       setStudioTitle(branding?.title || 'Trokky Studio');
+      setOrganizationName('');
+      setPrimaryColor('');
+      setSecondaryColor('');
+      setLogo('');
       setTheme('system');
-      
+
       showToast('Failed to load settings. Using defaults.', 'error');
     } finally {
       setLoading(false);
@@ -132,10 +148,14 @@ export function SettingsPage() {
       
       // Normalize the public URL by removing trailing slash
       const normalizedPublicUrl = publicUrl.replace(/\/$/, '');
-      
+
       const settingsData = {
         publicUrl: normalizedPublicUrl,
         studioTitle,
+        organizationName,
+        primaryColor,
+        secondaryColor,
+        logo,
         defaultTheme: theme
       };
       
@@ -223,6 +243,98 @@ export function SettingsPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 The title displayed in the Studio interface
               </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Organization Name
+              </label>
+              <input
+                type="text"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                disabled={!canWriteSettings}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="Your Organization Name"
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Organization or company name displayed on the login page
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Primary Brand Color
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={primaryColor || '#3B82F6'}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  disabled={!canWriteSettings}
+                  className="h-10 w-16 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <input
+                  type="text"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  disabled={!canWriteSettings}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="#3B82F6"
+                />
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Primary color for buttons, links, and accents
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Secondary Brand Color
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={secondaryColor || '#6B7280'}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  disabled={!canWriteSettings}
+                  className="h-10 w-16 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <input
+                  type="text"
+                  value={secondaryColor}
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  disabled={!canWriteSettings}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="#6B7280"
+                />
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Secondary color for subtle elements and backgrounds
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Logo URL
+              </label>
+              <input
+                type="url"
+                value={logo}
+                onChange={(e) => setLogo(e.target.value)}
+                disabled={!canWriteSettings}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="https://yoursite.com/logo.png"
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                URL to your organization logo (displayed on login page)
+              </p>
+              {logo && (
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                  <img src={logo} alt="Logo preview" className="h-16 w-auto object-contain" />
+                </div>
+              )}
             </div>
 
             <div>

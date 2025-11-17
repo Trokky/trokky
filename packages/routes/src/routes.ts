@@ -2141,8 +2141,8 @@ export class TrokkyRoutes {
    */
   private async getStudioConfig(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.validateAuthentication(request)
-      
+      // Public endpoint - no authentication required for branding access on login page
+
       // Get studio configuration from global config or fallback
       const studioConfig = (global as any).__TROKKY_STUDIO_CONFIG__ || {
         branding: { title: 'Trokky Studio' },
@@ -2150,7 +2150,37 @@ export class TrokkyRoutes {
         path: '/studio',
         requireAuth: true
       }
-      
+
+      // Fetch settings from storage to get branding configuration
+      const dataStorage = this.core.getDataStorageAdapter()
+      let brandingFromSettings = {}
+
+      if (dataStorage && dataStorage.getSettings) {
+        try {
+          const settings = await dataStorage.getSettings()
+          if (settings) {
+            // Merge branding fields from settings
+            brandingFromSettings = {
+              title: settings.studioTitle || studioConfig.branding?.title,
+              organizationName: settings.organizationName,
+              primaryColor: settings.primaryColor,
+              secondaryColor: settings.secondaryColor,
+              logo: settings.logo,
+            }
+          }
+        } catch (error) {
+          this.logger.warn('Failed to fetch settings for branding', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+
+      // Merge branding from settings with global config
+      const mergedBranding = {
+        ...studioConfig.branding,
+        ...brandingFromSettings
+      }
+
       // Add MediaUrlGenerator configuration for media URL generation
       // Use mediaUrlGenerator from global config if available
       const mediaUrlGenerator = studioConfig.mediaUrlGenerator || {
@@ -2163,15 +2193,17 @@ export class TrokkyRoutes {
           }
         }
       }
-      
+
       const configWithMediaGenerator = {
         ...studioConfig,
+        branding: mergedBranding,
         mediaUrlGenerator,
         media: studioConfig.media || { variants: [] }, // Include media variants for pre-flight checks
       }
 
       this.logger.debug('Serving studio configuration', {
-        title: studioConfig.branding?.title,
+        title: mergedBranding.title,
+        organizationName: mergedBranding.organizationName,
         enabled: studioConfig.enabled,
         hasMediaUrlGenerator: true,
         mediaVariantsCount: studioConfig.media?.variants?.length || 0
@@ -2179,8 +2211,8 @@ export class TrokkyRoutes {
 
       return this.successResponse({ studioConfig: configWithMediaGenerator })
     } catch (error) {
-      this.logger.error('Failed to get studio config', { 
-        error: error instanceof Error ? error.message : String(error) 
+      this.logger.error('Failed to get studio config', {
+        error: error instanceof Error ? error.message : String(error)
       })
       return this.errorResponse(error)
     }
@@ -2264,8 +2296,28 @@ export class TrokkyRoutes {
 
       const newSettings = body.settings as Record<string, any>
 
+      // DEBUG: Log received settings
+      this.logger.info('DEBUG: Received settings update', {
+        newSettings,
+        brandingFields: {
+          organizationName: newSettings.organizationName,
+          primaryColor: newSettings.primaryColor,
+          secondaryColor: newSettings.secondaryColor,
+          logo: newSettings.logo
+        }
+      })
+
       // Get data storage
       const dataStorage = this.core.getDataStorageAdapter()
+
+      // DEBUG: Check what methods are available
+      this.logger.info('DEBUG: Data storage check', {
+        hasDataStorage: !!dataStorage,
+        hasGetSettings: !!dataStorage?.getSettings,
+        hasSaveSettings: !!dataStorage?.saveSettings,
+        adapterType: dataStorage?.constructor?.name
+      })
+
       if (!dataStorage || !dataStorage.getSettings || !dataStorage.saveSettings) {
         return this.errorResponse(new Error('Settings storage not available'), 503)
       }
@@ -2291,11 +2343,26 @@ export class TrokkyRoutes {
         id: 'studio-settings', // Ensure ID is consistent
         publicUrl: newSettings.publicUrl || currentSettings.publicUrl,
         studioTitle: newSettings.studioTitle || currentSettings.studioTitle,
+        organizationName: newSettings.organizationName !== undefined ? newSettings.organizationName : currentSettings.organizationName,
+        primaryColor: newSettings.primaryColor !== undefined ? newSettings.primaryColor : currentSettings.primaryColor,
+        secondaryColor: newSettings.secondaryColor !== undefined ? newSettings.secondaryColor : currentSettings.secondaryColor,
+        logo: newSettings.logo !== undefined ? newSettings.logo : currentSettings.logo,
         defaultTheme: newSettings.defaultTheme || currentSettings.defaultTheme,
         _createdAt: currentSettings._createdAt,
         _updatedAt: new Date().toISOString(),
         _updatedBy: currentUser?.username || 'system'
       }
+
+      // DEBUG: Log merged settings being saved
+      this.logger.info('DEBUG: Saving merged settings', {
+        updatedSettings,
+        brandingFields: {
+          organizationName: updatedSettings.organizationName,
+          primaryColor: updatedSettings.primaryColor,
+          secondaryColor: updatedSettings.secondaryColor,
+          logo: updatedSettings.logo
+        }
+      })
 
       // Save to storage
       await dataStorage.saveSettings(updatedSettings)

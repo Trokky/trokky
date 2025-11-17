@@ -6,6 +6,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { storageService, STORAGE_KEYS } from '@/utils/storage';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 
 interface LoginPageProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -21,13 +22,14 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [backendUrl, setBackendUrl] = useState('');
+  const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
   useEffect(() => {
     // Auto-detect system theme preference
     const detectTheme = () => {
       const savedTheme = localStorage.getItem('theme');
       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      
+
       if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
         document.documentElement.classList.add('dark');
       } else {
@@ -36,6 +38,15 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     };
 
     detectTheme();
+
+    // Fetch branding from API and apply brand colors
+    const loadBranding = async () => {
+      const fetchedBranding = await fetchBranding();
+      setBranding(fetchedBranding);
+      applyBrandColors(fetchedBranding);
+    };
+
+    loadBranding();
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -47,8 +58,8 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     mediaQuery.addEventListener('change', handleThemeChange);
 
     // Check if backend URL is configured via server injection or build time
-    const config = (window as any).TROKKY_CONFIG;
-    const injectedBackendUrl = config?.backendUrl;
+    const windowConfig = (window as any).TROKKY_CONFIG;
+    const injectedBackendUrl = windowConfig?.backendUrl;
     const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL;
     
     if (injectedBackendUrl || buildTimeBackendUrl) {
@@ -116,15 +127,30 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     }));
   };
 
-  // Get branding from config
-  const config = (window as any).TROKKY_CONFIG;
-  const branding = config?.branding || { title: 'Trokky Studio' };
+  // Use fetched branding or fallback
+  const displayBranding = branding || { title: 'Trokky Studio' };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4">
       <div className="w-full max-w-sm">
 
         <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20 p-8 shadow-xl">
+          {/* Branding Header */}
+          <div className="mb-8 text-center">
+            {displayBranding.logo && (
+              <div className="mb-4 flex justify-center">
+                <img
+                  src={displayBranding.logo}
+                  alt={displayBranding.organizationName || displayBranding.title}
+                  className="h-16 w-auto object-contain"
+                />
+              </div>
+            )}
+            <h1 className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+              {displayBranding.organizationName || displayBranding.title}
+            </h1>
+          </div>
+
           {error && (
             <div className="mb-6 p-3 bg-red-50/80 dark:bg-red-900/20 rounded-lg">
               <p className="text-sm text-red-600 dark:text-red-400">
@@ -236,7 +262,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            Trokky Studio
+            {displayBranding.title}
           </p>
         </div>
       </div>

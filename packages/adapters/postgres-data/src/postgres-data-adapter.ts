@@ -1027,6 +1027,84 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
     this.logger.info('✅ All database tables and indexes created successfully')
   }
+
+  /**
+   * Get settings from database
+   */
+  async getSettings(): Promise<SettingsConfig | null> {
+    try {
+      const result = await this.pool.query(
+        `SELECT * FROM ${this.config.tablePrefix}settings WHERE id = $1`,
+        ['studio-settings']
+      )
+
+      if (result.rows.length === 0) {
+        return null
+      }
+
+      const row = result.rows[0] as SettingsRow
+      return {
+        id: row.id,
+        publicUrl: row.public_url,
+        studioTitle: row.studio_title,
+        organizationName: row.config?.organizationName,
+        primaryColor: row.config?.primaryColor,
+        secondaryColor: row.config?.secondaryColor,
+        logo: row.config?.logo,
+        defaultTheme: row.default_theme as 'light' | 'dark' | 'system',
+        _createdAt: row.created_at.toISOString(),
+        _updatedAt: row.updated_at.toISOString(),
+        _updatedBy: row.updated_by
+      }
+    } catch (error) {
+      this.logger.error('Failed to get settings', { error })
+      throw error
+    }
+  }
+
+  /**
+   * Save settings to database
+   */
+  async saveSettings(settings: SettingsConfig): Promise<void> {
+    try {
+      // Extract branding fields for config JSONB
+      const config = {
+        organizationName: settings.organizationName,
+        primaryColor: settings.primaryColor,
+        secondaryColor: settings.secondaryColor,
+        logo: settings.logo
+      }
+
+      await this.query(
+        `INSERT INTO ${this.tableName('settings')}
+          (id, public_url, studio_title, default_theme, config, created_at, updated_at, updated_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (id)
+        DO UPDATE SET
+          public_url = EXCLUDED.public_url,
+          studio_title = EXCLUDED.studio_title,
+          default_theme = EXCLUDED.default_theme,
+          config = EXCLUDED.config,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by`,
+        [
+          settings.id || 'studio-settings',
+          settings.publicUrl,
+          settings.studioTitle,
+          settings.defaultTheme,
+          JSON.stringify(config),
+          settings._createdAt || new Date().toISOString(),
+          settings._updatedAt || new Date().toISOString(),
+          settings._updatedBy || 'system'
+        ]
+      )
+
+      this.logger.info('Settings saved successfully', { id: settings.id, config })
+    } catch (error) {
+      this.logger.error('Failed to save settings', { error })
+      throw error
+    }
+  }
 }
 
 /**

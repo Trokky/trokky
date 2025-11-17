@@ -4,23 +4,34 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
-  // Ensure dark mode is applied on mount
   useEffect(() => {
-    const savedTheme = localStorage.getItem('trokky_theme');
+    // Auto-detect system theme preference
+    const savedTheme = localStorage.getItem('theme');
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-    if (savedTheme === 'dark' || (savedTheme === 'system' && systemPrefersDark) || (!savedTheme && systemPrefersDark)) {
+    if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    // Fetch branding from API and apply brand colors
+    const loadBranding = async () => {
+      const fetchedBranding = await fetchBranding();
+      setBranding(fetchedBranding);
+      applyBrandColors(fetchedBranding);
+    };
+
+    loadBranding();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,9 +54,8 @@ export function ForgotPasswordPage() {
     }
   };
 
-  // Get branding from config
-  const config = (window as any).TROKKY_CONFIG;
-  const branding = config?.branding || { title: 'Trokky Studio' };
+  // Use fetched branding or fallback
+  const displayBranding = branding || { title: 'Trokky Studio' };
 
   if (isSubmitted) {
     return (
@@ -56,7 +66,7 @@ export function ForgotPasswordPage() {
               <div className="flex justify-center mb-4">
                 <CheckCircleIcon className="h-16 w-16 text-green-500 dark:text-green-400" />
               </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
+              <h2 className="text-2xl font-semibold text-primary-600 dark:text-primary-400 mb-3">
                 Check your email
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
@@ -76,7 +86,7 @@ export function ForgotPasswordPage() {
 
           <div className="mt-8 text-center">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              {branding.title}
+              {displayBranding.title}
             </p>
           </div>
         </div>
@@ -98,7 +108,7 @@ export function ForgotPasswordPage() {
             </a>
           </div>
 
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+          <h2 className="text-2xl font-semibold text-primary-600 dark:text-primary-400 mb-2">
             Forgot password?
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-8">
@@ -147,7 +157,7 @@ export function ForgotPasswordPage() {
 
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            {branding.title}
+            {displayBranding.title}
           </p>
         </div>
       </div>
