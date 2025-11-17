@@ -13,6 +13,8 @@ Enhanced Studio branding system with configurable organization name, colors, and
 - **Changed** `/api/config/studio` endpoint to be public (no authentication required)
 - **Added** branding merge logic from database settings
 - **Added** support for saving branding fields via `/api/config/settings`
+- **Enhanced** `/api/config/structure` endpoint to enrich documentList items with schema titles
+- **Added** `enrichStructureWithSchemaInfo()` method to add `schemaTitle` field to documentList items
 - **Location**: `packages/routes/src/routes.ts`
 
 ### @trokky/adapter-postgres-data - PATCH bump (bug fixes/improvements)
@@ -53,6 +55,7 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Use branding from StudioContext
   - Display organization name instead of default "Trokky Studio"
   - Show custom logo when configured
+  - Create menu now displays schema titles (e.g., "Service") instead of structure titles (e.g., "Liste des Services")
 - **Added** `useStudioBranding.ts` hook:
   - Convenience hook for accessing branding from StudioContext
 - **Enhanced** `useDocumentTitle.ts`:
@@ -81,6 +84,9 @@ No migration required. Existing installations will continue to work with default
 - ✅ Branding distributed throughout app via StudioContext
 - ✅ Real-time branding updates when settings change
 - ✅ All UI elements using primary/secondary Tailwind classes reflect brand colors
+- ✅ Create menu displays schema titles (e.g., "Service", "some schemas") instead of structure titles
+- ✅ Create menu only shows documentList items (collections), not singletons
+- ✅ Structure API enriches documentList items with `schemaTitle` field
 - ✅ Tested with npm link in a production site-trokky project
 
 ## Database Changes

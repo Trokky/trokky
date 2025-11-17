@@ -2121,18 +2121,52 @@ export class TrokkyRoutes {
         structure = await this.buildDefaultStructure(user, schemas)
       }
       
-      this.logger.debug('Generated dynamic structure', { 
+      this.logger.debug('Generated dynamic structure', {
         title: structure.title,
         itemsCount: structure.items?.length || 0,
-        userId: user?.id 
+        userId: user?.id
       })
 
-      return this.successResponse({ structure })
+      // Enrich structure items with schema titles for better Create menu display
+      const enrichedStructure = this.enrichStructureWithSchemaInfo(structure, schemas)
+
+      return this.successResponse({ structure: enrichedStructure })
     } catch (error) {
       this.logger.error('Failed to get structure', { 
         error: error instanceof Error ? error.message : String(error) 
       })
       return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Enrich structure items with schema information
+   * Adds schemaTitle field to documentList items for better Create menu display
+   */
+  private enrichStructureWithSchemaInfo(structure: any, schemas: any[]): any {
+    const schemaMap = new Map(schemas.map(s => [s.name, s]))
+
+    const enrichItems = (items: any[]): any[] => {
+      return items.map(item => {
+        if (item.type === 'documentList' && item.schemaType) {
+          const schema = schemaMap.get(item.schemaType)
+          return {
+            ...item,
+            schemaTitle: schema?.title || item.schemaType
+          }
+        } else if (item.type === 'group' && item.items) {
+          return {
+            ...item,
+            items: enrichItems(item.items)
+          }
+        }
+        return item
+      })
+    }
+
+    return {
+      ...structure,
+      items: enrichItems(structure.items || [])
     }
   }
 

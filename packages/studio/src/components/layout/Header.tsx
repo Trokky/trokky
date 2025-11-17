@@ -190,7 +190,7 @@ export function Header({
                       >
                         <PlusIcon className="h-4 w-4 mr-2 text-gray-400" />
                         <div className="flex-1 text-left">
-                          <div className="font-medium">{docType.title}</div>
+                          <div className="font-medium">{docType.schemaTitle || docType.title}</div>
                           {docType.description && (
                             <div className="text-xs text-gray-500 dark:text-gray-400">{docType.description}</div>
                           )}
