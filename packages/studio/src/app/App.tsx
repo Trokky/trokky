@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
@@ -13,6 +13,7 @@ import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
 import { StudioContextProvider } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import '@/utils/debug'; // Load debug utilities
 
 // Create a client
@@ -91,17 +92,50 @@ function AppContent() {
 }
 
 export function App() {
+  const [branding, setBranding] = useState<BrandingConfig | null>(null);
+
   useEffect(() => {
     // Initialize API client synchronously - config is already available
     apiClient.initialize();
     const logger = createStudioLogger('App');
     logger.info('Trokky Studio started');
+
+    // Load and apply branding globally
+    const loadBranding = async () => {
+      const fetchedBranding = await fetchBranding();
+      setBranding(fetchedBranding);
+      applyBrandColors(fetchedBranding);
+    };
+
+    loadBranding();
+
+    // Listen for settings updates to refresh branding
+    const handleSettingsUpdate = async (event: CustomEvent) => {
+      const settings = event.detail?.settings;
+      if (settings) {
+        const updatedBranding: BrandingConfig = {
+          title: settings.studioTitle,
+          organizationName: settings.organizationName,
+          primaryColor: settings.primaryColor,
+          secondaryColor: settings.secondaryColor,
+          logo: settings.logo
+        };
+        setBranding(updatedBranding);
+        applyBrandColors(updatedBranding);
+      }
+    };
+
+    window.addEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+    };
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StudioContextProvider>
+        <StudioContextProvider branding={branding}>
           <div className="App">
             <AppContent />
           </div>

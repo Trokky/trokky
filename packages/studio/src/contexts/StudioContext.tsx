@@ -16,11 +16,13 @@ import { createStudioLogger } from '@/utils/logger'
 import type { StudioContext } from '@trokky/fields'
 import type { MediaBrowserConfig } from '@trokky/types/media'
 import { MediaBrowser } from '@/components/MediaBrowser'
+import type { BrandingConfig } from '@/utils/branding'
 
 const StudioContextInstance = createContext<StudioContext | null>(null)
 
 interface StudioContextProviderProps {
   children: React.ReactNode
+  branding?: BrandingConfig | null
 }
 
 // Simple event emitter for inter-field communication
@@ -98,6 +100,7 @@ const fieldEventBus = new FieldEventBus()
 
 export function StudioContextProvider({
   children,
+  branding,
 }: StudioContextProviderProps) {
   // Create a dedicated logger for field components
   const fieldLogger = useMemo(() => createStudioLogger('Fields'), [])
@@ -344,6 +347,9 @@ export function StudioContextProvider({
 
       // Media URL generator for field components
       mediaUrlGenerator,
+
+      // Branding configuration
+      branding: branding || undefined,
     }
   }, [
     showToast,
@@ -353,6 +359,7 @@ export function StudioContextProvider({
     showMediaBrowser,
     fieldLogger,
     mediaUrlGenerator,
+    branding,
   ])
 
   return (

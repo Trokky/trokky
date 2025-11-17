@@ -20,7 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
-import { useStudioBranding } from '@/hooks/useStudioConfig';
+import { useStudioContext } from '@/contexts/StudioContext';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { useGlobalSearch } from '@/hooks/useSearch';
 import { SimpleSearchModal } from '@/components/SimpleSearchModal';
@@ -48,13 +48,14 @@ export function Header({
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-  
+
   // Get available document types for create dropdown (excluding singletons)
   const { documentTypes, loading: typesLoading } = useDocumentTypes();
-  
 
-  // Get branding from API or fallback to window config
-  const { branding } = useStudioBranding();
+
+  // Get branding from StudioContext
+  const studioContext = useStudioContext();
+  const branding = studioContext?.branding || { title: 'Trokky Studio' };
 
   // Global search functionality
   const { isOpen: searchOpen, openSearch, closeSearch } = useGlobalSearch();
@@ -125,7 +126,7 @@ export function Header({
             )}
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {branding.title}
+                {branding.organizationName || branding.title}
               </h1>
             </div>
           </Link>
