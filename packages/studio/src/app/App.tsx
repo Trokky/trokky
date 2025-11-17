@@ -105,6 +105,11 @@ export function App() {
       const fetchedBranding = await fetchBranding();
       setBranding(fetchedBranding);
       applyBrandColors(fetchedBranding);
+
+      // Update document title immediately
+      if (fetchedBranding.title) {
+        document.title = fetchedBranding.title;
+      }
     };
 
     loadBranding();
@@ -122,6 +127,11 @@ export function App() {
         };
         setBranding(updatedBranding);
         applyBrandColors(updatedBranding);
+
+        // Update document title
+        if (updatedBranding.title) {
+          document.title = updatedBranding.title;
+        }
       }
     };
 

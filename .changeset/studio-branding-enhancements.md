@@ -45,6 +45,7 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Apply CSS custom properties for dynamic theming
   - Listen for settings updates to refresh branding in real-time
   - Pass branding to StudioContextProvider
+  - Update document title immediately when branding loads (fixes inconsistent title on login page)
 - **Enhanced** `StudioContext.tsx`:
   - Accept branding prop and distribute through context
   - Make branding available to all Studio components
@@ -54,6 +55,10 @@ Enhanced Studio branding system with configurable organization name, colors, and
   - Show custom logo when configured
 - **Added** `useStudioBranding.ts` hook:
   - Convenience hook for accessing branding from StudioContext
+- **Enhanced** `useDocumentTitle.ts`:
+  - Simplified to use branding.title directly from API (already merged with correct priority on backend)
+  - Removed redundant authentication checks and fallback logic
+  - Consistent document title across login and authenticated states
 
 ## Breaking Changes
 None. All changes are backward compatible with fallback to default branding.
