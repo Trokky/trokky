@@ -15,6 +15,12 @@ Enhanced Studio branding system with configurable organization name, colors, and
 - **Added** support for saving branding fields via `/api/config/settings`
 - **Enhanced** `/api/config/structure` endpoint to enrich documentList items with schema titles
 - **Added** `enrichStructureWithSchemaInfo()` method to add `schemaTitle` field to documentList items
+- **Fixed** `/api/auth/change-password` endpoint - now properly authenticates and populates `request.user`
+- **Enhanced** `validateAuthentication()` method to decode JWT token and populate `request.user` from session data
+  - Uses `core.verifyAnyToken()` to validate and decode token in single operation
+  - Populates `request.user` with `{id, username, role}` from session
+  - Makes all protected routes have consistent access to authenticated user data
+  - Backward compatible - purely additive enhancement
 - **Location**: `packages/routes/src/routes.ts`
 
 ### @trokky/adapter-postgres-data - PATCH bump (bug fixes/improvements)
@@ -91,6 +97,7 @@ No migration required. Existing installations will continue to work with default
 - ✅ Branding loads on login page before authentication
 - ✅ Colors apply correctly via CSS custom properties
 - ✅ Forgot password page uses brand colors
+- ✅ Forgot password email sends successfully with reset link
 - ✅ Settings page displays color pickers and logo preview
 - ✅ Header displays organization name and custom logo
 - ✅ Branding distributed throughout app via StudioContext
@@ -105,6 +112,8 @@ No migration required. Existing installations will continue to work with default
 - ✅ Groups auto-expand when containing active page
 - ✅ Groups auto-expand when search matches children
 - ✅ Clear search button works correctly
+- ✅ Change password authentication fixed - no more 401 errors
+- ✅ Password changed email notification sent automatically (when mail layer enabled)
 - ✅ Tested with npm link in a production site-trokky project
 
 ## Database Changes

@@ -284,10 +284,10 @@ export class TrokkyRoutes {
 
     const headerName = auth.headerName || 'Authorization'
     // Case-insensitive header lookup for framework compatibility
-    const authHeader = request.headers[headerName] || 
+    const authHeader = request.headers[headerName] ||
                       request.headers[headerName.toLowerCase()] ||
                       request.headers['authorization']
-    
+
     if (!authHeader) {
       throw new InvalidInputError('Missing authentication token', 'authorization')
     }
@@ -299,13 +299,20 @@ export class TrokkyRoutes {
 
     // Extract token from Bearer format
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token
-    
-    if (auth.validateToken) {
-      const isValid = await auth.validateToken(cleanToken)
-      if (!isValid) {
-        throw new InvalidInputError('Invalid authentication credentials', 'authorization')
-      }
+
+    // Verify token and get session using TrokkyCore's unified method
+    const session = await this.core.verifyAnyToken(cleanToken)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
+
+    // Populate request.user for handler compatibility
+    // Type assertion: partial user data from session (email/other fields fetched by handler if needed)
+    request.user = {
+      id: session.userId,
+      username: session.username,
+      role: session.role
+    } as any
   }
 
   // Media validation helper
@@ -3424,6 +3431,9 @@ export class TrokkyRoutes {
    * POST /auth/change-password
    */
   private async changePassword(request: HttpRequest): Promise<HttpResponse> {
+    // SECURITY: Validate authentication and populate request.user
+    await this.validateAuthentication(request)
+
     // Import change password handler dynamically
     const { changePassword: handler } = await import('./auth/change-password.js')
     return handler(request, this.core)
