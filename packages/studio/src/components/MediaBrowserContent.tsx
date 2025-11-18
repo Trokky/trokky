@@ -477,7 +477,7 @@ export function MediaBrowserContent({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Search Bar - Only show in grid view */}
       {viewMode === 'grid' && (
         <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-600">
@@ -525,11 +525,11 @@ export function MediaBrowserContent({
           </div>
 
           {/* MediaPage-style Viewer Content */}
-          <div className="flex-1 flex">
+          <div className="flex-1 flex flex-col md:flex-row overflow-y-auto">
             {/* Left section: Media preview + variants */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-h-0">
               {/* Media preview */}
-              <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
+              <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 min-h-[200px]">
                 {(() => {
                   const mediaType = getMediaTypeFromMime(
                     selectedMedia.contentType
@@ -756,83 +756,58 @@ export function MediaBrowserContent({
             </div>
 
             {/* Right sidebar: File Details */}
-            <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
-              {/* File Details Section */}
-              <div className="p-6 flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="w-full md:w-64 bg-white dark:bg-gray-800 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0">
+              {/* File Details Section - Compact on mobile */}
+              <div className="p-3 md:p-4 flex-1">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                   File Details
                 </h3>
-                <dl className="space-y-4">
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                <dl className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <dt className="font-medium text-gray-500 dark:text-gray-400">
                       Filename
                     </dt>
-                    <dd className="text-sm text-gray-900 dark:text-white break-words">
+                    <dd className="text-gray-900 dark:text-white truncate ml-2 max-w-[150px]" title={selectedMedia.filename}>
                       {selectedMedia.filename}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <div className="flex justify-between">
+                    <dt className="font-medium text-gray-500 dark:text-gray-400">
                       Size
                     </dt>
-                    <dd className="text-sm text-gray-900 dark:text-white">
+                    <dd className="text-gray-900 dark:text-white">
                       {formatFileSize(selectedMedia.size)} MB
                     </dd>
                   </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <div className="flex justify-between">
+                    <dt className="font-medium text-gray-500 dark:text-gray-400">
                       Type
                     </dt>
-                    <dd className="text-sm text-gray-900 dark:text-white">
-                      {selectedMedia.contentType}
+                    <dd className="text-gray-900 dark:text-white truncate ml-2 max-w-[100px]" title={selectedMedia.contentType}>
+                      {selectedMedia.contentType.split('/')[1] || selectedMedia.contentType}
                     </dd>
                   </div>
                   {selectedMedia.metadata?.width &&
                     selectedMedia.metadata?.height && (
-                      <div>
-                        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between">
+                        <dt className="font-medium text-gray-500 dark:text-gray-400">
                           Dimensions
                         </dt>
-                        <dd className="text-sm text-gray-900 dark:text-white">
-                          {selectedMedia.metadata.width} ×{' '}
-                          {selectedMedia.metadata.height}
+                        <dd className="text-gray-900 dark:text-white">
+                          {selectedMedia.metadata.width} × {selectedMedia.metadata.height}
                         </dd>
                       </div>
                     )}
-                  {selectedMedia.metadata?.title && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Title
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedMedia.metadata.title}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedMedia.metadata?.author && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Author
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedMedia.metadata.author}
-                      </dd>
-                    </div>
-                  )}
                 </dl>
               </div>
 
-              {/* Select Button - Aligned with variants section at bottom */}
+              {/* Select Button */}
               <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
                 <button
                   onClick={handleSelect}
-                  className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                 >
-                  Select{' '}
-                  {selectedVariant === 'original'
-                    ? 'Original'
-                    : selectedVariant.charAt(0).toUpperCase() +
-                      selectedVariant.slice(1)}
+                  Select {selectedVariant === 'original' ? 'Original' : selectedVariant}
                 </button>
               </div>
             </div>

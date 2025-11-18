@@ -22,7 +22,7 @@ const CustomModal = ({ isOpen, onClose, title, children }: any) => {
         />
         
         {/* Modal content */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-[calc(100vh-2rem)] sm:h-[calc(100vh-4rem)] md:h-[85vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
           {title && (
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex-1">
