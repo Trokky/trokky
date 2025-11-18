@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { storageService, STORAGE_KEYS } from '@/utils/storage';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 
 interface LoginPageProps {
@@ -23,6 +23,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [backendUrl, setBackendUrl] = useState('');
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     // Auto-detect system theme preference
@@ -175,17 +176,30 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 />
               </div>
 
-              <div>
+              <div className="relative">
                 <Input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={credentials.password}
                   onChange={handleInputChange('password')}
                   placeholder="Password"
                   required
                   disabled={isLoading}
                   autoComplete="current-password"
-                  className="w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 rounded-none px-4 py-3 text-base placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-0 transition-colors"
+                  className="w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 rounded-none px-4 py-3 pr-12 text-base placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-0 transition-colors"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
               </div>
             </div>
 
