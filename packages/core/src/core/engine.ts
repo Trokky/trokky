@@ -1623,14 +1623,15 @@ export class TrokkyCore {
   }
 
   // JWT Token Management
-  public async generateAuthToken(user: User, expiresIn: string = '24h'): Promise<string> {
-    const payload: Omit<UserSession, 'loginAt' | 'expiresAt'> = {
+  public async generateAuthToken(user: User, expiresIn: string = '24h', rememberMe?: boolean): Promise<string> {
+    const payload: Omit<UserSession, 'loginAt' | 'expiresAt'> & { rememberMe?: boolean } = {
       userId: user.id,
       username: user.username,
       role: user.role,
-      permissions: user.permissions
+      permissions: user.permissions,
+      rememberMe: rememberMe // Store rememberMe flag in JWT payload
     }
-    
+
     return await this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn })
   }
 
@@ -1719,12 +1720,17 @@ export class TrokkyCore {
       // Update last login time
       await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
 
-      // Generate tokens - different expiry times based on rememberMe
-      const tokenExpiresIn = options.rememberMe ? '7d' : '2h' // 2 hours for normal sessions
-      const refreshTokenExpiresIn = options.rememberMe ? '30d' : '7d' // 7 days for refresh tokens
-      
-      const token = await this.generateAuthToken(user, tokenExpiresIn)
-      const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn)
+      // Generate tokens - use config TTLs if available, otherwise fallback to defaults
+      const securityConfig = this.config.security?.tokens
+      const tokenExpiresIn = options.rememberMe
+        ? (securityConfig?.rememberMeTtl || '7d')
+        : (securityConfig?.accessTokenTtl || '2h')
+      const refreshTokenExpiresIn = options.rememberMe
+        ? '30d' // Refresh token for rememberMe is always long-lived
+        : (securityConfig?.refreshTokenTtl || '7d')
+
+      const token = await this.generateAuthToken(user, tokenExpiresIn, options.rememberMe)
+      const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, options.rememberMe)
 
       // Log successful login
       this.logAuditEvent({
@@ -1768,10 +1774,22 @@ export class TrokkyCore {
         return null
       }
 
-      // Generate new tokens with consistent expiration times
-      const newToken = await this.generateAuthToken(user, '2h') // Match login token expiry
-      const newRefreshToken = await this.generateAuthToken(user, '7d') // Match refresh token expiry
-      
+      // Extract rememberMe flag from the refresh token payload
+      const decoded = await this.cryptoAdapter.verifyJWT(refreshToken, this.jwtSecret)
+      const rememberMe = decoded?.rememberMe === true
+
+      // Generate new tokens preserving the rememberMe state
+      const securityConfig = this.config.security?.tokens
+      const tokenExpiresIn = rememberMe
+        ? (securityConfig?.rememberMeTtl || '7d')
+        : (securityConfig?.accessTokenTtl || '2h')
+      const refreshTokenExpiresIn = rememberMe
+        ? '30d'
+        : (securityConfig?.refreshTokenTtl || '7d')
+
+      const newToken = await this.generateAuthToken(user, tokenExpiresIn, rememberMe)
+      const newRefreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, rememberMe)
+
       // Get the new token's expiration time
       const newSession = await this.verifyAuthToken(newToken)
       const expiresAt = newSession?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()

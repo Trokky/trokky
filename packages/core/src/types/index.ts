@@ -358,6 +358,11 @@ export interface TrokkyConfig {
   security?: {
     validateInput?: boolean
     rateLimitEnabled?: boolean
+    tokens?: {
+      accessTokenTtl?: string
+      refreshTokenTtl?: string
+      rememberMeTtl?: string
+    }
   }
   // Mail configuration
   mail?: import('./mail.js').MailConfig

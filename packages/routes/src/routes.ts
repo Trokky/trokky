@@ -2235,11 +2235,20 @@ export class TrokkyRoutes {
         }
       }
 
+      // Convert session config to match Studio expectations (camelCase with Ms suffix)
+      const sessionConfig = studioConfig.session ? {
+        refreshBufferMs: studioConfig.session.refreshBuffer,
+        warningBufferMs: studioConfig.session.warningBuffer,
+        checkIntervalMs: studioConfig.session.checkInterval,
+        inactivityTimeoutMs: studioConfig.session.inactivityTimeout,
+      } : undefined
+
       const configWithMediaGenerator = {
         ...studioConfig,
         branding: mergedBranding,
         mediaUrlGenerator,
         media: studioConfig.media || { variants: [] }, // Include media variants for pre-flight checks
+        sessionConfig, // Add session config for Studio's useAuth hook
       }
 
       this.logger.debug('Serving studio configuration', {
@@ -2247,7 +2256,8 @@ export class TrokkyRoutes {
         organizationName: mergedBranding.organizationName,
         enabled: studioConfig.enabled,
         hasMediaUrlGenerator: true,
-        mediaVariantsCount: studioConfig.media?.variants?.length || 0
+        mediaVariantsCount: studioConfig.media?.variants?.length || 0,
+        hasSessionConfig: !!sessionConfig
       })
 
       return this.successResponse({ studioConfig: configWithMediaGenerator })
