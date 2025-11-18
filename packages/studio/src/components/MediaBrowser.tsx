@@ -22,9 +22,9 @@ const CustomModal = ({ isOpen, onClose, title, children }: any) => {
         />
         
         {/* Modal content */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
           {title && (
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex-1">
                 {title}
               </div>
@@ -39,7 +39,7 @@ const CustomModal = ({ isOpen, onClose, title, children }: any) => {
               </button>
             </div>
           )}
-          <div className="flex-1 overflow-hidden">{children}</div>
+          <div className="flex-1 overflow-hidden min-h-0">{children}</div>
         </div>
       </div>
     </div>
@@ -102,8 +102,8 @@ export function MediaBrowser({
       onClose={onClose}
       title={
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Browse Media</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Browse Media</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {modalTitle}
           </p>
         </div>

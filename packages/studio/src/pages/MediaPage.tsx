@@ -98,6 +98,11 @@ export function MediaPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24; // Show 24 items per page (good for various grid sizes)
+
   const { hasPermission } = usePermissions();
   const canRead = hasPermission(MEDIA_PERMISSIONS.READ);
   const canUpload = hasPermission(MEDIA_PERMISSIONS.UPLOAD);
@@ -258,7 +263,15 @@ export function MediaPage() {
     }
 
     setFilteredFiles(filtered);
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
   }, [mediaFiles, selectedType, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredFiles.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
 
   // Load files on mount
   useEffect(() => {
@@ -994,13 +1007,47 @@ export function MediaPage() {
               )}
             </div>
           ) : (
-            <div className={
-              viewMode === 'grid'
-                ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4'
-                : 'space-y-2'
-            }>
-              {filteredFiles.map(renderMediaItem)}
-            </div>
+            <>
+              <div className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4'
+                  : 'space-y-2'
+              }>
+                {paginatedFiles.map(renderMediaItem)}
+              </div>
+
+              {/* Pagination Controls */}
+              {filteredFiles.length > itemsPerPage && (
+                <div className="mt-6 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredFiles.length)} of {filteredFiles.length} files
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeftIcon className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-600 dark:text-gray-300 px-3">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRightIcon className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -9,52 +9,72 @@ import type { MediaFieldDefinition } from './definition'
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types'
 import { MEDIA_FIELD_DEFAULTS } from './definition'
 
-// TODO: Add proper icon imports when Studio icons are available
-// Using placeholder icons for now
-const PhotoIcon = ({ className }: { className?: string }) => (
-  <div className={className}>📷</div>
-)
+// Heroicons imports - using icons that are available
+import {
+  PhotoIcon,
+  XMarkIcon,
+  EyeIcon,
+} from '@heroicons/react/24/outline'
+
+// Custom SVG icons for compatibility
 const DocumentIcon = ({ className }: { className?: string }) => (
-  <div className={className}>📄</div>
-)
-const VideoCameraIcon = ({ className }: { className?: string }) => (
-  <div className={className}>🎥</div>
-)
-const SpeakerWaveIcon = ({ className }: { className?: string }) => (
-  <div className={className}>🔊</div>
-)
-const ArchiveBoxIcon = ({ className }: { className?: string }) => (
-  <div className={className}>📦</div>
-)
-const PlusIcon = ({ className }: { className?: string }) => (
-  <div className={className}>➕</div>
-)
-const XMarkIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M6 18L18 6M6 6l12 12"
-    />
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
   </svg>
 )
-const EyeIcon = ({ className }: { className?: string }) => (
-  <div className={className}>👁️</div>
+
+const VideoCameraIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
 )
+
+const SpeakerWaveIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+  </svg>
+)
+
+const ArchiveBoxIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+  </svg>
+)
+
+const PlusIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+)
+
 const PencilIcon = ({ className }: { className?: string }) => (
-  <div className={className}>✏️</div>
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
 )
+
 const CloudArrowUpIcon = ({ className }: { className?: string }) => (
-  <div className={className}>☁️</div>
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+  </svg>
 )
-const FolderOpenIcon = ({ className }: { className?: string }) => (
-  <div className={className}>📁</div>
+
+const FolderIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+  </svg>
+)
+
+const ChevronDownIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+)
+
+const ChevronRightIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
 )
 
 type MediaFieldComponentProps = FieldComponentProps
@@ -85,6 +105,18 @@ function getMediaTypeFromMime(mimeType: string | undefined | null): MediaType {
   )
     return 'document'
   return 'archive'
+}
+
+// Get human-readable media type label
+function getMediaTypeLabel(mediaType: MediaType): string {
+  const labels: Record<MediaType, string> = {
+    image: 'Image',
+    video: 'Video',
+    audio: 'Audio',
+    document: 'Document',
+    archive: 'Archive',
+  }
+  return labels[mediaType] || 'Media'
 }
 
 // Format file size for display
@@ -145,6 +177,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null)
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null)
+  const [isMetadataExpanded, setIsMetadataExpanded] = useState(false) // Collapsed by default
 
   // Debug Studio context availability using Studio logger
   if (studioContext?.logger) {
@@ -500,27 +533,49 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     return asset?.url || ''
   }, [currentAsset, studioContext])
 
-  // Render compact button for empty state
-  const renderCompactButton = () => (
-    <button
-      type="button"
-      onClick={() => setShowUploadDialog(true)}
-      disabled={isDisabled || isReadonly}
-      className={`
-        w-full px-4 py-2.5 border rounded-md text-left hover:bg-gray-50 dark:hover:bg-gray-800
-        flex items-center gap-2 transition-colors
-        ${hasError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'}
-        ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
-    >
-      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-      <span className="text-sm text-gray-700 dark:text-gray-300">
-        {options.placeholder || 'Select image'}
-      </span>
-    </button>
-  )
+  // Render compact button for empty state - matches the filled state style
+  const renderCompactButton = () => {
+    // Get the appropriate icon based on media type restriction
+    const mediaType = validation.restrictToMediaType || 'image'
+    const IconComponent = MEDIA_TYPE_ICONS[mediaType] || PhotoIcon
+    const typeLabel = getMediaTypeLabel(mediaType)
+
+    return (
+      <div
+        className={`
+          border rounded-lg bg-white dark:bg-gray-800 overflow-hidden transition-colors
+          ${hasError ? 'border-red-300 dark:border-red-600' : 'border-gray-200 dark:border-gray-700'}
+          ${isDisabled || isReadonly ? 'opacity-50' : ''}
+        `}
+      >
+        <button
+          type="button"
+          onClick={() => setShowUploadDialog(true)}
+          disabled={isDisabled || isReadonly}
+          className={`
+            w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
+            ${isDisabled || isReadonly ? 'cursor-not-allowed' : 'cursor-pointer'}
+          `}
+        >
+          {/* Thumbnail placeholder */}
+          <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+            <IconComponent className="w-6 h-6 text-gray-400" />
+          </div>
+
+          {/* Text content */}
+          <div className="flex-1 text-left min-w-0">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {options.placeholder || `Select ${typeLabel.toLowerCase()}`}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Click to upload or browse
+            </p>
+          </div>
+
+        </button>
+      </div>
+    )
+  }
 
   // Render upload dialog (modal)
   const renderUploadDialog = () => {
@@ -531,7 +586,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {validation.restrictToMediaType ? `Upload ${validation.restrictToMediaType}` : 'Upload media'}
+              {validation.restrictToMediaType ? `Add ${validation.restrictToMediaType}` : 'Add media'}
             </h3>
             <button
               type="button"
@@ -620,7 +675,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                           handleBrowseClick()
                         }}
                       >
-                        <FolderOpenIcon className="w-4 h-4 mr-1" />
+                        <FolderIcon className="w-4 h-4 mr-1" />
                         Browse
                       </button>
                     )}
@@ -752,7 +807,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               )}
             </h4>
             <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
-              {truncateText(asset?.filename || 'Unknown', 35)} • {asset ? formatFileSize(asset.size) : 'Unknown'}
+              {getMediaTypeLabel(mediaType)} • {truncateText(asset?.filename || 'Unknown', 30)} • {asset ? formatFileSize(asset.size) : 'Unknown'}
             </p>
           </div>
 
@@ -783,12 +838,29 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
         {/* Instance metadata editor */}
         {options.showMetadata && (
-          <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-gray-600">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Alt text{' '}
-                {options.requireAlt && <span className="text-red-500">*</span>}
-              </label>
+          <div className="pt-6 border-t border-gray-200 dark:border-gray-600">
+            {/* Collapsible header */}
+            <button
+              type="button"
+              onClick={() => setIsMetadataExpanded(!isMetadataExpanded)}
+              className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-3"
+            >
+              <span>Media Details</span>
+              {isMetadataExpanded ? (
+                <ChevronDownIcon className="h-4 w-4" />
+              ) : (
+                <ChevronRightIcon className="h-4 w-4" />
+              )}
+            </button>
+
+            {/* Collapsible content */}
+            {isMetadataExpanded && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Alt text{' '}
+                    {options.requireAlt && <span className="text-red-500">*</span>}
+                  </label>
               <input
                 type="text"
                 value={value?.alt || ''}
@@ -841,7 +913,9 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                 title={asset?.title || asset?.filename || 'Asset title'}
                 disabled={isDisabled || isReadonly}
               />
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

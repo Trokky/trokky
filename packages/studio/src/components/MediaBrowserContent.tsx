@@ -282,6 +282,10 @@ export function MediaBrowserContent({
   const [selectedVariant, setSelectedVariant] = useState<string>('original')
   const [viewMode, setViewMode] = useState<'grid' | 'single'>('grid')
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20 // Show 20 items per page (4 rows of 5)
+
   // Cross-platform development check
   const isDevelopment =
     typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true
@@ -440,6 +444,17 @@ export function MediaBrowserContent({
     )
   })
 
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, mediaTypeFilter])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredMedia.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedMedia = filteredMedia.slice(startIndex, endIndex)
+
   const handleSelect = () => {
     if (selectedMedia) {
       // Create MediaFieldValue
@@ -465,15 +480,15 @@ export function MediaBrowserContent({
     <div className="flex flex-col h-full">
       {/* Search Bar - Only show in grid view */}
       {viewMode === 'grid' && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-600">
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-600">
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by filename, title, author, or description..."
+              placeholder="Search media..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -992,21 +1007,21 @@ export function MediaBrowserContent({
             )}
 
           {/* Media Grid */}
-          <div className="flex-1 overflow-y-auto p-4 max-h-[600px]">
+          <div className="flex-1 overflow-y-auto p-3 min-h-0">
             {isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="flex items-center justify-center h-48">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
             ) : filteredMedia.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3">
-                {filteredMedia.map(media => (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                {paginatedMedia.map(media => (
                   <div
                     key={media.id}
-                    className={`relative cursor-pointer rounded-xl border transition-all duration-200 group overflow-hidden ${
+                    className={`relative cursor-pointer rounded-lg border transition-all duration-150 group overflow-hidden ${
                       selectedMedia?.id === media.id
-                        ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/50 shadow-lg transform scale-[1.02]'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md hover:transform hover:scale-[1.01]'
-                    } bg-white dark:bg-gray-800 shadow-sm`}
+                        ? 'border-blue-500 ring-1 ring-blue-200 dark:ring-blue-900/50 shadow-md'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
+                    } bg-white dark:bg-gray-800`}
                     onClick={() => {
                       const mediaType = getMediaTypeFromMime(media.contentType)
 
@@ -1032,14 +1047,14 @@ export function MediaBrowserContent({
                       }
                     }}
                   >
-                    <div className="aspect-square relative overflow-hidden">
+                    <div className="h-20 relative overflow-hidden bg-gray-50 dark:bg-gray-900">
                       {/* Variant count badge */}
                       {(() => {
                         const variantCount = media.metadata?.imageVariants
                           ? Object.keys(media.metadata.imageVariants).length
                           : 0
                         return variantCount > 0 ? (
-                          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full z-10 font-medium shadow-sm">
+                          <div className="absolute top-1 right-1 bg-blue-600 text-white text-[10px] px-1 py-0.5 rounded-full z-10 font-medium">
                             {variantCount}
                           </div>
                         ) : null
@@ -1065,8 +1080,8 @@ export function MediaBrowserContent({
                         }
 
                         return (
-                          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
-                            <div className="w-8 h-8 text-gray-500 dark:text-gray-400">
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-6 h-6 text-gray-400 dark:text-gray-500">
                               {getMediaTypeIcon(mediaType)}
                             </div>
                           </div>
@@ -1075,14 +1090,14 @@ export function MediaBrowserContent({
                     </div>
 
                     {/* Media info */}
-                    <div className="p-2">
+                    <div className="px-1.5 py-1">
                       <p
-                        className="text-xs font-medium text-gray-900 dark:text-white truncate"
+                        className="text-[10px] font-medium text-gray-900 dark:text-white truncate leading-tight"
                         title={media.filename}
                       >
                         {media.filename}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
                         {formatFileSize(media.size)} MB
                       </p>
                     </div>
@@ -1090,8 +1105,8 @@ export function MediaBrowserContent({
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-                <div className="w-16 h-16 mb-4 opacity-50">
+              <div className="flex flex-col items-center justify-center h-48 text-gray-500 dark:text-gray-400">
+                <div className="w-12 h-12 mb-3 opacity-50">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -1117,6 +1132,34 @@ export function MediaBrowserContent({
               </div>
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {filteredMedia.length > itemsPerPage && viewMode === 'grid' && (
+            <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+              <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                {startIndex + 1}-{Math.min(endIndex, filteredMedia.length)} of {filteredMedia.length}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Prev
+                </button>
+                <span className="text-[10px] text-gray-600 dark:text-gray-300 px-1">
+                  {currentPage}/{totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
