@@ -69,8 +69,9 @@ export function Checkbox({
           className
         )}
         onClick={(e) => {
-          e.stopPropagation();
+          // Don't stopPropagation - let the click work naturally
           if (!disabled && onChange) {
+            e.preventDefault(); // Prevent default to avoid double-toggle
             onChange(!checked);
           }
         }}
