@@ -25,6 +25,7 @@ import { portableTextFieldPlugin } from './definitions/PortableTextField/index.j
 import { dateFieldPlugin } from './definitions/DateField/index.js'
 import { ColorFieldPlugin } from './definitions/ColorField/index.js'
 import { geoCoordinateFieldPlugin } from './definitions/GeoCoordinateField/index.js'
+import { IconFieldPlugin } from './definitions/IconField/index.js'
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -70,6 +71,9 @@ export function registerBuiltinFields(): void {
 
   // Geo coordinate field
   fieldRegistry.register(geoCoordinateFieldPlugin, 'builtin')
+
+  // Icon field
+  fieldRegistry.register(IconFieldPlugin, 'builtin')
 
   // Mark registry as initialized
   fieldRegistry.markInitialized()
