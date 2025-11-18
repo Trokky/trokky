@@ -252,8 +252,8 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
           return sliced
         } else {
           // Copy SharedArrayBuffer to ArrayBuffer
-          const arrayBuffer = new ArrayBuffer(sliced.byteLength)
-          new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+          const arrayBuffer = new ArrayBuffer((sliced as SharedArrayBuffer).byteLength)
+          new Uint8Array(arrayBuffer).set(new Uint8Array(sliced as SharedArrayBuffer))
           return arrayBuffer
         }
       } catch {
@@ -510,8 +510,8 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
         return sliced
       } else {
         // Copy SharedArrayBuffer to ArrayBuffer
-        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
-        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        const arrayBuffer = new ArrayBuffer((sliced as SharedArrayBuffer).byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced as SharedArrayBuffer))
         return arrayBuffer
       }
     } catch (error) {
