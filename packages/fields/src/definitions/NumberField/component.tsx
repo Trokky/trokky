@@ -8,15 +8,17 @@ import { formatNumber, parseFormattedNumber, cleanNumberString } from './validat
 type NumberFieldComponentProps = FieldComponentProps;
 
 export function NumberFieldComponent(props: NumberFieldComponentProps) {
-  const { definition, value, onChange, isReadonly, isDisabled } = props;
+  const { definition, value, onChange, isReadonly, isDisabled, hasError } = props;
   const [displayValue, setDisplayValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  
+
   // Ensure number-specific properties are set
   const numberDefinition = definition as NumberFieldDefinition;
   const showSpinButtons = numberDefinition.options?.showSpinButtons !== false; // Default true
   const autoFormat = numberDefinition.options?.autoFormat !== false; // Default true
   const format = numberDefinition.options?.format || 'decimal';
+  const displayMode = numberDefinition.options?.displayMode || 'input';
+  const showValue = numberDefinition.options?.showValue !== false; // Default true for slider
 
   // Read-only mode: render as display text
   if (isReadonly && !isDisabled) {
@@ -163,14 +165,77 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
     const currentNum = parseFormattedNumber(displayValue, numberDefinition) || 0;
     const step = numberDefinition.validation?.step || 1;
     const newValue = currentNum - step;
-    
+
     // Apply min constraint
     const min = numberDefinition.validation?.min;
     const finalValue = min !== undefined ? Math.max(newValue, min) : newValue;
-    
+
     onChange(finalValue);
   };
 
+  // Slider mode
+  if (displayMode === 'slider') {
+    const min = numberDefinition.validation?.min ?? 0;
+    const max = numberDefinition.validation?.max ?? 100;
+    const step = numberDefinition.validation?.step || 1;
+    const precision = numberDefinition.validation?.precision ?? 2;
+
+    const numValue = typeof value === 'number' ? value : (parseFormattedNumber(String(value || ''), numberDefinition) ?? min);
+    const currentValue = Math.max(min, Math.min(max, numValue));
+
+    // Calculate percentage for gradient
+    const percentage = ((currentValue - min) / (max - min)) * 100;
+
+    const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = parseFloat(e.target.value);
+      onChange(newValue);
+    };
+
+    return (
+      <div className="w-full">
+        <div className="flex items-center gap-3">
+          {/* Min label */}
+          <span className="text-xs text-gray-500 dark:text-gray-400 w-8 text-right flex-shrink-0">
+            {min}
+          </span>
+
+          {/* Slider */}
+          <div className="flex-1 relative">
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={currentValue}
+              onChange={handleSliderChange}
+              disabled={isDisabled || isReadonly}
+              className={`w-full h-2 rounded-lg appearance-none cursor-pointer
+                ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}
+                ${hasError ? 'accent-red-500' : 'accent-blue-600'}
+              `}
+              style={{
+                background: `linear-gradient(to right, ${hasError ? '#ef4444' : '#2563eb'} 0%, ${hasError ? '#ef4444' : '#2563eb'} ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
+              }}
+            />
+          </div>
+
+          {/* Max label */}
+          <span className="text-xs text-gray-500 dark:text-gray-400 w-8 flex-shrink-0">
+            {max}
+          </span>
+
+          {/* Current value display */}
+          {showValue && (
+            <span className={`text-sm font-medium w-16 text-right flex-shrink-0 ${
+              hasError ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+            }`}>
+              {currentValue.toFixed(precision)}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">

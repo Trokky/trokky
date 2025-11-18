@@ -45,6 +45,10 @@ export interface NumberFieldDefinition extends Omit<StringFieldDefinition, 'type
     suffix?: string;
     /** Auto-format on blur */
     autoFormat?: boolean;
+    /** Display mode: input (default), slider, or both */
+    displayMode?: 'input' | 'slider';
+    /** Show current value next to slider */
+    showValue?: boolean;
   };
 }
 
@@ -70,6 +74,8 @@ export interface NumberFieldOptions {
   prefix?: string;
   suffix?: string;
   autoFormat?: boolean;
+  displayMode?: 'input' | 'slider';
+  showValue?: boolean;
 }
 
 export const NUMBER_FIELD_DEFAULTS: Partial<NumberFieldDefinition> = {
