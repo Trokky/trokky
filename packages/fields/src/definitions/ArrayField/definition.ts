@@ -75,6 +75,16 @@ export interface ArrayFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
   };
 }
 
+// Preview configuration for array items
+export interface ArrayItemPreview {
+  /** Field name to use as title */
+  title?: string;
+  /** Field name to use as subtitle */
+  subtitle?: string;
+  /** Field name to use as media/icon */
+  media?: string;
+}
+
 // Array item schema definition
 export interface ArrayItemDefinition {
   /** Item name/key */
@@ -99,6 +109,8 @@ export interface ArrayItemDefinition {
   to?: Array<{ type: string } | string>;
   /** Array item type for nested arrays */
   of?: ArrayItemDefinition;
+  /** Preview configuration for collapsed items */
+  preview?: ArrayItemPreview;
 }
 
 // Complete array field definition

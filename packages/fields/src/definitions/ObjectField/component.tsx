@@ -95,8 +95,9 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Get field-specific collapse state
   const getCollapseState = (key: string): boolean => {
-    // For nested object fields (level 1+), default to expanded for better UX
-    const defaultCollapsed = isTopLevel ? true : (options.collapsed ?? false);
+    // Default to collapsed for nested objects (better UX for arrays)
+    // User can set options.collapsed = false to start expanded
+    const defaultCollapsed = options.collapsed ?? true;
     return collapseState[`${fieldId}.${key}`] ?? defaultCollapsed;
   };
   
@@ -278,30 +279,47 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     // Only use dynamic title if explicitly configured via titleTemplate
     const displayTitle = options.titleTemplate ? getDisplayTitle() : definition.title;
 
+    // Get array item preview if passed from ArrayField
+    const arrayItemPreview = (definition as any)._arrayItemPreview;
+    const previewTitle = arrayItemPreview?.title;
+    const previewSubtitle = arrayItemPreview?.subtitle;
+
     return (
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className={`flex items-center justify-between ${isCollapsed ? '' : 'mb-4'}`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Title with collapse toggle */}
           {isCollapsible ? (
             <button
               type="button"
               onClick={() => setCollapseStateForKey('main', !isCollapsed)}
-              className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors min-w-0"
             >
               <svg
-                className={`w-4 h-4 mr-2 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                className={`w-4 h-4 mr-2 flex-shrink-0 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {displayTitle}
+              {/* Show preview title if available, otherwise show definition title */}
+              {previewTitle ? (
+                <span className="truncate">{previewTitle}</span>
+              ) : (
+                displayTitle
+              )}
             </button>
           ) : (
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {displayTitle}
+              {previewTitle || displayTitle}
             </h3>
+          )}
+
+          {/* Preview subtitle */}
+          {previewSubtitle && isCollapsed && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:inline">
+              {previewSubtitle}
+            </span>
           )}
           
           {/* Field count and progress */}
