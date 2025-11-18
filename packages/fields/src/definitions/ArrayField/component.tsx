@@ -104,7 +104,8 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     addButtonText = 'Add item',
     disableAdd = false,
     disableRemove = false,
-    tagField = {}
+    tagField = {},
+    selectField = {}
   } = arrayDefinition.options || {};
 
   // Validate on value change
@@ -296,7 +297,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
         </button>
       </div>
 
-      {!isCollapsed && !isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && (
+      {!isCollapsed && !isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && layout !== 'select' && (
         <button
           type="button"
           onClick={handleAddItem}
@@ -663,6 +664,125 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     </div>
   );
 
+  // Render select layout (checkboxes or pills for multi-selection)
+  const renderSelectLayout = () => {
+    const selectOptions = (selectField as { options?: string[]; displayAs?: 'checkboxes' | 'pills' | 'dropdown'; columns?: 1 | 2 | 3 | 4; dropdownSize?: number });
+    const options = selectOptions.options || [];
+    const displayAs = selectOptions.displayAs || 'checkboxes';
+    const columns = selectOptions.columns || 2;
+    const dropdownSize = selectOptions.dropdownSize || 6;
+
+    if (options.length === 0) {
+      return (
+        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+          <p className="text-sm">No options configured for select layout</p>
+        </div>
+      );
+    }
+
+    const handleToggle = (option: string) => {
+      if (isDisabled || isReadonly) return;
+      operations.toggle(option);
+    };
+
+    if (displayAs === 'pills') {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {options.map((option) => {
+            const isSelected = arrayValue.includes(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => handleToggle(option)}
+                disabled={isDisabled || isReadonly}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  isSelected
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                } ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (displayAs === 'dropdown') {
+      const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+        onChange(selectedOptions);
+      };
+
+      return (
+        <div className="w-full">
+          <select
+            multiple
+            size={dropdownSize}
+            value={arrayValue}
+            onChange={handleSelectChange}
+            disabled={isDisabled || isReadonly}
+            className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+              isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''
+            } ${hasError ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'}`}
+          >
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Hold Ctrl/Cmd to select multiple
+          </p>
+        </div>
+      );
+    }
+
+    // Checkboxes layout
+    const gridCols = {
+      1: 'grid-cols-1',
+      2: 'grid-cols-1 sm:grid-cols-2',
+      3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+      4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    };
+
+    return (
+      <div className={`grid ${gridCols[columns]} gap-2`}>
+        {options.map((option) => {
+          const isSelected = arrayValue.includes(option);
+          return (
+            <label
+              key={option}
+              className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
+                isSelected
+                  ? 'bg-blue-50 dark:bg-blue-900/20'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+              } ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => handleToggle(option)}
+                disabled={isDisabled || isReadonly}
+                className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:bg-gray-700"
+              />
+              <span className={`text-sm ${
+                isSelected
+                  ? 'text-blue-700 dark:text-blue-300 font-medium'
+                  : 'text-gray-700 dark:text-gray-300'
+              }`}>
+                {option}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    );
+  };
+
   // Render list/grid layout
   const renderItemsLayout = () => {
     if (arrayValue.length === 0) {
@@ -743,7 +863,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           renderContent={() => (
             <div className="space-y-4">
               {/* Add button at top of modal */}
-              {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && (
+              {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && layout !== 'select' && (
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -757,7 +877,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               )}
 
               {/* Array content */}
-              {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
+              {layout === 'tags' ? renderTagsLayout() : layout === 'select' ? renderSelectLayout() : renderItemsLayout()}
 
               {/* Validation info */}
               {arrayDefinition.validation && (
@@ -793,7 +913,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
 
       {!isCollapsed && (
         <div className={`space-y-4 ${hasError ? 'border-l-4 border-red-400 dark:border-red-500 pl-4' : ''}`}>
-          {layout === 'tags' ? renderTagsLayout() : renderItemsLayout()}
+          {layout === 'tags' ? renderTagsLayout() : layout === 'select' ? renderSelectLayout() : renderItemsLayout()}
         </div>
       )}
 

@@ -17,7 +17,7 @@ export interface ArrayValidation extends BaseValidation {
 }
 
 // Array layout options
-export type ArrayLayout = 'list' | 'grid' | 'tags' | 'inline';
+export type ArrayLayout = 'list' | 'grid' | 'tags' | 'inline' | 'select';
 
 // Array field-specific options
 export interface ArrayFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
@@ -52,6 +52,17 @@ export interface ArrayFieldOptions extends Omit<BaseFieldOptions, 'layout'> {
     allowCustom?: boolean;
     suggestions?: string[];
     confirmDelete?: boolean;
+  };
+  /** Select field configuration (for select layout) */
+  selectField?: {
+    /** Available options to select from */
+    options: string[];
+    /** Display as checkboxes (default), pills, or dropdown */
+    displayAs?: 'checkboxes' | 'pills' | 'dropdown';
+    /** Number of columns for checkboxes layout */
+    columns?: 1 | 2 | 3 | 4;
+    /** Number of visible rows for dropdown (default 6) */
+    dropdownSize?: number;
   };
   /** Preview mode configuration */
   preview?: {
@@ -131,6 +142,11 @@ export const ARRAY_FIELD_DEFAULTS = {
       suggestions: [],
       confirmDelete: false,
     },
+    selectField: {
+      options: [],
+      displayAs: 'checkboxes',
+      columns: 2,
+    },
     preview: {
       showWhenCollapsed: true,
       maxPreviewItems: 3,
@@ -148,6 +164,7 @@ export interface ArrayOperations {
   move: (fromIndex: number, toIndex: number) => void;
   update: (index: number, item: any) => void;
   clear: () => void;
+  toggle: (item: any) => void;
 }
 
 // Array field context for nested field rendering
