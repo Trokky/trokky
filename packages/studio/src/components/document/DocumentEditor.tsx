@@ -370,12 +370,36 @@ export function DocumentEditor({
         cleanDocument._status = documentState || 'draft';
       }
 
-      // Ensure all schema fields are present in the document
+      // Ensure all schema fields are present and type-compatible
       // This prevents old field values from persisting when schema types change
       if (schema?.fields) {
-        for (const fieldName of Object.keys(schema.fields)) {
+        for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+          const value = cleanDocument[fieldName];
+          const fieldType = (fieldDef as any).type;
+
+          // Check for type mismatches and clear incompatible values
+          if (value !== undefined && value !== null) {
+            const isArray = Array.isArray(value);
+            const isObject = typeof value === 'object' && !isArray;
+
+            // Clear if schema expects object but got array, or vice versa
+            if ((fieldType === 'object' && isArray) ||
+                (fieldType === 'array' && isObject)) {
+              // Use appropriate empty value for the expected type
+              cleanDocument[fieldName] = fieldType === 'object' ? {} : [];
+            }
+          }
+
+          // Only add missing fields if they are object or array type
+          // (to override potentially incompatible stored values)
+          // Don't add scalar fields - they will use stored values
           if (!(fieldName in cleanDocument)) {
-            cleanDocument[fieldName] = undefined;
+            if (fieldType === 'object') {
+              cleanDocument[fieldName] = {};
+            } else if (fieldType === 'array') {
+              cleanDocument[fieldName] = [];
+            }
+            // Don't add scalar fields - let the backend merge with existing
           }
         }
       }
