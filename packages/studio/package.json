@@ -1,6 +1,6 @@
 {
   "name": "@trokky/studio",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Trokky Studio v2 - Zero-config content management interface",
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
     "@tanstack/react-query": "^5.0.0",
-    "@trokky/fields": "^0.1.3",
+    "@trokky/fields": "^0.1.4",
     "@trokky/types": "0.1.0",
     "clsx": "^2.0.0",
     "date-fns": "^2.29.0",

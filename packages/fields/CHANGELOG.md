@@ -1,5 +1,40 @@
 # @trokky/fields
 
+## 0.1.4
+
+### Patch Changes
+
+- fe37bf9: Add IconField component for visual icon selection
+  - Support for FontAwesome and Heroicons libraries
+  - Grid view with search and filtering by style/category
+  - Pagination for large icon sets
+  - Schema options to restrict to single library or allow multiple
+  - Preview component for displaying selected icons
+
+- d0be42c: Amélioration de l'UI/UX des champs Media et du MediaBrowser
+
+  **MediaField (@trokky/fields):**
+  - Remplacement des emojis par des icônes SVG personnalisées
+  - Section métadonnées repliable par défaut
+  - Labels de type média corrects (Image, Video, Audio, Document, Archive)
+  - Nouveau design de l'état vide aligné avec l'état rempli
+  - Titre du dialogue "Add media" au lieu de "Upload media"
+
+  **MediaBrowserContent (@trokky/studio):**
+  - Ajout de la pagination (20 éléments par page)
+  - Design compact avec grille 3-6 colonnes
+  - Thumbnails plus petits (80px de hauteur)
+  - Barre de recherche et pagination compactes
+  - Meilleure responsivité
+
+  **MediaPage (@trokky/studio):**
+  - Ajout de la pagination (24 éléments par page)
+  - Contrôles Previous/Next avec compteur de pages
+
+  **MediaBrowser Modal:**
+  - Modal plus compact (max-w-4xl, max-h-80vh)
+  - En-tête réduit pour plus d'espace de contenu
+
 ## 0.1.3
 
 ### Patch Changes

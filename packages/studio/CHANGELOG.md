@@ -1,5 +1,65 @@
 # @trokky/studio
 
+## 0.1.8
+
+### Patch Changes
+
+- c6b4eff: Correction complète du système de session "Rester connecté"
+
+  Correction majeure du mécanisme "Stay signed in" qui ne fonctionnait pas correctement :
+
+  **Problèmes résolus :**
+  1. Les paramètres de durée de vie des tokens dans trokky.config.ts étaient ignorés - le core utilisait des valeurs codées en dur
+  2. Le renouvellement des tokens ne préservait pas l'état "rememberMe" - les sessions longues étaient réduites à 2h après le premier renouvellement
+  3. La configuration de session Studio n'était pas exposée correctement via l'API
+  4. Les noms de propriétés ne correspondaient pas entre le config backend et les attentes du frontend
+  5. La case à cocher "Stay signed in" n'était pas cliquable directement - seulement via le label
+
+  **Améliorations apportées :**
+  - Le core respecte maintenant les TTL configurés (accessTokenTtl, refreshTokenTtl, rememberMeTtl)
+  - Le flag rememberMe est stocké dans le payload JWT et préservé lors du renouvellement
+  - La configuration de session est correctement exposée à Studio via /api/config/studio
+  - Ajout du type tokens dans TrokkyConfig pour validation TypeScript
+  - La case à cocher est maintenant cliquable directement (pas seulement via le label)
+
+  **Comportement attendu :**
+  - Sans "Stay signed in": Session de 4h (configurable via accessTokenTtl)
+  - Avec "Stay signed in": Session de 30 jours (configurable via rememberMeTtl)
+  - Les renouvellements automatiques préservent la durée de session choisie initialement
+
+- d0be42c: Amélioration de l'UI/UX des champs Media et du MediaBrowser
+
+  **MediaField (@trokky/fields):**
+  - Remplacement des emojis par des icônes SVG personnalisées
+  - Section métadonnées repliable par défaut
+  - Labels de type média corrects (Image, Video, Audio, Document, Archive)
+  - Nouveau design de l'état vide aligné avec l'état rempli
+  - Titre du dialogue "Add media" au lieu de "Upload media"
+
+  **MediaBrowserContent (@trokky/studio):**
+  - Ajout de la pagination (20 éléments par page)
+  - Design compact avec grille 3-6 colonnes
+  - Thumbnails plus petits (80px de hauteur)
+  - Barre de recherche et pagination compactes
+  - Meilleure responsivité
+
+  **MediaPage (@trokky/studio):**
+  - Ajout de la pagination (24 éléments par page)
+  - Contrôles Previous/Next avec compteur de pages
+
+  **MediaBrowser Modal:**
+  - Modal plus compact (max-w-4xl, max-h-80vh)
+  - En-tête réduit pour plus d'espace de contenu
+
+- 1b8483d: Ajout d'un bouton de basculement pour afficher/masquer le mot de passe sur la page de connexion
+
+  Amélioration de l'expérience utilisateur sur la page de connexion du Studio en ajoutant une icône cliquable permettant de basculer entre l'affichage et le masquage du mot de passe. Cette fonctionnalité utilise les icônes Eye/EyeSlash de Heroicons et inclut les attributs d'accessibilité appropriés.
+
+- c57b3cd: Fix document save to include all schema fields, preventing old incompatible data from persisting when schema types change
+- Updated dependencies [fe37bf9]
+- Updated dependencies [d0be42c]
+  - @trokky/fields@0.1.4
+
 ## 0.1.7
 
 ### Patch Changes
