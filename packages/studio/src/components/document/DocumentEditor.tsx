@@ -364,10 +364,20 @@ export function DocumentEditor({
       // Clean document data before sending to API - remove frontend-only fields and ensure _status is set
       const cleanDocument = { ...document };
       delete cleanDocument._state; // Remove legacy frontend state field
-      
+
       // Ensure _status is properly set based on current document state
       if (!cleanDocument._status) {
         cleanDocument._status = documentState || 'draft';
+      }
+
+      // Ensure all schema fields are present in the document
+      // This prevents old field values from persisting when schema types change
+      if (schema?.fields) {
+        for (const fieldName of Object.keys(schema.fields)) {
+          if (!(fieldName in cleanDocument)) {
+            cleanDocument[fieldName] = undefined;
+          }
+        }
       }
 
       let response;
