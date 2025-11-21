@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Bars3Icon, 
+import {
+  Bars3Icon,
   PlusIcon,
   TrashIcon,
   DocumentDuplicateIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
@@ -24,6 +25,7 @@ import { ListView, getDefaultColumns, type ListColumn } from '@/components/conte
 import { GridView } from '@/components/content/views/GridView';
 import { TableView } from '@/components/content/views/TableView';
 import { Pagination } from '@/components/content/Pagination';
+import { ChangeStatusModal } from '@/components/content/ChangeStatusModal';
 
 const logger = createStudioLogger('ContentPage');
 
@@ -103,6 +105,8 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isChangeStatusModalOpen, setIsChangeStatusModalOpen] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
   
   // View state with localStorage persistence
   const [currentView, setCurrentView] = useState<ViewType>(() => 
@@ -154,28 +158,52 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     try {
       setLoading(true);
       setError(null);
-      
+
       if (!apiClient.isInitialized) {
         await apiClient.initialize();
       }
-      
-      // Use the API client's proper method
-      const response = await apiClient.listDocuments(schemaName, {
+
+      // Debug: Log filter parameters
+      const queryParams = {
         page: currentPage,
         limit: pageSize,
         search: searchQuery || undefined,
         filter: Object.keys(activeFilters).length > 0 ? activeFilters : undefined,
         sort: currentSort ? `${currentSort.direction === 'desc' ? '-' : ''}${currentSort.field}` : undefined
+      };
+
+      logger.info('Loading documents with filters', {
+        schemaName,
+        activeFilters,
+        queryParams
       });
+
+      // Use the API client's proper method
+      const response = await apiClient.listDocuments(schemaName, queryParams);
       
       if (response.success && response.data?.documents) {
         setDocuments(response.data.documents);
         setTotalItems(response.data.pagination?.total || response.data.documents.length);
-        logger.info('Documents loaded', { 
-          schema: schemaName, 
+
+        // Debug: Log returned documents and their status
+        const statusBreakdown = response.data.documents.reduce((acc: any, doc: any) => {
+          const status = doc._status || 'undefined';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+
+        logger.info('Documents loaded', {
+          schema: schemaName,
           count: response.data.documents.length,
           total: response.data.pagination?.total,
-          page: currentPage
+          page: currentPage,
+          statusBreakdown,
+          sampleStatuses: response.data.documents.slice(0, 3).map((d: any) => ({
+            id: d.id || d._id,
+            title: d.title,
+            _status: d._status,
+            published: d.published
+          }))
         });
       } else {
         setDocuments([]);
@@ -215,35 +243,35 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           const docResponse = await apiClient.getDocument(schemaName, documentId);
           if (docResponse.success && docResponse.data) {
             const originalDoc = docResponse.data;
-            
-            // Clean up the document for duplication - remove system fields and problematic references
+
+            // Clean up the document for duplication - remove system fields
             const duplicateData = { ...originalDoc };
-            
-            // Remove system fields
+
+            // Remove system fields that should not be duplicated
             delete (duplicateData as any)._id;
             delete (duplicateData as any).id;
             delete (duplicateData as any)._createdAt;
             delete (duplicateData as any)._updatedAt;
             delete duplicateData._revision;
             delete duplicateData._collection;
-            delete duplicateData._status;
-            
-            // Remove reference fields that might cause validation issues
-            delete (duplicateData as any).author;
-            delete (duplicateData as any).category;
-            
-            // Set as draft
-            duplicateData._state = 'draft';
-            duplicateData.published = false;
-            duplicateData.publishedAt = null;
-            duplicateData.title = `${originalDoc.title || 'Document'} (Copy)`;
-            duplicateData.slug = undefined;
-            
-            const createResponse = await apiClient.createDocument(schemaName, duplicateData);
-            if (createResponse.success) {
-              logger.info('Document duplicated', { schema: schemaName, originalId: documentId });
-              await loadDocuments();
+
+            // Set as draft status
+            duplicateData._status = 'draft';
+
+            // Handle title/name field intelligently - append (Copy) to the primary display field
+            if ((duplicateData as any).name) {
+              (duplicateData as any).name = `${(duplicateData as any).name} (Copy)`;
+            } else if ((duplicateData as any).title) {
+              (duplicateData as any).title = `${(duplicateData as any).title} (Copy)`;
             }
+
+            // Remove slug so it can be auto-generated from the new name/title
+            delete (duplicateData as any).slug;
+
+            // Navigate to create form with pre-filled data
+            navigate(`/content/${schemaName}/new`, {
+              state: { duplicateData }
+            });
           }
           break;
           
@@ -302,13 +330,41 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   //   setGridSettings(updatedSettings);
   //   storage.setGridSettings(schemaName, updatedSettings);
   // };
-  
+
   // Handle table settings change with persistence (future use)
   // const handleTableSettingsChange = (newSettings: any) => {
   //   const updatedSettings = { ...tableSettings, ...newSettings };
   //   setTableSettings(updatedSettings);
   //   storage.setTableSettings(schemaName, updatedSettings);
   // };
+
+  // Handle bulk status change
+  const handleBulkStatusChange = async (newStatus: string) => {
+    try {
+      setBulkActionLoading(true);
+
+      // Update all selected documents
+      await Promise.all(
+        selectedItems.map(id =>
+          apiClient.updateDocument(schemaName, id, { _status: newStatus })
+        )
+      );
+
+      logger.info('Bulk status change completed', {
+        count: selectedItems.length,
+        newStatus
+      });
+
+      setIsChangeStatusModalOpen(false);
+      setSelectedItems([]);
+      await loadDocuments();
+    } catch (err) {
+      logger.error('Bulk status change failed', err);
+      alert(`Failed to update document status: ${err instanceof ApiClientError ? err.message : 'Unknown error'}`);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
   
   // Get view configurations
   const viewConfigs: ViewConfig[] = [
@@ -319,28 +375,34 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   
   const filterConfigs: FilterConfig[] = [
     {
-      id: 'published',
+      id: '_status',
       label: 'Status',
-      field: 'published',
+      field: '_status',
       type: 'select',
       options: [
-        { label: 'Published', value: 'true' },
-        { label: 'Draft', value: 'false' }
+        { label: 'Draft', value: 'draft' },
+        { label: 'Published', value: 'published' },
+        { label: 'Archived', value: 'archived' }
       ]
     }
   ];
   
+  // Determine the primary title field for sorting
+  // Try common field names in order of likelihood
+  // This aligns with getSmartDocumentTitle() utility
+  const titleField = documents && documents.length > 0 && documents[0].name ? 'name' : 'title';
+
   const sortConfigs: SortConfig[] = [
-    { field: 'title', direction: 'asc', label: 'Title' },
+    { field: titleField, direction: 'asc', label: 'Title' },
     { field: '_createdAt', direction: 'desc', label: 'Created Date' },
     { field: '_updatedAt', direction: 'desc', label: 'Updated Date' }
   ];
   
   const bulkActions = [
     {
-      id: 'duplicate',
-      label: 'Duplicate',
-      icon: DocumentDuplicateIcon
+      id: 'change-status',
+      label: 'Change Status',
+      icon: ArrowPathIcon
     },
     {
       id: 'delete',
@@ -411,8 +473,28 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         bulkActions={bulkActions}
         onBulkAction={async (actionId: string) => {
           if (selectedItems.length === 0) return;
-          
+
           switch (actionId) {
+            case 'change-status':
+              setIsChangeStatusModalOpen(true);
+              break;
+
+            case 'duplicate':
+              try {
+                setBulkActionLoading(true);
+                for (const id of selectedItems) {
+                  await handleDocumentAction(id, 'duplicate');
+                }
+                setSelectedItems([]);
+                await loadDocuments();
+              } catch (err) {
+                logger.error('Bulk duplicate failed', err);
+                alert(`Failed to duplicate documents: ${err instanceof ApiClientError ? err.message : 'Unknown error'}`);
+              } finally {
+                setBulkActionLoading(false);
+              }
+              break;
+
             case 'delete':
               const confirmed = await studioContext?.utils?.showConfirm?.(
                 `Are you sure you want to delete ${selectedItems.length} document${selectedItems.length === 1 ? '' : 's'}? This action cannot be undone.`,
@@ -424,9 +506,17 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
                 }
               );
               if (!confirmed) return;
-              await Promise.all(selectedItems.map(id => apiClient.deleteDocument(schemaName, id)));
-              setSelectedItems([]);
-              await loadDocuments();
+              try {
+                setBulkActionLoading(true);
+                await Promise.all(selectedItems.map(id => apiClient.deleteDocument(schemaName, id)));
+                setSelectedItems([]);
+                await loadDocuments();
+              } catch (err) {
+                logger.error('Bulk delete failed', err);
+                alert(`Failed to delete documents: ${err instanceof ApiClientError ? err.message : 'Unknown error'}`);
+              } finally {
+                setBulkActionLoading(false);
+              }
               break;
           }
         }}
@@ -509,6 +599,15 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
           />
         )}
       </div>
+
+      {/* Change Status Modal */}
+      <ChangeStatusModal
+        isOpen={isChangeStatusModalOpen}
+        onClose={() => setIsChangeStatusModalOpen(false)}
+        onConfirm={handleBulkStatusChange}
+        selectedCount={selectedItems.length}
+        loading={bulkActionLoading}
+      />
     </div>
   );
 }

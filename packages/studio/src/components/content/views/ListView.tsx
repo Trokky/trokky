@@ -78,9 +78,16 @@ export function ListView({
   
   const handleSort = (column: ListColumn) => {
     if (!column.sortable || !onSort) return;
-    
-    const newDirection = sortField === column.key && sortDirection === 'asc' ? 'desc' : 'asc';
-    onSort(column.key, newDirection);
+
+    // Smart field detection for title column - use actual field name from documents
+    let fieldToSort = column.key;
+    if (column.key === 'title' && documents && documents.length > 0) {
+      // Check if documents have 'name' field, otherwise use 'title'
+      fieldToSort = documents[0].name ? 'name' : 'title';
+    }
+
+    const newDirection = sortField === fieldToSort && sortDirection === 'asc' ? 'desc' : 'asc';
+    onSort(fieldToSort, newDirection);
   };
   
   const formatValue = (value: any, column: ListColumn, doc: Document) => {

@@ -470,19 +470,47 @@ export class TrokkyRoutes {
         if (offset) options.offset = parseInt(String(offset), 10)
       }
 
-      // Handle filters
+      // Handle filters - parse bracket notation from query params
+      // Studio sends filter[field]=value which Express parses as nested object
       if (filter) {
         try {
-          options.filter = typeof filter === 'string' ? JSON.parse(filter) : filter
+          if (typeof filter === 'string') {
+            // Try parsing as JSON string
+            options.filter = JSON.parse(filter)
+          } else if (typeof filter === 'object' && filter !== null) {
+            // Already parsed by Express query parser
+            options.filter = filter
+          }
         } catch {
           throw new InvalidInputError('Invalid filter format', 'filter')
         }
       }
 
-      // Handle sorting
-      if (sort) options.sort = sort
+      // Handle sorting - convert prefix notation to field.direction
+      // Studio sends "-field" for desc, "field" for asc
+      if (sort) {
+        if (typeof sort === 'string' && sort.startsWith('-')) {
+          options.sort = `${sort.substring(1)}.desc`
+        } else if (typeof sort === 'string' && !sort.includes('.') && !sort.includes(':')) {
+          options.sort = `${sort}.asc`
+        } else {
+          options.sort = sort
+        }
+      }
 
       let documents = await this.core.listDocuments(collection, options)
+
+      // Get total count BEFORE search filtering (but after listDocuments)
+      // Call dataStorage directly since countDocuments is optional and not on core
+      const dataStorage = (this.core as any).dataStorage
+      let totalCount: number
+      if (dataStorage && dataStorage.countDocuments) {
+        // Use adapter's count method with the same filter
+        totalCount = await dataStorage.countDocuments(collection, options.filter || {})
+      } else {
+        // Fallback to document length if countDocuments not available
+        totalCount = documents.length
+      }
 
       // Handle search filtering - simple client-side text search
       if (search && typeof search === 'string' && search.trim()) {
@@ -502,7 +530,9 @@ export class TrokkyRoutes {
           return searchableText.includes(searchLower)
         })
       }
-      const total = documents.length // Note: This is post-filter count, not total collection count
+
+      // Use actual database count, not filtered result length
+      const total = totalCount
 
       // Calculate pagination metadata
       const currentPage = page ? parseInt(String(page), 10) : 1

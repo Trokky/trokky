@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
@@ -70,18 +70,22 @@ export interface DocumentEditorProps {
 /**
  * Main DocumentEditor component
  */
-export function DocumentEditor({ 
-  schemaName, 
-  documentId, 
+export function DocumentEditor({
+  schemaName,
+  documentId,
   mode = 'form',
   onSave,
-  onCancel 
+  onCancel
 }: DocumentEditorProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   // Use structure-driven context sidebar instead of manual configuration
   useStructureContextSidebar();
   const studioContext = useStudioContext();
   const permissions = usePermissions();
+
+  // Check for duplicate data from navigation state
+  const duplicateData = (location.state as any)?.duplicateData;
   
   // Debug permissions object
   useEffect(() => {
@@ -209,11 +213,14 @@ export function DocumentEditor({
           // Note: This will be saved when user clicks save, effectively auto-creating the singleton
         }
       } else {
-        // Initialize empty document for new documents
-        const newDoc = initializeNewDocument(actualSchema);
+        // Initialize document for new documents
+        // Use duplicate data if provided, otherwise initialize empty document
+        const newDoc = duplicateData
+          ? { ...initializeNewDocument(actualSchema), ...duplicateData }
+          : initializeNewDocument(actualSchema);
         setDocument(newDoc);
         setDocumentState('draft');
-        logger.debug('New document initialized');
+        logger.debug('New document initialized', { isDuplicate: !!duplicateData });
       }
       
       logger.info('Editor data loaded successfully', { 

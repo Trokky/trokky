@@ -120,10 +120,12 @@ export class SecurityValidator {
       throw new InvalidInputError('Sort field must be a string', 'sort')
     }
 
-    const sortPattern = /^[a-zA-Z_][a-zA-Z0-9_]*(\.(asc|desc))?$/
+    // Allow: "field", "-field", "field.asc", "field.desc"
+    // The "-field" format is converted to "field.desc" by routes layer
+    const sortPattern = /^-?[a-zA-Z_][a-zA-Z0-9_]*(\.(asc|desc))?$/
     if (!sortPattern.test(field)) {
       throw new InvalidInputError(
-        'Invalid sort field format. Use "field" or "field.asc" or "field.desc"',
+        'Invalid sort field format. Use "field", "-field", "field.asc" or "field.desc"',
         'sort'
       )
     }

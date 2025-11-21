@@ -301,24 +301,53 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
     // Add filtering if provided
     if (options.filter) {
+      console.log('[PostgresAdapter] Applying filter:', options.filter)
       // Simple JSONB filtering - can be enhanced for more complex queries
       Object.entries(options.filter).forEach(([key, value], index) => {
-        query += ` AND data->>'${key}' = $${params.length + 1}`
+        // SECURITY: Validate field name to prevent SQL injection
+        // Allow only alphanumeric, underscore, dash, and dot (for nested fields)
+        if (!/^[a-zA-Z0-9_.\-]+$/.test(key)) {
+          throw new Error(`Invalid filter field name: ${key}`)
+        }
+
+        // Handle system fields vs data fields
+        if (key.startsWith('_')) {
+          // System field - map to database column
+          const dbField = key === '_status' ? 'data->>\'_status\'' :
+                         key === '_createdAt' ? 'created_at' :
+                         key === '_updatedAt' ? 'updated_at' :
+                         key === '_createdBy' ? 'created_by' :
+                         key === '_updatedBy' ? 'updated_by' : `data->>'${key}'`
+          query += ` AND ${dbField} = $${params.length + 1}`
+        } else {
+          // Data field - use JSONB operator
+          query += ` AND data->>'${key}' = $${params.length + 1}`
+        }
         params.push(String(value))
       })
+      console.log('[PostgresAdapter] Filter query:', query)
+      console.log('[PostgresAdapter] Filter params:', params)
     }
 
     // Add sorting
     if (options.sort) {
       const sortFields = Array.isArray(options.sort) ? options.sort : [options.sort]
       const sortClauses = sortFields.map(sortField => {
-        const [field, direction = 'asc'] = sortField.split(':')
+        const [field, direction = 'asc'] = sortField.split('.')
+
+        // SECURITY: Validate field name to prevent SQL injection
+        if (!/^[a-zA-Z0-9_.\-]+$/.test(field)) {
+          throw new Error(`Invalid sort field name: ${field}`)
+        }
+
         const sortDirection = direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC'
 
         if (field.startsWith('_')) {
           // System field
           const dbField = field === '_createdAt' ? 'created_at' :
-                         field === '_updatedAt' ? 'updated_at' : 'id'
+                         field === '_updatedAt' ? 'updated_at' :
+                         field === '_id' ? 'id' :
+                         field === '_status' ? 'data->>\'_status\'' : 'id'
           return `${dbField} ${sortDirection}`
         } else {
           // Data field
@@ -334,6 +363,11 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     params.push(limit, offset)
 
     const result = await this.query(query, params)
+
+    if (options.filter) {
+      console.log('[PostgresAdapter] Query returned', result.rows.length, 'documents')
+      console.log('[PostgresAdapter] Sample statuses:', result.rows.slice(0, 3).map((r: any) => ({ id: r.id, _status: r.data?._status })))
+    }
 
     return result.rows.map((row: DocumentRow) => ({
       _id: row.id,

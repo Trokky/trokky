@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { 
+import { useState, useEffect, useRef } from 'react';
+import {
   MagnifyingGlassIcon,
   FunnelIcon,
   ArrowsUpDownIcon,
@@ -95,12 +95,29 @@ export function ContentViewControls({
 }: ContentViewControlsProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [showSorts, setShowSorts] = useState(false);
-  
-  const activeFilterCount = Object.values(activeFilters).filter(v => 
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  const activeFilterCount = Object.values(activeFilters).filter(v =>
     v !== undefined && v !== null && v !== ''
   ).length;
-  
+
   const hasActiveFilters = activeFilterCount > 0;
+
+  // Handle click outside to close sort dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setShowSorts(false);
+      }
+    };
+
+    if (showSorts) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showSorts]);
   
   return (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -143,7 +160,7 @@ export function ContentViewControls({
             
             {/* Sort dropdown */}
             {availableSorts.length > 0 && (
-              <div className="relative">
+              <div ref={sortDropdownRef} className="relative">
                 <Button
                   variant="outline"
                   size="sm"
@@ -160,7 +177,7 @@ export function ContentViewControls({
                     </span>
                   )}
                 </Button>
-                
+
                 {showSorts && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
                     <div className="py-1">
@@ -173,7 +190,7 @@ export function ContentViewControls({
                             }}
                             className={cn(
                               "w-full text-left px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700",
-                              currentSort?.field === sort.field && currentSort?.direction === 'asc' && 
+                              currentSort?.field === sort.field && currentSort?.direction === 'asc' &&
                               "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                             )}
                           >
@@ -186,7 +203,7 @@ export function ContentViewControls({
                             }}
                             className={cn(
                               "w-full text-left px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700",
-                              currentSort?.field === sort.field && currentSort?.direction === 'desc' && 
+                              currentSort?.field === sort.field && currentSort?.direction === 'desc' &&
                               "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                             )}
                           >

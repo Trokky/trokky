@@ -1,5 +1,41 @@
 # @trokky/studio
 
+## 0.1.9
+
+### Patch Changes
+
+- 6f2ef2f: Comprehensive sorting, filtering, and duplicate improvements across the stack
+
+  **Studio improvements:**
+  - Add smart field detection for title column sorting (checks if documents use 'name' or 'title' field)
+  - Apply same smart detection to both dropdown sort button and column header clicks
+  - Fix sort dropdown to close when clicking outside the dropdown area
+  - Improve UX consistency across different schema types (e.g., some schemas uses 'name', articles use 'title')
+  - Change duplicate behavior to navigate to create form with pre-filled data instead of creating directly
+  - Remove duplicate from bulk actions (now only available per-document)
+  - Append "(Copy)" to name/title field for duplicated documents
+  - Remove system fields (\_id, \_createdAt, etc.) and slug to allow auto-generation
+  - Set duplicated documents to draft status by default
+  - Users can now review and modify duplicated data before saving
+
+  **Routes improvements:**
+  - Handle filter bracket notation from query params (Studio sends filter[field]=value)
+  - Convert prefix notation for sorting ("-field" for desc, "field" for asc)
+  - Get total count from database before search filtering (correct pagination)
+  - Use database count instead of filtered result length for accurate totals
+
+  **Core validation improvements:**
+  - Allow "-field" format for descending sort in addition to "field.desc"
+  - Update validation error messages to reflect new format support
+
+  **Postgres-data adapter improvements:**
+  - Handle system fields (\_status, \_createdAt, \_updatedAt, etc.) in filters
+  - Change sort delimiter from ":" to "." for consistency
+  - Add better sorting support for system fields (\_status, \_id, etc.)
+  - Add SQL injection validation for field names
+  - Add debug logging for filter and sort operations
+  - Map system fields to proper database columns
+
 ## 0.1.8
 
 ### Patch Changes
