@@ -52,7 +52,7 @@ const globalSearchCache = new SearchCache();
 type ReferenceFieldComponentProps = FieldComponentProps;
 
 export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext, isArrayItem } = props;
   
   if (definition.type !== 'reference') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected reference field</div>;
@@ -652,8 +652,8 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         </div>
       )}
       
-      {/* Actions - only show for non-multiple reference fields */}
-      {!isDisabled && !isReadonly && currentReferences.length > 0 && !isMultiple && (
+      {/* Actions - only show for non-multiple reference fields that are not array items */}
+      {!isDisabled && !isReadonly && currentReferences.length > 0 && !isMultiple && !isArrayItem && (
         <div className="flex justify-end mt-2">
           <button
             type="button"

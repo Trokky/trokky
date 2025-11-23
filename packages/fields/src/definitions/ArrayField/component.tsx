@@ -92,8 +92,8 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   const [listItemSuggestions, setListItemSuggestions] = useState<{ index: number; show: boolean; selected: number }>({ index: -1, show: false, selected: -1 });
   const listInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
-  // Ensure value is always an array
-  const arrayValue = Array.isArray(value) ? value : [];
+  // Ensure value is always an array and filter out null/undefined values
+  const arrayValue = Array.isArray(value) ? value.filter(item => item !== null && item !== undefined) : [];
 
   // Get options with defaults
   const {
@@ -107,6 +107,20 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     tagField = {},
     selectField = {}
   } = arrayDefinition.options || {};
+
+  // Sanitize array on mount and when value changes - remove null/undefined
+  const hasSanitized = useRef(false);
+  useEffect(() => {
+    if (Array.isArray(value) && value.some(item => item === null || item === undefined)) {
+      // Value contains null/undefined, sanitize it
+      const sanitized = value.filter(item => item !== null && item !== undefined);
+      // Only call onChange if the sanitized array is actually different
+      if (sanitized.length !== value.length) {
+        hasSanitized.current = true;
+        onChange(sanitized);
+      }
+    }
+  }, [value]); // Removed onChange from deps to avoid recreation issues
 
   // Validate on value change
   useEffect(() => {
@@ -129,7 +143,9 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
 
     remove: (index: number) => {
       const newArray = arrayValue.filter((_, i) => i !== index);
-      onChange(newArray);
+      // Filter out any null/undefined values that might have been left behind
+      const sanitizedArray = newArray.filter(item => item !== null && item !== undefined);
+      onChange(sanitizedArray);
     },
 
     move: (fromIndex: number, toIndex: number) => {
@@ -552,6 +568,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                 hasError={itemHasError}
                 isDisabled={isDisabled}
                 isReadonly={isReadonly}
+                isArrayItem={true}
                 documentContext={documentContext ? {
                   ...documentContext,
                   nestingLevel: nestingLevel + 1  // Increment nesting level for child fields
@@ -578,7 +595,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           </div>
 
           {/* Remove button */}
-          {!isDisabled && !isReadonly && !disableRemove && adjustedItemDefinition.type !== 'reference' && (
+          {!isDisabled && !isReadonly && !disableRemove && (
             <button
               type="button"
               onClick={() => operations.remove(index)}

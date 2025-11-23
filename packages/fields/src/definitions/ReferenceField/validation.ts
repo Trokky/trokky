@@ -44,8 +44,12 @@ export function validateReferenceField(
     errors.push(`Maximum ${validation.maxReferences} reference${validation.maxReferences > 1 ? 's' : ''} allowed`);
   }
   
-  // Validate each reference
+  // Validate each reference (skip null/undefined in arrays)
   for (const ref of references) {
+    // Skip null/undefined references in arrays (they'll be filtered out by sanitization)
+    if (!ref && Array.isArray(value)) {
+      continue;
+    }
     const refValidation = validateSingleReference(ref, definition);
     if (!refValidation.isValid) {
       errors.push(...refValidation.errors);
