@@ -3,8 +3,11 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "../fields/src/**/*.{js,ts,jsx,tsx}", // Include field components
   ],
   safelist: [
+    // Rotation classes for collapsible UI
+    'rotate-90',
     // Tag colors - ensure these are always included
     'bg-blue-100', 'text-blue-800', 'dark:bg-blue-800', 'dark:text-blue-100',
     'bg-green-100', 'text-green-800', 'dark:bg-green-800', 'dark:text-green-100',

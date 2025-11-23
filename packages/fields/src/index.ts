@@ -37,6 +37,8 @@ export type {
   FieldComponentProps,
   ValidationState,
   StudioContext,
+  ConditionalOperator,
+  ConditionalConfig,
 } from './base/index.js'
 
 // Built-in field exports

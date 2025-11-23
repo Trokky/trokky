@@ -116,7 +116,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
       onValidationChange(validationResult);
       lastValidatedValue.current = value;
     }
-  }, [arrayValue, fieldId]);
+  }, [arrayValue, fieldId, onValidationChange]);
 
   // Array operations
   const operations: ArrayOperations = useMemo(() => ({
@@ -171,6 +171,8 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     // Access the 'of' property from the raw definition since it's not in the TypeScript interface
     const itemDef = (arrayDefinition as any).of || { type: 'string' };
     const defaultValue = getDefaultItemValue(itemDef);
+
+    // Add the item (this will trigger onChange and re-render)
     operations.add(defaultValue);
   }, [operations, arrayDefinition]);
 
@@ -452,8 +454,11 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               <div className="relative">
                 <input
                   ref={(el) => {
-                    if (el) listInputRefs.current.set(index, el);
-                    else listInputRefs.current.delete(index);
+                    if (el) {
+                      listInputRefs.current.set(index, el);
+                    } else {
+                      listInputRefs.current.delete(index);
+                    }
                   }}
                   type="text"
                   value={item || ''}
@@ -550,7 +555,9 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                 documentContext={documentContext ? {
                   ...documentContext,
                   nestingLevel: nestingLevel + 1  // Increment nesting level for child fields
-                } : undefined}
+                } : {
+                  nestingLevel: nestingLevel + 1  // For arrays without parent context, start at level 1
+                } as any}
                 studioContext={props.studioContext}
                 onValidationChange={(result) => {
                   // Handle nested field validation
@@ -859,8 +866,12 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
         type="button"
         onClick={() => setIsModalOpen(true)}
         disabled={isDisabled || isReadonly}
-        className={`w-full text-left border border-gray-300 dark:border-gray-600 rounded-md p-4 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
-          hasError ? 'border-red-300 dark:border-red-600' : ''
+        className={`w-full text-left border rounded-md p-4 transition-colors cursor-pointer ${
+          isModalOpen
+            ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+            : hasError
+              ? 'border-red-300 dark:border-red-600'
+              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50'
         } ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <div className="flex items-center justify-between">

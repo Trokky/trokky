@@ -660,11 +660,14 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         disabled={isDisabled || isReadonly}
         className={`
           w-full text-left
-          border border-gray-300 dark:border-gray-600 rounded-md p-4
-          hover:border-gray-400 dark:hover:border-gray-500
-          hover:bg-gray-50 dark:hover:bg-gray-800/50
+          border rounded-md p-4
           transition-colors cursor-pointer
-          ${hasError ? 'border-red-300 dark:border-red-600' : ''}
+          ${isModalOpen
+            ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+            : hasError
+              ? 'border-red-300 dark:border-red-600'
+              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          }
           ${isDisabled || isReadonly ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >

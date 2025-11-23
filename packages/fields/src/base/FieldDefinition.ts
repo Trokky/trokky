@@ -3,21 +3,59 @@
  * Based on proven legacy architecture from Trokky v1
  */
 
+// Conditional visibility operators
+export type ConditionalOperator =
+  | 'equals'
+  | 'notEquals'
+  | 'contains'
+  | 'notContains'
+  | 'exists'
+  | 'notExists'
+  | 'greaterThan'
+  | 'lessThan';
+
+// Conditional visibility configuration
+export interface ConditionalConfig {
+  // Single condition
+  field?: string;
+  value?: any;
+  operator?: ConditionalOperator;
+
+  // Multiple conditions
+  conditions?: Array<{
+    field: string;
+    value?: any;
+    operator?: ConditionalOperator;
+  }>;
+  logic?: 'and' | 'or';  // How to combine multiple conditions (default: 'and')
+}
+
 // Base field definition that all field types extend
 export interface BaseFieldDefinition {
   type: string;
   title: string;
   description?: string;
   required?: boolean;
-  hidden?: boolean;
+
+  /**
+   * Field visibility control
+   * - boolean: Static visibility (always hidden or visible)
+   * - function: Dynamic visibility based on document state
+   *
+   * NOTE: Functions cannot be serialized over HTTP. If your schemas are sent from backend to frontend,
+   * use the `conditional` property instead for dynamic visibility.
+   */
+  hidden?: boolean | ((document: Record<string, any>) => boolean);
+
   readOnly?: boolean;
   hideLabel?: boolean; // Hide field label in Studio (useful for display-only fields like info)
   group?: string;
-  conditional?: {
-    show?: Record<string, any>;
-    hide?: Record<string, any>;
-    when?: string;
-  };
+
+  /**
+   * Declarative conditional visibility (serializable, works over HTTP)
+   * Prefer this over function-based `hidden` when schemas are sent via API
+   */
+  conditional?: ConditionalConfig;
 }
 
 // Validation result interface

@@ -10,7 +10,9 @@ export type {
   FieldCategory,
   BaseFieldValue,
   DocumentContext,
-  ValidationState
+  ValidationState,
+  ConditionalOperator,
+  ConditionalConfig
 } from './FieldDefinition.js';
 
 export type {
