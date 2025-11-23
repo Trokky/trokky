@@ -11,6 +11,7 @@ export interface BaseFieldDefinition {
   required?: boolean;
   hidden?: boolean;
   readOnly?: boolean;
+  hideLabel?: boolean; // Hide field label in Studio (useful for display-only fields like info)
   group?: string;
   conditional?: {
     show?: Record<string, any>;

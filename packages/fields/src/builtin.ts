@@ -26,6 +26,7 @@ import { dateFieldPlugin } from './definitions/DateField/index.js'
 import { ColorFieldPlugin } from './definitions/ColorField/index.js'
 import { geoCoordinateFieldPlugin } from './definitions/GeoCoordinateField/index.js'
 import { IconFieldPlugin } from './definitions/IconField/index.js'
+import { infoFieldPlugin } from './definitions/InfoField/index.js'
 
 // Register all built-in field types
 export function registerBuiltinFields(): void {
@@ -74,6 +75,9 @@ export function registerBuiltinFields(): void {
 
   // Icon field
   fieldRegistry.register(IconFieldPlugin, 'builtin')
+
+  // Info field (display-only)
+  fieldRegistry.register(infoFieldPlugin, 'builtin')
 
   // Mark registry as initialized
   fieldRegistry.markInitialized()

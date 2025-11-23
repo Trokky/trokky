@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
+import { FieldWrapper } from '../../components/FieldWrapper.js';
 import type {
   ObjectFieldDefinition,
   NestedFieldDefinition,
@@ -203,26 +204,22 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         </div>
       );
     }
-    
+
     const FieldComponent = fieldPlugin.component;
     const fieldValue = objectValue[fieldName];
     const fieldHasError = !!fieldErrors[fieldName];
     const fieldIsReadOnly = isFieldReadOnly(fieldDef, objectValue, isReadonly);
-    
+
+    // Use FieldWrapper for consistent rendering with hideLabel support
     return (
-      <div key={fieldName} className={`space-y-2 ${className}`}>
-        {/* Field label */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          {fieldDef.title || fieldName}
-          {fieldDef.required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        
-        {/* Field description */}
-        {options.showDescriptions && fieldDef.description && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{fieldDef.description}</p>
-        )}
-        
-        {/* Field component */}
+      <FieldWrapper
+        key={fieldName}
+        fieldId={`${fieldId}.${fieldName}`}
+        definition={fieldDef as any}
+        hasError={fieldHasError}
+        error={fieldErrors[fieldName]}
+        validationState={undefined}
+      >
         <FieldComponent
           fieldId={`${fieldId}.${fieldName}`}
           value={fieldValue}
@@ -251,14 +248,9 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           onFocus={() => {}}
           onBlur={() => {}}
         />
-        
-        {/* Field error */}
-        {fieldHasError && (
-          <p className="text-xs text-red-600 dark:text-red-400">{fieldErrors[fieldName]}</p>
-        )}
-      </div>
+      </FieldWrapper>
     );
-  }, [objectValue, fieldErrors, operations, fieldId, isDisabled, isReadonly, options.showDescriptions]);
+  }, [objectValue, fieldErrors, operations, fieldId, isDisabled, isReadonly]);
   
   // Get dynamic title based on titleTemplate or fallback to definition.title
   const getDisplayTitle = useCallback(() => {

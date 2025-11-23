@@ -402,19 +402,6 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                   ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20'
                   : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
           }`}
-          draggable={sortable && !isDisabled && !isReadonly}
-          onDragStart={(e) => {
-            setDraggedIndex(index);
-            // Set drag image and constrain visual feedback
-            if (e.currentTarget) {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', String(index));
-            }
-          }}
-          onDragEnd={() => {
-            setDraggedIndex(null);
-            setDropTargetIndex(null);
-          }}
           onDragOver={(e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
@@ -436,9 +423,24 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
             setDropTargetIndex(null);
           }}
         >
-          {/* Drag handle - always visible when sortable */}
+          {/* Drag handle - only this element is draggable */}
           {sortable && !isDisabled && !isReadonly && (
-            <div className="flex-shrink-0 pl-2 py-3 cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
+            <div
+              draggable={true}
+              onDragStart={(e) => {
+                setDraggedIndex(index);
+                // Set drag image and constrain visual feedback
+                if (e.currentTarget) {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', String(index));
+                }
+              }}
+              onDragEnd={() => {
+                setDraggedIndex(null);
+                setDropTargetIndex(null);
+              }}
+              className="flex-shrink-0 pl-2 py-3 cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            >
               <GripVerticalIcon className="h-4 w-4" />
             </div>
           )}

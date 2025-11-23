@@ -287,5 +287,21 @@ export type {
   GeoCoordinateFieldOptions,
 } from './definitions/GeoCoordinateField/index.js'
 
+export {
+  infoFieldPlugin,
+  InfoFieldComponent,
+  InfoFieldPreview,
+  validateInfoField,
+  INFO_FIELD_DEFAULTS,
+  VARIANT_CONFIGS,
+} from './definitions/InfoField/index.js'
+
+export type {
+  InfoFieldDefinition,
+  InfoFieldOptions,
+  InfoVariant,
+  VariantConfig,
+} from './definitions/InfoField/index.js'
+
 // Re-export registration function for manual control
 export { registerBuiltinFields } from './builtin.js'
