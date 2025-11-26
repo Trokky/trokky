@@ -1,5 +1,12 @@
 # @trokky/studio
 
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [6d79dd1]
+  - @trokky/fields@0.2.0
+
 ## 0.1.9
 
 ### Patch Changes
