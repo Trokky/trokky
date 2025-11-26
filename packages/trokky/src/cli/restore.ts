@@ -227,9 +227,25 @@ export const restoreCommand = new Command('restore')
             const result = await client.uploadFile(fileBuffer, mediaInfo.filename)
 
             if (result.files && result.files[0]) {
-              const newId = result.files[0].id
-              idMappings[oldId] = newId
-              mediaRestored++
+              const newId = result.files[0].id || result.files[0]._id
+              if (newId) {
+                idMappings[oldId] = newId
+                mediaRestored++
+              }
+            } else if (result.file) {
+              // Handle single file response format
+              const newId = result.file.id || result.file._id
+              if (newId) {
+                idMappings[oldId] = newId
+                mediaRestored++
+              }
+            } else {
+              // Try direct id property
+              const newId = result.id || result._id
+              if (newId) {
+                idMappings[oldId] = newId
+                mediaRestored++
+              }
             }
           } catch (error: any) {
             spinner.warn(`Failed to restore media: ${mediaInfo.filename}`)
@@ -318,13 +334,13 @@ export const restoreCommand = new Command('restore')
               } catch (error: any) {
                 // If update fails, try create
                 const result = await client.createDocument(collectionName, sanitizedDoc)
-                const newId = (result as any).document?.id || (result as any).id
+                const newId = (result as any).document?.id || (result as any).document?._id || (result as any).id || (result as any)._id
                 if (newId) idMappings[originalDocId] = newId
               }
             } else {
               // Regular document - create new
               const result = await client.createDocument(collectionName, sanitizedDoc)
-              const newId = (result as any).document?.id || (result as any).id
+              const newId = (result as any).document?.id || (result as any).document?._id || (result as any).id || (result as any)._id
               if (newId && originalDocId) {
                 idMappings[originalDocId] = newId
               }

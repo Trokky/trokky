@@ -5,6 +5,19 @@
 import type { SchemaDefinition, FieldDefinition, DocumentReference, IdMapping } from './types.js'
 
 /**
+ * Field types that contain media asset references (asset._ref pattern)
+ * Add new media-like types here as needed
+ */
+const MEDIA_ASSET_TYPES = new Set(['media', 'image', 'video', 'audio', 'file'])
+
+/**
+ * Check if a field type is a media asset type (has asset._ref structure)
+ */
+function isMediaAssetType(type: string): boolean {
+  return MEDIA_ASSET_TYPES.has(type)
+}
+
+/**
  * Scans documents for references using schema as a guide
  */
 export class ReferenceScanner {
@@ -71,8 +84,8 @@ export class ReferenceScanner {
         }
       }
 
-      // Media/Image field
-      else if (field.type === 'media' || field.type === 'image') {
+      // Media asset field (media, image, video, audio, file, etc.)
+      else if (isMediaAssetType(field.type)) {
         const ref = this.extractMediaReference(val)
         if (ref) {
           references.push({
@@ -86,12 +99,38 @@ export class ReferenceScanner {
       // Array field
       else if (field.type === 'array' && Array.isArray(val) && field.of) {
         for (let i = 0; i < val.length; i++) {
-          // If array items are objects, pass the object's fields directly
-          // This ensures nested media/reference fields are properly scanned
-          const itemFields = field.of.type === 'object' && field.of.fields
-            ? field.of.fields
-            : [field.of]
-          this.scanValue(val[i], itemFields, [...currentPath, i.toString()], references)
+          const itemPath = [...currentPath, i.toString()]
+
+          // If array items are direct references (array of references)
+          if (field.of.type === 'reference') {
+            const ref = this.extractReference(val[i])
+            if (ref) {
+              references.push({
+                path: [...itemPath, '_ref'],
+                oldId: ref,
+                targetCollection: Array.isArray(field.of.to) ? field.of.to[0] : field.of.to
+              })
+            }
+            continue
+          }
+
+          // If array items are direct media asset references
+          if (isMediaAssetType(field.of.type)) {
+            const ref = this.extractMediaReference(val[i])
+            if (ref) {
+              references.push({
+                path: [...itemPath, 'asset', '_ref'],
+                oldId: ref,
+                targetCollection: 'media'
+              })
+            }
+            continue
+          }
+
+          // If array items are objects with fields, scan nested fields
+          if (field.of.type === 'object' && field.of.fields) {
+            this.scanValue(val[i], field.of.fields, itemPath, references)
+          }
         }
       }
 
@@ -150,8 +189,8 @@ export class ReferenceScanner {
         }
       }
 
-      // Media/Image field
-      else if (field.type === 'media' || field.type === 'image') {
+      // Media asset field (media, image, video, audio, file, etc.)
+      else if (isMediaAssetType(field.type)) {
         const ref = this.extractMediaReference(val)
         if (ref && idMappings[ref]) {
           onUpdate(ref, idMappings[ref])
@@ -168,12 +207,37 @@ export class ReferenceScanner {
       // Array field
       else if (field.type === 'array' && Array.isArray(val) && field.of) {
         updated[key] = val.map(item => {
-          // If array items are objects, pass the object's fields directly
-          // This ensures nested media/reference fields are properly updated
-          const itemFields = field.of!.type === 'object' && field.of!.fields
-            ? field.of!.fields
-            : [field.of!]
-          return this.updateValue(item, itemFields, idMappings, onUpdate)
+          // If array items are direct references (array of references)
+          if (field.of!.type === 'reference') {
+            const ref = this.extractReference(item)
+            if (ref && idMappings[ref]) {
+              onUpdate(ref, idMappings[ref])
+              return { ...(item as any), _ref: idMappings[ref] }
+            }
+            return item
+          }
+
+          // If array items are direct media asset references
+          if (isMediaAssetType(field.of!.type)) {
+            const ref = this.extractMediaReference(item)
+            if (ref && idMappings[ref]) {
+              onUpdate(ref, idMappings[ref])
+              const itemObj = item as any
+              return {
+                ...itemObj,
+                asset: { ...itemObj.asset, _ref: idMappings[ref] }
+              }
+            }
+            return item
+          }
+
+          // If array items are objects with fields, process nested fields
+          if (field.of!.type === 'object' && field.of!.fields) {
+            return this.updateValue(item, field.of!.fields, idMappings, onUpdate)
+          }
+
+          // Default: return as-is
+          return item
         })
       }
 

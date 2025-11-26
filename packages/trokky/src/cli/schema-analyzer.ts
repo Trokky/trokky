@@ -5,6 +5,11 @@
 import type { SchemaDefinition, FieldDefinition, DependencyGraph } from './types.js'
 
 /**
+ * Field types that contain media asset references (asset._ref pattern)
+ */
+const MEDIA_ASSET_TYPES = new Set(['media', 'image', 'video', 'audio', 'file'])
+
+/**
  * Analyze schemas and build dependency graph
  */
 export class SchemaAnalyzer {
@@ -43,8 +48,8 @@ export class SchemaAnalyzer {
         targets.forEach(target => dependencies.add(target))
       }
 
-      // Media and image fields depend on media collection
-      if (field.type === 'media' || field.type === 'image') {
+      // Media asset fields depend on media collection
+      if (MEDIA_ASSET_TYPES.has(field.type)) {
         dependencies.add('media')
       }
 
@@ -132,13 +137,13 @@ export class SchemaAnalyzer {
         })
       }
 
-      // Media fields
-      if (field.type === 'media' || field.type === 'image') {
+      // Media asset fields
+      if (MEDIA_ASSET_TYPES.has(field.type)) {
         references.push({
           path: currentPath,
           fieldName: field.name,
           targetCollections: ['media'],
-          fieldType: field.type
+          fieldType: field.type as 'media' | 'image'
         })
       }
 
