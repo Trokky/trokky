@@ -1139,6 +1139,171 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       throw error
     }
   }
+
+  // ==========================================================================
+  // WEBHOOK OPERATIONS
+  // ==========================================================================
+
+  async getWebhook(id: string): Promise<WebhookConfig | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('webhooks')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: WebhookRow = result.rows[0]
+    return this.mapRowToWebhook(row)
+  }
+
+  async saveWebhook(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig> {
+    SecurityValidator.validateDocumentId(id)
+
+    const now = new Date()
+
+    try {
+      // Check if this is an update (webhook exists) or create (new webhook)
+      const existingWebhook = await this.getWebhook(id)
+
+      if (existingWebhook) {
+        // Update existing webhook
+        const result = await this.query(`
+          UPDATE ${this.tableName('webhooks')}
+          SET
+            name = COALESCE($2, name),
+            url = COALESCE($3, url),
+            events = COALESCE($4, events),
+            headers = COALESCE($5, headers),
+            is_active = COALESCE($6, is_active),
+            secret = COALESCE($7, secret),
+            timeout_ms = COALESCE($8, timeout_ms),
+            retry_attempts = COALESCE($9, retry_attempts),
+            updated_at = $10
+          WHERE id = $1
+          RETURNING *
+        `, [
+          id,
+          webhookData.name,
+          webhookData.url,
+          webhookData.events ? JSON.stringify(webhookData.events) : null,
+          webhookData.headers ? JSON.stringify(webhookData.headers) : null,
+          webhookData.active,
+          webhookData.secret,
+          webhookData.retryPolicy?.baseDelay || null,
+          webhookData.retryPolicy?.maxRetries || null,
+          now
+        ])
+
+        const row: WebhookRow = result.rows[0]
+        return this.mapRowToWebhook(row)
+      } else {
+        // Create new webhook
+        const result = await this.query(`
+          INSERT INTO ${this.tableName('webhooks')}
+          (id, name, url, events, headers, is_active, secret, timeout_ms, retry_attempts, created_by, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+          RETURNING *
+        `, [
+          id,
+          webhookData.name || 'Untitled Webhook',
+          webhookData.url || '',
+          JSON.stringify(webhookData.events || []),
+          JSON.stringify(webhookData.headers || {}),
+          webhookData.active ?? true,
+          webhookData.secret || '',
+          webhookData.retryPolicy?.baseDelay || 5000,
+          webhookData.retryPolicy?.maxRetries || 3,
+          webhookData.createdBy || 'system',
+          now
+        ])
+
+        const row: WebhookRow = result.rows[0]
+        return this.mapRowToWebhook(row)
+      }
+    } catch (error) {
+      this.logger.error('Failed to save webhook', { id, webhookData, error })
+      throw error
+    }
+  }
+
+  async listWebhooks(options: WebhookListOptions = {}): Promise<WebhookConfig[]> {
+    const limit = Math.min(options.limit || 50, this.MAX_LIST_LIMIT)
+    const offset = options.offset || 0
+
+    let query = `SELECT * FROM ${this.tableName('webhooks')}`
+    const params: any[] = []
+    const conditions: string[] = []
+
+    // Add filtering
+    if (options.active !== undefined) {
+      conditions.push(`is_active = $${params.length + 1}`)
+      params.push(options.active)
+    }
+
+    if (options.createdBy) {
+      conditions.push(`created_by = $${params.length + 1}`)
+      params.push(options.createdBy)
+    }
+
+    if (options.events && options.events.length > 0) {
+      // Match webhooks that have any of the specified events
+      // Uses JSONB array contains operator
+      conditions.push(`events ?| $${params.length + 1}`)
+      params.push(options.events)
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
+
+    const result = await this.query(query, params)
+
+    return result.rows.map((row: WebhookRow) => this.mapRowToWebhook(row))
+  }
+
+  async deleteWebhook(id: string): Promise<void> {
+    SecurityValidator.validateDocumentId(id)
+
+    const result = await this.query(
+      `DELETE FROM ${this.tableName('webhooks')} WHERE id = $1`,
+      [id]
+    )
+
+    if (result.rowCount === 0) {
+      this.logger.debug(`Webhook ${id} does not exist, nothing to delete`)
+    } else {
+      this.logger.info(`Webhook deleted: ${id}`)
+    }
+  }
+
+  private mapRowToWebhook(row: WebhookRow): WebhookConfig {
+    return {
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      events: row.events || [],
+      secret: row.secret || '',
+      active: row.is_active,
+      headers: row.headers || {},
+      retryPolicy: {
+        maxRetries: row.retry_attempts || 3,
+        backoffType: 'exponential',
+        baseDelay: row.timeout_ms || 5000,
+        maxDelay: 30000,
+        retryOnStatus: [500, 502, 503, 504, 408, 429]
+      },
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }
+  }
 }
 
 /**
