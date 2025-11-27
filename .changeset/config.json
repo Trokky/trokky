@@ -3,7 +3,11 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [],
+  "linked": [
+    ["@trokky/fields", "@trokky/studio"],
+    ["@trokky/core", "@trokky/routes", "@trokky/express"],
+    ["@trokky/mail", "@trokky/mail-adapter-console", "@trokky/mail-adapter-resend", "@trokky/mail-adapter-smtp"]
+  ],
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
