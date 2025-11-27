@@ -1,5 +1,29 @@
 # @trokky/adapter-postgres-data
 
+## 0.1.7
+
+### Patch Changes
+
+- ## @trokky/studio
+
+  ### New Features
+  - Added Audit Logs page with full history view, user filtering, and search
+  - Added Audit Logs link in Settings dropdown menu
+
+  ### Improvements
+  - ActivityFeed now dynamically fetches collections from structure endpoint
+  - ActivityFeed correctly parses nested structure format (groups with items)
+  - Document sidebar shows real usernames instead of user IDs
+  - Document sidebar displays contributors from audit logs
+  - Document sidebar shows relationships with [type] prefix
+  - DocumentHistoryPanel shows real usernames
+  - AuditLogEntry displays cleaner actor names
+
+  ## @trokky/adapter-postgres-data
+
+  ### Bug Fixes
+  - Fixed audit log methods for PostgreSQL adapter
+
 ## 0.1.5
 
 ### Patch Changes

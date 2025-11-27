@@ -166,62 +166,60 @@ export function AuditLogEntry({
 
   const changedFieldsSummary = getChangedFieldsSummary();
 
+  // Format actor display name
+  const getActorDisplayName = () => {
+    if (auditLog.actorUsername) {
+      return auditLog.actorUsername;
+    }
+    if (auditLog.actorId === 'system') {
+      return 'System';
+    }
+    // Clean up user IDs for display
+    if (auditLog.actorId?.startsWith('user-')) {
+      return 'User';
+    }
+    return auditLog.actorId || 'Unknown';
+  };
+
   return (
-    <div className={`border border-gray-200 dark:border-gray-600 rounded-lg ${
-      isLatest ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 
-      'bg-white dark:bg-gray-800'
+    <div className={`rounded-lg ${
+      isLatest ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800/50'
     }`}>
-      {/* Main entry header */}
-      <div className="p-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-3 flex-1">
-            {/* Operation icon */}
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-              auditLog.operation === 'create' ? 'bg-green-100 dark:bg-green-900' :
-              auditLog.operation === 'update' ? 'bg-blue-100 dark:bg-blue-900' :
-              auditLog.operation === 'delete' ? 'bg-red-100 dark:bg-red-900' :
+      {/* Compact entry */}
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 flex-1 min-w-0">
+            {/* Operation icon - smaller */}
+            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+              auditLog.operation === 'create' ? 'bg-green-100 dark:bg-green-900/50' :
+              auditLog.operation === 'update' ? 'bg-blue-100 dark:bg-blue-900/50' :
+              auditLog.operation === 'delete' ? 'bg-red-100 dark:bg-red-900/50' :
               'bg-gray-100 dark:bg-gray-700'
             }`}>
-              <OperationIcon className={`h-4 w-4 ${operationInfo.color}`} />
+              <OperationIcon className={`h-3 w-3 ${operationInfo.color}`} />
             </div>
 
-            {/* Main content */}
+            {/* Main content - single line */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className={`text-sm font-medium ${operationInfo.color}`}>
+              <div className="flex items-center space-x-1 text-xs">
+                <span className={`font-medium ${operationInfo.color}`}>
                   {operationInfo.text}
                 </span>
+                <span className="text-gray-400">by</span>
+                <span className="text-gray-600 dark:text-gray-300 font-medium truncate">
+                  {getActorDisplayName()}
+                </span>
                 {isLatest && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200">
                     Latest
                   </span>
                 )}
               </div>
-
-              {/* Actor info */}
-              <div className="flex items-center mt-1">
-                <ActorIcon className="h-3 w-3 mr-1 text-gray-400" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {auditLog.actorUsername || auditLog.actorId}
-                  {auditLog.actorType !== 'user' && (
-                    <span className="text-gray-500"> ({auditLog.actorType})</span>
-                  )}
-                </span>
-              </div>
-
-              {/* Changes summary */}
-              {changedFieldsSummary && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {changedFieldsSummary}
-                </div>
-              )}
-
-              {/* Timestamp */}
-              <div className="flex items-center mt-1">
-                <ClockIcon className="h-3 w-3 mr-1 text-gray-400" />
-                <span className="text-xs text-gray-500 dark:text-gray-400" title={fullDate}>
-                  {timeAgo}
-                </span>
+              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {changedFieldsSummary && (
+                  <span className="truncate">{changedFieldsSummary}</span>
+                )}
+                <span title={fullDate}>• {timeAgo}</span>
               </div>
             </div>
           </div>
@@ -234,9 +232,9 @@ export function AuditLogEntry({
               title={isExpanded ? 'Hide details' : 'Show details'}
             >
               {isExpanded ? (
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="h-3 w-3" />
               ) : (
-                <ChevronRightIcon className="h-4 w-4" />
+                <ChevronRightIcon className="h-3 w-3" />
               )}
             </button>
           )}

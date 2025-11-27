@@ -466,6 +466,87 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     }
   }
 
+  /**
+   * Get audit logs for a specific document
+   */
+  async getDocumentAuditLogs(documentId: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    const limit = options.limit || 100
+    const offset = options.offset || 0
+
+    const result = await this.query(`
+      SELECT * FROM ${this.tableName('audit_logs')}
+      WHERE resource_id = $1
+      ORDER BY timestamp DESC
+      LIMIT $2 OFFSET $3
+    `, [documentId, limit, offset])
+
+    return result.rows.map((row: AuditLogRow) => ({
+      id: row.id,
+      documentId: row.resource_id,
+      collection: row.resource_type,
+      operation: row.operation as AuditOperation,
+      actorType: row.actor_type as AuditActorType,
+      actorId: row.actor_id,
+      changes: row.changes,
+      timestamp: row.timestamp,
+      metadata: row.metadata
+    }))
+  }
+
+  /**
+   * Get audit logs for a collection
+   */
+  async getCollectionAuditLogs(collection: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    const limit = options.limit || 100
+    const offset = options.offset || 0
+
+    const result = await this.query(`
+      SELECT * FROM ${this.tableName('audit_logs')}
+      WHERE resource_type = $1
+      ORDER BY timestamp DESC
+      LIMIT $2 OFFSET $3
+    `, [collection, limit, offset])
+
+    return result.rows.map((row: AuditLogRow) => ({
+      id: row.id,
+      documentId: row.resource_id,
+      collection: row.resource_type,
+      operation: row.operation as AuditOperation,
+      actorType: row.actor_type as AuditActorType,
+      actorId: row.actor_id,
+      changes: row.changes,
+      timestamp: row.timestamp,
+      metadata: row.metadata
+    }))
+  }
+
+  /**
+   * Get audit logs by actor
+   */
+  async getActorAuditLogs(actorId: string, options: { limit?: number; offset?: number } = {}): Promise<AuditLog[]> {
+    const limit = options.limit || 100
+    const offset = options.offset || 0
+
+    const result = await this.query(`
+      SELECT * FROM ${this.tableName('audit_logs')}
+      WHERE actor_id = $1
+      ORDER BY timestamp DESC
+      LIMIT $2 OFFSET $3
+    `, [actorId, limit, offset])
+
+    return result.rows.map((row: AuditLogRow) => ({
+      id: row.id,
+      documentId: row.resource_id,
+      collection: row.resource_type,
+      operation: row.operation as AuditOperation,
+      actorType: row.actor_type as AuditActorType,
+      actorId: row.actor_id,
+      changes: row.changes,
+      timestamp: row.timestamp,
+      metadata: row.metadata
+    }))
+  }
+
   // ==========================================================================
   // UTILITY OPERATIONS
   // ==========================================================================

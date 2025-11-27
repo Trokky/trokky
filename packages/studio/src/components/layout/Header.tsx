@@ -11,7 +11,8 @@ import {
   PhotoIcon,
   UsersIcon,
   ChevronDownIcon,
-  KeyIcon
+  KeyIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -261,6 +262,19 @@ export function Header({
                     </div>
                   </Link>
                 )}
+
+                {/* Audit Logs - available to admins */}
+                <Link
+                  to="/audit-logs"
+                  onClick={() => setSettingsMenuOpen(false)}
+                  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">Audit Logs</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">View all content changes</div>
+                  </div>
+                </Link>
               </div>
             )}
             </div>

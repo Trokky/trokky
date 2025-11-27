@@ -9,6 +9,7 @@ import { MediaPage } from '@/pages/MediaPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
+import { AuditLogsPage } from '@/pages/AuditLogsPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { DocumentEditorPage } from '@/components/document';
@@ -71,6 +72,10 @@ const router = createBrowserRouter([
       {
         path: 'user/preferences',
         element: <UserPreferencesPage />
+      },
+      {
+        path: 'audit-logs',
+        element: <AuditLogsPage />
       },
       {
         path: 'fields-demo',

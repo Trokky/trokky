@@ -48,6 +48,8 @@ export function DocumentSidebar() {
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [contributors, setContributors] = useState<Array<{id: string, username: string, role: string}>>([]);
+  const [usernameCache, setUsernameCache] = useState<Record<string, string>>({});
 
   // Save collapsed state to localStorage whenever it changes
   const toggleCollapsed = (collapsed: boolean) => {
@@ -59,125 +61,221 @@ export function DocumentSidebar() {
     }
   };
 
-  // Load document relationships and URL
+  // Load document relationships, URL, and contributors
   useEffect(() => {
-    if (!isNewDocument && document?.id) {
+    const docId = document?._id || document?.id;
+    if (!isNewDocument && docId) {
       loadRelationships();
       loadDocumentUrl();
+      loadContributors();
     }
-  }, [document?.id, document?.author, document?.category, isNewDocument]);
+  }, [document?._id, document?.id, document?.author, document?.category, isNewDocument]);
 
   const loadDocumentUrl = async () => {
     const url = await getDocumentUrl();
     setDocumentUrl(url);
   };
 
+  // Load contributors from audit logs
+  const loadContributors = async () => {
+    const docId = document?._id || document?.id;
+    if (!docId) return;
+
+    try {
+      const response = await apiClient.get(`/audit-logs/documents/${docId}`, {
+        params: { limit: 50 }
+      });
+
+      if (response.success && (response.data as any)?.auditLogs) {
+        const auditLogs = (response.data as any).auditLogs;
+
+        // Extract unique contributors from audit logs
+        const contributorMap = new Map<string, { id: string; username: string; role: string }>();
+
+        for (const log of auditLogs) {
+          if (log.actorId && !contributorMap.has(log.actorId)) {
+            // Try to resolve username
+            let username = log.actorUsername || await resolveUsername(log.actorId);
+            const role = log.actorId === document?._createdBy ? 'Creator' : 'Editor';
+            contributorMap.set(log.actorId, { id: log.actorId, username, role });
+          }
+        }
+
+        setContributors(Array.from(contributorMap.values()));
+      }
+    } catch (error) {
+      logger.warn('Failed to load contributors from audit logs', error);
+    }
+  };
+
+  // Resolve user ID to username
+  const resolveUsername = async (userId: string): Promise<string> => {
+    // Check cache first
+    if (usernameCache[userId]) {
+      return usernameCache[userId];
+    }
+
+    // System user
+    if (userId === 'system') {
+      return 'System';
+    }
+
+    // Try to fetch user info
+    try {
+      const response = await apiClient.get(`/users/${userId}`);
+      if (response.success && (response.data as any)?.user) {
+        const user = (response.data as any).user;
+        const username = user.username || user.name || user.email || userId;
+        setUsernameCache(prev => ({ ...prev, [userId]: username }));
+        return username;
+      }
+    } catch (error) {
+      // User not found, extract from ID if possible
+      logger.debug('Could not resolve username for', userId);
+    }
+
+    // Fallback: clean up the ID format
+    if (userId.startsWith('user-')) {
+      // Try to extract something readable
+      return 'User';
+    }
+
+    return userId;
+  };
+
   const loadRelationships = async () => {
-    if (!document?.id) return;
+    const docId = document?._id || document?.id;
+    if (!docId || !schema) return;
 
     try {
       setLoadingRelationships(true);
-      
-      // Extract actual references from the document
+
       const references: any[] = [];
-      
-      logger.debug('Loading relationships for document', { 
-        documentId: document.id, 
-        author: document.author, 
-        category: document.category 
+
+      logger.debug('Loading relationships for document', {
+        documentId: docId,
+        schemaName: schema.name
       });
-      
-      // Check for author reference - handle multiple formats
-      if (document.author) {
-        if (typeof document.author === 'string') {
-          // String reference - try to resolve it
+
+      // Helper to extract a single reference
+      const extractReference = async (
+        fieldValue: any,
+        targetCollection: string,
+        fieldPath: string,
+        fieldTitle: string
+      ) => {
+        let refId: string | null = null;
+        let refTitle: string | null = null;
+
+        if (typeof fieldValue === 'string') {
+          refId = fieldValue;
+        } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+          refId = fieldValue._ref || fieldValue._id || fieldValue.id;
+          refTitle = fieldValue._cached?.name ||
+                    fieldValue._cached?.title ||
+                    fieldValue.name ||
+                    fieldValue.title;
+        }
+
+        if (!refId) return;
+
+        // Try to resolve if no cached title
+        if (!refTitle) {
           try {
-            const authorResponse = await apiClient.getDocument('author', document.author);
-            if (authorResponse.success && authorResponse.data?.document) {
-              references.push({
-                id: document.author,
-                title: authorResponse.data.document.name || authorResponse.data.document.title || 'Author',
-                type: 'author'
-              });
+            const refResponse = await apiClient.getDocument(targetCollection, refId);
+            if (refResponse.success && refResponse.data?.document) {
+              const refDoc = refResponse.data.document;
+              refTitle = refDoc.name || refDoc.title || refDoc.label || refId;
             }
           } catch (error) {
-            logger.warn('Failed to resolve author reference', error);
-            references.push({
-              id: document.author,
-              title: document.author,
-              type: 'author'
-            });
+            logger.warn(`Failed to resolve reference for ${fieldPath}`, error);
+            refTitle = refId;
           }
-        } else if (typeof document.author === 'object') {
-          // Object reference
-          const authorTitle = document.author._cached?.name || 
-                             document.author._cached?.title || 
-                             document.author.name || 
-                             document.author.title ||
-                             document.author._ref ||
-                             'Author';
-          references.push({
-            id: document.author.id || document.author._ref,
-            title: authorTitle,
-            type: 'author'
-          });
         }
-      }
-      
-      // Check for category reference - handle multiple formats
-      if (document.category) {
-        if (typeof document.category === 'string') {
-          // String reference - try to resolve it
-          try {
-            const categoryResponse = await apiClient.getDocument('category', document.category);
-            if (categoryResponse.success && categoryResponse.data?.document) {
-              references.push({
-                id: document.category,
-                title: categoryResponse.data.document.name || categoryResponse.data.document.title || 'Category',
-                type: 'category'
-              });
+
+        references.push({
+          id: refId,
+          title: refTitle || refId,
+          fieldName: fieldPath,
+          fieldTitle,
+          targetCollection,
+          type: targetCollection
+        });
+      };
+
+      // Recursively scan fields for references
+      const scanFields = async (
+        fields: any,
+        docData: any,
+        pathPrefix: string = '',
+        titlePrefix: string = ''
+      ) => {
+        if (!fields || !docData) return;
+
+        const fieldEntries = Array.isArray(fields)
+          ? fields.map((f: any) => [f.name, f])
+          : Object.entries(fields);
+
+        for (const [fieldName, fieldDef] of fieldEntries) {
+          const field = fieldDef as any;
+          const fieldPath = pathPrefix ? `${pathPrefix}.${fieldName}` : fieldName;
+          const fieldTitle = titlePrefix
+            ? `${titlePrefix} > ${field.title || fieldName}`
+            : (field.title || fieldName);
+          const fieldValue = docData[fieldName];
+
+          if (!fieldValue) continue;
+
+          if (field.type === 'reference') {
+            // Direct reference field
+            const targetCollection = field.to || field.reference || fieldName;
+            await extractReference(fieldValue, targetCollection, fieldPath, fieldTitle);
+
+          } else if (field.type === 'array' && field.of?.type === 'reference') {
+            // Array of references
+            const targetCollection = field.of.to || field.of.reference || fieldName;
+            const arrayTitle = field.title || fieldName;
+
+            if (Array.isArray(fieldValue)) {
+              for (let i = 0; i < Math.min(fieldValue.length, 5); i++) {
+                await extractReference(
+                  fieldValue[i],
+                  targetCollection,
+                  `${fieldPath}[${i}]`,
+                  arrayTitle
+                );
+              }
+              // Note if there are more
+              if (fieldValue.length > 5) {
+                logger.debug(`Truncated ${fieldValue.length - 5} more references in ${fieldPath}`);
+              }
             }
-          } catch (error) {
-            logger.warn('Failed to resolve category reference', error);
-            references.push({
-              id: document.category,
-              title: document.category,
-              type: 'category'
-            });
+
+          } else if (field.type === 'object' && field.fields) {
+            // Nested object - recurse into it
+            await scanFields(field.fields, fieldValue, fieldPath, field.title || fieldName);
           }
-        } else if (typeof document.category === 'object') {
-          // Object reference
-          const categoryTitle = document.category._cached?.name || 
-                               document.category._cached?.title || 
-                               document.category.name || 
-                               document.category.title ||
-                               document.category._ref ||
-                               'Category';
-          references.push({
-            id: document.category.id || document.category._ref,
-            title: categoryTitle,
-            type: 'category'
-          });
         }
-      }
-      
-      // TODO: Find documents that reference this document (referencedBy)
-      // This would require a reverse lookup in the API
-      
+      };
+
+      // Start scanning from top-level fields
+      await scanFields(schema.fields, document);
+
       const actualRelationships = {
         references,
-        referencedBy: [], // Would be populated by API call
+        referencedBy: [],
         similar: []
       };
-      
+
       setRelationships(actualRelationships);
-      logger.info('Relationships loaded', { 
-        documentId: document.id, 
+      logger.info('Relationships loaded', {
+        documentId: docId,
         relationshipCount: references.length,
-        relationships: references 
+        references: references.map(r => ({ field: r.fieldName, title: r.title }))
       });
     } catch (err) {
       logger.error('Failed to load relationships', err);
+      setRelationships({ references: [], referencedBy: [], similar: [] });
     } finally {
       setLoadingRelationships(false);
     }
@@ -300,7 +398,7 @@ export function DocumentSidebar() {
   }
 
   return (
-    <div className="w-64 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
       {/* Sidebar header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white">
@@ -373,7 +471,7 @@ export function DocumentSidebar() {
             )}
           </div>
 
-          {/* Public URL */}
+          {/* Public URL - Hidden for now
           {documentState === 'published' && documentUrl && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
@@ -392,6 +490,7 @@ export function DocumentSidebar() {
               </div>
             </div>
           )}
+          */}
 
           {/* Tags/Categories (if available) */}
           {document?.tags && document.tags.length > 0 && (
@@ -419,39 +518,27 @@ export function DocumentSidebar() {
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 Contributors
               </h4>
-              <div className="space-y-2">
-                {/* Document author (from reference field) */}
-                {document?.author && typeof document.author === 'object' && document.author._cached && (
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <UserIcon className="h-4 w-4 mr-2" />
-                    <span className="font-medium">{document.author._cached.name}</span>
-                    <span className="ml-1 text-xs text-gray-400">(Author)</span>
-                  </div>
+              <div className="flex flex-wrap gap-1">
+                {contributors.length > 0 ? (
+                  contributors.slice(0, 5).map((contributor, index) => (
+                    <span
+                      key={contributor.id}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                      title={`${contributor.username} (${contributor.role})`}
+                    >
+                      <UserIcon className="h-3 w-3 mr-1" />
+                      {contributor.username}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Loading...
+                  </span>
                 )}
-                
-                {/* Creator (if different from author) */}
-                {document?._createdBy && (!document.author || document._createdBy !== document.author._cached?.name) && (
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <UserIcon className="h-4 w-4 mr-2" />
-                    <span>{document._createdBy}</span>
-                    <span className="ml-1 text-xs text-gray-400">(Creator)</span>
-                  </div>
-                )}
-                
-                {/* Last editor (if different from others) */}
-                {document?._updatedBy && document._updatedBy !== document._createdBy && (!document.author || document._updatedBy !== document.author._cached?.name) && (
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <UserIcon className="h-4 w-4 mr-2" />
-                    <span>{document._updatedBy}</span>
-                    <span className="ml-1 text-xs text-gray-400">(Last edited)</span>
-                  </div>
-                )}
-                
-                {/* TODO: Add more contributors from document history when available */}
-                {!document?.author && !document?._createdBy && !document?._updatedBy && (
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    No contributor information available
-                  </div>
+                {contributors.length > 5 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    +{contributors.length - 5} more
+                  </span>
                 )}
               </div>
             </div>
@@ -461,68 +548,33 @@ export function DocumentSidebar() {
         {/* Document relationships */}
         {!isNewDocument && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-              Relationships
+            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+              References {relationships?.references?.length > 0 && `(${relationships.references.length})`}
             </h4>
-            
+
             {loadingRelationships ? (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Loading relationships...
-              </div>
-            ) : relationships ? (
-              <div className="space-y-3">
-                {/* References */}
-                {relationships.references.length > 0 && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      References ({relationships.references.length})
-                    </h5>
-                    <div className="space-y-1">
-                      {relationships.references.slice(0, 3).map((ref: any, index: number) => (
-                        <div key={index} className="text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-                          {ref.title || ref.name || ref.id}
-                        </div>
-                      ))}
-                      {relationships.references.length > 3 && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          +{relationships.references.length - 3} more
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Referenced by */}
-                {relationships.referencedBy.length > 0 && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      Referenced by ({relationships.referencedBy.length})
-                    </h5>
-                    <div className="space-y-1">
-                      {relationships.referencedBy.slice(0, 3).map((ref: any, index: number) => (
-                        <div key={index} className="text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-                          {ref.title || ref.name || ref.id}
-                        </div>
-                      ))}
-                      {relationships.referencedBy.length > 3 && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          +{relationships.referencedBy.length - 3} more
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {relationships.references.length === 0 && relationships.referencedBy.length === 0 && (
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    No relationships found
-                  </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Loading...</div>
+            ) : relationships?.references?.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {relationships.references.slice(0, 8).map((ref: any, index: number) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/content/${ref.targetCollection}/${ref.id}`)}
+                    title={`${ref.fieldTitle}: ${ref.title}`}
+                  >
+                    <span className="text-blue-500 dark:text-blue-400 mr-1">[{ref.targetCollection}]</span>
+                    {ref.title.length > 15 ? `${ref.title.substring(0, 15)}...` : ref.title}
+                  </span>
+                ))}
+                {relationships.references.length > 8 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
+                    +{relationships.references.length - 8}
+                  </span>
                 )}
               </div>
             ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Failed to load relationships
-              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">No references</div>
             )}
           </div>
         )}
@@ -547,7 +599,7 @@ export function DocumentSidebar() {
         {!isNewDocument && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
             <DocumentHistoryPanel
-              documentId={document?.id || ''}
+              documentId={document?._id || document?.id || ''}
               collection={schema?.name || ''}
               isVisible={true}
             />

@@ -130,6 +130,24 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
     loadRecentActivity();
   }, [limit]);
 
+  // Resolve user ID to username
+  const resolveUsername = async (userId: string, cache: Record<string, string>): Promise<string> => {
+    if (cache[userId]) return cache[userId];
+    if (userId === 'system') return 'System';
+
+    try {
+      const response = await apiClient.get(`/users/${userId}`);
+      if (response.success && (response.data as any)?.user) {
+        const user = (response.data as any).user;
+        return user.username || user.name || user.email || 'User';
+      }
+    } catch {
+      // Silently fail - will use fallback
+    }
+
+    return userId.startsWith('user-') ? 'User' : userId;
+  };
+
   const loadRecentActivity = async () => {
     setLoading(true);
     setError(null);
@@ -137,9 +155,44 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
     try {
       logger.debug('Loading recent activity', { limit });
 
-      // For now, we'll get activity from multiple collections
-      // In a real implementation, you might want a dedicated "recent activity" endpoint
-      const collections = ['article', 'author', 'category', 'homePage', 'settings'];
+      // Fetch collections dynamically from structure
+      let collections: string[] = [];
+      try {
+        const structureResponse = await apiClient.get('/config/structure');
+        if (structureResponse.success && (structureResponse.data as any)?.structure) {
+          const structure = (structureResponse.data as any).structure;
+          const items = structure.items || structure;
+
+          // Recursive function to extract schemaTypes from nested structure
+          const extractSchemaTypes = (items: any[]): string[] => {
+            const schemas: string[] = [];
+            for (const item of items) {
+              if (item.schemaType) {
+                schemas.push(item.schemaType);
+              }
+              // Handle nested groups
+              if (item.items && Array.isArray(item.items)) {
+                schemas.push(...extractSchemaTypes(item.items));
+              }
+            }
+            return schemas;
+          };
+
+          if (Array.isArray(items)) {
+            collections = [...new Set(extractSchemaTypes(items))];
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch structure, using fallback collections', err);
+      }
+
+      // Fallback to common collections if structure fetch fails
+      if (collections.length === 0) {
+        collections = ['article', 'homepage', 'settings', 'navigation'];
+      }
+
+      logger.debug('Collections to query for activity', { collections });
+
       const allActivities: AuditLog[] = [];
 
       // Fetch audit logs from each collection
@@ -159,19 +212,33 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
         }
       }
 
+      // Resolve usernames for all unique actor IDs
+      const usernameCache: Record<string, string> = {};
+      const uniqueActorIds = [...new Set(allActivities.map(a => a.actorId).filter(Boolean))];
+
+      for (const actorId of uniqueActorIds) {
+        usernameCache[actorId] = await resolveUsername(actorId, usernameCache);
+      }
+
+      // Enrich activities with resolved usernames
+      const enrichedActivities = allActivities.map(activity => ({
+        ...activity,
+        actorUsername: usernameCache[activity.actorId] || activity.actorUsername
+      }));
+
       // Sort all activities by timestamp (newest first)
-      const sortedActivities = allActivities
+      const sortedActivities = enrichedActivities
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       // Group ALL activities by document to show complete change history per document
       const documentGroups = groupActivitiesByDocument(sortedActivities);
-      
+
       // Apply limit to number of documents shown
       const finalGroups = documentGroups.slice(0, limit);
 
       setDocumentGroups(finalGroups);
-      logger.info('Recent activity loaded successfully', { 
-        count: sortedActivities.length 
+      logger.info('Recent activity loaded successfully', {
+        count: sortedActivities.length
       });
 
     } catch (err: any) {

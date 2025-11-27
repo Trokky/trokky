@@ -61,6 +61,24 @@ export function DocumentHistoryPanel({
     }
   }, [documentId, isVisible]);
 
+  // Resolve user ID to username
+  const resolveUsername = async (userId: string, cache: Record<string, string>): Promise<string> => {
+    if (cache[userId]) return cache[userId];
+    if (userId === 'system') return 'System';
+
+    try {
+      const response = await apiClient.get(`/users/${userId}`);
+      if (response.success && (response.data as any)?.user) {
+        const user = (response.data as any).user;
+        return user.username || user.name || user.email || 'User';
+      }
+    } catch {
+      // Silently fail - will use fallback
+    }
+
+    return userId.startsWith('user-') ? 'User' : userId;
+  };
+
   const loadAuditLogs = async () => {
     if (!documentId) return;
 
@@ -72,16 +90,32 @@ export function DocumentHistoryPanel({
 
       const response = await apiClient.get(`/audit-logs/documents/${documentId}`, {
         params: {
-          limit: 50, // Load last 50 changes
+          limit: 50,
           offset: 0
         }
       });
 
       if (response.success && (response.data as any)?.auditLogs) {
-        setAuditLogs((response.data as any).auditLogs);
-        logger.info('Audit logs loaded successfully', { 
-          documentId, 
-          count: (response.data as any).auditLogs.length 
+        const logs = (response.data as any).auditLogs;
+
+        // Resolve usernames for all unique actor IDs
+        const usernameCache: Record<string, string> = {};
+        const uniqueActorIds = [...new Set(logs.map((l: any) => l.actorId).filter(Boolean))];
+
+        for (const actorId of uniqueActorIds) {
+          usernameCache[actorId as string] = await resolveUsername(actorId as string, usernameCache);
+        }
+
+        // Enrich logs with resolved usernames
+        const enrichedLogs = logs.map((log: any) => ({
+          ...log,
+          actorUsername: usernameCache[log.actorId] || log.actorUsername
+        }));
+
+        setAuditLogs(enrichedLogs);
+        logger.info('Audit logs loaded successfully', {
+          documentId,
+          count: enrichedLogs.length
         });
       } else {
         logger.warn('Failed to load audit logs', response);
@@ -89,10 +123,9 @@ export function DocumentHistoryPanel({
       }
     } catch (err: any) {
       logger.error('Error loading audit logs', err);
-      
-      // Check if audit logs are not supported
+
       if (err.response?.status === 501) {
-        setError('Document history is not available (audit logs not supported by storage adapter)');
+        setError('Document history is not available');
       } else {
         setError('Failed to load document history');
       }
@@ -120,66 +153,56 @@ export function DocumentHistoryPanel({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <ClockIcon className="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" />
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-              Document History
-            </h3>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
-            title="Refresh history"
-          >
-            <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+    <div>
+      {/* Compact Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center">
+          <ClockIcon className="h-4 w-4 mr-1.5 text-gray-500 dark:text-gray-400" />
+          <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            Document History
+          </h3>
         </div>
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+          title="Refresh history"
+        >
+          <ArrowPathIcon className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div>
         {loading && (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center py-4">
             <LoadingSpinner />
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-              Loading history...
+            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+              Loading...
             </span>
           </div>
         )}
 
         {error && (
-          <div className="text-center py-8">
-            <div className="text-sm text-red-600 dark:text-red-400 mb-2">
+          <div className="py-4">
+            <div className="text-xs text-red-600 dark:text-red-400">
               {error}
             </div>
-            {error.includes('not supported') && (
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Audit logging may not be enabled for this storage adapter.
-              </div>
-            )}
           </div>
         )}
 
         {!loading && !error && auditLogs.length === 0 && (
-          <div className="text-center py-8">
-            <ClockIcon className="h-8 w-8 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              No history available
-            </div>
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              Changes will appear here once you save the document
+          <div className="text-center py-4">
+            <ClockIcon className="h-6 w-6 mx-auto text-gray-300 dark:text-gray-600 mb-1" />
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              No history yet
             </div>
           </div>
         )}
 
         {!loading && !error && auditLogs.length > 0 && (
-          <div className="space-y-3">
-            {auditLogs.map((auditLog, index) => (
+          <div className="space-y-1.5">
+            {auditLogs.slice(0, 10).map((auditLog, index) => (
               <AuditLogEntry
                 key={auditLog.id}
                 auditLog={auditLog}
@@ -189,10 +212,10 @@ export function DocumentHistoryPanel({
               />
             ))}
 
-            {auditLogs.length >= 50 && (
-              <div className="text-center py-2">
+            {auditLogs.length > 10 && (
+              <div className="text-center pt-1">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Showing last 50 changes
+                  +{auditLogs.length - 10} more changes
                 </div>
               </div>
             )}
