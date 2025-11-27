@@ -216,8 +216,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
       return;
     }
     
-    // Allow only valid characters: a-z, 0-9, hyphen, underscore
-    const validChars = /^[a-z0-9\-_]$/;
+    // Allow only valid characters: a-z, 0-9, hyphen, underscore, slash
+    const validChars = /^[a-z0-9\-_\/]$/;
     if (!validChars.test(event.key.toLowerCase())) {
       event.preventDefault();
     }
@@ -234,7 +234,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     const sanitizedText = pastedText
       .toLowerCase()
       .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9\-_]/g, '')
+      .replace(/[^a-z0-9\-_\/]/g, '')
       .replace(/--+/g, '-')
       .replace(/^-+|-+$/g, '');
     
@@ -254,7 +254,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     const sanitizedValue = rawValue
       .toLowerCase()
       .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/[^a-z0-9\-_]/g, '') // Remove any character that's not alphanumeric, hyphen, or underscore
+      .replace(/[^a-z0-9\-_\/]/g, '') // Remove any character that's not alphanumeric, hyphen, underscore, or slash
       .replace(/--+/g, '-') // Replace multiple consecutive hyphens with single hyphen
       .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
     
@@ -419,7 +419,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
             onKeyDown={shouldBeReadOnly ? undefined : handleKeyDown}
             onPaste={shouldBeReadOnly ? undefined : handlePaste}
             className={`${inputProps.className} ${shouldBeReadOnly ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : ''}`}
-            title="Only lowercase letters, numbers, hyphens, and underscores allowed. Invalid characters will be blocked."
+            title="Only lowercase letters, numbers, hyphens, underscores, and slashes allowed. Invalid characters will be blocked."
             placeholder={slugDefinition.placeholder || 'my-awesome-slug'}
           />
           

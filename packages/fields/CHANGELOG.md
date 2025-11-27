@@ -1,19 +1,13 @@
 # @trokky/fields
 
-## 0.2.0
+## 0.1.7
 
-### Minor Changes
+### Patch Changes
 
-- 6d79dd1: Add InfoField and improve field wrapper behavior
-
-  **New Features:**
-  - Add InfoField for displaying informational messages in Studio with markdown support, variants (info/warning/tip/success/error), and collapsible functionality
-  - Add `hideLabel` property to BaseFieldDefinition to allow fields to hide the Studio's automatic label wrapper
-
-  **Improvements:**
-  - Update FieldWrapper to display field descriptions on a new line below the label for better readability
-  - Refactor ObjectField to use FieldWrapper for nested fields, ensuring consistency with hideLabel, error styling, and validation states
-  - Fix ArrayField drag-and-drop to only trigger from grip handle, preventing conflicts with interactive elements like sliders and inputs
+- Allow slashes in slug fields by default
+  - Changed `allowSlashes` default from `false` to `true`
+  - Updated UI component to accept `/` in keyboard input, paste, and change handlers
+  - Enables hierarchical paths like `a-propos/histoire` without explicit configuration
 
 ## 0.1.4
 
@@ -108,20 +102,14 @@
   - Fixed selection handling to properly identify selected references
   - Added backward compatibility by using doc.\_id || doc.id fallback pattern
 
-## 2.1.0
+## 0.1.0
 
 ### Minor Changes
 
 - Initial beta release
 
   Core functionality:
-  - Complete CMS engine with business logic, schemas, validation, and storage coordination
-  - Framework-agnostic HTTP handlers and route definitions
-  - React-based admin Studio interface
-  - Frontend SDK with TypeScript type generation
-  - Express.js server integration with auto-mounting
-  - File-based storage adapters with Git-friendly workflows
   - Field system with TypeScript-first definitions and Zod validation
-  - Professional configuration system with organized sections
-  - JWT-based authentication with role-based access control
-  - Media processing with Sharp integration
+  - React components for all field types
+  - Preview components for read-only display
+  - Field registry for plugin management

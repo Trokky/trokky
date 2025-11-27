@@ -23,7 +23,7 @@ export interface SlugFieldDefinition extends BaseFieldDefinition {
   readOnly?: boolean;                 // Default: false (allow manual override)
   preserveCase?: boolean;             // Default: false (convert to lowercase)
   allowedChars?: string;              // Additional allowed characters beyond a-z0-9-
-  allowSlashes?: boolean;             // Default: false (allow / for hierarchical paths)
+  allowSlashes?: boolean;             // Default: true (allow / for hierarchical paths)
   
   // Prefix/suffix options
   prefix?: string;                    // Prefix to add to generated slugs
@@ -57,7 +57,7 @@ export function defaultSlugify(input: string, options: SlugifyOptions = {}): str
   const {
     preserveCase = false,
     allowedChars = '',
-    allowSlashes = false,
+    allowSlashes = true,
     prefix = '',
     suffix = ''
   } = options;
@@ -252,7 +252,7 @@ export const SlugFieldPlugin: FieldPlugin<SlugFieldDefinition, string> = {
       readOnly: schemaField.readOnly || false,
       preserveCase: schemaField.preserveCase || false,
       allowedChars: schemaField.allowedChars || '',
-      allowSlashes: schemaField.allowSlashes || false,
+      allowSlashes: schemaField.allowSlashes !== false,
       prefix: schemaField.prefix || '',
       suffix: schemaField.suffix || ''
     };
