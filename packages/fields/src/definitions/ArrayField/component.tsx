@@ -1033,7 +1033,14 @@ function getDefaultItemValue(itemDefinition: any): any {
       return baseObject;
     case 'reference':
       return undefined; // ReferenceField expects undefined for empty state
+    case 'media':
+      // Media field expects { _type: 'media' } for empty state - MediaField handles this
+      return { _type: 'media' };
+    case 'image':
+      // Image field (alias for media) expects same structure
+      return { _type: 'media' };
     default:
-      return null;
+      // Return empty object for unknown types to avoid null sanitization
+      return {};
   }
 }

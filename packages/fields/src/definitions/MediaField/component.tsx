@@ -533,6 +533,10 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     return asset?.url || ''
   }, [currentAsset, studioContext])
 
+  // Check if value represents an empty/unset media field
+  // This handles cases where value is { _type: 'media' } without an actual asset reference
+  const isEmptyMediaValue = !value || !value.asset || !value.asset._ref;
+
   // Render compact button for empty state - matches the filled state style
   const renderCompactButton = () => {
     // Get the appropriate icon based on media type restriction
@@ -935,7 +939,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       />
 
       {/* Render compact button or preview */}
-      {value ? renderMediaPreview() : renderCompactButton()}
+      {isEmptyMediaValue ? renderCompactButton() : renderMediaPreview()}
 
       {/* Upload dialog modal */}
       {renderUploadDialog()}

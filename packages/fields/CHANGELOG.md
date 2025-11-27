@@ -1,5 +1,11 @@
 # @trokky/fields
 
+## 0.1.8
+
+### Patch Changes
+
+- Fix array field "Add item" not working for media type items - properly handle empty media state in MediaField component
+
 ## 0.1.7
 
 ### Patch Changes
