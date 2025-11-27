@@ -5,14 +5,15 @@
  */
 
 import { useState, useEffect } from 'react';
-import { 
-  ClockIcon, 
-  UserIcon, 
+import {
+  ClockIcon,
+  UserIcon,
   TagIcon,
   LinkIcon,
   ChevronRightIcon,
   ChevronDownIcon,
-  TrashIcon
+  TrashIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentEditor } from './DocumentEditorContext';
@@ -30,7 +31,9 @@ export function DocumentSidebar() {
     schema,
     document,
     documentState,
-    isNewDocument
+    isNewDocument,
+    isMobileSidebarOpen,
+    onToggleMobileSidebar
   } = useDocumentEditor();
 
   // DocumentSidebar is always shown - contains useful document info for all document types
@@ -44,7 +47,7 @@ export function DocumentSidebar() {
       return false;
     }
   });
-  
+
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
@@ -383,37 +386,9 @@ export function DocumentSidebar() {
     }
   };
 
-  if (isCollapsed) {
-    return (
-      <div className="w-12 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => toggleCollapsed(false)}
-          className="w-full p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          title="Expand sidebar"
-        >
-          <ChevronRightIcon className="h-5 w-5 mx-auto" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
-      {/* Sidebar header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-          Document Info
-        </h3>
-        <button
-          onClick={() => toggleCollapsed(true)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          title="Collapse sidebar"
-        >
-          <ChevronDownIcon className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
+  // Sidebar content - reused for both desktop and mobile
+  const sidebarContent = (
+    <div className="flex-1 overflow-y-auto">
         {/* Document metadata */}
         <div className="p-4 space-y-4">
           {/* Creation info */}
@@ -625,8 +600,72 @@ export function DocumentSidebar() {
             </p>
           </div>
         )}
-      </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {isMobileSidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => onToggleMobileSidebar(false)}
+          />
+          {/* Sidebar panel */}
+          <div className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-gray-50 dark:bg-gray-900 flex flex-col shadow-xl">
+            {/* Mobile header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                Document Info
+              </h3>
+              <button
+                onClick={() => onToggleMobileSidebar(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                title="Close"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+
+      {/* Desktop: Collapsed sidebar */}
+      {isCollapsed && (
+        <div className="hidden md:block w-12 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => toggleCollapsed(false)}
+            className="w-full p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            title="Expand sidebar"
+          >
+            <ChevronRightIcon className="h-5 w-5 mx-auto" />
+          </button>
+        </div>
+      )}
+
+      {/* Desktop: Expanded sidebar */}
+      {!isCollapsed && (
+        <div className="hidden md:flex w-80 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex-col">
+          {/* Sidebar header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+              Document Info
+            </h3>
+            <button
+              onClick={() => toggleCollapsed(true)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              title="Collapse sidebar"
+            >
+              <ChevronDownIcon className="h-5 w-5" />
+            </button>
+          </div>
+          {sidebarContent}
+        </div>
+      )}
+    </>
   );
 }
 

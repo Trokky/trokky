@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 0.1.17
+
+### Patch Changes
+
+- Update to use @trokky/fields@0.1.16 with ReferenceField improvements
+
 ## 0.1.15
 
 ### Patch Changes

@@ -3,13 +3,14 @@
  */
 
 import { useState, useMemo } from 'react';
-import { 
-  EyeIcon, 
-  PencilIcon, 
+import {
+  EyeIcon,
+  PencilIcon,
   CloudArrowUpIcon,
   XMarkIcon,
   ChevronDownIcon,
-  ChevronLeftIcon
+  ChevronLeftIcon,
+  InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useDocumentEditor } from './DocumentEditorContext';
@@ -29,7 +30,8 @@ export function DocumentHeader() {
     onStateChange,
     onModeChange,
     onSave,
-    onCancel
+    onCancel,
+    onToggleMobileSidebar
   } = useDocumentEditor();
 
   const [showStateMenu, setShowStateMenu] = useState(false);
@@ -198,29 +200,39 @@ export function DocumentHeader() {
         <div className="border-t border-gray-200 dark:border-gray-700 mb-2"></div>
 
         {/* Second line - Document title */}
-        <div className="mb-2">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {documentTitle}
-          </h1>
-          {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
-            <div className="flex items-center space-x-2 mt-0.5">
-              {isReadOnly && (
-                <span className="text-xs text-blue-600 dark:text-blue-400">
-                  • Read only mode
-                </span>
-              )}
-              {hasUnsavedChanges && (
-                <span className="text-xs text-amber-600 dark:text-amber-400">
-                  • Unsaved changes
-                </span>
-              )}
-              {hasValidationErrors && (
-                <span className="text-xs text-red-600 dark:text-red-400">
-                  • Validation errors
-                </span>
-              )}
-            </div>
-          )}
+        <div className="mb-2 flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+              {documentTitle}
+            </h1>
+            {(hasUnsavedChanges || hasValidationErrors || isReadOnly) && (
+              <div className="flex items-center space-x-2 mt-0.5">
+                {isReadOnly && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                    • Read only mode
+                  </span>
+                )}
+                {hasUnsavedChanges && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    • Unsaved changes
+                  </span>
+                )}
+                {hasValidationErrors && (
+                  <span className="text-xs text-red-600 dark:text-red-400">
+                    • Validation errors
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Mobile info icon - shows Document Info sidebar */}
+          <button
+            onClick={() => onToggleMobileSidebar(true)}
+            className="md:hidden flex-shrink-0 ml-2 p-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
+            title="Document Info"
+          >
+            <InformationCircleIcon className="h-6 w-6" />
+          </button>
         </div>
       </div>
 

@@ -406,9 +406,9 @@ export function DocumentForm() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-4xl mx-auto px-8 py-6">
+      <div className="max-w-4xl mx-auto px-3 py-4 md:px-8 md:py-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="px-8 py-6">
+          <div className="px-4 py-4 md:px-8 md:py-6">
             {visibleFields.length > 0 && renderFormSection(visibleFields)}
             
             {visibleFields.length === 0 && (

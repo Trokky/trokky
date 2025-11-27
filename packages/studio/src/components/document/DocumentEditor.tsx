@@ -20,7 +20,6 @@ import { DocumentStates, type DocumentState } from './DocumentStates';
 import { DocumentForm } from './DocumentForm';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
-import { PermissionsDebugPanel } from '../debug/PermissionsDebugPanel';
 
 const logger = createStudioLogger('DocumentEditor');
 
@@ -133,6 +132,9 @@ export function DocumentEditor({
   const [documentState, setDocumentState] = useState<DocumentState>('draft');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
+
+  // Mobile sidebar state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Load schema and document on mount
   useEffect(() => {
@@ -520,6 +522,8 @@ export function DocumentEditor({
     hasUnsavedChanges,
     hasValidationErrors,
     isReadOnly: !hasWritePermission, // Set read-only when user lacks write permission
+    isMobileSidebarOpen,
+    onToggleMobileSidebar: setIsMobileSidebarOpen,
     loading,
     saving,
     error,
@@ -538,6 +542,7 @@ export function DocumentEditor({
     hasUnsavedChanges,
     hasValidationErrors,
     hasWritePermission, // Add this dependency
+    isMobileSidebarOpen,
     loading,
     saving,
     error,
@@ -592,16 +597,6 @@ export function DocumentEditor({
           <DocumentSidebar />
         </div>
       </div>
-
-      {/* Permissions Debug Panel */}
-      <PermissionsDebugPanel
-        documentType={schemaName}
-        documentId={documentId}
-        isNew={isNewDocument}
-        canCreate={hasWritePermission}
-        canUpdate={hasWritePermission}
-        canDelete={hasDeletePermission}
-      />
     </DocumentEditorProvider>
   );
 }

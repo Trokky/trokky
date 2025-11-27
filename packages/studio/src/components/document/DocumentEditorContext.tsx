@@ -12,19 +12,23 @@ export interface DocumentEditorContextType {
   schema: any | null;
   document: any | null;
   documentState: DocumentState;
-  
+
   // Editor state
   currentMode: 'form' | 'preview';
   isNewDocument: boolean;
   hasUnsavedChanges: boolean;
   hasValidationErrors: boolean;
   isReadOnly: boolean; // User doesn't have write permission
-  
+
+  // Mobile sidebar state
+  isMobileSidebarOpen: boolean;
+  onToggleMobileSidebar: (open: boolean) => void;
+
   // Loading states
   loading: boolean;
   saving: boolean;
   error: string | null;
-  
+
   // Actions
   onDocumentChange: (updates: any) => void;
   onStateChange: (newState: DocumentState) => void;
