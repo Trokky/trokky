@@ -19,6 +19,8 @@ export interface ReferenceFieldOptions extends BaseFieldOptions {
   pickerLayout?: 'list' | 'grid' | 'dropdown';
   sortable?: boolean;
   showCount?: boolean;
+  /** Filter query to apply when searching for references (e.g., "_status == 'published'") */
+  filter?: string | Record<string, any>;
 }
 
 export interface ReferenceTarget {

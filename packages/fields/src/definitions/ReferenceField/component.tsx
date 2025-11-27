@@ -49,10 +49,13 @@ class SearchCache {
 
 const globalSearchCache = new SearchCache();
 
-type ReferenceFieldComponentProps = FieldComponentProps;
+type ReferenceFieldComponentProps = FieldComponentProps & {
+  /** IDs to exclude from the dropdown (used by ArrayField to prevent duplicates across items) */
+  excludeIds?: string[];
+};
 
 export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext, isArrayItem } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext, isArrayItem, excludeIds = [] } = props;
   
   if (definition.type !== 'reference') {
     return <div className="text-red-500 text-sm">Invalid field configuration: expected reference field</div>;
@@ -87,21 +90,29 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const currentSearchRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   const isMultiple = validation.multiple || false;
-  const currentReferences = resolvedReferences.length > 0 ? resolvedReferences : normalizedReferences;
+  const allReferences = resolvedReferences.length > 0 ? resolvedReferences : normalizedReferences;
+  // Filter out empty placeholder references (from array add item)
+  const currentReferences = allReferences.filter(ref => !((ref as any)._empty) && ref._ref);
   
-  // Get target types
+  // Get target types with filter support
   const targetTypes = useMemo(() => {
     const { to } = referenceDefinition;
     if (typeof to === 'string') {
-      return [{ type: to, displayName: to }];
+      return [{ type: to, displayName: to, filter: undefined }];
     }
     if (Array.isArray(to)) {
-      return to.map(target => 
-        typeof target === 'string' 
-          ? { type: target, displayName: target }
-          : { type: target.type, displayName: target.displayName || target.type, icon: target.icon }
+      return to.map(target =>
+        typeof target === 'string'
+          ? { type: target, displayName: target, filter: undefined }
+          : {
+              type: target.type,
+              displayName: target.displayName || target.type,
+              icon: target.icon,
+              filter: target.filter
+            }
       );
     }
     return [];
@@ -110,14 +121,19 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   // Resolve references to display names
   useEffect(() => {
     const resolveReferences = async () => {
-      if (!normalizedReferences.length || !props.studioContext?.apiClient) {
+      // Filter out empty placeholder references (from array add item) before resolving
+      const referencesToResolve = normalizedReferences.filter(ref =>
+        ref._ref && ref._ref.trim() && !((ref as any)._empty) && ref._type !== 'reference'
+      );
+
+      if (!referencesToResolve.length || !props.studioContext?.apiClient) {
         setResolvedReferences([]);
         return;
       }
 
       try {
         const resolved = await Promise.all(
-          normalizedReferences.map(async (ref) => {
+          referencesToResolve.map(async (ref) => {
             // Skip if already cached
             if (ref._cached) {
               return ref;
@@ -178,6 +194,13 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   // Reference operations
   const operations: ReferenceOperations = useMemo(() => ({
     addReference: (documentId: string, documentType: string) => {
+      // Prevent duplicates - check if reference already exists in current refs OR in sibling array items
+      const isDuplicate = currentReferences.some(ref => ref._ref === documentId) || excludeIds.includes(documentId);
+      if (isDuplicate) {
+        setIsSearchOpen(false);
+        return; // Silently ignore duplicate
+      }
+
       if (isMultiple) {
         const newRef: ReferenceValue = { _ref: documentId, _type: documentType };
         const newReferences = [...currentReferences, newRef];
@@ -235,15 +258,18 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           return [];
         }
 
-        // Generate cache key
-        const cacheKey = `${query}:${(types || targetTypes.map(t => t.type)).join(',')}`;
+        // Generate cache key (includes filter to avoid stale results)
+        const optionsFilter = options.filter ? JSON.stringify(options.filter) : '';
+        const typesWithFilters = targetTypes.map(t => `${t.type}:${JSON.stringify(t.filter || {})}`);
+        const cacheKey = `${query}:${(types || typesWithFilters).join(',')}:${optionsFilter}`;
 
         // Check cache first
         const cachedResults = globalSearchCache.get(cacheKey);
         if (cachedResults) {
           const resultsWithSelection = cachedResults.map(result => ({
             ...result,
-            isSelected: currentReferences.some(ref => ref._ref === result.id)
+            // Mark as selected if in current references OR in excludeIds (sibling array items)
+            isSelected: currentReferences.some(ref => ref._ref === result.id) || excludeIds.includes(result.id)
           }));
           setSearchResults(resultsWithSelection);
           setIsLoading(false);
@@ -259,15 +285,36 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         // Search each target type with abort signal
         const searchPromises = searchTypes.map(async (searchType) => {
           try {
-            const response = await apiClient.getDocuments(searchType, {
-              search: query.trim() || undefined, // Don't pass empty string, pass undefined
-              limit
-            });
+            // Find the target type config to get the filter
+            const targetTypeConfig = targetTypes.find(t => t.type === searchType);
+
+            // Get filter from either targetType config or options (options.filter takes priority)
+            const filter = options.filter || targetTypeConfig?.filter;
+
+            // Build query options
+            const queryOptions: Record<string, any> = {
+              search: query.trim() || undefined,
+              limit: filter ? limit * 2 : limit // Fetch more if we need to filter client-side
+            };
+
+            const response = await apiClient.getDocuments(searchType, queryOptions);
 
             if (signal.aborted) return [];
 
             if (response.success && response.data?.documents) {
-              return response.data.documents.map((doc: any) => ({
+              let documents = response.data.documents;
+
+              // Apply client-side filter if specified
+              // Supports common filter patterns like "_status == 'published'" or "_status == \"published\""
+              if (filter && typeof filter === 'string') {
+                const statusMatch = filter.match(/_status\s*==\s*['"]([^'"]+)['"]/);
+                if (statusMatch) {
+                  const targetStatus = statusMatch[1];
+                  documents = documents.filter((doc: any) => doc._status === targetStatus);
+                }
+              }
+
+              return documents.slice(0, limit).map((doc: any) => ({
                 id: doc._id || doc.id,
                 type: searchType,
                 title: doc.name || doc.title || doc._id || doc.id,
@@ -291,10 +338,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         // Cache results
         globalSearchCache.set(cacheKey, flatResults);
 
-        // Update selection status
+        // Update selection status (include excludeIds to prevent duplicates across array items)
         const resultsWithSelection = flatResults.map(result => ({
           ...result,
-          isSelected: currentReferences.some(ref => ref._ref === result.id)
+          isSelected: currentReferences.some(ref => ref._ref === result.id) || excludeIds.includes(result.id)
         }));
 
         setSearchResults(resultsWithSelection);
@@ -343,7 +390,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       // Fallback if not found
       return { id: documentId, title: 'Referenced Document' };
     }
-  }), [currentReferences, isMultiple, onChange, props.studioContext, targetTypes]);
+  }), [currentReferences, isMultiple, onChange, props.studioContext, targetTypes, excludeIds, options.filter]);
   
   // Auto-load initial results when dropdown opens
   useEffect(() => {
@@ -413,6 +460,37 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       }
     };
   }, []);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    if (!isSearchOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      // Check if click is outside both the container and dropdown
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+        setHasLoadedInitial(false);
+      }
+    };
+
+    // Add listener on next tick to avoid closing immediately
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSearchOpen]);
   
   // Render single reference item
   const renderReferenceItem = (ref: ReferenceValue, index: number) => {
@@ -422,23 +500,24 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     return (
       <div
         key={ref._ref}
-        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 overflow-hidden"
       >
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
           {targetType?.icon && (
-            <span className="text-gray-400 dark:text-gray-400">{targetType.icon}</span>
+            <span className="text-gray-400 dark:text-gray-400 flex-shrink-0">{targetType.icon}</span>
           )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={displayValue}>
               {displayValue}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {targetType?.displayName || ref._type} • {ref._ref}
             </p>
           </div>
         </div>
         
-        {!isDisabled && !isReadonly && (
+        {/* Hide remove button for array items - ArrayField has its own trash button */}
+        {!isDisabled && !isReadonly && !isArrayItem && (
           <div className="flex items-center gap-1">
             {isMultiple && options.sortable && (
               <button
@@ -451,7 +530,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 </svg>
               </button>
             )}
-            
+
             <button
               type="button"
               onClick={() => operations.removeReference(ref._ref)}
@@ -477,7 +556,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       : "absolute z-10 top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-64 overflow-y-auto";
     
     return (
-      <div className={positionClasses}>
+      <div ref={dropdownRef} className={positionClasses}>
         <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex gap-2">
             <input
@@ -624,8 +703,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                   const direction = calculateDropdownDirection();
                   setDropdownDirection(direction);
                 } else {
-                  // Reset when closing
+                  // Reset when closing - clear results to force fresh search with updated selections
                   setSearchQuery('');
+                  setSearchResults([]);
                   setHasLoadedInitial(false);
                 }
                 setIsSearchOpen(!isSearchOpen);

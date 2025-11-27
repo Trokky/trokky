@@ -91,6 +91,8 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   // List item autocomplete state (per-item)
   const [listItemSuggestions, setListItemSuggestions] = useState<{ index: number; show: boolean; selected: number }>({ index: -1, show: false, selected: -1 });
   const listInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const itemsContainerRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(0);
 
   // Ensure value is always an array and filter out null/undefined values
   const arrayValue = Array.isArray(value) ? value.filter(item => item !== null && item !== undefined) : [];
@@ -181,6 +183,23 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
       }
     }
   }), [arrayValue, insertAppend, onChange]);
+
+  // Auto-scroll to newly added item
+  useEffect(() => {
+    // Skip scroll on initial mount (prevLengthRef starts at 0)
+    if (prevLengthRef.current > 0 && arrayValue.length > prevLengthRef.current && itemsContainerRef.current) {
+      // Item was added - scroll to the last item
+      const container = itemsContainerRef.current;
+      const lastItem = container.lastElementChild as HTMLElement;
+      if (lastItem) {
+        // Use setTimeout to ensure the DOM has updated
+        setTimeout(() => {
+          lastItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+      }
+    }
+    prevLengthRef.current = arrayValue.length;
+  }, [arrayValue.length]);
 
   // Handle add new item
   const handleAddItem = useCallback(() => {
@@ -371,7 +390,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     }
     
     // For reference fields in arrays, ensure they are single-reference (not multi-reference)
-    const adjustedItemDefinition = itemDefinition.type === 'reference' 
+    const adjustedItemDefinition = itemDefinition.type === 'reference'
       ? {
           ...itemDefinition,
           validation: {
@@ -380,7 +399,16 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           }
         }
       : itemDefinition;
-    
+
+    // For reference fields, calculate excludeIds (all other reference IDs in the array)
+    // This prevents selecting the same reference multiple times across array items
+    const excludeIds: string[] = itemDefinition.type === 'reference'
+      ? arrayValue
+          .filter((_: any, i: number) => i !== index) // Exclude current item
+          .map((ref: any) => ref?._ref || ref) // Get reference ID
+          .filter((id: any) => id && typeof id === 'string' && id.trim()) // Filter out empty/invalid
+      : [];
+
     const fieldPlugin = fieldRegistry.get(adjustedItemDefinition.type);
     
     if (!fieldPlugin) {
@@ -464,7 +492,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           )}
 
           {/* Field component */}
-          <div className={`flex-1 py-2 ${sortable ? 'pr-2' : 'px-3'} ${!sortable ? 'pl-3' : ''}`}>
+          <div className={`flex-1 min-w-0 py-2 ${sortable ? 'pr-2' : 'px-3'} ${!sortable ? 'pl-3' : ''}`}>
             {/* Custom autocomplete input for string items with suggestions */}
             {adjustedItemDefinition.type === 'string' && suggestions.length > 0 ? (
               <div className="relative">
@@ -569,6 +597,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                 isDisabled={isDisabled}
                 isReadonly={isReadonly}
                 isArrayItem={true}
+                excludeIds={excludeIds}
                 documentContext={documentContext ? {
                   ...documentContext,
                   nestingLevel: nestingLevel + 1  // Increment nesting level for child fields
@@ -870,7 +899,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
       : 'space-y-3';
 
     return (
-      <div className={containerClass}>
+      <div ref={itemsContainerRef} className={containerClass}>
         {arrayValue.map(renderItem)}
       </div>
     );
@@ -945,26 +974,43 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               {/* Array content */}
               {layout === 'tags' ? renderTagsLayout() : layout === 'select' ? renderSelectLayout() : renderItemsLayout()}
 
-              {/* Validation info */}
-              {arrayDefinition.validation && (
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
-                    <span>
-                      {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
-                    </span>
-                  )}
-                  {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
-                    <span>
-                      Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
-                    <span>
-                      Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Footer with Add button and validation info */}
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                {/* Add item button at bottom - same conditions as top button */}
+                {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && layout !== 'select' && arrayValue.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
+                  >
+                    <PlusIcon className="h-3 w-3 mr-1" />
+                    {addButtonText}
+                  </button>
+                )}
+                {/* Spacer when no add button */}
+                {(isDisabled || isReadonly || disableAdd || layout === 'tags' || layout === 'select' || arrayValue.length === 0) && <span />}
+
+                {/* Validation info */}
+                {arrayDefinition.validation && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+                      <span>
+                        {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
+                      </span>
+                    )}
+                    {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
+                      <span>
+                        Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+                      <span>
+                        Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         />
@@ -983,26 +1029,43 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
         </div>
       )}
 
-      {/* Validation info */}
-      {arrayDefinition.validation && (
-        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
-            <span>
-              {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
-            </span>
-          )}
-          {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
-            <span>
-              Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
-            </span>
-          )}
-          {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
-            <span>
-              Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Footer with validation info and Add button */}
+      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        {/* Validation info - left side */}
+        {arrayDefinition.validation && (
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+              <span>
+                {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
+              </span>
+            )}
+            {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
+              <span>
+                Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
+              </span>
+            )}
+            {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
+              <span>
+                Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
+        {/* Spacer when no validation */}
+        {!arrayDefinition.validation && <span />}
+
+        {/* Add item button - right side */}
+        {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && layout !== 'select' && arrayValue.length > 0 && (
+          <button
+            type="button"
+            onClick={handleAddItem}
+            className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
+          >
+            <PlusIcon className="h-3 w-3 mr-1" />
+            {addButtonText}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1032,7 +1095,8 @@ function getDefaultItemValue(itemDefinition: any): any {
       }
       return baseObject;
     case 'reference':
-      return undefined; // ReferenceField expects undefined for empty state
+      // Reference field expects { _type: 'reference' } for empty state
+      return { _type: 'reference' };
     case 'media':
       // Media field expects { _type: 'media' } for empty state - MediaField handles this
       return { _type: 'media' };

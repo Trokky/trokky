@@ -156,37 +156,43 @@ export function sanitizeReferenceValue(
 
 function sanitizeSingleReference(value: any): string | ReferenceValue | undefined {
   if (!value) return undefined;
-  
+
   // Handle string reference
   if (typeof value === 'string') {
     const trimmed = value.trim();
     return trimmed || undefined;
   }
-  
-  // Handle object reference
+
+  // Handle object reference with _ref
   if (typeof value === 'object' && value._ref) {
     const sanitized: ReferenceValue = {
       _ref: String(value._ref).trim(),
       _type: String(value._type || '').trim()
     };
-    
+
     if (!sanitized._ref || !sanitized._type) {
       return undefined;
     }
-    
+
     // Preserve cached data if present
     if (value._cached && typeof value._cached === 'object') {
       sanitized._cached = { ...value._cached };
     }
-    
+
     // Preserve metadata if present
     if (value._metadata && typeof value._metadata === 'object') {
       sanitized._metadata = { ...value._metadata };
     }
-    
+
     return sanitized;
   }
-  
+
+  // Handle empty reference placeholder (from array add item)
+  // Return a marker object that ReferenceField can recognize as "empty but valid slot"
+  if (typeof value === 'object' && value._type === 'reference' && !value._ref) {
+    return { _ref: '', _type: 'reference', _empty: true } as any;
+  }
+
   return undefined;
 }
 

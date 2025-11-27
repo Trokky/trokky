@@ -158,3 +158,19 @@ To add a new issue to this document:
 4. Include evidence (logs, code samples)
 5. Document workarounds if available
 6. Mark priority (Low/Medium/High/Critical)
+## Known Issues
+
+### @trokky/adapter-filesystem TypeScript errors (2024-11)
+
+Build fails with TypeScript errors related to `byteLength` property:
+
+```
+src/__tests__/fixtures/test-data.ts(49,52): error TS2339: Property 'byteLength' does not exist on type 'never'.
+src/filesystem-adapter.ts(513,52): error TS2339: Property 'byteLength' does not exist on type 'never'.
+src/filesystem-adapter.ts(1503,52): error TS2339: Property 'byteLength' does not exist on type 'never'.
+```
+
+Likely cause: TypeScript type narrowing issue with Buffer/ArrayBuffer types.
+
+**To fix:** Check the type guards around buffer operations in those lines.
+
