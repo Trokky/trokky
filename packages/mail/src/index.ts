@@ -26,6 +26,14 @@ export type {
 export { BuiltInTemplateRenderer } from './templates/built-in-templates.js'
 export type { BuiltInTemplateOptions } from './templates/built-in-templates.js'
 
+export { CustomTemplateRenderer } from './templates/custom-template-renderer.js'
+export type {
+  CustomTemplate,
+  CustomTemplateFunction,
+  TemplateDefinition,
+  CustomTemplateRendererConfig,
+} from './templates/custom-template-renderer.js'
+
 // Mail service
 export { MailService } from './mail-service.js'
 export type {
