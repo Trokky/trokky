@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, MediaFile } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -942,27 +942,30 @@ export class TrokkyRoutes {
 
       // Get media files from the core engine
       const mediaFiles = await this.core.listMedia({ limit, offset })
-      
-      this.logger.debug('Media files listed', { 
+
+      this.logger.debug('Media files listed', {
         count: mediaFiles.length,
         limit,
         offset
       })
 
+      // SECURITY: Sanitize responses to remove sensitive internal paths
+      const sanitizedFiles = mediaFiles.map(file => this.sanitizeMediaResponse(file))
+
       return {
         status: 200,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...this.buildCorsHeaders()
         },
         body: JSON.stringify({
           success: true,
-          data: mediaFiles,
+          data: sanitizedFiles,
           meta: {
-            count: mediaFiles.length,
+            count: sanitizedFiles.length,
             limit,
             offset,
-            hasMore: mediaFiles.length === limit
+            hasMore: sanitizedFiles.length === limit
           }
         })
       }
@@ -1016,9 +1019,12 @@ export class TrokkyRoutes {
         uploadedFiles.push(mediaFile)
       }
 
-      return this.successResponse({ 
-        files: uploadedFiles,
-        meta: { count: uploadedFiles.length }
+      // SECURITY: Sanitize responses to remove sensitive internal paths
+      const sanitizedFiles = uploadedFiles.map(file => this.sanitizeMediaResponse(file))
+
+      return this.successResponse({
+        files: sanitizedFiles,
+        meta: { count: sanitizedFiles.length }
       }, 201)
     } catch (error) {
       return this.errorResponse(error)
@@ -1038,9 +1044,50 @@ export class TrokkyRoutes {
         return this.errorResponse(new Error(`Media file ${id} not found`), 404)
       }
 
-      return this.successResponse({ file: mediaFile })
+      // SECURITY: Sanitize response to remove sensitive internal paths
+      const sanitizedFile = this.sanitizeMediaResponse(mediaFile)
+
+      return this.successResponse({ file: sanitizedFile })
     } catch (error) {
       return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Sanitize media file response to remove sensitive internal information
+   * This prevents exposing server filesystem paths and internal details
+   */
+  private sanitizeMediaResponse(mediaFile: MediaFile): Omit<MediaFile, 'metadata'> & { metadata?: Record<string, unknown> } {
+    const { metadata, ...rest } = mediaFile
+
+    // Only include safe metadata fields
+    const safeMetadata: Record<string, unknown> = {}
+    if (metadata) {
+      // Include extension and originalFilename (useful for clients)
+      if (metadata.extension) safeMetadata.extension = metadata.extension
+      if (metadata.originalFilename) safeMetadata.originalFilename = metadata.originalFilename
+      // Include image dimensions if available
+      if (metadata.width) safeMetadata.width = metadata.width
+      if (metadata.height) safeMetadata.height = metadata.height
+      // Include any custom metadata that isn't a path
+      for (const [key, value] of Object.entries(metadata)) {
+        if (!['path', 'storagePath', 'absolutePath', 'relativePath', 'filePath'].includes(key)) {
+          if (!safeMetadata[key]) {
+            safeMetadata[key] = value
+          }
+        }
+      }
+      // Explicitly remove any path-related fields that might have slipped through
+      delete safeMetadata.path
+      delete safeMetadata.storagePath
+      delete safeMetadata.absolutePath
+      delete safeMetadata.relativePath
+      delete safeMetadata.filePath
+    }
+
+    return {
+      ...rest,
+      metadata: Object.keys(safeMetadata).length > 0 ? safeMetadata : undefined
     }
   }
 
@@ -1969,8 +2016,11 @@ export class TrokkyRoutes {
 
       // Update metadata only (not the file itself)
       const updatedMedia = await this.core.updateMedia(id, metadata as Record<string, unknown>)
-      
-      return this.successResponse({ file: updatedMedia })
+
+      // SECURITY: Sanitize response to remove sensitive internal paths
+      const sanitizedFile = this.sanitizeMediaResponse(updatedMedia)
+
+      return this.successResponse({ file: sanitizedFile })
     } catch (error) {
       return this.errorResponse(error)
     }
