@@ -1,5 +1,15 @@
 # @trokky/routes
 
+## 0.1.10
+
+### Patch Changes
+
+- 8113d6f: Security: Redact sensitive filesystem paths from media metadata responses
+  - Added `sanitizeMediaResponse()` to strip internal paths from API responses
+  - Removes `path`, `storagePath`, `absolutePath`, `relativePath`, `filePath` from metadata
+  - Keeps safe fields like `extension`, `originalFilename`, `width`, `height`
+  - Applied to all media endpoints: getMedia, listMedia, uploadMedia, updateMedia
+
 ## 0.1.9
 
 ### Patch Changes
