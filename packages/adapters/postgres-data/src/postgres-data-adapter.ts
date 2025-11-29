@@ -636,7 +636,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
             is_active = COALESCE($9, is_active),
             profile_image = COALESCE($10, profile_image),
             preferences = COALESCE($11, preferences),
-            updated_at = $12
+            oauth_providers = COALESCE($12, oauth_providers),
+            updated_at = $13
           WHERE id = $1
           RETURNING *
         `, [
@@ -651,6 +652,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           updateData.isActive,
           updateData.profileImage,
           JSON.stringify(updateData.preferences || {}),
+          (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
           now
         ])
 
@@ -664,8 +666,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
         const result = await this.query(`
           INSERT INTO ${this.tableName('users')}
-          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
           RETURNING *
         `, [
           id,
@@ -679,6 +681,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           createData.isActive ?? true,
           createData.profileImage,
           JSON.stringify(createData.preferences || {}),
+          JSON.stringify([]), // oauth_providers starts empty
           now
         ])
 
@@ -781,6 +784,26 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     return user === null
   }
 
+  async getUserByOAuthProvider(provider: string, providerId: string): Promise<User | null> {
+    if (!provider || !providerId) {
+      return null
+    }
+
+    // Query using JSONB containment operator to find user with matching OAuth provider
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('users')}
+       WHERE oauth_providers @> $1::jsonb`,
+      [JSON.stringify([{ provider, providerId }])]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: UserRow = result.rows[0]
+    return this.mapRowToUser(row)
+  }
+
   private mapRowToUser(row: UserRow): User {
     return {
       id: row.id,
@@ -794,6 +817,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       isActive: row.is_active,
       profileImage: row.profile_image,
       preferences: row.preferences as any,
+      oauthProviders: row.oauth_providers as any[],
       lastLoginAt: row.last_login_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -1069,9 +1093,25 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         profile_image VARCHAR(500),
         last_login_at VARCHAR(50),
         preferences JSONB DEFAULT '{}',
+        oauth_providers JSONB DEFAULT '[]',
         created_at VARCHAR(50) NOT NULL,
         updated_at VARCHAR(50) NOT NULL
       )
+    `)
+
+    // Migration: Add oauth_providers column if it doesn't exist (for existing databases)
+    await this.directQuery(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${this.config.tablePrefix}users'
+          AND column_name = 'oauth_providers'
+        ) THEN
+          ALTER TABLE ${this.tableName('users')}
+          ADD COLUMN oauth_providers JSONB DEFAULT '[]';
+        END IF;
+      END $$
     `)
 
     await this.directQuery(`
@@ -1082,6 +1122,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_email_idx
       ON ${this.tableName('users')} (email)
+    `)
+
+    // GIN index for efficient OAuth provider lookups
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_oauth_providers_idx
+      ON ${this.tableName('users')} USING GIN (oauth_providers)
     `)
 
     this.logger.info('Creating app tokens table...')

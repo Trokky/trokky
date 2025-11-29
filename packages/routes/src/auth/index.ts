@@ -11,3 +11,10 @@ export {
 } from './password-reset.js'
 
 export { changePassword } from './change-password.js'
+
+export {
+  initGoogleOAuth,
+  handleGoogleOAuthCallback,
+  unlinkGoogleAccount,
+  getOAuthStatus,
+} from './oauth.js'

@@ -107,6 +107,12 @@ export class TrokkyRoutes {
     // Password change route (authenticated users)
     this.addRoute('POST', `${basePath}/auth/change-password`, this.changePassword.bind(this))
 
+    // OAuth routes
+    this.addRoute('POST', `${basePath}/auth/oauth/google/init`, this.initGoogleOAuth.bind(this))
+    this.addRoute('POST', `${basePath}/auth/oauth/google/callback`, this.handleGoogleOAuthCallback.bind(this))
+    this.addRoute('DELETE', `${basePath}/auth/oauth/google/unlink`, this.unlinkGoogleAccount.bind(this))
+    this.addRoute('GET', `${basePath}/auth/oauth/status`, this.getOAuthStatus.bind(this))
+
     // Token management routes (admin/user)
     this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
     this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
@@ -3477,6 +3483,63 @@ export class TrokkyRoutes {
     // Import change password handler dynamically
     const { changePassword: handler } = await import('./auth/change-password.js')
     return handler(request, this.core)
+  }
+
+  // ==========================================================================
+  // OAuth Routes
+  // ==========================================================================
+
+  /**
+   * Initialize Google OAuth flow
+   * POST /auth/oauth/google/init
+   */
+  private async initGoogleOAuth(request: HttpRequest): Promise<HttpResponse> {
+    // For link mode, validate authentication
+    const body = request.body as { mode?: string }
+    if (body?.mode === 'link') {
+      await this.validateAuthentication(request)
+    }
+
+    const { initGoogleOAuth: handler } = await import('./auth/oauth.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Handle Google OAuth callback
+   * POST /auth/oauth/google/callback
+   */
+  private async handleGoogleOAuthCallback(request: HttpRequest): Promise<HttpResponse> {
+    // For link mode, validate authentication
+    const body = request.body as { mode?: string }
+    if (body?.mode === 'link') {
+      try {
+        await this.validateAuthentication(request)
+      } catch {
+        // Ignore auth errors for link mode - the handler will check
+      }
+    }
+
+    const { handleGoogleOAuthCallback: handler } = await import('./auth/oauth.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Unlink Google account
+   * DELETE /auth/oauth/google/unlink
+   */
+  private async unlinkGoogleAccount(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { unlinkGoogleAccount: handler } = await import('./auth/oauth.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Get OAuth status
+   * GET /auth/oauth/status
+   */
+  private async getOAuthStatus(request: HttpRequest): Promise<HttpResponse> {
+    const { getOAuthStatus: handler } = await import('./auth/oauth.js')
+    return handler(this.core, request)
   }
 
 }

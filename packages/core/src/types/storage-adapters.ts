@@ -238,7 +238,16 @@ export interface DataStorageAdapter {
    * @returns True if email is available
    */
   isEmailAvailable?(email: string): Promise<boolean>
-  
+
+  /**
+   * Find user by OAuth provider (for OAuth login)
+   * @param provider - The OAuth provider name (e.g., 'google')
+   * @param providerId - The provider's unique user ID
+   * @returns The user or null if not found
+   * @throws Error if storage fails
+   */
+  getUserByOAuthProvider?(provider: string, providerId: string): Promise<User | null>
+
   // ==========================================================================
   // APP TOKEN OPERATIONS
   // ==========================================================================

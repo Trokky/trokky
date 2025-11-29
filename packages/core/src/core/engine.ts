@@ -33,14 +33,14 @@ import {
   ValidationError,
   InvalidInputError
 } from '../errors/index.js'
-import { 
-  TrokkyConfig, 
-  StorageAdapter, 
+import {
+  TrokkyConfig,
+  StorageAdapter,
   DataStorageAdapter,
   MediaStorageAdapter,
   TrokkyStorageAdapters,
-  Document, 
-  DocumentData, 
+  Document,
+  DocumentData,
   ListOptions,
   MediaFile,
   MediaMetadata,
@@ -58,7 +58,9 @@ import {
   AuditContext,
   AUDIT_ACTOR_TYPES,
   AuditLog,
-  AUDIT_OPERATIONS
+  AUDIT_OPERATIONS,
+  OAuthProvider,
+  OAuthProviderType
 } from '../types/index.js'
 import type { AppTokenCreationResult } from '../security/auth.js'
 
@@ -1804,6 +1806,234 @@ export class TrokkyCore {
       this.logger.error('Failed to refresh auth token', { error: error instanceof Error ? error.message : String(error) })
       return null
     }
+  }
+
+  // ==========================================================================
+  // OAuth Methods
+  // ==========================================================================
+
+  /**
+   * Link an OAuth provider to an existing user
+   */
+  public async linkOAuthProvider(
+    userId: string,
+    provider: OAuthProvider
+  ): Promise<User> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found')
+    }
+
+    // Check if this provider is already linked to another user
+    const existingUser = await this.getUserByOAuthProvider(
+      provider.provider,
+      provider.providerId
+    )
+    if (existingUser && existingUser.id !== userId) {
+      throw new InvalidInputError(
+        'This account is already linked to another user'
+      )
+    }
+
+    // Check if user already has this provider linked
+    const existingProviders = user.oauthProviders || []
+    const alreadyLinked = existingProviders.some(
+      (p) => p.provider === provider.provider
+    )
+    if (alreadyLinked) {
+      throw new InvalidInputError(
+        `${provider.provider} account is already linked`
+      )
+    }
+
+    // Add the provider
+    const updatedProviders = [...existingProviders, provider]
+    const updatedUser = await this.updateUser(userId, {
+      oauthProviders: updatedProviders,
+    } as any)
+
+    this.logAuditEvent({
+      type: 'user_updated',
+      userId: user.id,
+      username: user.username,
+      action: `Linked ${provider.provider} OAuth account`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        provider: provider.provider,
+        providerEmail: provider.email,
+      },
+    })
+
+    return updatedUser
+  }
+
+  /**
+   * Unlink an OAuth provider from a user
+   */
+  public async unlinkOAuthProvider(
+    userId: string,
+    providerName: OAuthProviderType
+  ): Promise<User> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found')
+    }
+
+    const existingProviders = user.oauthProviders || []
+    const providerToRemove = existingProviders.find(
+      (p) => p.provider === providerName
+    )
+
+    if (!providerToRemove) {
+      throw new InvalidInputError(`${providerName} account is not linked`)
+    }
+
+    // Remove the provider
+    const updatedProviders = existingProviders.filter(
+      (p) => p.provider !== providerName
+    )
+    const updatedUser = await this.updateUser(userId, {
+      oauthProviders: updatedProviders,
+    } as any)
+
+    this.logAuditEvent({
+      type: 'user_updated',
+      userId: user.id,
+      username: user.username,
+      action: `Unlinked ${providerName} OAuth account`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        provider: providerName,
+      },
+    })
+
+    return updatedUser
+  }
+
+  /**
+   * Authenticate a user via OAuth provider
+   * Returns null if no user is linked to this provider
+   */
+  public async authenticateWithOAuth(
+    providerName: OAuthProviderType,
+    providerId: string
+  ): Promise<{ user: User; token: string; refreshToken: string } | null> {
+    try {
+      // Find user by OAuth provider
+      const user = await this.getUserByOAuthProvider(providerName, providerId)
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Update last login time and lastUsedAt for the OAuth provider
+      const now = new Date().toISOString()
+      const updatedProviders = (user.oauthProviders || []).map((p) =>
+        p.provider === providerName && p.providerId === providerId
+          ? { ...p, lastUsedAt: now }
+          : p
+      )
+
+      await this.updateUser(user.id, {
+        lastLoginAt: now,
+        oauthProviders: updatedProviders,
+      } as any)
+
+      // Generate tokens
+      const securityConfig = this.config.security?.tokens
+      const tokenExpiresIn = securityConfig?.accessTokenTtl || '2h'
+      const refreshTokenExpiresIn = securityConfig?.refreshTokenTtl || '7d'
+
+      const token = await this.generateAuthToken(user, tokenExpiresIn, false)
+      const refreshToken = await this.generateAuthToken(
+        user,
+        refreshTokenExpiresIn,
+        false
+      )
+
+      // Log successful login
+      this.logAuditEvent({
+        type: 'user_login',
+        userId: user.id,
+        username: user.username,
+        action: `User authenticated via ${providerName} OAuth`,
+        timestamp: now,
+        success: true,
+        details: {
+          role: user.role,
+          provider: providerName,
+        },
+      })
+
+      // Return user without password hash
+      const { passwordHash, ...safeUser } = user
+      return {
+        user: { ...safeUser, passwordHash: '' } as User,
+        token,
+        refreshToken,
+      }
+    } catch (error) {
+      this.logger.error('OAuth authentication failed', {
+        error: error instanceof Error ? error.message : String(error),
+        provider: providerName,
+      })
+      return null
+    }
+  }
+
+  /**
+   * Find a user by OAuth provider
+   */
+  public async getUserByOAuthProvider(
+    providerName: OAuthProviderType,
+    providerId: string
+  ): Promise<User | null> {
+    // First try storage adapter method if available
+    if (this.dataStorage.getUserByOAuthProvider) {
+      return this.dataStorage.getUserByOAuthProvider(providerName, providerId)
+    }
+
+    // Fallback: list all users and search (inefficient, but works as fallback)
+    this.logger.warn(
+      'getUserByOAuthProvider not implemented in storage adapter, using fallback'
+    )
+    const users = await this.listUsers({ limit: 10000 })
+    for (const user of users) {
+      const provider = (user.oauthProviders || []).find(
+        (p) => p.provider === providerName && p.providerId === providerId
+      )
+      if (provider) {
+        return user
+      }
+    }
+    return null
+  }
+
+  /**
+   * Check if OAuth is configured for a provider
+   */
+  public isOAuthConfigured(providerName: OAuthProviderType): boolean {
+    if (providerName === 'google') {
+      const config = this.config.oauth?.google
+      return !!(config?.clientId && config?.clientSecret && config?.redirectUri)
+    }
+    return false
+  }
+
+  /**
+   * Get OAuth configuration for a provider
+   */
+  public getOAuthConfig(providerName: OAuthProviderType): Record<string, string> | null {
+    if (providerName === 'google' && this.isOAuthConfigured('google')) {
+      const config = this.config.oauth!.google!
+      return {
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        redirectUri: config.redirectUri,
+      }
+    }
+    return null
   }
 
   private generateSecureSecret(): string {

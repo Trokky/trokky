@@ -3,6 +3,17 @@
  * These are internal system entities, separate from user-defined content schemas
  */
 
+// OAuth provider types for external authentication
+export type OAuthProviderType = 'google' | 'github' | 'microsoft'
+
+export interface OAuthProvider {
+  provider: OAuthProviderType
+  providerId: string // Provider's unique user ID (e.g., Google's 'sub' claim)
+  email: string // Email from OAuth provider
+  linkedAt: string // ISO date when account was linked
+  lastUsedAt?: string // Last time used for login
+}
+
 export interface User {
   id: string
   username: string
@@ -15,6 +26,7 @@ export interface User {
   isActive: boolean
   profileImage?: string
   preferences?: UserPreferences
+  oauthProviders?: OAuthProvider[] // Linked OAuth accounts
   lastLoginAt?: string
   createdAt: string
   updatedAt: string
@@ -190,6 +202,7 @@ export interface AuthenticatedUser {
   role: UserRole
   permissions: Permission[]
   isActive: boolean
+  oauthProviders?: OAuthProvider[]
 }
 
 export interface AuthenticatedAppToken {

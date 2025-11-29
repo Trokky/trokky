@@ -19,6 +19,15 @@ export { DocumentValidator } from './validation/validator.js'
 export { SecurityValidator } from './security/validation.js'
 export { RateLimiter, type RateLimitConfig } from './security/rate-limiter.js'
 
+// OAuth
+export {
+  GoogleOAuthService,
+  type GoogleOAuthConfig,
+  type GoogleUserInfo,
+  type GoogleTokenResponse,
+  type PKCEChallenge,
+} from './security/oauth/index.js'
+
 // Field system
 export {
   FieldTypeRegistry,
@@ -137,6 +146,8 @@ export type {
   AuthContext,
   AuthenticatedUser,
   AuthenticatedAppToken,
+  OAuthProvider,
+  OAuthProviderType,
   // Split storage adapter types
   DataStorageAdapter,
   MediaStorageAdapter,

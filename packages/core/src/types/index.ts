@@ -364,6 +364,14 @@ export interface TrokkyConfig {
       rememberMeTtl?: string
     }
   }
+  // OAuth configuration (auto-enabled when credentials are set)
+  oauth?: {
+    google?: {
+      clientId: string
+      clientSecret: string
+      redirectUri: string
+    }
+  }
   // Mail configuration
   mail?: import('./mail.js').MailConfig
 }
@@ -385,7 +393,9 @@ export type {
   UpdateAppTokenData,
   AuthContext,
   AuthenticatedUser,
-  AuthenticatedAppToken
+  AuthenticatedAppToken,
+  OAuthProvider,
+  OAuthProviderType
 } from './user.js'
 
 export { ROLE_PERMISSIONS } from './user.js'

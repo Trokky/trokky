@@ -81,6 +81,7 @@ export interface UserRow {
   profile_image?: string
   last_login_at?: string // ISO string
   preferences: any // JSONB data
+  oauth_providers?: any // JSONB array of OAuth providers
   created_at: string // ISO string
   updated_at: string // ISO string
 }
