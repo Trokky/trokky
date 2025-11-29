@@ -81,8 +81,12 @@ export class GoogleOAuthService {
 
   /**
    * Build Google authorization URL with all required parameters
+   *
+   * @param state - CSRF protection token
+   * @param codeChallenge - PKCE code challenge
+   * @param mode - 'link' requires consent for refresh token, 'login' skips consent if already granted
    */
-  getAuthorizationUrl(state: string, codeChallenge: string): string {
+  getAuthorizationUrl(state: string, codeChallenge: string, mode: 'link' | 'login' = 'link'): string {
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
@@ -91,12 +95,19 @@ export class GoogleOAuthService {
       state,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
-      access_type: 'offline',
-      prompt: 'consent',
     })
 
+    if (mode === 'link') {
+      // Linking mode: need refresh token, show consent screen
+      params.set('access_type', 'offline')
+      params.set('prompt', 'consent')
+    } else {
+      // Login mode: just need to identify user, skip consent if already granted
+      params.set('prompt', 'select_account')
+    }
+
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
-    logger.debug('Generated authorization URL', { state })
+    logger.debug('Generated authorization URL', { state, mode })
     return authUrl
   }
 

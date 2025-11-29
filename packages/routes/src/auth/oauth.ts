@@ -131,8 +131,8 @@ export async function initGoogleOAuth(
       expiresAt: Date.now() + 10 * 60 * 1000,
     })
 
-    // Generate authorization URL
-    const authUrl = googleService.getAuthorizationUrl(state, pkce.codeChallenge)
+    // Generate authorization URL (mode affects consent screen behavior)
+    const authUrl = googleService.getAuthorizationUrl(state, pkce.codeChallenge, mode)
 
     logger.info('Initiated OAuth flow', { mode, state: state.substring(0, 8) })
 
