@@ -94,6 +94,14 @@ export interface DocumentFile {
   }
 }
 
+export interface OAuthProviderFile {
+  provider: 'google' | 'github' | 'microsoft'
+  providerId: string
+  email: string
+  linkedAt: string
+  lastUsedAt?: string
+}
+
 export interface UserFile {
   id: string
   username: string
@@ -106,6 +114,7 @@ export interface UserFile {
   isActive: boolean
   profileImage?: string
   preferences?: Record<string, unknown>
+  oauthProviders?: OAuthProviderFile[]
   lastLoginAt?: string
   createdAt: string
   updatedAt: string

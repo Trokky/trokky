@@ -26,7 +26,7 @@ import {
   AuditLog,
   AUDIT_OPERATIONS
 } from '@trokky/core'
-import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile } from './types'
+import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
   private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }
@@ -404,6 +404,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           isActive: createData.isActive ?? true,
           profileImage: createData.profileImage,
           preferences: createData.preferences,
+          oauthProviders: (createData as any).oauthProviders,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -518,6 +519,22 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     } catch (error) {
       this.logger.error(`Failed to get user by email ${email}`, error)
       throw new Error(`Failed to get user by email: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  public async getUserByOAuthProvider(provider: string, providerId: string): Promise<User | null> {
+    if (!provider || !providerId) {
+      return null
+    }
+
+    try {
+      const users = await this.listUsers()
+      return users.find(user =>
+        user.oauthProviders?.some(p => p.provider === provider && p.providerId === providerId)
+      ) || null
+    } catch (error) {
+      this.logger.error(`Failed to get user by OAuth provider ${provider}:${providerId}`, error)
+      throw new Error(`Failed to get user by OAuth provider: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -983,6 +1000,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       isActive: userFile.isActive,
       profileImage: userFile.profileImage,
       preferences: userFile.preferences as any,
+      oauthProviders: userFile.oauthProviders as any,
       lastLoginAt: userFile.lastLoginAt,
       createdAt: userFile.createdAt,
       updatedAt: userFile.updatedAt

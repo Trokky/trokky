@@ -768,6 +768,21 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
+  public async getUserByOAuthProvider(provider: string, providerId: string): Promise<User | null> {
+    if (!provider || !providerId) {
+      return null
+    }
+
+    try {
+      const users = await this.listUsers()
+      return users.find(user =>
+        user.oauthProviders?.some(p => p.provider === provider && p.providerId === providerId)
+      ) || null
+    } catch (error) {
+      throw new Error(`Failed to get user by OAuth provider ${provider}:${providerId}: ${error}`)
+    }
+  }
+
   // App Token operations (system entities, stored separately from content)
   public async getAppToken(id: string): Promise<AppToken | null> {
     try {

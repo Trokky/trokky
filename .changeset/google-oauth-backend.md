@@ -2,6 +2,8 @@
 "@trokky/core": patch
 "@trokky/routes": patch
 "@trokky/adapter-postgres-data": patch
+"@trokky/adapter-filesystem-data": patch
+"@trokky/adapter-filesystem": patch
 ---
 
 Add Google OAuth support for Studio authentication (backend implementation)
@@ -13,3 +15,5 @@ Add Google OAuth support for Studio authentication (backend implementation)
 - Create OAuth route handlers: /auth/oauth/google/init, /auth/oauth/google/callback, /auth/oauth/google/unlink, /auth/oauth/status
 - Add getUserByOAuthProvider to postgres adapter with GIN index for efficient lookups
 - Add migration for oauth_providers column in users table
+- Add getUserByOAuthProvider to filesystem-data adapter with oauthProviders field support
+- Add getUserByOAuthProvider to legacy filesystem adapter
