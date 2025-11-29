@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mail",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Mail layer for Trokky CMS with adapter pattern and templating",
   "type": "module",
   "main": "./dist/index.js",
