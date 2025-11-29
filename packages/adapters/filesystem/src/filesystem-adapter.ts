@@ -504,14 +504,15 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Read file content as buffer and convert to ArrayBuffer
       const buffer = await fs.readFile(filePath)
-      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer | SharedArrayBuffer
       // Ensure we return ArrayBuffer, not SharedArrayBuffer
       if (sliced instanceof ArrayBuffer) {
         return sliced
       } else {
         // Copy SharedArrayBuffer to ArrayBuffer
-        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
-        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        const sharedBuffer = sliced as SharedArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sharedBuffer.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sharedBuffer))
         return arrayBuffer
       }
     } catch (error) {
@@ -1509,14 +1510,15 @@ export class FilesystemAdapter implements StorageAdapter {
 
       // Read and return variant file content
       const buffer = await fs.readFile(resolvedPath)
-      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      const sliced = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer | SharedArrayBuffer
       // Ensure we return ArrayBuffer, not SharedArrayBuffer
       if (sliced instanceof ArrayBuffer) {
         return sliced
       } else {
         // Copy SharedArrayBuffer to ArrayBuffer
-        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
-        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        const sharedBuffer = sliced as SharedArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sharedBuffer.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sharedBuffer))
         return arrayBuffer
       }
     } catch (error) {

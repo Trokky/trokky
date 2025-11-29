@@ -38,13 +38,14 @@ export class SMTPMailAdapter implements MailAdapter {
       pool: config.pool ?? false,
       maxConnections: config.maxConnections ?? 5,
       from: config.from || 'noreply@example.com',
-      fromName: config.fromName,
+      fromName: config.fromName || '',
       timeout: config.timeout || 10000,
       debug: config.debug ?? false,
     }
 
     // Create Nodemailer transporter
     this.transporter = nodemailer.createTransport({
+      // @ts-expect-error - nodemailer types are overly strict
       host: this.config.host,
       port: this.config.port,
       secure: this.config.secure,

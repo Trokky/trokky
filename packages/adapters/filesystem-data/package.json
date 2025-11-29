@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-filesystem-data",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Filesystem-based data storage adapter for Trokky CMS (documents, users, tokens)",
   "type": "module",
   "main": "dist/index.js",

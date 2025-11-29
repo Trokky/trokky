@@ -40,14 +40,15 @@ export class MockFile implements File {
     this.type = options.type || 'application/octet-stream'
     if (typeof content === 'string') {
       const encoded = new TextEncoder().encode(content)
-      const sliced = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength)
+      const sliced = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength) as ArrayBuffer | SharedArrayBuffer
       // Ensure we have ArrayBuffer, not SharedArrayBuffer
       if (sliced instanceof ArrayBuffer) {
         this.content = sliced
       } else {
         // Copy SharedArrayBuffer to ArrayBuffer
-        const arrayBuffer = new ArrayBuffer(sliced.byteLength)
-        new Uint8Array(arrayBuffer).set(new Uint8Array(sliced))
+        const sharedBuffer = sliced as SharedArrayBuffer
+        const arrayBuffer = new ArrayBuffer(sharedBuffer.byteLength)
+        new Uint8Array(arrayBuffer).set(new Uint8Array(sharedBuffer))
         this.content = arrayBuffer
       }
     } else {
