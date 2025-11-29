@@ -417,6 +417,8 @@ export class TrokkyExpress {
           validateInput: fullConfig.security.validation?.input,
           rateLimitEnabled: fullConfig.security.rateLimit?.enabled,
         },
+        // OAuth configuration (auto-enabled when credentials are set)
+        oauth: fullConfig.oauth,
       }
 
       // 3. Create and initialize TrokkyCore with split adapters

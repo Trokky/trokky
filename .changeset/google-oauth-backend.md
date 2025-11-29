@@ -1,7 +1,7 @@
 ---
-"@trokky/core": minor
-"@trokky/routes": minor
-"@trokky/adapter-postgres-data": minor
+"@trokky/core": patch
+"@trokky/routes": patch
+"@trokky/adapter-postgres-data": patch
 ---
 
 Add Google OAuth support for Studio authentication (backend implementation)

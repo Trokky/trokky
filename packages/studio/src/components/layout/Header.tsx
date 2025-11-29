@@ -12,7 +12,8 @@ import {
   UsersIcon,
   ChevronDownIcon,
   KeyIcon,
-  ClockIcon
+  ClockIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -363,6 +364,15 @@ export function Header({
 
                   {/* Menu items */}
                   <div className="py-1">
+                    <Link
+                      to="/user/preferences"
+                      className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <UserCircleIcon className="h-4 w-4 mr-2 text-gray-400" />
+                      Preferences
+                    </Link>
+
                     <button
                       className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => {

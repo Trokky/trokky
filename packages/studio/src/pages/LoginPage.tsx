@@ -7,6 +7,7 @@ import { apiClient } from '@/services/api-client';
 import { storageService, STORAGE_KEYS } from '@/utils/storage';
 import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
+import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
 
 interface LoginPageProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -24,6 +25,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [backendUrl, setBackendUrl] = useState('');
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [googleOAuthEnabled, setGoogleOAuthEnabled] = useState(false);
 
   useEffect(() => {
     // Auto-detect system theme preference
@@ -48,6 +50,21 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     };
 
     loadBranding();
+
+    // Check OAuth status
+    const checkOAuthStatus = async () => {
+      try {
+        const response = await apiClient.get<{ providers: { google: boolean } }>('/auth/oauth/status');
+        if (response.success && response.data?.providers?.google) {
+          setGoogleOAuthEnabled(true);
+        }
+      } catch (error) {
+        // OAuth not configured or error - just don't show the button
+        console.debug('OAuth status check failed:', error);
+      }
+    };
+
+    checkOAuthStatus();
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -257,8 +274,8 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               </div>
             )}
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium text-base transition-colors"
               disabled={isLoading || !credentials.username || !credentials.password}
             >
@@ -271,6 +288,28 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 'Sign In'
               )}
             </Button>
+
+            {/* OAuth Login Options */}
+            {googleOAuthEnabled && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                      or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <GoogleLoginButton
+                  mode="login"
+                  onError={(err) => setError(err)}
+                  disabled={isLoading}
+                />
+              </>
+            )}
           </form>
         </div>
 

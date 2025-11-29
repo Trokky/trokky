@@ -13,6 +13,7 @@ import { AuditLogsPage } from '@/pages/AuditLogsPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { DocumentEditorPage } from '@/components/document';
+import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 
 // Get basename from config if available
 const getBasename = () => {
@@ -24,6 +25,15 @@ const getBasename = () => {
 };
 
 const router = createBrowserRouter([
+  {
+    // OAuth callback route (standalone, no layout)
+    path: '/oauth/callback',
+    element: (
+      <ErrorBoundary>
+        <OAuthCallbackPage onLoginSuccess={() => window.location.href = getBasename() + '/'} />
+      </ErrorBoundary>
+    ),
+  },
   {
     path: '/',
     element: (

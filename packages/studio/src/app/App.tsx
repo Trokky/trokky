@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SessionTimeoutWarningContainer } from '@/components/auth/SessionTimeoutWarning';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -76,6 +77,10 @@ function AppContent() {
 
     if (normalizedPath === '/reset-password') {
       return <ResetPasswordPage />;
+    }
+
+    if (normalizedPath === '/oauth/callback') {
+      return <OAuthCallbackPage onLoginSuccess={handleLoginSuccess} />;
     }
 
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;

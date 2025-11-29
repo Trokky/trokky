@@ -235,6 +235,15 @@ export interface StudioConfig {
 }
 
 // Main configuration interface
+/** OAuth provider configuration */
+export interface OAuthConfig {
+  google?: {
+    clientId: string
+    clientSecret: string
+    redirectUri: string
+  }
+}
+
 export interface TrokkyConfig {
   /** Environment mode */
   env?: TrokkyEnvironment
@@ -246,6 +255,8 @@ export interface TrokkyConfig {
   media?: MediaConfig
   /** Security and authentication */
   security?: SecurityConfig
+  /** OAuth configuration */
+  oauth?: OAuthConfig
   /** HTTP server settings */
   server?: ServerConfig
   /** Studio integration */

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { PaintBrushIcon, BellIcon } from '@heroicons/react/24/outline';
+import { PaintBrushIcon, BellIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { createStudioLogger } from '@/utils/logger';
+import { OAuthProvidersList } from '@/components/auth/OAuthProvidersList';
 
 const logger = createStudioLogger('UserPreferences');
 
@@ -151,7 +152,7 @@ export function UserPreferencesPage() {
             <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Notifications</h2>
           </div>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -165,7 +166,7 @@ export function UserPreferencesPage() {
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
               />
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white">Push Notifications</h3>
@@ -179,6 +180,21 @@ export function UserPreferencesPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Connected Accounts */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <LinkIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Connected Accounts</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Link external accounts for easier sign-in
+              </p>
+            </div>
+          </div>
+
+          <OAuthProvidersList />
         </div>
 
         {/* Save Button */}
