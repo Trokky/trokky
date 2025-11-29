@@ -6,6 +6,7 @@ A comprehensive, production-ready authentication and authorization system suppor
 
 - [Overview](#overview)
 - [Authentication Methods](#authentication-methods)
+- [OAuth Authentication](#oauth-authentication)
 - [Permission System](#permission-system)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
@@ -94,6 +95,101 @@ const tokenResult = await authService.createAppToken({
 curl -H "X-API-Token: your_app_token_here" \
      https://api.example.com/api/content
 ```
+
+## OAuth Authentication
+
+Trokky supports OAuth 2.0 authentication with external identity providers, allowing users to sign in with their existing accounts (Google, GitHub, Microsoft).
+
+### Supported Providers
+
+| Provider | Status | Configuration |
+|----------|--------|---------------|
+| Google | ✅ Supported | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
+| GitHub | 🔜 Coming Soon | - |
+| Microsoft | 🔜 Coming Soon | - |
+
+### How OAuth Works in Trokky
+
+**Important**: OAuth in Trokky is designed for **account linking**, not automatic account creation. Users must:
+
+1. First create a Trokky account (or have one created by an admin)
+2. Log in with their Trokky credentials
+3. Link their OAuth provider from User Preferences
+4. After linking, they can use "Sign in with Google" on the login page
+
+This approach ensures:
+- Admins maintain control over who has access
+- No automatic account creation from external providers
+- Users can link multiple OAuth providers to one account
+- OAuth can be unlinked if needed (as long as password is set)
+
+### Configuration
+
+Add OAuth configuration to your `trokky.config.ts`:
+
+```typescript
+export default {
+  // ... other config
+
+  oauth: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/oauth/callback',
+    },
+  },
+}
+```
+
+### Setting Up Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new project or select existing
+3. Go to **APIs & Services > Credentials**
+4. Click **Create Credentials > OAuth 2.0 Client ID**
+5. Select **Web application**
+6. Add authorized redirect URIs:
+   - Development: `http://localhost:5173/oauth/callback`
+   - Production: `https://your-studio-domain.com/oauth/callback`
+7. Copy the Client ID and Client Secret to your `.env` file
+
+### Environment Variables
+
+```bash
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:5173/oauth/callback
+```
+
+### User Experience Flow
+
+**Linking an account (from User Preferences):**
+```
+User logged in → Preferences → Connected Accounts → Click "Link" on Google
+  → Redirected to Google consent screen
+  → User approves access
+  → Redirected back to Studio
+  → Account linked successfully
+```
+
+**Signing in with OAuth:**
+```
+Login page → Click "Sign in with Google"
+  → Redirected to Google consent screen
+  → User approves access
+  → Redirected back to Studio
+  → If Google account is linked → User logged in
+  → If not linked → Error: "No account found"
+```
+
+### Studio Components
+
+Trokky Studio includes built-in components for OAuth:
+
+- **GoogleLoginButton**: Renders the "Sign in with Google" button
+- **OAuthCallbackPage**: Handles the OAuth redirect and token exchange
+- **OAuthProvidersList**: Shows connected accounts in User Preferences
 
 ## Permission System
 

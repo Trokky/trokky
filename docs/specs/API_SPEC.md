@@ -376,6 +376,154 @@ POST /api/auth/validate
 }
 ```
 
+## 🔑 OAuth Authentication
+
+Trokky supports OAuth 2.0 authentication with external providers. Currently supported: **Google**.
+
+### OAuth Flow Overview
+
+1. User clicks "Sign in with Google" in Studio
+2. Studio redirects to provider's OAuth consent screen
+3. User authenticates with provider
+4. Provider redirects back to Studio with authorization code
+5. Studio exchanges code for user authentication
+
+**Important**: OAuth login requires the user to first have a Trokky account linked to that provider. Users must link their OAuth provider from User Preferences before using OAuth login.
+
+### Get OAuth Status
+```http
+GET /api/auth/oauth/status
+```
+
+Returns which OAuth providers are configured and available.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "providers": {
+      "google": true,
+      "github": false,
+      "microsoft": false
+    }
+  }
+}
+```
+
+### Initialize Google OAuth
+```http
+POST /api/auth/oauth/google/init
+```
+
+Generates the OAuth authorization URL for redirecting the user.
+
+**Request Body:**
+```json
+{
+  "state": "random-state-string-for-csrf-protection",
+  "mode": "login"
+}
+```
+
+**Parameters:**
+- `state` (string, required) - Random string stored client-side to prevent CSRF
+- `mode` (string, optional) - Either `"login"` or `"link"`. Default: `"login"`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&state=...",
+    "state": "random-state-string-for-csrf-protection"
+  }
+}
+```
+
+### Google OAuth Callback
+```http
+POST /api/auth/oauth/google/callback
+```
+
+Handles the OAuth callback after user authenticates with Google.
+
+**Request Body:**
+```json
+{
+  "code": "authorization-code-from-google",
+  "state": "random-state-string-for-csrf-protection",
+  "mode": "login"
+}
+```
+
+**Parameters:**
+- `code` (string, required) - Authorization code from OAuth provider
+- `state` (string, required) - State parameter for CSRF verification
+- `mode` (string, optional) - Either `"login"` or `"link"`. Default: `"login"`
+
+**Response (login mode):**
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "user_abc123",
+      "username": "johndoe",
+      "email": "john@example.com",
+      "role": "editor"
+    }
+  }
+}
+```
+
+**Response (link mode):**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Google account linked successfully",
+    "provider": {
+      "provider": "google",
+      "email": "john@gmail.com",
+      "linkedAt": "2024-01-20T15:00:00Z"
+    }
+  }
+}
+```
+
+### Unlink OAuth Provider
+```http
+DELETE /api/auth/oauth/google/unlink
+```
+
+**Authentication Required**: JWT token
+
+Removes the linked OAuth provider from the user's account.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Google account unlinked successfully"
+  }
+}
+```
+
+**Error Response (if only auth method):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CANNOT_UNLINK",
+    "message": "Cannot unlink the only authentication method. Set a password first."
+  }
+}
+```
+
 ## 🎯 GraphQL API
 
 ### Endpoint
