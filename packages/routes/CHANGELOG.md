@@ -1,5 +1,16 @@
 # @trokky/routes
 
+## 0.1.11
+
+### Patch Changes
+
+- 4b2256b: OAuth: Skip consent screen for login mode, only show account picker
+  - Login mode now uses `prompt=select_account` - shows account picker but skips consent if already granted
+  - Link mode still uses `prompt=consent` to ensure refresh token is obtained
+
+- Updated dependencies [4b2256b]
+  - @trokky/core@0.1.11
+
 ## 0.1.10
 
 ### Patch Changes
