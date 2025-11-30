@@ -425,12 +425,10 @@ function generateTrokkyConfig(config: ProjectConfig): string {
   return `/**
  * Trokky Configuration
  */
-
-import { defineConfig } from '@trokky/express'
 ${schemaImports}
 ${mailImport}
 
-export default defineConfig({
+export default {
   schemas: ${schemas},
 
   storage: {
@@ -449,7 +447,7 @@ export default defineConfig({
       lastName: 'User',
     },
   },${oauthConfig}${mailConfig}${studioConfig}
-})
+}
 `
 }
 
