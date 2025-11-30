@@ -121,6 +121,10 @@ export async function requestPasswordReset(
 
     SecurityValidator.validateEmail(body.email)
 
+    // Validate CAPTCHA if required
+    const { validateCaptcha, getClientIp } = await import('./captcha.js')
+    await validateCaptcha(core, body.captchaToken, getClientIp(req), 'passwordResetRequest')
+
     // Rate limiting: Limit password reset requests per email
     // 3 requests per email per hour to prevent abuse and enumeration
     await core.checkRateLimit('password-reset', { email: body.email })
@@ -255,6 +259,10 @@ export async function resetPassword(
 
     // Validate password strength using SecurityValidator
     SecurityValidator.validatePassword(body.newPassword)
+
+    // Validate CAPTCHA if required
+    const { validateCaptcha, getClientIp } = await import('./captcha.js')
+    await validateCaptcha(core, body.captchaToken, getClientIp(req), 'passwordResetVerify')
 
     // Rate limiting: Limit password reset verification attempts
     // Prevents brute-force token guessing

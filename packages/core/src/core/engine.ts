@@ -78,6 +78,13 @@ import {
   type TOTPSecretResult,
   type StoredEmailOTP
 } from '../security/mfa/index.js'
+import {
+  createCaptchaProvider,
+  type CaptchaProvider,
+  type CaptchaProviderType,
+  type CaptchaProtectedEndpoint,
+  type CaptchaVerificationResult
+} from '../security/captcha/index.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -138,6 +145,7 @@ export class TrokkyCore {
   private cryptoAdapter: CryptoAdapter
   private imageProcessor!: ImageProcessor // Initialized in init() method
   private imageProcessorConfig: ImageProcessorConfig
+  private captchaProvider: CaptchaProvider | null = null
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
   
@@ -2442,6 +2450,82 @@ export class TrokkyCore {
       }
     }
     return null
+  }
+
+  // ==========================================================================
+  // CAPTCHA Methods
+  // ==========================================================================
+
+  /**
+   * Get or create the CAPTCHA provider instance
+   * @private
+   */
+  private getCaptchaProvider(): CaptchaProvider | null {
+    if (this.captchaProvider) return this.captchaProvider
+
+    const config = this.config.captcha
+    if (!config?.siteKey || !config?.secretKey) return null
+
+    try {
+      this.captchaProvider = createCaptchaProvider(config.provider, {
+        siteKey: config.siteKey,
+        secretKey: config.secretKey,
+        options: config.options,
+      })
+      return this.captchaProvider
+    } catch (error) {
+      this.logger.error('Failed to create CAPTCHA provider', error)
+      return null
+    }
+  }
+
+  /**
+   * Check if CAPTCHA is configured
+   */
+  public isCaptchaConfigured(): boolean {
+    const config = this.config.captcha
+    return !!(config?.siteKey && config?.secretKey && config?.provider)
+  }
+
+  /**
+   * Check if CAPTCHA is required for a specific endpoint
+   * @param endpoint - The endpoint to check ('login', 'passwordResetRequest', 'passwordResetVerify')
+   */
+  public isCaptchaRequiredFor(endpoint: CaptchaProtectedEndpoint): boolean {
+    if (!this.isCaptchaConfigured()) return false
+    const protectedEndpoints = this.config.captcha?.protectedEndpoints
+    // Default: all endpoints are protected if no specific config
+    if (!protectedEndpoints) return true
+    return protectedEndpoints[endpoint] ?? true
+  }
+
+  /**
+   * Get CAPTCHA configuration for frontend use
+   * Returns public config (site key, provider, options) - never the secret key
+   */
+  public getCaptchaConfig(): { provider: CaptchaProviderType; siteKey: string; options?: Record<string, unknown> } | null {
+    if (!this.isCaptchaConfigured()) return null
+    const config = this.config.captcha!
+    return {
+      provider: config.provider,
+      siteKey: config.siteKey,
+      options: config.options,
+    }
+  }
+
+  /**
+   * Verify a CAPTCHA token
+   * @param token - The CAPTCHA token from the frontend widget
+   * @param remoteIp - Optional client IP address for verification
+   */
+  public async verifyCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerificationResult> {
+    const provider = this.getCaptchaProvider()
+    if (!provider) {
+      this.logger.warn('CAPTCHA verification called but no provider configured')
+      // Fail open if not configured - allows systems without CAPTCHA to work
+      return { success: true }
+    }
+    return provider.verify(token, remoteIp)
   }
 
   // ==========================================================================

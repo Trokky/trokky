@@ -1,5 +1,53 @@
 # @trokky/routes
 
+## 0.1.14
+
+### Patch Changes
+
+- Add CAPTCHA support with Cloudflare Turnstile and Google reCAPTCHA v2
+
+  **@trokky/core:**
+  - Add CAPTCHA provider abstraction with `CaptchaProvider` interface
+  - Add `TurnstileService` for Cloudflare Turnstile server-side verification
+  - Add `RecaptchaService` for Google reCAPTCHA v2 server-side verification
+  - Add CAPTCHA configuration types and factory function
+  - Integrate CAPTCHA verification into TrokkyCore engine
+
+  **@trokky/express:**
+  - Add `CaptchaConfig` interface to TrokkyConfig
+  - Pass CAPTCHA configuration to core engine
+
+  **@trokky/routes:**
+  - Add `/auth/captcha/status` endpoint for frontend CAPTCHA configuration
+  - Add CAPTCHA validation helpers for protected endpoints
+  - Integrate CAPTCHA verification into login and password reset flows
+
+  **@trokky/studio:**
+  - Add `CaptchaWidget` component supporting Turnstile and reCAPTCHA v2
+  - Add `useCaptcha` hook for CAPTCHA state management
+  - Integrate CAPTCHA into LoginPage, ForgotPasswordPage, and ResetPasswordPage
+  - Hide organization title when logo is provided on login page
+  - Increase logo size on login page
+
+  Configuration: Set `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` or `RECAPTCHA_SITE_KEY`/`RECAPTCHA_SECRET_KEY` env vars
+
+- Updated dependencies
+  - @trokky/core@0.1.14
+
+## 0.1.13
+
+### Patch Changes
+
+- fix: pass deviceId during login to enable MFA trusted device feature
+
+  The trusted device feature was not working because:
+  1. LoginPage.tsx wasn't generating/sending deviceId during login
+  2. api-client.ts login method didn't accept deviceId parameter
+  3. routes.ts login handler wasn't passing deviceId to authenticateUser
+
+  Now when a user logs in, their device ID is sent along with credentials,
+  allowing the server to check if the device is trusted and skip MFA verification.
+
 ## 0.1.12
 
 ### Patch Changes

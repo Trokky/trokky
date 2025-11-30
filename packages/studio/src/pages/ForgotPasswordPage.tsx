@@ -5,6 +5,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
+import { useCaptcha } from '@/hooks/useCaptcha';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -12,6 +14,9 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
+
+  // CAPTCHA state
+  const captcha = useCaptcha({ endpoint: 'passwordResetRequest' });
 
   useEffect(() => {
     // Auto-detect system theme preference
@@ -39,8 +44,18 @@ export function ForgotPasswordPage() {
     setIsLoading(true);
     setError(null);
 
+    // Validate CAPTCHA if required
+    if (captcha.isRequired && !captcha.token) {
+      setError('Please complete the CAPTCHA verification');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const response = await apiClient.post('/auth/request-reset', { email });
+      const response = await apiClient.post('/auth/request-reset', {
+        email,
+        captchaToken: captcha.token || undefined,
+      });
 
       if (response.success) {
         setIsSubmitted(true);
@@ -138,10 +153,24 @@ export function ForgotPasswordPage() {
               />
             </div>
 
+            {/* CAPTCHA Widget */}
+            {captcha.isRequired && captcha.config && (
+              <div className="flex justify-center my-4">
+                <CaptchaWidget
+                  provider={captcha.config.provider}
+                  siteKey={captcha.config.siteKey}
+                  options={captcha.config.options}
+                  onVerify={captcha.onVerify}
+                  onError={captcha.onError}
+                  onExpire={captcha.onExpire}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium text-base transition-colors"
-              disabled={isLoading || !email}
+              disabled={isLoading || !email || (captcha.isRequired && !captcha.token)}
             >
               {isLoading ? (
                 <>

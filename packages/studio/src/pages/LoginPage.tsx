@@ -9,6 +9,8 @@ import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroi
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
 import { MFAVerification } from '@/components/auth/MFAVerification';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
+import { useCaptcha } from '@/hooks/useCaptcha';
 
 type MFAMethod = 'totp' | 'email';
 
@@ -66,6 +68,9 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
     verificationCode: '',
     isLoading: false,
   });
+
+  // CAPTCHA state
+  const captcha = useCaptcha({ endpoint: 'login' });
 
   // MFA Setup functions
   const initiateTOTPSetup = async () => {
@@ -331,6 +336,13 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
     setIsLoading(true);
     setError(null);
 
+    // Validate CAPTCHA if required
+    if (captcha.isRequired && !captcha.token) {
+      setError('Please complete the CAPTCHA verification');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Save backend URL to localStorage and reinitialize API client (only if not pre-configured)
       const config = (window as any).TROKKY_CONFIG;
@@ -341,7 +353,9 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
         // Reinitialize API client with new backend URL
         apiClient.setBackendUrl(backendUrl);
       }
-      const response = await apiClient.login(credentials.username, credentials.password, rememberMe);
+      // Get device ID for trusted device checking
+      const deviceId = getDeviceId();
+      const response = await apiClient.login(credentials.username, credentials.password, rememberMe, deviceId, captcha.token || undefined);
 
       if (response.success && response.data) {
         const loginData = response.data as any;
@@ -418,18 +432,19 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
           {/* Branding Header - always show unless in MFA verification */}
           {!mfaState.required && (
             <div className="mb-8 text-center">
-              {displayBranding.logo && (
-                <div className="mb-4 flex justify-center">
+              {displayBranding.logo ? (
+                <div className="flex justify-center">
                   <img
                     src={displayBranding.logo}
                     alt={displayBranding.organizationName || displayBranding.title}
-                    className="h-16 w-auto object-contain"
+                    className="h-20 w-auto object-contain"
                   />
                 </div>
+              ) : (
+                <h1 className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                  {displayBranding.organizationName || displayBranding.title}
+                </h1>
               )}
-              <h1 className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                {displayBranding.organizationName || displayBranding.title}
-              </h1>
             </div>
           )}
 
@@ -801,10 +816,24 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               </div>
             )}
 
+            {/* CAPTCHA Widget */}
+            {captcha.isRequired && captcha.config && (
+              <div className="flex justify-center my-4">
+                <CaptchaWidget
+                  provider={captcha.config.provider}
+                  siteKey={captcha.config.siteKey}
+                  options={captcha.config.options}
+                  onVerify={captcha.onVerify}
+                  onError={captcha.onError}
+                  onExpire={captcha.onExpire}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium text-base transition-colors"
-              disabled={isLoading || !credentials.username || !credentials.password}
+              disabled={isLoading || !credentials.username || !credentials.password || (captcha.isRequired && !captcha.token)}
             >
               {isLoading ? (
                 <>
@@ -850,4 +879,17 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
       </div>
     </div>
   );
+}
+
+/**
+ * Get or generate a persistent device ID for trusted device feature.
+ * This ID is stored in localStorage and persists across sessions.
+ */
+function getDeviceId(): string {
+  const stored = localStorage.getItem('trokky_device_id');
+  if (stored) return stored;
+
+  const id = crypto.randomUUID();
+  localStorage.setItem('trokky_device_id', id);
+  return id;
 }

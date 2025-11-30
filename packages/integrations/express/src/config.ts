@@ -244,6 +244,22 @@ export interface OAuthConfig {
   }
 }
 
+/** CAPTCHA provider configuration */
+export interface CaptchaConfig {
+  provider: 'turnstile' | 'hcaptcha' | 'recaptcha'
+  siteKey: string
+  secretKey: string
+  options?: {
+    theme?: 'light' | 'dark' | 'auto'
+    size?: 'normal' | 'compact' | 'invisible'
+  }
+  protectedEndpoints?: {
+    login?: boolean
+    passwordResetRequest?: boolean
+    passwordResetVerify?: boolean
+  }
+}
+
 export interface TrokkyConfig {
   /** Environment mode */
   env?: TrokkyEnvironment
@@ -257,6 +273,8 @@ export interface TrokkyConfig {
   security?: SecurityConfig
   /** OAuth configuration */
   oauth?: OAuthConfig
+  /** CAPTCHA configuration */
+  captcha?: CaptchaConfig
   /** HTTP server settings */
   server?: ServerConfig
   /** Studio integration */

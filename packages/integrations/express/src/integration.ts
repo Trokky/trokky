@@ -419,6 +419,8 @@ export class TrokkyExpress {
         },
         // OAuth configuration (auto-enabled when credentials are set)
         oauth: fullConfig.oauth,
+        // CAPTCHA configuration (auto-enabled when credentials are set)
+        captcha: fullConfig.captcha,
       }
 
       // 3. Create and initialize TrokkyCore with split adapters

@@ -865,7 +865,9 @@ export class ApiClient {
   async login(
     username: string,
     password: string,
-    rememberMe?: boolean
+    rememberMe?: boolean,
+    deviceId?: string,
+    captchaToken?: string
   ): Promise<ApiResponse<{ user: User; token: string; expiresAt?: string }>> {
     if (!this.hasFeature('auth')) {
       throw new ApiClientError('Auth feature not available')
@@ -875,7 +877,7 @@ export class ApiClient {
       user: User
       token: string
       expiresAt?: string
-    }>('/auth/login', { username, password, rememberMe })
+    }>('/auth/login', { username, password, rememberMe, deviceId, captchaToken })
 
     if (response.success && response.data?.token) {
       this.setAuthToken(response.data.token)

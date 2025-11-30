@@ -44,6 +44,19 @@ export {
   type EmailOTPResult,
 } from './security/mfa/index.js'
 
+// CAPTCHA
+export {
+  TurnstileService,
+  createTurnstileService,
+  createCaptchaProvider,
+  type CaptchaProvider,
+  type CaptchaProviderConfig,
+  type CaptchaProviderType,
+  type CaptchaProtectedEndpoint,
+  type CaptchaVerificationResult,
+  type TurnstileConfig,
+} from './security/captcha/index.js'
+
 // Field system
 export {
   FieldTypeRegistry,

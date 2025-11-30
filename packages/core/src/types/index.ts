@@ -385,6 +385,23 @@ export interface TrokkyConfig {
       redirectUri: string
     }
   }
+  // CAPTCHA configuration (auto-enabled when credentials are set)
+  captcha?: {
+    provider: 'turnstile' | 'hcaptcha' | 'recaptcha'
+    siteKey: string       // Public key for frontend widget
+    secretKey: string     // Private key for backend verification
+    options?: {
+      theme?: 'light' | 'dark' | 'auto'
+      size?: 'normal' | 'compact' | 'invisible'
+      action?: string           // reCAPTCHA v3 action
+      scoreThreshold?: number   // reCAPTCHA v3 threshold (0.0 - 1.0)
+    }
+    protectedEndpoints?: {
+      login?: boolean                 // Default: true
+      passwordResetRequest?: boolean  // Default: true
+      passwordResetVerify?: boolean   // Default: true
+    }
+  }
   // Mail configuration
   mail?: import('./mail.js').MailConfig
 }

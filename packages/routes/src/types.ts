@@ -190,6 +190,8 @@ export interface LoginRequest {
   username: string
   password: string
   rememberMe?: boolean
+  deviceId?: string
+  captchaToken?: string
 }
 
 export interface LoginResponse {

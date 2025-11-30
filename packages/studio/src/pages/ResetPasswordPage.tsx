@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { CheckCircleIcon, XCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
+import { useCaptcha } from '@/hooks/useCaptcha';
 
 export function ResetPasswordPage() {
   const [token, setToken] = useState('');
@@ -17,6 +19,9 @@ export function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
+
+  // CAPTCHA state
+  const captcha = useCaptcha({ endpoint: 'passwordResetVerify' });
 
   // Ensure dark mode is applied on mount
   useEffect(() => {
@@ -81,12 +86,19 @@ export function ResetPasswordPage() {
       return;
     }
 
+    // Validate CAPTCHA if required
+    if (captcha.isRequired && !captcha.token) {
+      setError('Please complete the CAPTCHA verification');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const response = await apiClient.post('/auth/reset-password', {
         token,
         newPassword: password,
+        captchaToken: captcha.token || undefined,
       });
 
       if (response.success) {
@@ -311,10 +323,24 @@ export function ResetPasswordPage() {
               </ul>
             </div>
 
+            {/* CAPTCHA Widget */}
+            {captcha.isRequired && captcha.config && (
+              <div className="flex justify-center my-4">
+                <CaptchaWidget
+                  provider={captcha.config.provider}
+                  siteKey={captcha.config.siteKey}
+                  options={captcha.config.options}
+                  onVerify={captcha.onVerify}
+                  onError={captcha.onError}
+                  onExpire={captcha.onExpire}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium text-base transition-colors"
-              disabled={isLoading || !password || !confirmPassword || password !== confirmPassword}
+              disabled={isLoading || !password || !confirmPassword || password !== confirmPassword || (captcha.isRequired && !captcha.token)}
             >
               {isLoading ? (
                 <>

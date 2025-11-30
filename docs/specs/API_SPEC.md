@@ -524,6 +524,663 @@ Removes the linked OAuth provider from the user's account.
 }
 ```
 
+## 🔐 Multi-Factor Authentication (MFA)
+
+Trokky supports Multi-Factor Authentication (MFA) with TOTP (Time-based One-Time Password) and Email OTP methods, plus backup codes for account recovery.
+
+### MFA Flow Overview
+
+1. **During Login**: If user has MFA enabled, login returns `mfaRequired: true` with an `mfaToken`
+2. **Verify MFA**: User submits code with `mfaToken` to complete authentication
+3. **First-Time Setup**: Users without MFA can be prompted to set it up during login using an `mfaSetupToken`
+
+### Login Response with MFA Required
+
+When a user with MFA enabled logs in successfully:
+
+```json
+{
+  "success": true,
+  "data": {
+    "mfaRequired": true,
+    "mfaToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "availableMethods": [
+      { "type": "totp", "enabled": true, "verified": true },
+      { "type": "email", "enabled": false, "verified": false }
+    ],
+    "user": {
+      "id": "user_abc123",
+      "email": "john@example.com"
+    }
+  }
+}
+```
+
+---
+
+### Verify MFA Code
+```http
+POST /api/auth/mfa/verify
+Content-Type: application/json
+```
+
+Verifies a TOTP code or backup code to complete login.
+
+**Request Body:**
+```json
+{
+  "mfaToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "code": "123456",
+  "method": "totp",
+  "trustDevice": true,
+  "rememberMe": false
+}
+```
+
+**Parameters:**
+- `mfaToken` (string, required) - Token from login response
+- `code` (string, required) - 6-digit TOTP code or 8-character backup code
+- `method` (string, optional) - `"totp"` or `"backup"`. Default: `"totp"`
+- `trustDevice` (boolean, optional) - Trust this device for 30 days
+- `rememberMe` (boolean, optional) - Extended session duration
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "user_abc123",
+      "username": "johndoe",
+      "email": "john@example.com",
+      "role": "editor"
+    },
+    "deviceTrusted": true
+  }
+}
+```
+
+---
+
+### Verify Backup Code
+```http
+POST /api/auth/mfa/verify-backup
+Content-Type: application/json
+```
+
+Specifically verifies a backup code (alternative to `/mfa/verify` with `method: "backup"`).
+
+**Request Body:**
+```json
+{
+  "mfaToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "code": "ABCD1234",
+  "rememberMe": false
+}
+```
+
+**Response:** Same as `/mfa/verify`
+
+---
+
+### Send Email OTP
+```http
+POST /api/auth/mfa/send-code
+Content-Type: application/json
+```
+
+Sends a one-time code to the user's email for email-based MFA.
+
+**Request Body:**
+```json
+{
+  "mfaToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Verification code sent to your email",
+    "expiresIn": 300
+  }
+}
+```
+
+---
+
+## MFA Setup Endpoints
+
+These endpoints support setting up MFA either during login (using `X-MFA-Setup-Token` header) or after authentication (using standard `Authorization` header).
+
+### Initialize TOTP Setup
+```http
+POST /api/auth/mfa/setup/totp
+Authorization: Bearer {token}
+```
+Or with setup token:
+```http
+POST /api/auth/mfa/setup/totp
+X-MFA-Setup-Token: {mfaSetupToken}
+```
+
+Generates a TOTP secret and QR code for authenticator app setup.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "secret": "JBSWY3DPEHPK3PXP",
+    "qrCode": "data:image/png;base64,iVBORw0KGgo...",
+    "issuer": "Trokky",
+    "accountName": "john@example.com"
+  }
+}
+```
+
+---
+
+### Verify and Enable TOTP
+```http
+POST /api/auth/mfa/setup/totp/verify
+Authorization: Bearer {token}
+```
+Or with setup token:
+```http
+POST /api/auth/mfa/setup/totp/verify
+X-MFA-Setup-Token: {mfaSetupToken}
+```
+
+Verifies a TOTP code and enables TOTP MFA for the user.
+
+**Request Body:**
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "code": "123456"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "method": "totp",
+    "backupCodes": [
+      "ABCD1234",
+      "EFGH5678",
+      "IJKL9012",
+      "MNOP3456",
+      "QRST7890",
+      "UVWX1234",
+      "YZAB5678",
+      "CDEF9012",
+      "GHIJ3456",
+      "KLMN7890"
+    ],
+    "message": "TOTP MFA enabled successfully. Save your backup codes!"
+  }
+}
+```
+
+---
+
+### Initialize Email OTP Setup
+```http
+POST /api/auth/mfa/setup/email
+Authorization: Bearer {token}
+```
+
+Sends a verification code to the user's email to set up email-based MFA.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Verification code sent to your email",
+    "email": "j***@example.com",
+    "expiresIn": 300
+  }
+}
+```
+
+---
+
+### Verify and Enable Email OTP
+```http
+POST /api/auth/mfa/setup/email/verify
+Authorization: Bearer {token}
+```
+
+Verifies the email code and enables email-based MFA.
+
+**Request Body:**
+```json
+{
+  "code": "123456"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "method": "email",
+    "backupCodes": ["ABCD1234", "EFGH5678", ...],
+    "message": "Email MFA enabled successfully"
+  }
+}
+```
+
+---
+
+## MFA Management Endpoints
+
+### Get MFA Status
+```http
+GET /api/auth/mfa/status
+Authorization: Bearer {token}
+```
+
+Returns the current MFA configuration for the authenticated user.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "mfaEnabled": true,
+    "methods": [
+      { "type": "totp", "enabled": true, "verified": true, "enabledAt": "2024-01-15T10:30:00Z" },
+      { "type": "email", "enabled": false, "verified": false }
+    ],
+    "backupCodesRemaining": 8,
+    "trustedDevices": 2
+  }
+}
+```
+
+---
+
+### Disable MFA Method
+```http
+POST /api/auth/mfa/disable
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+Disables a specific MFA method.
+
+**Request Body:**
+```json
+{
+  "method": "totp",
+  "password": "current-password"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "TOTP MFA disabled successfully",
+    "mfaStillEnabled": false
+  }
+}
+```
+
+---
+
+### Disable All MFA
+```http
+POST /api/auth/mfa/disable-all
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+Disables all MFA methods for the account.
+
+**Request Body:**
+```json
+{
+  "password": "current-password"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "All MFA methods disabled successfully"
+  }
+}
+```
+
+---
+
+### Regenerate Backup Codes
+```http
+POST /api/auth/mfa/backup-codes/regenerate
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+Generates new backup codes (invalidates all existing codes).
+
+**Request Body:**
+```json
+{
+  "password": "current-password"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "backupCodes": [
+      "ABCD1234", "EFGH5678", "IJKL9012", "MNOP3456", "QRST7890",
+      "UVWX1234", "YZAB5678", "CDEF9012", "GHIJ3456", "KLMN7890"
+    ],
+    "message": "New backup codes generated. Save them securely!"
+  }
+}
+```
+
+---
+
+### List Trusted Devices
+```http
+GET /api/auth/mfa/trusted-devices
+Authorization: Bearer {token}
+```
+
+Returns all devices trusted for MFA.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "devices": [
+      {
+        "id": "device_abc123",
+        "name": "Chrome on macOS",
+        "userAgent": "Mozilla/5.0...",
+        "lastUsedAt": "2024-01-20T15:00:00Z",
+        "trustedAt": "2024-01-15T10:30:00Z",
+        "expiresAt": "2024-02-14T10:30:00Z",
+        "isCurrent": true
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Revoke Trusted Device
+```http
+DELETE /api/auth/mfa/trusted-devices/:deviceId
+Authorization: Bearer {token}
+```
+
+Revokes trust for a specific device.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Device trust revoked"
+  }
+}
+```
+
+---
+
+### Revoke All Trusted Devices
+```http
+DELETE /api/auth/mfa/trusted-devices
+Authorization: Bearer {token}
+```
+
+Revokes trust for all devices.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "All device trusts revoked",
+    "devicesRevoked": 3
+  }
+}
+```
+
+---
+
+## Admin MFA Management
+
+### Reset User MFA (Admin Only)
+```http
+POST /api/admin/users/:userId/mfa/reset
+Authorization: Bearer {admin_token}
+```
+
+Allows administrators to reset MFA for a user who has lost access.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "MFA reset successfully for user",
+    "userId": "user_abc123"
+  }
+}
+```
+
+**Error Response (non-admin):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Admin access required"
+  }
+}
+```
+
+---
+
+## 🛡️ CAPTCHA Protection
+
+Trokky supports CAPTCHA verification to protect authentication endpoints from automated attacks. Two providers are supported: **Cloudflare Turnstile** and **Google reCAPTCHA v2**.
+
+### CAPTCHA Flow Overview
+
+1. Frontend fetches CAPTCHA configuration from `/auth/captcha/status`
+2. If CAPTCHA is enabled, frontend renders the appropriate widget
+3. User completes the CAPTCHA challenge
+4. Frontend includes the CAPTCHA token in authentication requests
+5. Backend verifies the token with the provider before processing
+
+### Get CAPTCHA Status
+```http
+GET /api/auth/captcha/status
+```
+
+Returns CAPTCHA configuration for the frontend to render the appropriate widget.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true,
+    "config": {
+      "provider": "turnstile",
+      "siteKey": "0x4AAAAAAAxxxxxxxxxxxxxxxx",
+      "options": {
+        "theme": "auto",
+        "size": "normal"
+      }
+    },
+    "protectedEndpoints": {
+      "login": true,
+      "passwordResetRequest": true,
+      "passwordResetVerify": true
+    }
+  }
+}
+```
+
+**Response (CAPTCHA disabled):**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": false,
+    "config": null,
+    "protectedEndpoints": {
+      "login": false,
+      "passwordResetRequest": false,
+      "passwordResetVerify": false
+    }
+  }
+}
+```
+
+---
+
+### Login with CAPTCHA
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+
+When CAPTCHA is enabled for login, include the `captchaToken` in the request.
+
+**Request Body:**
+```json
+{
+  "username": "johndoe",
+  "password": "SecurePassword123!",
+  "rememberMe": false,
+  "captchaToken": "0.xxxxxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+**Error Response (missing CAPTCHA):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "CAPTCHA verification required",
+    "field": "captchaToken"
+  }
+}
+```
+
+**Error Response (invalid CAPTCHA):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "CAPTCHA verification failed",
+    "field": "captchaToken"
+  }
+}
+```
+
+---
+
+### Password Reset with CAPTCHA
+```http
+POST /api/auth/request-reset
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "captchaToken": "0.xxxxxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+---
+
+### Supported Providers
+
+#### Cloudflare Turnstile
+- Provider key: `turnstile`
+- Script URL: `https://challenges.cloudflare.com/turnstile/v0/api.js`
+- Verify URL: `https://challenges.cloudflare.com/turnstile/v0/siteverify`
+- Theme options: `light`, `dark`, `auto`
+- Size options: `normal`, `compact`, `invisible`
+
+#### Google reCAPTCHA v2
+- Provider key: `recaptcha`
+- Script URL: `https://www.google.com/recaptcha/api.js`
+- Verify URL: `https://www.google.com/recaptcha/api/siteverify`
+- Theme options: `light`, `dark`
+- Size options: `normal`, `compact`
+
+---
+
+### Configuration
+
+```typescript
+// trokky.config.ts
+export default {
+  // Cloudflare Turnstile
+  captcha: {
+    provider: 'turnstile',
+    siteKey: process.env.TURNSTILE_SITE_KEY,
+    secretKey: process.env.TURNSTILE_SECRET_KEY,
+    options: {
+      theme: 'auto',
+      size: 'normal',
+    },
+    protectedEndpoints: {
+      login: true,
+      passwordResetRequest: true,
+      passwordResetVerify: true,
+    },
+  },
+
+  // Or Google reCAPTCHA v2
+  captcha: {
+    provider: 'recaptcha',
+    siteKey: process.env.RECAPTCHA_SITE_KEY,
+    secretKey: process.env.RECAPTCHA_SECRET_KEY,
+    options: {
+      theme: 'light',
+      size: 'normal',
+    },
+  },
+}
+```
+
+---
+
 ## 🎯 GraphQL API
 
 ### Endpoint

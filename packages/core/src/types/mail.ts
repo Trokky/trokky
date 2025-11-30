@@ -88,6 +88,8 @@ export interface PasswordResetRequest {
   ipAddress?: string
   /** User agent */
   userAgent?: string
+  /** CAPTCHA verification token */
+  captchaToken?: string
 }
 
 /**
@@ -98,4 +100,6 @@ export interface PasswordResetVerification {
   token: string
   /** New password */
   newPassword: string
+  /** CAPTCHA verification token */
+  captchaToken?: string
 }

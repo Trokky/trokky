@@ -43,3 +43,9 @@ export {
   // Disable all MFA
   disableAllMFA,
 } from './mfa.js'
+
+export {
+  getCaptchaStatus,
+  validateCaptcha,
+  getClientIp,
+} from './captcha.js'

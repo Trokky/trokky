@@ -113,6 +113,9 @@ export class TrokkyRoutes {
     this.addRoute('DELETE', `${basePath}/auth/oauth/google/unlink`, this.unlinkGoogleAccount.bind(this))
     this.addRoute('GET', `${basePath}/auth/oauth/status`, this.getOAuthStatus.bind(this))
 
+    // CAPTCHA routes
+    this.addRoute('GET', `${basePath}/auth/captcha/status`, this.getCaptchaStatus.bind(this))
+
     // MFA (Multi-Factor Authentication) routes
     this.addRoute('POST', `${basePath}/auth/mfa/verify`, this.verifyMFA.bind(this))
     this.addRoute('POST', `${basePath}/auth/mfa/verify-backup`, this.verifyMFABackup.bind(this))
@@ -1642,8 +1645,15 @@ export class TrokkyRoutes {
 
       SecurityValidator.validateUsername(body.username)
 
+      // Validate CAPTCHA if required
+      const { validateCaptcha, getClientIp } = await import('./auth/captcha.js')
+      await validateCaptcha(this.core, body.captchaToken, getClientIp(request), 'login')
+
       // Use core engine's authentication method (handles all validation internally)
-      const authResult = await this.core.authenticateUser(body.username, body.password, { rememberMe: body.rememberMe })
+      const authResult = await this.core.authenticateUser(body.username, body.password, {
+        rememberMe: body.rememberMe,
+        deviceId: body.deviceId
+      })
       if (!authResult) {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }
@@ -3638,6 +3648,19 @@ export class TrokkyRoutes {
   private async getOAuthStatus(request: HttpRequest): Promise<HttpResponse> {
     const { getOAuthStatus: handler } = await import('./auth/oauth.js')
     return handler(this.core, request)
+  }
+
+  // ==========================================================================
+  // CAPTCHA Routes
+  // ==========================================================================
+
+  /**
+   * Get CAPTCHA status and configuration
+   * GET /auth/captcha/status
+   */
+  private async getCaptchaStatus(request: HttpRequest): Promise<HttpResponse> {
+    const { getCaptchaStatus: handler } = await import('./auth/captcha.js')
+    return handler(request, this.core)
   }
 
   // ==========================================================================
