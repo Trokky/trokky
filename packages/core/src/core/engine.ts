@@ -2263,7 +2263,8 @@ export class TrokkyCore {
    */
   public async authenticateWithOAuth(
     providerName: OAuthProviderType,
-    providerId: string
+    providerId: string,
+    options?: { deviceId?: string }
   ): Promise<AuthenticationResult | null> {
     try {
       // Find user by OAuth provider
@@ -2289,8 +2290,22 @@ export class TrokkyCore {
       const mfaStatus = await this.checkMFARequired(user.id)
 
       if (mfaStatus.required) {
-        // User has MFA set up - require verification
+        // User has MFA set up - check if device is trusted first
         if (mfaStatus.userHasMFA) {
+          // Check if device is trusted (can skip MFA)
+          if (options?.deviceId) {
+            const isTrusted = await this.isDeviceTrusted(user.id, options.deviceId)
+            if (isTrusted) {
+              this.logger.info('OAuth login - skipping MFA for trusted device', {
+                userId: user.id,
+                provider: providerName,
+                deviceId: options.deviceId.substring(0, 8) + '...',
+              })
+              // Device is trusted, issue full tokens (skip MFA)
+              return this.issueFullTokens(user, {})
+            }
+          }
+
           const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
 
           this.logAuditEvent({

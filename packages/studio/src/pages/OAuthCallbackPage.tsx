@@ -79,6 +79,9 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
         throw new Error('Missing code verifier. Please try again.');
       }
 
+      // Get device ID for trusted device check (can skip MFA if trusted)
+      const deviceId = getDeviceId();
+
       // Exchange code for tokens
       const response = await apiClient.post<{
         token?: string;
@@ -104,6 +107,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
         state,
         codeVerifier,
         mode,
+        deviceId,
       });
 
       // Clean up sessionStorage
@@ -279,3 +283,14 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
 }
 
 export default OAuthCallbackPage;
+
+/**
+ * Get or generate a unique device ID for trusted device tracking
+ */
+function getDeviceId(): string {
+  const stored = localStorage.getItem('trokky_device_id');
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  localStorage.setItem('trokky_device_id', id);
+  return id;
+}

@@ -28,6 +28,7 @@ interface OAuthCallbackRequest {
   state: string
   codeVerifier: string
   mode: 'login' | 'link'
+  deviceId?: string // For trusted device check (skips MFA if trusted)
 }
 
 // In-memory store for PKCE and state (in production, use Redis or similar)
@@ -193,7 +194,7 @@ export async function handleGoogleOAuthCallback(
     }
 
     const body = request.body as OAuthCallbackRequest
-    const { code, state, codeVerifier, mode } = body
+    const { code, state, codeVerifier, mode, deviceId } = body
 
     if (!code || !state || !codeVerifier) {
       return {
@@ -299,7 +300,8 @@ export async function handleGoogleOAuthCallback(
       }
     } else {
       // Login mode: Authenticate with Google
-      const authResult = await core.authenticateWithOAuth('google', googleUser.sub)
+      // Pass deviceId to check if device is trusted (can skip MFA)
+      const authResult = await core.authenticateWithOAuth('google', googleUser.sub, { deviceId })
 
       if (!authResult) {
         // No user linked with this Google account
