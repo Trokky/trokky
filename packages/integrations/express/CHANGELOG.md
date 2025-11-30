@@ -1,5 +1,14 @@
 # @trokky/express
 
+## 0.1.15
+
+### Patch Changes
+
+- ecbc406: Add config-driven server architecture with `startServer()` function for simplified server initialization. Extends `TrokkyConfig` with mail, hooks, routes, lifecycle, and features options. Adds `postgres-data` to StorageConfig, `mediaUrlGenerator` to MediaConfig, and `apiUrl` to StudioConfig.
+- Updated dependencies [225bbee]
+  - @trokky/core@0.1.15
+  - @trokky/routes@0.1.15
+
 ## 0.1.14
 
 ### Patch Changes
