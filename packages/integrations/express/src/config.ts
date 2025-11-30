@@ -1,11 +1,13 @@
 /**
  * Professional Trokky Express Configuration System
- * 
+ *
  * This provides a clean, type-safe configuration interface that can be used
  * both directly in TrokkyExpress.setup() and via trokky.config.ts files.
  */
 
 import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter } from '@trokky/core'
+import type { MailAdapter, TemplateRenderer } from '@trokky/mail'
+import type { Request, Response, NextFunction, Express } from 'express'
 
 // Environment-aware configuration
 export type TrokkyEnvironment = 'development' | 'production' | 'test'
@@ -14,7 +16,7 @@ export type TrokkyEnvironment = 'development' | 'production' | 'test'
 export interface StorageConfig {
   /** Data storage adapter configuration */
   data: {
-    adapter: 'filesystem-data' | 'cloudflare-d1' | 'dynamodb'
+    adapter: 'filesystem-data' | 'cloudflare-d1' | 'dynamodb' | 'postgres-data'
     options?: {
       // Filesystem data options
       contentDir?: string
@@ -39,6 +41,16 @@ export interface StorageConfig {
       region?: string
       accessKeyId?: string
       secretAccessKey?: string
+      // PostgreSQL data options
+      connection?: string
+      schema?: string
+      pool?: {
+        max?: number
+        idleTimeoutMillis?: number
+        connectionTimeoutMillis?: number
+      }
+      useMigrations?: boolean
+      dropExisting?: boolean
     }
   }
   /** Media storage adapter configuration */
@@ -100,6 +112,23 @@ export interface MediaConfig {
     staticBasePath?: string
     customDomain?: string
   }
+  /**
+   * Custom media URL generator.
+   * Can be either a function or a configuration object for Studio.
+   */
+  mediaUrlGenerator?:
+    | ((media: { _id: string; filename?: string; mimeType?: string }) => string)
+    | {
+        options?: {
+          apiBasePath?: string
+          mediaConfig?: {
+            serving?: {
+              mode?: 'api' | 'static'
+              baseUrl?: string
+            }
+          }
+        }
+      }
 }
 
 export interface ImageVariant {
@@ -147,6 +176,36 @@ export interface SecurityConfig {
   }
 }
 
+// =============================================================================
+// SERVER LIFECYCLE CONFIGURATION
+// =============================================================================
+
+/**
+ * Server lifecycle hooks for custom initialization and cleanup
+ */
+export interface ServerLifecycle {
+  /**
+   * Called before the server starts, after Express app is created
+   * Use this to add custom middleware or configuration
+   */
+  beforeStart?: (app: Express) => Promise<void> | void
+  /**
+   * Called after the server starts listening
+   * Use this for logging, health checks, or external service registration
+   */
+  afterStart?: (app: Express, port: number) => Promise<void> | void
+  /**
+   * Called before the server shuts down
+   * Use this for cleanup, closing connections, etc.
+   */
+  beforeShutdown?: () => Promise<void> | void
+  /**
+   * Called on uncaught exceptions
+   * Use this for error reporting/logging
+   */
+  onError?: (error: Error) => Promise<void> | void
+}
+
 // HTTP server configuration
 export interface ServerConfig {
   /** API base path */
@@ -155,7 +214,7 @@ export interface ServerConfig {
   port?: number
   /** CORS configuration */
   cors?: {
-    origin?: boolean | string | string[] | ((origin: string) => boolean)
+    origin?: boolean | string | string[] | ((origin: string) => boolean) | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => void)
     methods?: string[]
     allowedHeaders?: string[]
     credentials?: boolean
@@ -193,6 +252,10 @@ export interface ServerConfig {
       extended?: boolean
     }
   }
+  /** Server lifecycle hooks */
+  lifecycle?: ServerLifecycle
+  /** Trust proxy setting for Express (for reverse proxies) */
+  trustProxy?: boolean | number | string
 }
 
 // Studio integration configuration
@@ -201,6 +264,8 @@ export interface StudioConfig {
   enabled?: boolean
   /** Studio mount path */
   path?: string
+  /** API URL for Studio to connect to (for external Studio deployments) */
+  apiUrl?: string
   /** Authentication requirement */
   requireAuth?: boolean
   /** Studio branding */
@@ -234,6 +299,200 @@ export interface StudioConfig {
   }
 }
 
+// =============================================================================
+// MAIL CONFIGURATION
+// =============================================================================
+
+/**
+ * Mail service configuration for system emails
+ * Handles password reset, user invitations, notifications, etc.
+ */
+export interface MailConfig {
+  /** Mail adapter instance (Resend, SMTP, SES, etc.) */
+  adapter: MailAdapter
+  /** Custom template renderer for email templates */
+  templateRenderer?: TemplateRenderer
+  /** Default sender email address */
+  defaultFrom?: string
+  /** Default sender display name */
+  defaultFromName?: string
+  /** Enable/disable specific notification types */
+  notifications?: {
+    /** Send email on password reset request */
+    passwordReset?: boolean
+    /** Send email when password is changed */
+    passwordChanged?: boolean
+    /** Send welcome email when user is created */
+    userCreated?: boolean
+    /** Send invitation email when user is invited */
+    userInvited?: boolean
+    /** Send security alerts (suspicious login, etc.) */
+    securityAlerts?: boolean
+  }
+  /** Enable debug logging for mail operations */
+  debug?: boolean
+}
+
+// =============================================================================
+// HOOKS & EVENTS CONFIGURATION
+// =============================================================================
+
+/**
+ * Event payload for document-related events
+ */
+export interface DocumentEvent {
+  /** Event type identifier */
+  type: string
+  /** Schema/collection name */
+  collection: string
+  /** The document data */
+  document: Record<string, unknown>
+  /** Previous document state (for updates) */
+  previousDocument?: Record<string, unknown>
+  /** User who triggered the event */
+  user?: {
+    id: string
+    username: string
+    email: string
+  }
+  /** Event timestamp */
+  timestamp: Date
+}
+
+/**
+ * Event payload for user-related events
+ */
+export interface UserEvent {
+  /** Event type identifier */
+  type: string
+  /** User data */
+  user: {
+    id: string
+    username: string
+    email: string
+    firstName?: string
+    lastName?: string
+    role: string
+  }
+  /** Additional event metadata */
+  metadata?: Record<string, unknown>
+  /** Event timestamp */
+  timestamp: Date
+}
+
+/**
+ * Webhook configuration for external integrations
+ */
+export interface WebhookConfig {
+  /** Webhook endpoint URL */
+  url: string
+  /** Events to trigger this webhook */
+  events: string[]
+  /** Secret for webhook signature verification */
+  secret?: string
+  /** Custom headers to include in webhook requests */
+  headers?: Record<string, string>
+  /** Retry configuration */
+  retry?: {
+    /** Maximum retry attempts */
+    maxAttempts?: number
+    /** Initial delay in milliseconds */
+    initialDelay?: number
+    /** Backoff multiplier */
+    backoffMultiplier?: number
+  }
+}
+
+/**
+ * Event hook handler type
+ */
+export type EventHookHandler<T = DocumentEvent | UserEvent> = (event: T) => Promise<void> | void
+
+/**
+ * Hooks configuration for event handling
+ */
+export interface HooksConfig {
+  // Document lifecycle events
+  'document.created'?: EventHookHandler<DocumentEvent>
+  'document.updated'?: EventHookHandler<DocumentEvent>
+  'document.deleted'?: EventHookHandler<DocumentEvent>
+  'document.published'?: EventHookHandler<DocumentEvent>
+  'document.unpublished'?: EventHookHandler<DocumentEvent>
+
+  // User lifecycle events
+  'user.created'?: EventHookHandler<UserEvent>
+  'user.updated'?: EventHookHandler<UserEvent>
+  'user.deleted'?: EventHookHandler<UserEvent>
+  'user.login'?: EventHookHandler<UserEvent>
+  'user.logout'?: EventHookHandler<UserEvent>
+
+  // Media events
+  'media.uploaded'?: EventHookHandler<DocumentEvent>
+  'media.deleted'?: EventHookHandler<DocumentEvent>
+
+  // External webhooks (outbound HTTP calls)
+  webhooks?: WebhookConfig[]
+}
+
+// =============================================================================
+// CUSTOM ROUTES CONFIGURATION
+// =============================================================================
+
+/**
+ * Route handler function type
+ */
+export type RouteHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void> | void
+
+/**
+ * Middleware function type
+ */
+export type MiddlewareHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void> | void
+
+/**
+ * Custom route definition
+ */
+export interface CustomRoute {
+  /** Route path (Express-style, e.g., '/api/forms/contact') */
+  path: string
+  /** HTTP method */
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+  /** Route handler function */
+  handler: RouteHandler
+  /** Middleware to apply to this route */
+  middleware?: MiddlewareHandler[]
+  /**
+   * Authentication requirement:
+   * - true: Requires any authenticated user
+   * - 'admin': Requires admin role
+   * - 'public': No authentication required (default)
+   */
+  auth?: boolean | 'admin' | 'public'
+  /** Route description (for documentation) */
+  description?: string
+}
+
+/**
+ * Route group for organizing related routes
+ */
+export interface RouteGroup {
+  /** Base path prefix for all routes in this group */
+  prefix: string
+  /** Middleware to apply to all routes in this group */
+  middleware?: MiddlewareHandler[]
+  /** Authentication requirement for all routes in this group */
+  auth?: boolean | 'admin' | 'public'
+  /** Routes in this group */
+  routes: CustomRoute[]
+}
+
 // Main configuration interface
 /** OAuth provider configuration */
 export interface OAuthConfig {
@@ -260,6 +519,25 @@ export interface CaptchaConfig {
   }
 }
 
+/** Features configuration for enhanced content management */
+export interface FeaturesConfig {
+  /** Auto-generate thumbnails for documents */
+  autoThumbnail?: {
+    enabled?: boolean
+    fieldName?: string
+    skipSingletons?: boolean
+    skipSchemas?: string[]
+    maxFileSize?: number
+    allowedTypes?: string[]
+  }
+  /** Auto-generate slugs for documents */
+  autoSlug?: {
+    enabled?: boolean
+    sourceFields?: string[]
+    unique?: boolean
+  }
+}
+
 export interface TrokkyConfig {
   /** Environment mode */
   env?: TrokkyEnvironment
@@ -275,22 +553,42 @@ export interface TrokkyConfig {
   oauth?: OAuthConfig
   /** CAPTCHA configuration */
   captcha?: CaptchaConfig
+  /** Features configuration */
+  features?: FeaturesConfig
   /** HTTP server settings */
   server?: ServerConfig
   /** Studio integration */
   studio?: StudioConfig
+  /** Mail service configuration */
+  mail?: MailConfig
+  /** Event hooks and webhooks */
+  hooks?: HooksConfig
+  /** Custom API routes */
+  routes?: (CustomRoute | RouteGroup)[]
 }
 
 // Configuration with smart defaults
 export interface TrokkyConfigWithDefaults extends TrokkyConfig {
   env: TrokkyEnvironment
-  media: Required<MediaConfig>
-  security: Required<Omit<SecurityConfig, 'jwtSecret' | 'adminUser'>> & { 
+  media: Required<Omit<MediaConfig, 'mediaUrlGenerator'>> & {
+    mediaUrlGenerator?: MediaConfig['mediaUrlGenerator']
+  }
+  security: Required<Omit<SecurityConfig, 'jwtSecret' | 'adminUser'>> & {
     jwtSecret?: string
     adminUser?: SecurityConfig['adminUser']
   }
-  server: Required<Omit<ServerConfig, 'port'>> & { port?: number }
-  studio: Required<StudioConfig>
+  server: Required<Omit<ServerConfig, 'port' | 'lifecycle' | 'trustProxy'>> & {
+    port?: number
+    lifecycle?: ServerLifecycle
+    trustProxy?: boolean | number | string
+  }
+  studio: Required<Omit<StudioConfig, 'apiUrl'>> & {
+    apiUrl?: string
+  }
+  // These remain optional as they're truly opt-in features
+  mail?: MailConfig
+  hooks?: HooksConfig
+  routes?: (CustomRoute | RouteGroup)[]
 }
 
 /**
@@ -389,12 +687,17 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       },
       session: {
         refreshBuffer: 5 * 60 * 1000,    // 5 minutes
-        warningBuffer: 10 * 60 * 1000,   // 10 minutes  
+        warningBuffer: 10 * 60 * 1000,   // 10 minutes
         checkInterval: 30 * 1000,        // 30 seconds
         inactivityTimeout: 30 * 60 * 1000 // 30 minutes
       },
       ...config.studio
-    }
+    },
+
+    // Pass through optional features (no defaults needed)
+    mail: config.mail,
+    hooks: config.hooks,
+    routes: config.routes,
   }
 }
 

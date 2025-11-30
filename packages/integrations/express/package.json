@@ -29,6 +29,7 @@
     "@trokky/adapter-filesystem-data": "*",
     "@trokky/adapter-filesystem-media": "*",
     "@trokky/core": "*",
+    "@trokky/mail": "*",
     "@trokky/routes": "*",
     "@types/busboy": "^1.5.4",
     "busboy": "^1.6.0",
