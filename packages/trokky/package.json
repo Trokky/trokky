@@ -1,7 +1,7 @@
 {
   "name": "@trokky/trokky",
   "version": "0.1.6",
-  "description": "TypeScript-native client SDK and CLI for Trokky CMS with backup/restore and migration tools",
+  "description": "TypeScript-native client SDK and CLI for Trokky CMS with project scaffolding, backup/restore, and migration tools",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,6 +36,7 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
+    "@clack/prompts": "^0.7.0",
     "@trokky/core": "*",
     "@trokky/types": "*",
     "commander": "^11.1.0",
