@@ -408,12 +408,14 @@ function generateTrokkyConfig(config: ProjectConfig): string {
   studio: {
     enabled: true,
     path: '/studio',
+    structure,
   },`
   } else if (config.studio === 'separate') {
     studioConfig = `
   studio: {
     enabled: false,
     apiUrl: process.env.API_URL,
+    structure,
   },`
   } else {
     studioConfig = `
@@ -422,11 +424,16 @@ function generateTrokkyConfig(config: ProjectConfig): string {
   },`
   }
 
+  const structureImport = config.studio !== 'none'
+    ? `import { structure } from './structure.js'`
+    : ''
+
   return `/**
  * Trokky Configuration
  */
 ${schemaImports}
 ${mailImport}
+${structureImport}
 
 export default {
   schemas: ${schemas},
@@ -734,6 +741,67 @@ export const pageSchema: ContentSchema = {
   return { article, page }
 }
 
+function generateStructure(config: ProjectConfig): string {
+  if (config.includeExamples) {
+    return `/**
+ * ${config.name} Structure Configuration
+ * Defines how content types appear in the Studio sidebar
+ */
+
+export const structure = async (context: any) => {
+  const { user, schemas, core } = context
+
+  return {
+    title: '${config.name}',
+    items: [
+      // Articles collection
+      {
+        type: 'documentList',
+        title: 'Articles',
+        schemaType: 'article',
+        icon: 'FaNewspaper'
+      },
+
+      { type: 'divider' },
+
+      // Pages collection
+      {
+        type: 'documentList',
+        title: 'Pages',
+        schemaType: 'page',
+        icon: 'FaFile'
+      }
+    ]
+  }
+}
+`
+  }
+
+  // Minimal structure - just a placeholder
+  return `/**
+ * ${config.name} Structure Configuration
+ * Defines how content types appear in the Studio sidebar
+ */
+
+export const structure = async (context: any) => {
+  const { user, schemas, core } = context
+
+  // Build items from schemas automatically
+  const items = schemas.map((schema: any) => ({
+    type: schema.type === 'singleton' ? 'singleton' : 'documentList',
+    title: schema.title,
+    schemaType: schema.name,
+    ...(schema.type === 'singleton' ? { documentId: schema.name } : {})
+  }))
+
+  return {
+    title: '${config.name}',
+    items
+  }
+}
+`
+}
+
 // =============================================================================
 // PROJECT SCAFFOLDING
 // =============================================================================
@@ -801,6 +869,11 @@ async function scaffoldProject(config: ProjectConfig, targetDir: string): Promis
     await fs.writeFile(
       path.join(targetDir, 'README.md'),
       generateReadme(config)
+    )
+
+    await fs.writeFile(
+      path.join(targetDir, 'structure.ts'),
+      generateStructure(config)
     )
 
     // Example schemas
