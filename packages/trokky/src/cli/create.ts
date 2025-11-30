@@ -573,6 +573,90 @@ Thumbs.db
 `
 }
 
+function generateNpmrc(): string {
+  return `# Trokky packages are hosted on GitHub Packages
+@trokky:registry=https://npm.pkg.github.com
+
+# Authentication - set NODE_AUTH_TOKEN environment variable
+# Option 1: Export in terminal: export NODE_AUTH_TOKEN=ghp_xxxx
+# Option 2: Add to ~/.npmrc: //npm.pkg.github.com/:_authToken=ghp_xxxx
+//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}
+`
+}
+
+function generateReadme(config: ProjectConfig): string {
+  const studioSection = config.studio !== 'none'
+    ? `- **Studio**: http://localhost:3000/studio`
+    : ''
+
+  return `# ${config.name}
+
+A Trokky CMS project.
+
+## Prerequisites
+
+1. **GitHub Personal Access Token** with \`read:packages\` scope
+   - Go to GitHub Settings → Developer settings → Personal access tokens
+   - Generate a token with \`read:packages\` permission
+   - Set it as environment variable:
+     \`\`\`bash
+     export NODE_AUTH_TOKEN=ghp_your_token_here
+     \`\`\`
+   - Or add to \`~/.npmrc\`:
+     \`\`\`
+     //npm.pkg.github.com/:_authToken=ghp_your_token_here
+     \`\`\`
+
+${config.dataAdapter === 'postgres' ? `2. **PostgreSQL** database running locally or remotely\n` : ''}
+## Getting Started
+
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Copy environment file and configure
+cp .env.example .env
+
+# Start development server
+npm run dev
+\`\`\`
+
+## URLs
+
+- **API**: http://localhost:3000/api
+${studioSection}
+- **Health**: http://localhost:3000/health
+
+## Project Structure
+
+\`\`\`
+${config.name}/
+├── server.ts           # Server entry point
+├── trokky.config.ts    # Trokky configuration
+├── schemas/            # Content schemas
+${config.dataAdapter === 'filesystem' ? '├── data/               # Local data storage\n' : ''}└── package.json
+\`\`\`
+
+## Configuration
+
+- **Data**: ${config.dataAdapter}
+- **Media**: ${config.mediaAdapter}
+- **Mail**: ${config.mail}
+- **Auth**: ${config.auth}
+- **Studio**: ${config.studio}
+
+## Scripts
+
+- \`npm run dev\` - Start development server with hot reload
+- \`npm run build\` - Build for production
+- \`npm start\` - Run production server
+
+## Learn More
+
+- [Trokky Documentation](https://github.com/Trokky/trokky)
+`
+}
+
 function generateExampleSchemas(): { article: string; page: string } {
   const article = `/**
  * Article Schema - Example content type
@@ -711,6 +795,16 @@ async function scaffoldProject(config: ProjectConfig, targetDir: string): Promis
       generateGitignore()
     )
 
+    await fs.writeFile(
+      path.join(targetDir, '.npmrc'),
+      generateNpmrc()
+    )
+
+    await fs.writeFile(
+      path.join(targetDir, 'README.md'),
+      generateReadme(config)
+    )
+
     // Example schemas
     if (config.includeExamples) {
       spinner.text = 'Creating example schemas...'
@@ -801,9 +895,32 @@ export const createCommand = new Command()
     console.log()
     console.log(chalk.green.bold('✅ Project created successfully!'))
     console.log()
+
+    // Check for NODE_AUTH_TOKEN
+    const hasAuthToken = !!process.env.NODE_AUTH_TOKEN
+    if (!hasAuthToken) {
+      console.log(chalk.yellow.bold('⚠️  GitHub Packages authentication required'))
+      console.log()
+      console.log(chalk.yellow('  Trokky packages are hosted on GitHub Packages.'))
+      console.log(chalk.yellow('  Before running npm install, set your token:'))
+      console.log()
+      console.log(chalk.white('  Option 1: Export in terminal (temporary)'))
+      console.log(chalk.cyan('    export NODE_AUTH_TOKEN=ghp_your_token'))
+      console.log()
+      console.log(chalk.white('  Option 2: Add to ~/.npmrc (permanent)'))
+      console.log(chalk.cyan('    echo "//npm.pkg.github.com/:_authToken=ghp_your_token" >> ~/.npmrc'))
+      console.log()
+      console.log(chalk.gray('  Get a token: GitHub → Settings → Developer settings → Personal access tokens'))
+      console.log(chalk.gray('  Required scope: read:packages'))
+      console.log()
+    }
+
     console.log('Next steps:')
     console.log(chalk.cyan(`  cd ${projectName}`))
     console.log(chalk.cyan('  cp .env.example .env'))
+    if (!hasAuthToken) {
+      console.log(chalk.cyan('  export NODE_AUTH_TOKEN=ghp_xxx  # if not already set'))
+    }
     console.log(chalk.cyan('  npm install'))
     console.log(chalk.cyan('  npm run dev'))
     console.log()
