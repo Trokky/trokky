@@ -113,6 +113,23 @@ export class TrokkyRoutes {
     this.addRoute('DELETE', `${basePath}/auth/oauth/google/unlink`, this.unlinkGoogleAccount.bind(this))
     this.addRoute('GET', `${basePath}/auth/oauth/status`, this.getOAuthStatus.bind(this))
 
+    // MFA (Multi-Factor Authentication) routes
+    this.addRoute('POST', `${basePath}/auth/mfa/verify`, this.verifyMFA.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/verify-backup`, this.verifyMFABackup.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/send-code`, this.sendMFACode.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/setup/totp`, this.initTOTPSetup.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/setup/totp/verify`, this.verifyTOTPSetup.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/setup/email`, this.initEmailOTPSetup.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/setup/email/verify`, this.verifyEmailOTPSetup.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/disable`, this.disableMFA.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/disable-all`, this.disableAllMFA.bind(this))
+    this.addRoute('POST', `${basePath}/auth/mfa/backup-codes/regenerate`, this.regenerateBackupCodes.bind(this))
+    this.addRoute('GET', `${basePath}/auth/mfa/status`, this.getMFAStatus.bind(this))
+    this.addRoute('GET', `${basePath}/auth/mfa/trusted-devices`, this.getTrustedDevices.bind(this))
+    this.addRoute('DELETE', `${basePath}/auth/mfa/trusted-devices/:deviceId`, this.revokeTrustedDevice.bind(this))
+    this.addRoute('DELETE', `${basePath}/auth/mfa/trusted-devices`, this.revokeAllTrustedDevices.bind(this))
+    this.addRoute('POST', `${basePath}/admin/users/:userId/mfa/reset`, this.adminResetUserMFA.bind(this))
+
     // Token management routes (admin/user)
     this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
     this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
@@ -1631,8 +1648,33 @@ export class TrokkyRoutes {
         throw new InvalidInputError('Invalid credentials', 'credentials')
       }
 
+      // Handle different authentication result types
+      if (authResult.type === 'mfa_required') {
+        // User has MFA configured - need to verify
+        return this.successResponse({
+          success: true,
+          requiresMFA: true,
+          mfaToken: authResult.mfaToken,
+          methods: authResult.methods,
+          expiresIn: authResult.expiresIn
+        })
+      }
+
+      if (authResult.type === 'mfa_setup_required') {
+        // Organization requires MFA but user hasn't set it up
+        return this.successResponse({
+          success: true,
+          requiresMFASetup: true,
+          setupToken: authResult.setupToken,
+          allowedMethods: authResult.allowedMethods,
+          message: authResult.message,
+          expiresIn: authResult.expiresIn
+        })
+      }
+
+      // Normal successful authentication (type: 'success')
       const { user: authenticatedUser, token, refreshToken } = authResult
-      
+
       // Get token expiration time
       const session = await this.core.verifyAuthToken(token)
 
@@ -2485,6 +2527,12 @@ export class TrokkyRoutes {
         secondaryColor: newSettings.secondaryColor !== undefined ? newSettings.secondaryColor : currentSettings.secondaryColor,
         logo: newSettings.logo !== undefined ? newSettings.logo : currentSettings.logo,
         defaultTheme: newSettings.defaultTheme || currentSettings.defaultTheme,
+        // MFA settings
+        mfaRequired: newSettings.mfaRequired !== undefined ? newSettings.mfaRequired : currentSettings.mfaRequired,
+        mfaEnforcedRoles: newSettings.mfaEnforcedRoles !== undefined ? newSettings.mfaEnforcedRoles : currentSettings.mfaEnforcedRoles,
+        mfaAllowedMethods: newSettings.mfaAllowedMethods !== undefined ? newSettings.mfaAllowedMethods : currentSettings.mfaAllowedMethods,
+        mfaTrustDeviceDays: newSettings.mfaTrustDeviceDays !== undefined ? newSettings.mfaTrustDeviceDays : currentSettings.mfaTrustDeviceDays,
+        mfaGracePeriodDays: newSettings.mfaGracePeriodDays !== undefined ? newSettings.mfaGracePeriodDays : currentSettings.mfaGracePeriodDays,
         _createdAt: currentSettings._createdAt,
         _updatedAt: new Date().toISOString(),
         _updatedBy: currentUser?.username || 'system'
@@ -3590,6 +3638,113 @@ export class TrokkyRoutes {
   private async getOAuthStatus(request: HttpRequest): Promise<HttpResponse> {
     const { getOAuthStatus: handler } = await import('./auth/oauth.js')
     return handler(this.core, request)
+  }
+
+  // ==========================================================================
+  // MFA (Multi-Factor Authentication) Routes
+  // ==========================================================================
+
+  private async verifyMFA(request: HttpRequest): Promise<HttpResponse> {
+    const { verifyMFA: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async verifyMFABackup(request: HttpRequest): Promise<HttpResponse> {
+    const { verifyMFABackup: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async sendMFACode(request: HttpRequest): Promise<HttpResponse> {
+    const { sendMFACode: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async initTOTPSetup(request: HttpRequest): Promise<HttpResponse> {
+    // Allow either auth token or MFA setup token (for login flow)
+    if (!request.headers['x-mfa-setup-token']) {
+      await this.validateAuthentication(request)
+    }
+    const { initTOTPSetup: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async verifyTOTPSetup(request: HttpRequest): Promise<HttpResponse> {
+    // Allow either auth token or MFA setup token (for login flow)
+    if (!request.headers['x-mfa-setup-token']) {
+      await this.validateAuthentication(request)
+    }
+    const { verifyTOTPSetup: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async initEmailOTPSetup(request: HttpRequest): Promise<HttpResponse> {
+    // Allow either auth token or MFA setup token (for login flow)
+    if (!request.headers['x-mfa-setup-token']) {
+      await this.validateAuthentication(request)
+    }
+    const { initEmailOTPSetup: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async verifyEmailOTPSetup(request: HttpRequest): Promise<HttpResponse> {
+    // Allow either auth token or MFA setup token (for login flow)
+    if (!request.headers['x-mfa-setup-token']) {
+      await this.validateAuthentication(request)
+    }
+    const { verifyEmailOTPSetup: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async disableMFA(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { disableMFA: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async disableAllMFA(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { disableAllMFA: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async regenerateBackupCodes(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { regenerateBackupCodes: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async getMFAStatus(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { getMFAStatus: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async getTrustedDevices(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { getTrustedDevices: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async revokeTrustedDevice(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { revokeTrustedDevice: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async revokeAllTrustedDevices(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { revokeAllTrustedDevices: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
+  }
+
+  private async adminResetUserMFA(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    // Require admin role for MFA reset
+    if (request.user?.role !== 'admin') {
+      return this.errorResponse(new InvalidInputError('Admin access required', 'permissions'), 403)
+    }
+    const { adminResetUserMFA: handler } = await import('./auth/mfa.js')
+    return handler(request, this.core)
   }
 
 }

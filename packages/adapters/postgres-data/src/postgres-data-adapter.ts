@@ -637,7 +637,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
             profile_image = COALESCE($10, profile_image),
             preferences = COALESCE($11, preferences),
             oauth_providers = COALESCE($12, oauth_providers),
-            updated_at = $13
+            mfa = COALESCE($13, mfa),
+            updated_at = $14
           WHERE id = $1
           RETURNING *
         `, [
@@ -653,6 +654,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           updateData.profileImage,
           JSON.stringify(updateData.preferences || {}),
           (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
+          updateData.mfa ? JSON.stringify(updateData.mfa) : null,
           now
         ])
 
@@ -666,8 +668,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
         const result = await this.query(`
           INSERT INTO ${this.tableName('users')}
-          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
           RETURNING *
         `, [
           id,
@@ -682,6 +684,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           createData.profileImage,
           JSON.stringify(createData.preferences || {}),
           JSON.stringify([]), // oauth_providers starts empty
+          JSON.stringify({}), // mfa starts empty
           now
         ])
 
@@ -818,6 +821,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       profileImage: row.profile_image,
       preferences: row.preferences as any,
       oauthProviders: row.oauth_providers as any[],
+      mfa: row.mfa as any,
       lastLoginAt: row.last_login_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -1094,6 +1098,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         last_login_at VARCHAR(50),
         preferences JSONB DEFAULT '{}',
         oauth_providers JSONB DEFAULT '[]',
+        mfa JSONB DEFAULT '{}',
         created_at VARCHAR(50) NOT NULL,
         updated_at VARCHAR(50) NOT NULL
       )
@@ -1110,6 +1115,21 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         ) THEN
           ALTER TABLE ${this.tableName('users')}
           ADD COLUMN oauth_providers JSONB DEFAULT '[]';
+        END IF;
+      END $$
+    `)
+
+    // Migration: Add mfa column if it doesn't exist (for existing databases)
+    await this.directQuery(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${this.config.tablePrefix}users'
+          AND column_name = 'mfa'
+        ) THEN
+          ALTER TABLE ${this.tableName('users')}
+          ADD COLUMN mfa JSONB DEFAULT '{}';
         END IF;
       END $$
     `)
@@ -1213,6 +1233,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         secondaryColor: row.config?.secondaryColor,
         logo: row.config?.logo,
         defaultTheme: row.default_theme as 'light' | 'dark' | 'system',
+        // MFA settings
+        mfaRequired: row.config?.mfaRequired,
+        mfaEnforcedRoles: row.config?.mfaEnforcedRoles,
+        mfaAllowedMethods: row.config?.mfaAllowedMethods,
+        mfaTrustDeviceDays: row.config?.mfaTrustDeviceDays,
+        mfaGracePeriodDays: row.config?.mfaGracePeriodDays,
         _createdAt: row.created_at.toISOString(),
         _updatedAt: row.updated_at.toISOString(),
         _updatedBy: row.updated_by
@@ -1228,12 +1254,18 @@ export class PostgresDataAdapter implements DataStorageAdapter {
    */
   async saveSettings(settings: SettingsConfig): Promise<void> {
     try {
-      // Extract branding fields for config JSONB
+      // Extract branding and MFA fields for config JSONB
       const config = {
         organizationName: settings.organizationName,
         primaryColor: settings.primaryColor,
         secondaryColor: settings.secondaryColor,
-        logo: settings.logo
+        logo: settings.logo,
+        // MFA settings
+        mfaRequired: settings.mfaRequired,
+        mfaEnforcedRoles: settings.mfaEnforcedRoles,
+        mfaAllowedMethods: settings.mfaAllowedMethods,
+        mfaTrustDeviceDays: settings.mfaTrustDeviceDays,
+        mfaGracePeriodDays: settings.mfaGracePeriodDays
       }
 
       await this.query(

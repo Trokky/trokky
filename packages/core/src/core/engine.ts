@@ -60,9 +60,24 @@ import {
   AuditLog,
   AUDIT_OPERATIONS,
   OAuthProvider,
-  OAuthProviderType
+  OAuthProviderType,
+  // MFA types
+  MFAConfig,
+  MFAMethod,
+  MFAMethodType,
+  TrustedDevice,
+  SettingsConfig,
+  // Authentication result types
+  AuthenticationResult,
+  AuthenticationSuccessResult
 } from '../types/index.js'
 import type { AppTokenCreationResult } from '../security/auth.js'
+import {
+  TOTPService,
+  EmailOTPService,
+  type TOTPSecretResult,
+  type StoredEmailOTP
+} from '../security/mfa/index.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -1705,7 +1720,14 @@ export class TrokkyCore {
     return null
   }
 
-  public async authenticateUser(username: string, password: string, options: { rememberMe?: boolean } = {}): Promise<{ user: User; token: string; refreshToken: string } | null> {
+  /**
+   * Authentication result types for MFA support
+   */
+  public async authenticateUser(
+    username: string,
+    password: string,
+    options: { rememberMe?: boolean; deviceId?: string } = {}
+  ): Promise<AuthenticationResult | null> {
     try {
       // Get user by username
       const user = await this.getUserByUsername(username)
@@ -1722,44 +1744,358 @@ export class TrokkyCore {
       // Update last login time
       await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
 
-      // Generate tokens - use config TTLs if available, otherwise fallback to defaults
-      const securityConfig = this.config.security?.tokens
-      const tokenExpiresIn = options.rememberMe
-        ? (securityConfig?.rememberMeTtl || '7d')
-        : (securityConfig?.accessTokenTtl || '2h')
-      const refreshTokenExpiresIn = options.rememberMe
-        ? '30d' // Refresh token for rememberMe is always long-lived
-        : (securityConfig?.refreshTokenTtl || '7d')
+      // Check MFA requirements
+      const mfaStatus = await this.checkMFARequired(user.id)
 
-      const token = await this.generateAuthToken(user, tokenExpiresIn, options.rememberMe)
-      const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, options.rememberMe)
-
-      // Log successful login
-      this.logAuditEvent({
-        type: 'user_login',
-        userId: user.id,
-        username: user.username,
-        action: 'User authenticated successfully',
-        timestamp: new Date().toISOString(),
-        success: true,
-        details: {
-          role: user.role,
-          lastLoginAt: new Date().toISOString(),
-          rememberMe: options.rememberMe
+      // If MFA is required
+      if (mfaStatus.required) {
+        // Check if device is trusted (can skip MFA)
+        if (options.deviceId && mfaStatus.userHasMFA) {
+          const isTrusted = await this.isDeviceTrusted(user.id, options.deviceId)
+          if (isTrusted) {
+            // Device is trusted, issue full tokens
+            return this.issueFullTokens(user, options)
+          }
         }
-      })
 
-      // Return user without password hash
-      const { passwordHash, ...safeUser } = user
-      return { 
-        user: { ...safeUser, passwordHash: '' } as User, // Keep type but empty the hash
-        token,
-        refreshToken
+        // User has MFA set up - require verification
+        if (mfaStatus.userHasMFA) {
+          // Generate MFA pending token (short-lived)
+          const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
+
+          this.logAuditEvent({
+            type: 'user_login',
+            userId: user.id,
+            username: user.username,
+            action: 'MFA verification required',
+            timestamp: new Date().toISOString(),
+            success: true,
+            details: {
+              mfaRequired: true,
+              methods: mfaStatus.methods
+            }
+          })
+
+          return {
+            type: 'mfa_required',
+            requiresMFA: true,
+            mfaToken,
+            methods: mfaStatus.methods,
+            expiresIn: 300 // 5 minutes
+          }
+        }
+
+        // Org or role requires MFA but user hasn't set it up
+        if (mfaStatus.reason === 'org_required' || mfaStatus.reason === 'role_required') {
+          const setupToken = await this.generateMFASetupToken(user, mfaStatus.methods)
+
+          const message = mfaStatus.reason === 'role_required'
+            ? `Your role (${user.role}) requires MFA. Please set up multi-factor authentication.`
+            : 'Your organization requires MFA. Please set up multi-factor authentication.'
+
+          this.logAuditEvent({
+            type: 'user_login',
+            userId: user.id,
+            username: user.username,
+            action: 'MFA setup required',
+            timestamp: new Date().toISOString(),
+            success: true,
+            details: {
+              mfaSetupRequired: true,
+              allowedMethods: mfaStatus.methods,
+              reason: mfaStatus.reason
+            }
+          })
+
+          return {
+            type: 'mfa_setup_required',
+            requiresMFASetup: true,
+            setupToken,
+            allowedMethods: mfaStatus.methods,
+            message,
+            expiresIn: 900 // 15 minutes
+          }
+        }
       }
+
+      // No MFA required - issue full tokens
+      return this.issueFullTokens(user, options)
     } catch (error) {
       console.error('Authentication failed:', error instanceof Error ? error.message : 'Unknown error')
       return null
     }
+  }
+
+  /**
+   * Issue full authentication tokens after successful login (including MFA if required)
+   */
+  private async issueFullTokens(
+    user: User,
+    options: { rememberMe?: boolean } = {}
+  ): Promise<AuthenticationSuccessResult> {
+    const securityConfig = this.config.security?.tokens
+    const tokenExpiresIn = options.rememberMe
+      ? (securityConfig?.rememberMeTtl || '7d')
+      : (securityConfig?.accessTokenTtl || '2h')
+    const refreshTokenExpiresIn = options.rememberMe
+      ? '30d'
+      : (securityConfig?.refreshTokenTtl || '7d')
+
+    const token = await this.generateAuthToken(user, tokenExpiresIn, options.rememberMe)
+    const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, options.rememberMe)
+
+    // Log successful login
+    this.logAuditEvent({
+      type: 'user_login',
+      userId: user.id,
+      username: user.username,
+      action: 'User authenticated successfully',
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        role: user.role,
+        lastLoginAt: new Date().toISOString(),
+        rememberMe: options.rememberMe
+      }
+    })
+
+    // Get token expiration time
+    const session = await this.verifyAuthToken(token)
+    const expiresAt = session?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+
+    // Return user without password hash
+    const { passwordHash, ...safeUser } = user
+    return {
+      type: 'success',
+      user: { ...safeUser, passwordHash: '' } as User,
+      token,
+      refreshToken,
+      expiresAt
+    }
+  }
+
+  /**
+   * Generate MFA pending token (used when MFA verification is needed)
+   */
+  private async generateMFAPendingToken(user: User, methods: MFAMethodType[]): Promise<string> {
+    const payload = {
+      type: 'mfa_pending',
+      userId: user.id,
+      username: user.username,
+      mfaMethods: methods
+    }
+    return this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn: '5m' })
+  }
+
+  /**
+   * Generate MFA setup token (used when org requires MFA but user hasn't set it up)
+   */
+  private async generateMFASetupToken(user: User, allowedMethods: MFAMethodType[]): Promise<string> {
+    const payload = {
+      type: 'mfa_setup',
+      userId: user.id,
+      username: user.username,
+      allowedMethods
+    }
+    return this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn: '15m' })
+  }
+
+  /**
+   * Complete MFA verification and issue full tokens
+   * Call this after verifyMFACode returns true
+   */
+  public async completeMFAAuthentication(
+    mfaToken: string,
+    options: { rememberMe?: boolean; trustDevice?: boolean; deviceId?: string; deviceName?: string } = {}
+  ): Promise<AuthenticationSuccessResult | null> {
+    try {
+      // Verify MFA pending token
+      const payload = await this.cryptoAdapter.verifyJWT(mfaToken, this.jwtSecret) as {
+        type: string
+        userId: string
+        username: string
+      } | null
+
+      if (!payload || payload.type !== 'mfa_pending') {
+        return null
+      }
+
+      // Get user
+      const user = await this.getUser(payload.userId)
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Trust device if requested
+      if (options.trustDevice && options.deviceId) {
+        await this.trustDevice(
+          user.id,
+          options.deviceId,
+          options.deviceName || 'Unknown Device'
+        )
+      }
+
+      // Issue full tokens
+      return this.issueFullTokens(user, options)
+    } catch (error) {
+      this.logger.error('MFA authentication completion failed', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  /**
+   * Verify MFA setup token and return user info
+   */
+  public async verifyMFASetupToken(setupToken: string): Promise<{
+    userId: string
+    username: string
+    allowedMethods: MFAMethodType[]
+  } | null> {
+    try {
+      const payload = await this.cryptoAdapter.verifyJWT(setupToken, this.jwtSecret) as {
+        type: string
+        userId: string
+        username: string
+        allowedMethods: MFAMethodType[]
+      } | null
+
+      if (!payload || payload.type !== 'mfa_setup') {
+        return null
+      }
+
+      return {
+        userId: payload.userId,
+        username: payload.username,
+        allowedMethods: payload.allowedMethods
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Verify any MFA token (pending or setup) and return payload
+   */
+  public async verifyMFAToken(token: string): Promise<{
+    type: 'mfa_pending' | 'mfa_setup'
+    userId: string
+    username: string
+    mfaMethods?: MFAMethodType[]
+    allowedMethods?: MFAMethodType[]
+  } | null> {
+    try {
+      const payload = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret) as {
+        type: string
+        userId: string
+        username: string
+        mfaMethods?: MFAMethodType[]
+        allowedMethods?: MFAMethodType[]
+      } | null
+
+      if (!payload) {
+        return null
+      }
+
+      // Validate it's an MFA token type
+      if (payload.type !== 'mfa_pending' && payload.type !== 'mfa_setup') {
+        return null
+      }
+
+      return {
+        type: payload.type as 'mfa_pending' | 'mfa_setup',
+        userId: payload.userId,
+        username: payload.username,
+        mfaMethods: payload.mfaMethods,
+        allowedMethods: payload.allowedMethods
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Complete MFA setup and issue full authentication tokens
+   * Used when a user sets up MFA during the login flow (when org requires MFA)
+   */
+  public async completeMFASetupAndLogin(
+    setupToken: string,
+    options: { rememberMe?: boolean } = {}
+  ): Promise<AuthenticationSuccessResult | null> {
+    try {
+      // Verify MFA setup token
+      const payload = await this.cryptoAdapter.verifyJWT(setupToken, this.jwtSecret) as {
+        type: string
+        userId: string
+        username: string
+      } | null
+
+      if (!payload || payload.type !== 'mfa_setup') {
+        return null
+      }
+
+      // Get user
+      const user = await this.getUser(payload.userId)
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Verify user now has MFA enabled
+      if (!user.mfa?.enabled || !user.mfa.methods?.some(m => m.enabled && m.verified)) {
+        this.logger.warn('MFA setup completion attempted but MFA not enabled', {
+          userId: user.id
+        })
+        return null
+      }
+
+      this.logger.info('MFA setup completed, issuing auth tokens', {
+        userId: user.id,
+        username: user.username
+      })
+
+      // Issue full tokens
+      return this.issueFullTokens(user, options)
+    } catch (error) {
+      this.logger.error('MFA setup completion failed', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  /**
+   * Verify a backup code for a user
+   * Returns result with remaining codes if valid
+   */
+  public async verifyBackupCode(userId: string, code: string): Promise<{
+    valid: boolean
+    remainingCodes: string[]
+  }> {
+    const user = await this.getUser(userId)
+    if (!user || !user.mfa?.backupCodes) {
+      return { valid: false, remainingCodes: [] }
+    }
+
+    const totpService = this.getTOTPService()
+    const result = totpService.verifyBackupCode(user.mfa.backupCodes, code)
+
+    if (result.valid) {
+      // Update user with remaining codes
+      await this.updateUser(userId, {
+        mfa: {
+          ...user.mfa,
+          backupCodes: result.remainingCodes
+        }
+      } as UpdateUserData)
+
+      this.logger.info('Backup code used', {
+        userId,
+        remainingCodes: result.remainingCodes.length
+      })
+    }
+
+    return result
   }
 
   public async refreshAuthToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: User; expiresAt: string } | null> {
@@ -1915,11 +2251,12 @@ export class TrokkyCore {
   /**
    * Authenticate a user via OAuth provider
    * Returns null if no user is linked to this provider
+   * Returns AuthenticationResult which may require MFA verification or setup
    */
   public async authenticateWithOAuth(
     providerName: OAuthProviderType,
     providerId: string
-  ): Promise<{ user: User; token: string; refreshToken: string } | null> {
+  ): Promise<AuthenticationResult | null> {
     try {
       // Find user by OAuth provider
       const user = await this.getUserByOAuthProvider(providerName, providerId)
@@ -1940,7 +2277,72 @@ export class TrokkyCore {
         oauthProviders: updatedProviders,
       } as any)
 
-      // Generate tokens
+      // Check MFA requirements (same as regular login)
+      const mfaStatus = await this.checkMFARequired(user.id)
+
+      if (mfaStatus.required) {
+        // User has MFA set up - require verification
+        if (mfaStatus.userHasMFA) {
+          const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
+
+          this.logAuditEvent({
+            type: 'user_login',
+            userId: user.id,
+            username: user.username,
+            action: `OAuth login - MFA verification required`,
+            timestamp: now,
+            success: true,
+            details: {
+              mfaRequired: true,
+              methods: mfaStatus.methods,
+              provider: providerName,
+            },
+          })
+
+          return {
+            type: 'mfa_required',
+            requiresMFA: true,
+            mfaToken,
+            methods: mfaStatus.methods,
+            expiresIn: 300, // 5 minutes
+          }
+        }
+
+        // Org/role requires MFA but user hasn't set it up
+        if (mfaStatus.reason === 'org_required' || mfaStatus.reason === 'role_required') {
+          const setupToken = await this.generateMFASetupToken(user, mfaStatus.methods)
+
+          const message = mfaStatus.reason === 'role_required'
+            ? `Your role (${user.role}) requires MFA. Please set up multi-factor authentication.`
+            : 'Your organization requires MFA. Please set up multi-factor authentication.'
+
+          this.logAuditEvent({
+            type: 'user_login',
+            userId: user.id,
+            username: user.username,
+            action: `OAuth login - MFA setup required`,
+            timestamp: now,
+            success: true,
+            details: {
+              mfaSetupRequired: true,
+              allowedMethods: mfaStatus.methods,
+              reason: mfaStatus.reason,
+              provider: providerName,
+            },
+          })
+
+          return {
+            type: 'mfa_setup_required',
+            requiresMFASetup: true,
+            setupToken,
+            allowedMethods: mfaStatus.methods,
+            message,
+            expiresIn: 900, // 15 minutes
+          }
+        }
+      }
+
+      // No MFA required - generate full tokens
       const securityConfig = this.config.security?.tokens
       const tokenExpiresIn = securityConfig?.accessTokenTtl || '2h'
       const refreshTokenExpiresIn = securityConfig?.refreshTokenTtl || '7d'
@@ -1968,10 +2370,16 @@ export class TrokkyCore {
 
       // Return user without password hash
       const { passwordHash, ...safeUser } = user
+
+      // Get token expiration time
+      const session = await this.verifyAuthToken(token)
+
       return {
+        type: 'success',
         user: { ...safeUser, passwordHash: '' } as User,
         token,
         refreshToken,
+        expiresAt: session?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }
     } catch (error) {
       this.logger.error('OAuth authentication failed', {
@@ -2034,6 +2442,869 @@ export class TrokkyCore {
       }
     }
     return null
+  }
+
+  // ==========================================================================
+  // MFA (Multi-Factor Authentication) Methods
+  // ==========================================================================
+
+  /**
+   * Get the TOTP service instance
+   * Creates one with a default issuer (can be overridden via settings)
+   */
+  private getTOTPService(issuer?: string): TOTPService {
+    // Default issuer - can be configured via settings
+    return new TOTPService({ issuer: issuer || 'Trokky' })
+  }
+
+  /**
+   * Get the Email OTP service instance
+   */
+  private getEmailOTPService(): EmailOTPService {
+    return new EmailOTPService({
+      codeLength: 6,
+      expiryMinutes: 10,
+      maxAttempts: 5
+    })
+  }
+
+  /**
+   * Check if MFA is required for a user
+   * Returns whether MFA is required and available methods
+   */
+  public async checkMFARequired(userId: string): Promise<{
+    required: boolean
+    methods: MFAMethodType[]
+    reason: 'user_enabled' | 'org_required' | 'role_required' | 'not_required'
+    userHasMFA: boolean
+  }> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Check if user has MFA enabled
+    const userHasMFA = user.mfa?.enabled === true && (user.mfa.methods?.length ?? 0) > 0
+    const userMethods = user.mfa?.methods?.filter(m => m.enabled && m.verified).map(m => m.type) || []
+
+    // Check organization-level MFA requirement
+    const settings = await this.getSettings()
+    const orgRequiresMFA = settings?.mfaRequired === true
+
+    // Check role-based MFA enforcement
+    const enforcedRoles = settings?.mfaEnforcedRoles || []
+    const roleRequiresMFA = user.role !== 'api' && enforcedRoles.includes(user.role as any)
+
+    if (userHasMFA) {
+      return {
+        required: true,
+        methods: userMethods,
+        reason: 'user_enabled',
+        userHasMFA: true
+      }
+    }
+
+    if (orgRequiresMFA) {
+      // Org requires MFA but user hasn't set it up yet
+      const allowedMethods = settings?.mfaAllowedMethods || ['totp', 'email']
+      return {
+        required: true,
+        methods: allowedMethods,
+        reason: 'org_required',
+        userHasMFA: false
+      }
+    }
+
+    if (roleRequiresMFA) {
+      // User's role requires MFA but user hasn't set it up yet
+      const allowedMethods = settings?.mfaAllowedMethods || ['totp', 'email']
+      return {
+        required: true,
+        methods: allowedMethods,
+        reason: 'role_required',
+        userHasMFA: false
+      }
+    }
+
+    return {
+      required: false,
+      methods: [],
+      reason: 'not_required',
+      userHasMFA: false
+    }
+  }
+
+  /**
+   * Get project settings
+   */
+  public async getSettings(): Promise<SettingsConfig | null> {
+    if (!this.dataStorage.getSettings) {
+      return null
+    }
+    return this.dataStorage.getSettings()
+  }
+
+  /**
+   * Initialize TOTP setup for a user
+   * Returns QR code and secret for authenticator app
+   */
+  public async initializeTOTPSetup(userId: string): Promise<TOTPSecretResult> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Get issuer from settings or use default
+    const settings = await this.getSettings()
+    const issuer = settings?.studioTitle || settings?.organizationName || 'Trokky'
+    const totpService = this.getTOTPService(issuer)
+    const result = await totpService.generateSecret(user.email || user.username)
+
+    // Store the secret temporarily in user preferences (unverified)
+    const pendingTOTP: MFAMethod = {
+      type: 'totp',
+      enabled: false,
+      verified: false,
+      secret: result.secret // Will be encrypted by storage adapter
+    }
+
+    // Update user with pending TOTP setup
+    const currentMFA = user.mfa || { enabled: false, methods: [] }
+    const existingMethods = (currentMFA.methods || []).filter(m => m.type !== 'totp')
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...currentMFA,
+        methods: [...existingMethods, pendingTOTP]
+      }
+    } as UpdateUserData)
+
+    this.logger.info('TOTP setup initialized', { userId })
+
+    return result
+  }
+
+  /**
+   * Verify and enable TOTP for a user
+   * Must be called after initializeTOTPSetup with a valid code from authenticator
+   */
+  public async verifyAndEnableTOTP(userId: string, code: string): Promise<{
+    enabled: boolean
+    backupCodes?: string[]
+  }> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Find pending TOTP method
+    const pendingTOTP = user.mfa?.methods?.find(m => m.type === 'totp' && !m.verified)
+    if (!pendingTOTP || !pendingTOTP.secret) {
+      throw new InvalidInputError('No pending TOTP setup found. Call initializeTOTPSetup first.', 'totp')
+    }
+
+    // Verify the code
+    const totpService = this.getTOTPService()
+    const isValid = totpService.verifyCode(pendingTOTP.secret, code)
+
+    if (!isValid) {
+      throw new InvalidInputError('Invalid TOTP code', 'code')
+    }
+
+    // Update TOTP method as verified and enabled
+    const verifiedTOTP: MFAMethod = {
+      ...pendingTOTP,
+      enabled: true,
+      verified: true,
+      verifiedAt: new Date().toISOString()
+    }
+
+    const currentMFA = user.mfa || { enabled: false, methods: [] }
+    const otherMethods = (currentMFA.methods || []).filter(m => m.type !== 'totp')
+
+    // Generate backup codes only if this is the first MFA method
+    let backupCodes: string[] | undefined
+    let hashedBackupCodes = currentMFA.backupCodes
+    let backupCodesGeneratedAt = currentMFA.backupCodesGeneratedAt
+
+    if (!hashedBackupCodes || hashedBackupCodes.length === 0) {
+      backupCodes = totpService.generateBackupCodes(10)
+      hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
+      backupCodesGeneratedAt = new Date().toISOString()
+    }
+
+    await this.updateUser(userId, {
+      mfa: {
+        enabled: true,
+        methods: [...otherMethods, verifiedTOTP],
+        backupCodes: hashedBackupCodes,
+        backupCodesGeneratedAt,
+        trustedDevices: currentMFA.trustedDevices || []
+      }
+    } as UpdateUserData)
+
+    this.logger.info('TOTP enabled for user', { userId })
+
+    // Log audit event
+    this.logAuditEvent({
+      type: 'user_updated',
+      userId,
+      username: user.username,
+      action: 'MFA TOTP enabled',
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: { mfaMethod: 'totp' }
+    })
+
+    return {
+      enabled: true,
+      backupCodes // Return plain codes - user must save them
+    }
+  }
+
+  /**
+   * Initialize Email OTP setup for a user
+   * Sends verification code to user's email
+   */
+  public async initializeEmailOTPSetup(userId: string): Promise<{ expiresIn: number }> {
+    const user = await this.getUser(userId)
+    if (!user || !user.email) {
+      throw new InvalidInputError('User not found or has no email', 'userId')
+    }
+
+    const emailService = this.getEmailOTPService()
+    const result = emailService.generateCode()
+
+    // Store the OTP in user preferences
+    const storedOTP: StoredEmailOTP = emailService.createStoredOTP(result)
+
+    // Store in user preferences for later verification
+    const currentPreferences = user.preferences || {}
+    await this.updateUser(userId, {
+      preferences: {
+        ...currentPreferences,
+        _pendingEmailOTP: storedOTP
+      }
+    } as UpdateUserData)
+
+    // Emit event for email notification
+    if (this.eventsEnabled) {
+      this.eventBus.emitEvent({
+        type: 'user.mfa_otp_requested',
+        source: 'trokky-core',
+        data: {
+          userId,
+          email: user.email,
+          firstName: user.firstName,
+          otpCode: result.code,
+          expiryMinutes: 10,
+          purpose: 'MFA setup',
+        },
+      }).catch(error => {
+        this.logger.warn('Failed to emit MFA OTP event', error)
+      })
+    }
+
+    this.logger.info('Email OTP generated for MFA setup', {
+      userId,
+      email: user.email,
+      expiresAt: result.expiresAt
+    })
+
+    return { expiresIn: 10 * 60 } // 10 minutes in seconds
+  }
+
+  /**
+   * Verify and enable Email OTP for a user
+   */
+  public async verifyAndEnableEmailOTP(userId: string, code: string): Promise<{
+    enabled: boolean
+    backupCodes?: string[]
+  }> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Get stored OTP from preferences
+    const storedOTP = user.preferences?._pendingEmailOTP as StoredEmailOTP | undefined
+    if (!storedOTP) {
+      throw new InvalidInputError('No pending email OTP found. Call initializeEmailOTPSetup first.', 'emailOtp')
+    }
+
+    // Verify the code
+    const emailService = this.getEmailOTPService()
+    const verificationResult = emailService.verifyCode(code, storedOTP)
+
+    if (!verificationResult.valid) {
+      if (verificationResult.expired) {
+        throw new InvalidInputError('Email OTP has expired', 'code')
+      }
+      if (verificationResult.maxAttemptsExceeded) {
+        throw new InvalidInputError('Maximum verification attempts exceeded', 'code')
+      }
+
+      // Update attempt count
+      const updatedOTP = emailService.incrementAttempts(storedOTP)
+      await this.updateUser(userId, {
+        preferences: {
+          ...user.preferences,
+          _pendingEmailOTP: updatedOTP
+        }
+      } as UpdateUserData)
+
+      throw new InvalidInputError(
+        `Invalid code. ${verificationResult.attemptsRemaining} attempts remaining.`,
+        'code'
+      )
+    }
+
+    // Create verified email MFA method
+    const emailMethod: MFAMethod = {
+      type: 'email',
+      enabled: true,
+      verified: true,
+      verifiedAt: new Date().toISOString()
+    }
+
+    const currentMFA = user.mfa || { enabled: false, methods: [] }
+    const otherMethods = (currentMFA.methods || []).filter(m => m.type !== 'email')
+
+    // Generate backup codes if this is the first MFA method
+    let backupCodes: string[] | undefined
+    let hashedBackupCodes = currentMFA.backupCodes
+    let backupCodesGeneratedAt = currentMFA.backupCodesGeneratedAt
+
+    if (!hashedBackupCodes || hashedBackupCodes.length === 0) {
+      const totpService = this.getTOTPService()
+      backupCodes = totpService.generateBackupCodes(10)
+      hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
+      backupCodesGeneratedAt = new Date().toISOString()
+    }
+
+    // Remove pending OTP and update MFA config
+    const { _pendingEmailOTP, ...cleanPreferences } = user.preferences || {}
+
+    await this.updateUser(userId, {
+      preferences: cleanPreferences,
+      mfa: {
+        enabled: true,
+        methods: [...otherMethods, emailMethod],
+        backupCodes: hashedBackupCodes,
+        backupCodesGeneratedAt,
+        trustedDevices: currentMFA.trustedDevices || []
+      }
+    } as UpdateUserData)
+
+    this.logger.info('Email OTP enabled for user', { userId })
+
+    return { enabled: true, backupCodes }
+  }
+
+  /**
+   * Verify MFA code during login
+   * Supports TOTP, email, and backup codes
+   */
+  public async verifyMFACode(
+    userId: string,
+    code: string,
+    method: 'totp' | 'email' | 'backup'
+  ): Promise<boolean> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    if (method === 'totp') {
+      const totpMethod = user.mfa?.methods?.find(m => m.type === 'totp' && m.enabled && m.verified)
+      if (!totpMethod?.secret) {
+        throw new InvalidInputError('TOTP not configured for this user', 'method')
+      }
+
+      const totpService = this.getTOTPService()
+      return totpService.verifyCode(totpMethod.secret, code)
+    }
+
+    if (method === 'backup') {
+      const hashedCodes = user.mfa?.backupCodes || []
+      if (hashedCodes.length === 0) {
+        throw new InvalidInputError('No backup codes available', 'method')
+      }
+
+      const totpService = this.getTOTPService()
+      const result = totpService.verifyBackupCode(hashedCodes, code)
+
+      if (result.valid) {
+        // Update user with remaining backup codes
+        await this.updateUser(userId, {
+          mfa: {
+            ...user.mfa!,
+            backupCodes: result.remainingCodes
+          }
+        } as UpdateUserData)
+
+        this.logger.info('Backup code used', {
+          userId,
+          remainingCodes: result.remainingCodes.length
+        })
+      }
+
+      return result.valid
+    }
+
+    if (method === 'email') {
+      // Email OTP verification during login
+      const storedOTP = user.preferences?._loginEmailOTP as StoredEmailOTP | undefined
+      if (!storedOTP) {
+        throw new InvalidInputError('No email OTP sent. Call sendMFAEmailOTP first.', 'method')
+      }
+
+      const emailService = this.getEmailOTPService()
+      const result = emailService.verifyCode(code, storedOTP)
+
+      if (result.valid) {
+        // Clear the OTP
+        const { _loginEmailOTP, ...cleanPreferences } = user.preferences || {}
+        await this.updateUser(userId, {
+          preferences: cleanPreferences
+        } as UpdateUserData)
+      } else if (!result.expired && !result.maxAttemptsExceeded) {
+        // Update attempt count
+        const updatedOTP = emailService.incrementAttempts(storedOTP)
+        await this.updateUser(userId, {
+          preferences: {
+            ...user.preferences,
+            _loginEmailOTP: updatedOTP
+          }
+        } as UpdateUserData)
+      }
+
+      return result.valid
+    }
+
+    return false
+  }
+
+  /**
+   * Send Email OTP for MFA verification during login
+   */
+  public async sendMFAEmailOTP(userId: string): Promise<{ expiresIn: number }> {
+    const user = await this.getUser(userId)
+    if (!user || !user.email) {
+      throw new InvalidInputError('User not found or has no email', 'userId')
+    }
+
+    // Check if email MFA is enabled for this user
+    const emailMethod = user.mfa?.methods?.find(m => m.type === 'email' && m.enabled && m.verified)
+    if (!emailMethod) {
+      throw new InvalidInputError('Email MFA not enabled for this user', 'method')
+    }
+
+    const emailService = this.getEmailOTPService()
+    const result = emailService.generateCode()
+    const storedOTP = emailService.createStoredOTP(result)
+
+    // Store for verification
+    await this.updateUser(userId, {
+      preferences: {
+        ...user.preferences,
+        _loginEmailOTP: storedOTP
+      }
+    } as UpdateUserData)
+
+    // Emit event for email notification
+    if (this.eventsEnabled) {
+      this.eventBus.emitEvent({
+        type: 'user.mfa_otp_requested',
+        source: 'trokky-core',
+        data: {
+          userId,
+          email: user.email,
+          firstName: user.firstName,
+          otpCode: result.code,
+          expiryMinutes: 10,
+          purpose: 'login verification',
+        },
+      }).catch(error => {
+        this.logger.warn('Failed to emit MFA OTP event', error)
+      })
+    }
+
+    this.logger.info('Login email OTP generated', {
+      userId,
+      email: user.email,
+      expiresAt: result.expiresAt
+    })
+
+    return { expiresIn: 10 * 60 }
+  }
+
+  /**
+   * Disable MFA method for a user
+   * Requires password verification
+   */
+  public async disableMFAMethod(
+    userId: string,
+    method: MFAMethodType,
+    password: string
+  ): Promise<void> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Verify password
+    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
+    if (!isPasswordValid) {
+      throw new InvalidInputError('Invalid password', 'password')
+    }
+
+    // Check if this is the last MFA method
+    const enabledMethods = user.mfa?.methods?.filter(m => m.enabled && m.verified) || []
+    if (enabledMethods.length <= 1 && enabledMethods[0]?.type === method) {
+      // Check if org requires MFA
+      const settings = await this.getSettings()
+      if (settings?.mfaRequired) {
+        throw new InvalidInputError(
+          'Cannot disable last MFA method when organization requires MFA',
+          'method'
+        )
+      }
+    }
+
+    // Remove the method
+    const updatedMethods = (user.mfa?.methods || []).filter(m => m.type !== method)
+    const stillHasMFA = updatedMethods.some(m => m.enabled && m.verified)
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa!,
+        enabled: stillHasMFA,
+        methods: updatedMethods
+      }
+    } as UpdateUserData)
+
+    this.logger.info('MFA method disabled', { userId, method })
+
+    this.logAuditEvent({
+      type: 'user_updated',
+      userId,
+      username: user.username,
+      action: `MFA ${method} disabled`,
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: { mfaMethod: method }
+    })
+  }
+
+  /**
+   * Disable all MFA for a user (removes all methods and backup codes)
+   * Requires password verification
+   */
+  public async disableAllMFA(userId: string, password: string): Promise<void> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Verify password
+    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
+    if (!isPasswordValid) {
+      throw new InvalidInputError('Invalid password', 'password')
+    }
+
+    // Check if org requires MFA
+    const settings = await this.getSettings()
+    if (settings?.mfaRequired) {
+      throw new InvalidInputError(
+        'Cannot disable MFA when organization requires MFA',
+        'mfa'
+      )
+    }
+
+    // Completely reset MFA
+    await this.updateUser(userId, {
+      mfa: {
+        enabled: false,
+        methods: [],
+        backupCodes: [],
+        backupCodesGeneratedAt: undefined,
+        trustedDevices: []
+      }
+    } as UpdateUserData)
+
+    this.logger.info('All MFA disabled for user', { userId })
+
+    this.logAuditEvent({
+      type: 'user_updated',
+      userId,
+      username: user.username,
+      action: 'All MFA disabled',
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: { mfaDisabled: true }
+    })
+  }
+
+  /**
+   * Regenerate backup codes for a user
+   * Requires password verification
+   */
+  public async regenerateBackupCodes(userId: string, password: string): Promise<string[]> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Verify password
+    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
+    if (!isPasswordValid) {
+      throw new InvalidInputError('Invalid password', 'password')
+    }
+
+    // Check if user has MFA enabled
+    if (!user.mfa?.enabled) {
+      throw new InvalidInputError('MFA is not enabled', 'mfa')
+    }
+
+    const totpService = this.getTOTPService()
+    const backupCodes = totpService.generateBackupCodes(10)
+    const hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa,
+        backupCodes: hashedBackupCodes,
+        backupCodesGeneratedAt: new Date().toISOString()
+      }
+    } as UpdateUserData)
+
+    this.logger.info('Backup codes regenerated', { userId })
+
+    return backupCodes
+  }
+
+  /**
+   * Trust a device to skip MFA
+   */
+  public async trustDevice(
+    userId: string,
+    deviceId: string,
+    deviceName: string,
+    options?: { ipAddress?: string; userAgent?: string }
+  ): Promise<TrustedDevice> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Get trust duration from settings
+    const settings = await this.getSettings()
+    const trustDays = settings?.mfaTrustDeviceDays ?? 30
+
+    const trustedDevice: TrustedDevice = {
+      id: deviceId,
+      name: deviceName,
+      trustedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + trustDays * 24 * 60 * 60 * 1000).toISOString(),
+      lastUsedAt: new Date().toISOString(),
+      ipAddress: options?.ipAddress,
+      userAgent: options?.userAgent
+    }
+
+    const currentDevices = user.mfa?.trustedDevices || []
+    // Remove existing device with same ID if present
+    const otherDevices = currentDevices.filter(d => d.id !== deviceId)
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa!,
+        trustedDevices: [...otherDevices, trustedDevice]
+      }
+    } as UpdateUserData)
+
+    this.logger.info('Device trusted', { userId, deviceId, deviceName })
+
+    return trustedDevice
+  }
+
+  /**
+   * Check if a device is trusted for MFA bypass
+   */
+  public async isDeviceTrusted(userId: string, deviceId: string): Promise<boolean> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      return false
+    }
+
+    const device = user.mfa?.trustedDevices?.find(d => d.id === deviceId)
+    if (!device) {
+      return false
+    }
+
+    // Check if trust has expired
+    if (new Date(device.expiresAt) < new Date()) {
+      // Clean up expired device
+      const updatedDevices = (user.mfa?.trustedDevices || []).filter(d => d.id !== deviceId)
+      await this.updateUser(userId, {
+        mfa: {
+          ...user.mfa!,
+          trustedDevices: updatedDevices
+        }
+      } as UpdateUserData)
+      return false
+    }
+
+    // Update last used time
+    const updatedDevices = (user.mfa?.trustedDevices || []).map(d =>
+      d.id === deviceId ? { ...d, lastUsedAt: new Date().toISOString() } : d
+    )
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa!,
+        trustedDevices: updatedDevices
+      }
+    } as UpdateUserData)
+
+    return true
+  }
+
+  /**
+   * Revoke trust for a specific device
+   */
+  public async revokeTrustedDevice(userId: string, deviceId: string): Promise<void> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    const updatedDevices = (user.mfa?.trustedDevices || []).filter(d => d.id !== deviceId)
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa!,
+        trustedDevices: updatedDevices
+      }
+    } as UpdateUserData)
+
+    this.logger.info('Device trust revoked', { userId, deviceId })
+  }
+
+  /**
+   * Revoke trust for all devices
+   */
+  public async revokeAllTrustedDevices(userId: string): Promise<void> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    await this.updateUser(userId, {
+      mfa: {
+        ...user.mfa!,
+        trustedDevices: []
+      }
+    } as UpdateUserData)
+
+    this.logger.info('All device trust revoked', { userId })
+  }
+
+  /**
+   * Get list of trusted devices for a user
+   */
+  public async getTrustedDevices(userId: string): Promise<TrustedDevice[]> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    // Filter out expired devices
+    const now = new Date()
+    const validDevices = (user.mfa?.trustedDevices || []).filter(
+      d => new Date(d.expiresAt) > now
+    )
+
+    return validDevices
+  }
+
+  /**
+   * Admin: Reset MFA for a user (emergency recovery)
+   * Removes all MFA configuration
+   */
+  public async adminResetUserMFA(adminUserId: string, targetUserId: string): Promise<void> {
+    // Verify admin has permission
+    const admin = await this.getUser(adminUserId)
+    if (!admin || admin.role !== 'admin') {
+      throw new InvalidInputError('Unauthorized: Admin access required', 'adminUserId')
+    }
+
+    const targetUser = await this.getUser(targetUserId)
+    if (!targetUser) {
+      throw new InvalidInputError('Target user not found', 'targetUserId')
+    }
+
+    // Reset MFA configuration
+    await this.updateUser(targetUserId, {
+      mfa: {
+        enabled: false,
+        methods: [],
+        backupCodes: [],
+        trustedDevices: []
+      }
+    } as UpdateUserData)
+
+    this.logger.warn('Admin reset MFA for user', {
+      adminUserId,
+      adminUsername: admin.username,
+      targetUserId,
+      targetUsername: targetUser.username
+    })
+
+    this.logAuditEvent({
+      type: 'admin_access',
+      userId: adminUserId,
+      targetUserId,
+      username: admin.username,
+      action: 'Admin reset MFA for user',
+      timestamp: new Date().toISOString(),
+      success: true,
+      details: {
+        targetUsername: targetUser.username
+      }
+    })
+  }
+
+  /**
+   * Get MFA status for a user
+   */
+  public async getMFAStatus(userId: string): Promise<{
+    enabled: boolean
+    methods: Array<{ type: MFAMethodType; enabled: boolean; verified: boolean; verifiedAt?: string }>
+    backupCodesRemaining: number
+    backupCodesGeneratedAt?: string
+    trustedDevicesCount: number
+  }> {
+    const user = await this.getUser(userId)
+    if (!user) {
+      throw new InvalidInputError('User not found', 'userId')
+    }
+
+    const mfa = user.mfa || { enabled: false, methods: [] }
+
+    return {
+      enabled: mfa.enabled,
+      methods: (mfa.methods || []).map(m => ({
+        type: m.type,
+        enabled: m.enabled,
+        verified: m.verified,
+        verifiedAt: m.verifiedAt
+      })),
+      backupCodesRemaining: (mfa.backupCodes || []).length,
+      backupCodesGeneratedAt: mfa.backupCodesGeneratedAt,
+      trustedDevicesCount: (mfa.trustedDevices || []).filter(
+        d => new Date(d.expiresAt) > new Date()
+      ).length
+    }
   }
 
   private generateSecureSecret(): string {

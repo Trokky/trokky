@@ -317,13 +317,55 @@ export async function handleGoogleOAuthCallback(
         }
       }
 
+      // Handle different authentication result types
+      if (authResult.type === 'mfa_required') {
+        logger.info('OAuth login requires MFA verification', {
+          googleEmail: googleUser.email,
+          methods: authResult.methods,
+        })
+
+        return {
+          status: 200,
+          headers: {},
+          body: {
+            success: true,
+            data: {
+              requiresMFA: true,
+              mfaToken: authResult.mfaToken,
+              methods: authResult.methods,
+              expiresIn: authResult.expiresIn,
+            },
+          },
+        }
+      }
+
+      if (authResult.type === 'mfa_setup_required') {
+        logger.info('OAuth login requires MFA setup', {
+          googleEmail: googleUser.email,
+          allowedMethods: authResult.allowedMethods,
+        })
+
+        return {
+          status: 200,
+          headers: {},
+          body: {
+            success: true,
+            data: {
+              requiresMFASetup: true,
+              setupToken: authResult.setupToken,
+              allowedMethods: authResult.allowedMethods,
+              message: authResult.message,
+              expiresIn: authResult.expiresIn,
+            },
+          },
+        }
+      }
+
+      // Success - full authentication
       logger.info('User logged in with Google', {
         userId: authResult.user.id,
         googleEmail: googleUser.email,
       })
-
-      // Get token expiration
-      const session = await core.verifyAuthToken(authResult.token)
 
       return {
         status: 200,
@@ -334,7 +376,7 @@ export async function handleGoogleOAuthCallback(
             token: authResult.token,
             refreshToken: authResult.refreshToken,
             user: authResult.user,
-            expiresAt: session?.expiresAt,
+            expiresAt: authResult.expiresAt,
           },
         },
       }

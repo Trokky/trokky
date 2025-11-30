@@ -4,16 +4,29 @@ import type {
   FieldType
 } from '@trokky/types';
 import { CORE_FIELD_TYPES } from '@trokky/types';
-import type { 
-  User, 
-  UserListOptions, 
-  AppToken, 
+import type {
+  User,
+  UserListOptions,
+  AppToken,
   AppTokenListOptions,
   CreateAppTokenData,
   UpdateAppTokenData,
   AuthContext,
   AuthenticatedUser,
-  AuthenticatedAppToken
+  AuthenticatedAppToken,
+  // MFA types
+  MFAMethodType,
+  MFAMethod,
+  TrustedDevice,
+  MFAConfig,
+  MFAPendingTokenPayload,
+  MFASetupTokenPayload,
+  TokenPayload,
+  // Authentication result types
+  AuthenticationResult,
+  AuthenticationSuccessResult,
+  AuthenticationMFARequiredResult,
+  AuthenticationMFASetupRequiredResult
 } from './user.js'
 
 // Audit actor types
@@ -395,7 +408,20 @@ export type {
   AuthenticatedUser,
   AuthenticatedAppToken,
   OAuthProvider,
-  OAuthProviderType
+  OAuthProviderType,
+  // MFA types
+  MFAMethodType,
+  MFAMethod,
+  TrustedDevice,
+  MFAConfig,
+  MFAPendingTokenPayload,
+  MFASetupTokenPayload,
+  TokenPayload,
+  // Authentication result types
+  AuthenticationResult,
+  AuthenticationSuccessResult,
+  AuthenticationMFARequiredResult,
+  AuthenticationMFASetupRequiredResult
 } from './user.js'
 
 export { ROLE_PERMISSIONS } from './user.js'

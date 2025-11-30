@@ -28,6 +28,7 @@ export interface MailNotificationConfig {
     userCreated?: boolean
     userInvited?: boolean
     securityAlerts?: boolean
+    mfaOtp?: boolean
   }
 
   /** Enable debug logging */
@@ -56,6 +57,7 @@ export class MailNotificationService {
       userCreated: config.enabled?.userCreated ?? true,
       userInvited: config.enabled?.userInvited ?? true,
       securityAlerts: config.enabled?.securityAlerts ?? true,
+      mfaOtp: config.enabled?.mfaOtp ?? true,
     }
 
     if (config.debug) {
@@ -156,6 +158,25 @@ export class MailNotificationService {
         await this.sendSecurityAlertEmail(user, alertType, details, actionRequired)
       } catch (error) {
         this.logger.error('Failed to send security alert email', error)
+      }
+    })
+
+    // Listen for MFA OTP requests
+    this.eventBus.on('user.mfa_otp_requested', async (event: any) => {
+      if (!this.enabled.mfaOtp) return
+
+      try {
+        const { email, otpCode, expiryMinutes, purpose } = event.data as {
+          userId: string
+          email: string
+          firstName?: string
+          otpCode: string
+          expiryMinutes: number
+          purpose: string
+        }
+        await this.sendMFAOTPEmail(email, otpCode, expiryMinutes, purpose)
+      } catch (error) {
+        this.logger.error('Failed to send MFA OTP email', error)
       }
     })
 
@@ -265,6 +286,28 @@ export class MailNotificationService {
   }
 
   /**
+   * Send MFA OTP verification email
+   */
+  private async sendMFAOTPEmail(
+    email: string,
+    otpCode: string,
+    expiryMinutes: number,
+    purpose: string
+  ): Promise<void> {
+    this.logger.info('Sending MFA OTP email', {
+      to: email,
+      purpose,
+    })
+
+    await this.mailService.sendOTP({
+      to: email,
+      otpCode,
+      expiryMinutes,
+      purpose,
+    })
+  }
+
+  /**
    * Check if service is initialized
    */
   isInitialized(): boolean {
@@ -281,6 +324,7 @@ export class MailNotificationService {
       userCreated: false,
       userInvited: false,
       securityAlerts: false,
+      mfaOtp: false,
     }
     this.logger.warn('All email notifications disabled')
   }
@@ -295,6 +339,7 @@ export class MailNotificationService {
       userCreated: true,
       userInvited: true,
       securityAlerts: true,
+      mfaOtp: true,
     }
     this.logger.info('All email notifications enabled')
   }

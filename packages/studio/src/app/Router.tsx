@@ -18,10 +18,7 @@ import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 // Get basename from config if available
 const getBasename = () => {
   const config = (window as any).TROKKY_CONFIG;
-  if (config?.basePath) {
-    return config.basePath;
-  }
-  return undefined;
+  return config?.basePath || '';
 };
 
 const router = createBrowserRouter([

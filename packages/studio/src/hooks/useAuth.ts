@@ -93,27 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Auto-refresh session before expiry
   const refreshSession = useCallback(async () => {
-    console.log('🔄 refreshSession called', {
-      isRefreshing: isRefreshingRef.current,
-      hasRefreshToken: !!refreshTokenRef.current,
-      refreshTokenValue: refreshTokenRef.current ? 'exists' : 'null',
-    })
-
     if (isRefreshingRef.current || !refreshTokenRef.current) {
-      console.log('❌ RefreshSession blocked - conditions not met')
       return
     }
 
     try {
       isRefreshingRef.current = true
-      console.log('🚀 Starting session refresh...')
       logger.info('Refreshing session automatically')
 
       const response = await apiClient.post('/auth/refresh', {
         refreshToken: refreshTokenRef.current,
       })
-
-      console.log('📡 Refresh response:', response)
 
       if (
         response.success &&
@@ -179,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check for stored tokens
       const storedToken = localStorage.getItem('trokky_auth_token')
       const storedRefreshToken = localStorage.getItem('trokky_refresh_token')
+
       logger.info('Checking auth', {
         hasStoredToken: !!storedToken,
         hasRefreshToken: !!storedRefreshToken,
@@ -204,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Validate token with server
       logger.info('Validating stored token with server')
+
       const response = await apiClient.post('/auth/validate', {
         token: storedToken,
       })
@@ -347,24 +339,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberMe,
       })
 
-      console.log('📥 Login response:', response)
-
-      console.log('📥 Full login response structure:', {
-        responseSuccess: response.success,
-        hasData: !!response.data,
-        dataType: typeof response.data,
-        dataKeys:
-          response.data && typeof response.data === 'object'
-            ? Object.keys(response.data)
-            : [],
-        responseDataSuccess:
-          response.data &&
-          typeof response.data === 'object' &&
-          'success' in response.data
-            ? response.data.success
-            : 'not found',
-      })
-
       if (
         response.success &&
         response.data &&
@@ -380,24 +354,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           expiresAt: string
         }
 
-        console.log('🔑 Extracted tokens:', {
-          hasToken: !!token,
-          hasRefreshToken: !!refreshToken,
-          refreshTokenLength: refreshToken?.length || 0,
-          refreshTokenValue: refreshToken ? 'present' : 'missing',
-          tokenValue: token ? 'present' : 'missing',
-          responseDataKeys: Object.keys(response.data),
-        })
-
         logger.info('User login successful', { username, rememberMe })
 
         // Store tokens
         localStorage.setItem('trokky_auth_token', token)
         if (refreshToken) {
           localStorage.setItem('trokky_refresh_token', refreshToken)
-          console.log('💾 Stored refresh token in localStorage')
-        } else {
-          console.warn('⚠️ No refresh token to store')
         }
 
         // Update API client
@@ -594,7 +556,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check auth on mount - but only after apiClient is initialized
   useEffect(() => {
     // Ensure apiClient is initialized first
-    if (!(apiClient as any).baseUrl) {
+    if (!(apiClient as any).backendUrl) {
       apiClient.initialize()
     }
     checkAuth()

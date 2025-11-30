@@ -55,6 +55,19 @@ export interface SettingsConfig {
   secondaryColor?: string
   /** Logo URL or path */
   logo?: string
+
+  // MFA (Multi-Factor Authentication) Settings
+  /** Require MFA for all users */
+  mfaRequired?: boolean
+  /** Roles that require MFA (role-based enforcement) */
+  mfaEnforcedRoles?: ('admin' | 'editor' | 'author' | 'viewer')[]
+  /** Allowed MFA methods */
+  mfaAllowedMethods?: ('totp' | 'email')[]
+  /** Days to trust a device (skip MFA) */
+  mfaTrustDeviceDays?: number
+  /** Grace period (days) before MFA is enforced for existing users */
+  mfaGracePeriodDays?: number
+
   /** Settings creation timestamp */
   _createdAt?: string
   /** Settings last update timestamp */

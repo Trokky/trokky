@@ -14,6 +14,38 @@ export interface OAuthProvider {
   lastUsedAt?: string // Last time used for login
 }
 
+// MFA (Multi-Factor Authentication) types
+export type MFAMethodType = 'totp' | 'email'
+
+export interface MFAMethod {
+  type: MFAMethodType
+  enabled: boolean
+  verified: boolean
+  // TOTP specific - encrypted secret for authenticator apps
+  secret?: string
+  // Timestamp when this method was verified/enabled
+  verifiedAt?: string
+}
+
+export interface TrustedDevice {
+  id: string // Unique device identifier (fingerprint hash)
+  name: string // Human-readable name, e.g., "Chrome on MacOS"
+  trustedAt: string // ISO date when device was trusted
+  expiresAt: string // ISO date when trust expires
+  lastUsedAt?: string // Last time MFA was skipped due to trust
+  ipAddress?: string // IP address when device was trusted
+  userAgent?: string // User agent string for identification
+}
+
+export interface MFAConfig {
+  enabled: boolean // Whether MFA is active for this user
+  methods: MFAMethod[] // Configured MFA methods
+  backupCodes?: string[] // Hashed one-time backup codes
+  backupCodesGeneratedAt?: string // When backup codes were last generated
+  trustedDevices?: TrustedDevice[] // Devices that can skip MFA
+  enforcedAt?: string // When org MFA requirement was applied to this user
+}
+
 export interface User {
   id: string
   username: string
@@ -27,6 +59,7 @@ export interface User {
   profileImage?: string
   preferences?: UserPreferences
   oauthProviders?: OAuthProvider[] // Linked OAuth accounts
+  mfa?: MFAConfig // Multi-factor authentication configuration
   lastLoginAt?: string
   createdAt: string
   updatedAt: string
@@ -129,6 +162,7 @@ export interface UpdateUserData {
   isActive?: boolean
   profileImage?: string
   preferences?: UserPreferences
+  mfa?: MFAConfig
   lastLoginAt?: string
   passwordHash?: string
 }
@@ -238,3 +272,62 @@ export interface AppTokenPayload {
   iat: number
   exp?: number
 }
+
+// MFA pending token - issued after password verification when MFA is required
+export interface MFAPendingTokenPayload {
+  type: 'mfa_pending'
+  userId: string
+  username: string
+  mfaMethods: MFAMethodType[] // Available MFA methods for this user
+  iat: number
+  exp: number // Short-lived: 5 minutes
+}
+
+// MFA setup token - issued when org requires MFA but user hasn't set it up
+export interface MFASetupTokenPayload {
+  type: 'mfa_setup'
+  userId: string
+  username: string
+  allowedMethods: MFAMethodType[] // Methods allowed by org settings
+  iat: number
+  exp: number // Limited scope: 15 minutes
+}
+
+// Union type for all token payloads
+export type TokenPayload =
+  | UserTokenPayload
+  | AppTokenPayload
+  | MFAPendingTokenPayload
+  | MFASetupTokenPayload
+
+// Authentication result types for MFA support
+export interface AuthenticationSuccessResult {
+  type: 'success'
+  user: User
+  token: string
+  refreshToken: string
+  expiresAt: string // ISO date string when token expires
+}
+
+export interface AuthenticationMFARequiredResult {
+  type: 'mfa_required'
+  requiresMFA: true
+  mfaToken: string
+  methods: MFAMethodType[]
+  expiresIn: number // seconds until mfaToken expires (default: 300 = 5 minutes)
+}
+
+export interface AuthenticationMFASetupRequiredResult {
+  type: 'mfa_setup_required'
+  requiresMFASetup: true
+  setupToken: string
+  allowedMethods: MFAMethodType[]
+  message: string
+  expiresIn: number // seconds until setupToken expires (default: 900 = 15 minutes)
+}
+
+// Union type for all authentication results
+export type AuthenticationResult =
+  | AuthenticationSuccessResult
+  | AuthenticationMFARequiredResult
+  | AuthenticationMFASetupRequiredResult

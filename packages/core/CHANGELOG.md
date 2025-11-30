@@ -1,5 +1,40 @@
 # @trokky/core
 
+## 0.1.12
+
+### Patch Changes
+
+- ## MFA Enforcement and Setup Improvements
+
+  ### @trokky/core
+  - Added `completeMFASetupAndLogin()` method to complete MFA setup during login flow and issue auth tokens
+  - Updated `checkMFARequired()` to support role-based MFA enforcement via `mfaEnforcedRoles` setting
+  - Updated `authenticateWithOAuth()` to check MFA requirements and return appropriate auth result types
+  - Added `expiresAt` field to `AuthenticationSuccessResult`
+  - Added `mfaEnforcedRoles` and `mfaAllowedMethods` to `SettingsConfig` interface
+
+  ### @trokky/routes
+  - MFA setup routes now accept `X-MFA-Setup-Token` header for authentication during login flow
+  - Updated `initTOTPSetup`, `verifyTOTPSetup`, `initEmailOTPSetup`, `verifyEmailOTPSetup` to work with setup tokens
+  - OAuth callback now properly handles MFA required and MFA setup required responses
+  - Verify routes issue full auth tokens after successful MFA setup when using setup token
+
+  ### @trokky/studio
+  - Added inline MFA setup wizard on login page when MFA setup is required
+  - Added backup codes display step before completing login after MFA setup
+  - Added MFA indicator badge (purple shield icon) on Users page for users with MFA enabled
+  - Added Reset MFA button for admins to reset other users' MFA configuration
+  - Updated `apiClient.post()` to accept custom headers parameter
+  - Added `MFAConfig` interface to User type
+
+  ### @trokky/mail
+  - Added MFA OTP email notification support
+  - Added `mfaOtp` toggle to notification config
+  - Added event listener for `user.mfa_otp_requested` events
+
+  ### @trokky/adapter-postgres-data
+  - Added support for saving/loading MFA enforcement settings (`mfaEnforcedRoles`, `mfaAllowedMethods`) in config JSONB
+
 ## 0.1.11
 
 ### Patch Changes

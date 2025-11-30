@@ -173,8 +173,23 @@ export class ApiClient {
     this.authToken = null
     try {
       localStorage.removeItem('trokky_auth_token')
+      localStorage.removeItem('trokky_refresh_token')
     } catch (error) {
       console.warn('Failed to clear auth token:', error)
+    }
+  }
+
+  /**
+   * Store both auth token and refresh token (used after MFA verification)
+   */
+  async storeTokens(token: string, refreshToken?: string): Promise<void> {
+    this.setAuthToken(token)
+    if (refreshToken) {
+      try {
+        localStorage.setItem('trokky_refresh_token', refreshToken)
+      } catch (error) {
+        console.warn('Failed to save refresh token:', error)
+      }
     }
   }
 
@@ -376,10 +391,11 @@ export class ApiClient {
   /**
    * POST request helper
    */
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T>(endpoint: string, data?: any, options?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+      headers: options?.headers,
     })
   }
 

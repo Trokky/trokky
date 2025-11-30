@@ -28,6 +28,22 @@ export {
   type PKCEChallenge,
 } from './security/oauth/index.js'
 
+// MFA (Multi-Factor Authentication)
+export {
+  TOTPService,
+  createTOTPService,
+  EmailOTPService,
+  createEmailOTPService,
+  getOTPEmailSubject,
+  getOTPEmailBody,
+  getOTPEmailHTML,
+  type TOTPConfig,
+  type TOTPSecretResult,
+  type BackupCodeVerificationResult,
+  type EmailOTPConfig,
+  type EmailOTPResult,
+} from './security/mfa/index.js'
+
 // Field system
 export {
   FieldTypeRegistry,
@@ -148,6 +164,19 @@ export type {
   AuthenticatedAppToken,
   OAuthProvider,
   OAuthProviderType,
+  // MFA types
+  MFAMethodType,
+  MFAMethod,
+  TrustedDevice,
+  MFAConfig,
+  MFAPendingTokenPayload,
+  MFASetupTokenPayload,
+  TokenPayload,
+  // Authentication result types
+  AuthenticationResult,
+  AuthenticationSuccessResult,
+  AuthenticationMFARequiredResult,
+  AuthenticationMFASetupRequiredResult,
   // Split storage adapter types
   DataStorageAdapter,
   MediaStorageAdapter,

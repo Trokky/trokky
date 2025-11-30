@@ -32,6 +32,11 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // MFA/Security settings
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaEnforcedRoles, setMfaEnforcedRoles] = useState<string[]>([]);
+  const [mfaAllowedMethods, setMfaAllowedMethods] = useState<string[]>(['totp', 'email']);
+
   // Check if user has settings access
   const canReadSettings = hasPermission(SETTINGS_PERMISSIONS.READ);
   const canWriteSettings = hasPermission(SETTINGS_PERMISSIONS.WRITE);
@@ -98,6 +103,11 @@ export function SettingsPage() {
         setLogo(settings.logo || '');
         setTheme(settings.defaultTheme || 'system');
 
+        // MFA settings
+        setMfaRequired(settings.mfaRequired || false);
+        setMfaEnforcedRoles(settings.mfaEnforcedRoles || []);
+        setMfaAllowedMethods(settings.mfaAllowedMethods || ['totp', 'email']);
+
         logger.info('Settings loaded successfully', { settings });
       } else {
         // Use defaults if no settings found
@@ -108,6 +118,9 @@ export function SettingsPage() {
         setSecondaryColor('');
         setLogo('');
         setTheme('system');
+        setMfaRequired(false);
+        setMfaEnforcedRoles([]);
+        setMfaAllowedMethods(['totp', 'email']);
 
         logger.warn('No settings found, using defaults');
       }
@@ -122,6 +135,9 @@ export function SettingsPage() {
       setSecondaryColor('');
       setLogo('');
       setTheme('system');
+      setMfaRequired(false);
+      setMfaEnforcedRoles([]);
+      setMfaAllowedMethods(['totp', 'email']);
 
       showToast('Failed to load settings. Using defaults.', 'error');
     } finally {
@@ -156,7 +172,11 @@ export function SettingsPage() {
         primaryColor,
         secondaryColor,
         logo,
-        defaultTheme: theme
+        defaultTheme: theme,
+        // MFA settings
+        mfaRequired,
+        mfaEnforcedRoles,
+        mfaAllowedMethods
       };
       
       logger.debug('Saving settings via API', settingsData);
@@ -374,21 +394,156 @@ export function SettingsPage() {
               </p>
             </div>
 
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button 
-                onClick={handleSave}
-                disabled={saving || !canWriteSettings}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-              {!canWriteSettings && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                  You have read-only access to settings. Contact your administrator to make changes.
+          </div>
+        </div>
+
+        {/* Security Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+            Security Settings
+          </h2>
+
+          <div className="space-y-6">
+            {/* MFA Enforcement */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                Multi-Factor Authentication (MFA) Enforcement
+              </h3>
+
+              {/* Require for all users */}
+              <div className="flex items-center mb-4">
+                <input
+                  type="checkbox"
+                  id="mfaRequired"
+                  checked={mfaRequired}
+                  onChange={(e) => setMfaRequired(e.target.checked)}
+                  disabled={!canWriteSettings}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
+                />
+                <label htmlFor="mfaRequired" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  Require MFA for all users
+                </label>
+              </div>
+
+              {/* Role-based enforcement */}
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Or require MFA for specific roles:
                 </p>
-              )}
+                <div className="space-y-2 ml-4">
+                  {['admin', 'editor', 'author', 'viewer'].map((role) => (
+                    <div key={role} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`mfa-role-${role}`}
+                        checked={mfaEnforcedRoles.includes(role)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMfaEnforcedRoles([...mfaEnforcedRoles, role]);
+                          } else {
+                            setMfaEnforcedRoles(mfaEnforcedRoles.filter(r => r !== role));
+                          }
+                        }}
+                        disabled={!canWriteSettings || mfaRequired}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
+                      />
+                      <label htmlFor={`mfa-role-${role}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300 capitalize">
+                        {role}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {mfaRequired && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 ml-4">
+                    Role-based selection is disabled when MFA is required for all users.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Allowed MFA Methods */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                Allowed MFA Methods
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Select which MFA methods users can choose from:
+              </p>
+              <div className="space-y-2 ml-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="mfa-method-totp"
+                    checked={mfaAllowedMethods.includes('totp')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMfaAllowedMethods([...mfaAllowedMethods, 'totp']);
+                      } else {
+                        // Don't allow removing if it's the only method
+                        if (mfaAllowedMethods.length > 1) {
+                          setMfaAllowedMethods(mfaAllowedMethods.filter(m => m !== 'totp'));
+                        }
+                      }
+                    }}
+                    disabled={!canWriteSettings || (mfaAllowedMethods.length === 1 && mfaAllowedMethods.includes('totp'))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
+                  />
+                  <label htmlFor="mfa-method-totp" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    Authenticator App (TOTP) - Recommended
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="mfa-method-email"
+                    checked={mfaAllowedMethods.includes('email')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMfaAllowedMethods([...mfaAllowedMethods, 'email']);
+                      } else {
+                        // Don't allow removing if it's the only method
+                        if (mfaAllowedMethods.length > 1) {
+                          setMfaAllowedMethods(mfaAllowedMethods.filter(m => m !== 'email'));
+                        }
+                      }
+                    }}
+                    disabled={!canWriteSettings || (mfaAllowedMethods.length === 1 && mfaAllowedMethods.includes('email'))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
+                  />
+                  <label htmlFor="mfa-method-email" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    Email OTP - Send one-time code to email
+                  </label>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 ml-4">
+                At least one method must be enabled.
+              </p>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Note:</strong> When MFA is enforced, users without MFA set up will be prompted to configure it on their next login.
+                They will receive a 15-minute setup window to complete the configuration.
+              </p>
             </div>
           </div>
+        </div>
+
+        {/* Save button section */}
+        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={handleSave}
+            disabled={saving || !canWriteSettings}
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          {!canWriteSettings && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              You have read-only access to settings. Contact your administrator to make changes.
+            </p>
+          )}
         </div>
       </div>
     </div>

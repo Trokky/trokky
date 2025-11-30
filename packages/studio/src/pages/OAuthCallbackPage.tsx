@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 
@@ -18,8 +18,32 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
   const [status, setStatus] = useState<CallbackStatus>('processing');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double execution (React StrictMode, re-renders, or component remounting)
+    if (hasProcessedRef.current) {
+      return;
+    }
+
+    // Check if OAuth state exists - if not, we've already processed this callback
+    const storedState = sessionStorage.getItem('oauth_state');
+    if (!storedState) {
+      // If token exists, the OAuth was successful - show success and trigger auth check
+      const token = localStorage.getItem('trokky_auth_token');
+      if (token) {
+        hasProcessedRef.current = true;
+        setStatus('success');
+        setSuccessMessage('Login successful! Redirecting...');
+        // Trigger auth check to update state
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 100);
+      }
+      return;
+    }
+
+    hasProcessedRef.current = true;
     handleOAuthCallback();
   }, []);
 
@@ -62,6 +86,14 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
         user?: any;
         expiresAt?: string;
         message?: string;
+        // MFA fields
+        requiresMFA?: boolean;
+        mfaToken?: string;
+        methods?: string[];
+        requiresMFASetup?: boolean;
+        setupToken?: string;
+        allowedMethods?: string[];
+        expiresIn?: number;
         provider?: {
           provider: string;
           email: string;
@@ -81,6 +113,33 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
 
       if (response.success && response.data) {
         if (mode === 'login') {
+          // Check if MFA is required
+          if (response.data.requiresMFA && response.data.mfaToken) {
+            // Store MFA state and redirect to login page for MFA verification
+            sessionStorage.setItem('oauth_mfa_token', response.data.mfaToken);
+            sessionStorage.setItem('oauth_mfa_methods', JSON.stringify(response.data.methods || []));
+            setStatus('success');
+            setSuccessMessage('MFA verification required. Redirecting...');
+            setTimeout(() => {
+              window.location.href = getBasePath() + '/?mfa=verify';
+            }, 500);
+            return;
+          }
+
+          // Check if MFA setup is required
+          if (response.data.requiresMFASetup && response.data.setupToken) {
+            // Store MFA setup state and redirect to login page for MFA setup
+            sessionStorage.setItem('oauth_mfa_setup_token', response.data.setupToken);
+            sessionStorage.setItem('oauth_mfa_allowed_methods', JSON.stringify(response.data.allowedMethods || []));
+            sessionStorage.setItem('oauth_mfa_message', response.data.message || 'MFA setup required');
+            setStatus('success');
+            setSuccessMessage('MFA setup required. Redirecting...');
+            setTimeout(() => {
+              window.location.href = getBasePath() + '/?mfa=setup';
+            }, 500);
+            return;
+          }
+
           // Login mode: Store tokens and redirect to dashboard
           const { token, refreshToken, user, expiresAt } = response.data;
 
@@ -98,12 +157,11 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
             setStatus('success');
             setSuccessMessage('Login successful! Redirecting...');
 
-            // Short delay then redirect
+            // Let the auth state update handle navigation
+            // Don't use window.location.href as it interrupts the async checkAuth
             setTimeout(() => {
               onLoginSuccess();
-              // Navigate to dashboard
-              window.location.href = getBasePath() + '/';
-            }, 1000);
+            }, 500);
           } else {
             throw new Error('Invalid response from server');
           }

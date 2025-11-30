@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { PaintBrushIcon, BellIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { OAuthProvidersList } from '@/components/auth/OAuthProvidersList';
+import { MFASettings } from '@/components/settings/MFASettings';
 
 const logger = createStudioLogger('UserPreferences');
 
@@ -24,6 +26,8 @@ export function UserPreferencesPage() {
     page: 'user-preferences',
     title: 'User Preferences'
   });
+  const studioContext = useStudioContext();
+  const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',
     language: 'en',
@@ -195,6 +199,21 @@ export function UserPreferencesPage() {
           </div>
 
           <OAuthProvidersList />
+        </div>
+
+        {/* Security - Two-Factor Authentication */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <ShieldCheckIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Security</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Manage two-factor authentication and security settings
+              </p>
+            </div>
+          </div>
+
+          <MFASettings showToast={showToast} />
         </div>
 
         {/* Save Button */}

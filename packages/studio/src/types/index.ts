@@ -292,6 +292,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ]
 };
 
+export interface MFAConfig {
+  enabled: boolean;
+  methods?: Array<{
+    type: 'totp' | 'email';
+    enabled: boolean;
+    verified: boolean;
+  }>;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -302,6 +311,7 @@ export interface User {
   permissions: Permission[];
   isActive: boolean;
   profileImage?: string;
+  mfa?: MFAConfig;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;

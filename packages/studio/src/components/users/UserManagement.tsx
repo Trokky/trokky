@@ -6,7 +6,9 @@ import {
   TrashIcon,
   EyeIcon,
   EyeSlashIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ShieldCheckIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -694,6 +696,27 @@ export function UserManagement() {
     }
   };
 
+  const handleResetMFA = async (user: User) => {
+    if (!confirm(`Are you sure you want to reset MFA for "${user.username}"? They will need to set up MFA again.`)) {
+      return;
+    }
+
+    try {
+      const response = await apiClient.post(`/admin/users/${user.id}/mfa/reset`, {});
+      if (response.success) {
+        await loadUsers();
+        logger.info('MFA reset for user', { userId: user.id, username: user.username });
+      }
+    } catch (error) {
+      logger.error('Failed to reset MFA', error);
+      alert('Failed to reset MFA. Please try again.');
+    }
+  };
+
+  const hasMFAEnabled = (user: User) => {
+    return user.mfa?.enabled && user.mfa?.methods?.some(m => m.enabled && m.verified);
+  };
+
   const filteredUsers = Array.isArray(users) ? users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -799,13 +822,24 @@ export function UserManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.isActive 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                      }`}>
-                        {user.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.isActive
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                        }`}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        {hasMFAEnabled(user) && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400 rounded-full"
+                            title="MFA Enabled"
+                          >
+                            <ShieldCheckIcon className="h-3 w-3 mr-1" />
+                            MFA
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
@@ -817,8 +851,20 @@ export function UserManagement() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleEditUser(user)}
+                            title="Edit user"
                           >
                             <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canEditUser && hasMFAEnabled(user) && currentUser?.id !== user.id && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleResetMFA(user)}
+                            className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                            title="Reset MFA"
+                          >
+                            <ArrowPathIcon className="h-4 w-4" />
                           </Button>
                         )}
                         {canDeleteUser && currentUser?.id !== user.id && (
@@ -827,6 +873,7 @@ export function UserManagement() {
                             variant="ghost"
                             onClick={() => handleDeleteUser(user)}
                             className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            title="Delete user"
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
