@@ -1,6 +1,6 @@
 {
   "name": "@trokky/express",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Express.js integration for Trokky v2 CMS",
   "type": "module",
   "main": "dist/index.js",
