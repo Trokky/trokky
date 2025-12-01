@@ -1,4 +1,5 @@
 import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter.js'
+import { createHash, timingSafeEqual } from 'crypto'
 import { SchemaRegistry } from '../schema/registry.js'
 import { DocumentValidator } from '../validation/validator.js'
 import { SecurityValidator } from '../security/validation.js'
@@ -1459,9 +1460,10 @@ export class TrokkyCore {
     // App token operations are handled by data storage adapter
 
     try {
-      // Generate token and hash using crypto adapter
+      // Generate token and hash using SHA256 (fast) - bcrypt is unnecessary for API tokens
+      // API tokens are long random strings, not user-chosen passwords, so SHA256 is secure
       const token = this.cryptoAdapter.generateSecureRandom(32)
-      const tokenHash = await this.cryptoAdapter.hashPassword(token)
+      const tokenHash = createHash('sha256').update(token).digest('hex')
       
       const now = new Date().toISOString()
       const tokenId = this.idGenerator.generate()
@@ -1514,21 +1516,29 @@ export class TrokkyCore {
     }
 
     try {
+      // Hash the provided token with SHA256 for comparison
+      const providedHash = createHash('sha256').update(token).digest('hex')
+
       // Get all active app tokens and check if any match the hash
       const tokens = await this.dataStorage.listAppTokens({ isActive: true })
-      
+
       for (const appToken of tokens) {
-        if (appToken.tokenHash && await this.cryptoAdapter.verifyPassword(token, appToken.tokenHash)) {
-          // Update last used timestamp and usage count
-          const updatedToken: AppToken = {
-            ...appToken,
-            lastUsedAt: new Date().toISOString(),
-            usageCount: (appToken.usageCount || 0) + 1
+        // Use constant-time comparison to prevent timing attacks
+        if (appToken.tokenHash && appToken.tokenHash.length === providedHash.length) {
+          const storedBuffer = Buffer.from(appToken.tokenHash, 'hex')
+          const providedBuffer = Buffer.from(providedHash, 'hex')
+          if (timingSafeEqual(storedBuffer, providedBuffer)) {
+            // Update last used timestamp and usage count
+            const updatedToken: AppToken = {
+              ...appToken,
+              lastUsedAt: new Date().toISOString(),
+              usageCount: (appToken.usageCount || 0) + 1
+            }
+
+            await this.dataStorage.saveAppToken(appToken.id, updatedToken)
+
+            return { valid: true, appToken: updatedToken }
           }
-          
-          await this.dataStorage.saveAppToken(appToken.id, updatedToken)
-          
-          return { valid: true, appToken: updatedToken }
         }
       }
       
