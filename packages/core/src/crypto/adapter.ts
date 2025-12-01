@@ -3,6 +3,8 @@
  * Supports both Node.js and edge runtime environments
  */
 
+import { createRequire } from 'module'
+
 export interface CryptoAdapter {
   /**
    * Hash a password using the environment's best available method
@@ -49,22 +51,48 @@ export interface CryptoAdapterOptions {
 }
 
 /**
+ * Dynamically load NodeCryptoAdapter using createRequire for ESM compatibility
+ */
+function loadNodeCryptoAdapter(options: CryptoAdapterOptions): CryptoAdapter | null {
+  try {
+    // Use createRequire for ESM compatibility (imported at top of file)
+    const require2 = createRequire(import.meta.url)
+    const { NodeCryptoAdapter } = require2('./node-adapter.js')
+    return new NodeCryptoAdapter(options)
+  } catch (error) {
+    // Silently fail - caller will handle fallback
+    return null
+  }
+}
+
+/**
  * Detect the best crypto adapter for the current environment
  */
 export function detectCryptoAdapter(options: CryptoAdapterOptions = {}): CryptoAdapter {
   const { adapterType = 'auto' } = options
+
+  // Force Node adapter (bcrypt) when explicitly requested
+  if (adapterType === 'node') {
+    const nodeAdapter = loadNodeCryptoAdapter(options)
+    if (nodeAdapter) {
+      return nodeAdapter
+    }
+    console.warn('[CryptoAdapter] NodeCryptoAdapter not available, falling back to WebCrypto or Fallback adapter')
+    // Fall through to WebCrypto or fallback
+  }
 
   // Prefer Web Crypto when available (Cloudflare Workers, modern Node, browsers)
   if (adapterType === 'webcrypto' || (adapterType === 'auto' && hasWebCrypto())) {
     return new WebCryptoAdapter(options)
   }
 
-  // Node-specific adapter deliberately NOT statically imported to keep edge bundles clean.
-  // Modern Node has WebCrypto; if not available, fall back to universal adapter.
-  if (adapterType === 'node' || (adapterType === 'auto' && isNodeEnvironment())) {
-    // In older Node environments without WebCrypto, use the fallback adapter.
-    console.warn('WebCrypto not detected; using fallback crypto adapter in Node environment.')
-    return new FallbackCryptoAdapter(options)
+  // Auto-detect in Node environment - try NodeCryptoAdapter first for bcrypt support
+  if (adapterType === 'auto' && isNodeEnvironment()) {
+    const nodeAdapter = loadNodeCryptoAdapter(options)
+    if (nodeAdapter) {
+      return nodeAdapter
+    }
+    // NodeCryptoAdapter dependencies (bcrypt, jsonwebtoken) not available
   }
 
   // Fallback to basic adapter (less secure but universal)
