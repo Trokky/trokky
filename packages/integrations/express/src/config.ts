@@ -174,6 +174,13 @@ export interface SecurityConfig {
     lastName: string
     role?: UserRole
   }
+  /** Crypto adapter options for password hashing */
+  cryptoOptions?: {
+    /** Force a specific adapter type: 'node' for bcrypt, 'webcrypto' for PBKDF2, 'auto' for auto-detect */
+    adapterType?: 'node' | 'webcrypto' | 'auto'
+    /** Salt rounds for password hashing (default: 12) */
+    saltRounds?: number
+  }
 }
 
 // =============================================================================
@@ -643,6 +650,11 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
         maxRequests: isDev ? 1000 : 100, // More lenient in dev, but still protected
         skipSuccessfulRequests: false,
         ...config.security?.rateLimit
+      },
+      cryptoOptions: {
+        adapterType: 'auto', // Auto-detect best crypto adapter (webcrypto in modern Node, bcrypt fallback)
+        saltRounds: 12,
+        ...config.security?.cryptoOptions
       },
       adminUser: config.security?.adminUser
     },
