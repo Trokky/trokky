@@ -15,7 +15,7 @@
 
 import express, { Express, Router } from 'express'
 import { createLogger } from '@trokky/core'
-import { MailService, MailNotificationService } from '@trokky/mail'
+import { MailService, MailNotificationService, BuiltInTemplateRenderer } from '@trokky/mail'
 import { TrokkyExpress } from './integration.js'
 import { withDefaults } from './config.js'
 import type {
@@ -234,10 +234,18 @@ async function initializeMailService(
 
   const mailConfig = config.mail!
 
+  // Use provided template renderer or create default BuiltInTemplateRenderer
+  const templateRenderer = mailConfig.templateRenderer ?? new BuiltInTemplateRenderer({
+    brandName: config.studio?.branding?.title || 'Trokky',
+    brandColor: '#3B82F6',
+    supportEmail: mailConfig.defaultFrom || 'noreply@localhost',
+    baseUrl: process.env.STUDIO_URL || `http://localhost:${config.server.port || 3000}`,
+  })
+
   // Create mail service
   const mailService = new MailService({
     adapter: mailConfig.adapter,
-    templateRenderer: mailConfig.templateRenderer!,
+    templateRenderer,
     defaultFrom: mailConfig.defaultFrom || 'noreply@localhost',
     defaultFromName: mailConfig.defaultFromName,
     debug: mailConfig.debug ?? config.env === 'development',

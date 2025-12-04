@@ -28,15 +28,19 @@
   "dependencies": {
     "@trokky/adapter-filesystem-data": "*",
     "@trokky/adapter-filesystem-media": "*",
-    "@trokky/core": "*",
-    "@trokky/mail": "*",
     "@trokky/routes": "*",
     "@types/busboy": "^1.5.4",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
     "express": "^4.21.2"
   },
+  "peerDependencies": {
+    "@trokky/core": "*",
+    "@trokky/mail": "*"
+  },
   "devDependencies": {
+    "@trokky/core": "*",
+    "@trokky/mail": "*",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/fs-extra": "^11.0.4",

@@ -26,6 +26,7 @@ export type MediaAdapter = 'filesystem' | 'r2' | 's3'
 export type MailProvider = 'none' | 'resend' | 'console'
 export type AuthMode = 'basic' | 'oauth' | 'none'
 export type StudioMode = 'embedded' | 'separate' | 'none'
+export type CaptchaProvider = 'none' | 'turnstile' | 'recaptcha'
 
 export interface ProjectConfig {
   name: string
@@ -35,6 +36,7 @@ export interface ProjectConfig {
   mail: MailProvider
   auth: AuthMode
   studio: StudioMode
+  captcha: CaptchaProvider
   includeExamples: boolean
 }
 
@@ -51,6 +53,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       mail: 'none',
       auth: 'basic',
       studio: 'embedded',
+      captcha: 'none',
       includeExamples: false,
     },
   },
@@ -62,6 +65,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       mail: 'resend',
       auth: 'oauth',
       studio: 'embedded',
+      captcha: 'turnstile',
       includeExamples: true,
     },
   },
@@ -73,6 +77,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       mail: 'none',
       auth: 'basic',
       studio: 'none',
+      captcha: 'none',
       includeExamples: false,
     },
   },
@@ -177,6 +182,18 @@ async function promptForConfig(projectName: string): Promise<ProjectConfig | nul
   })
   if (typeof studio === 'symbol') return null
 
+  // Captcha provider
+  const captcha = await select({
+    message: 'Captcha provider:',
+    initialValue: templateDefaults.captcha,
+    options: [
+      { value: 'none', label: 'None', hint: 'No captcha protection' },
+      { value: 'turnstile', label: 'Cloudflare Turnstile', hint: 'Privacy-friendly captcha' },
+      { value: 'recaptcha', label: 'Google reCAPTCHA', hint: 'Google reCAPTCHA v2/v3' },
+    ],
+  })
+  if (typeof captcha === 'symbol') return null
+
   // Include examples
   const includeExamples = await confirm({
     message: 'Include example schemas?',
@@ -192,6 +209,7 @@ async function promptForConfig(projectName: string): Promise<ProjectConfig | nul
     mail: mail as MailProvider,
     auth: auth as AuthMode,
     studio: studio as StudioMode,
+    captcha: captcha as CaptchaProvider,
     includeExamples,
   }
 }
@@ -231,9 +249,15 @@ function generatePackageJson(config: ProjectConfig): string {
   if (config.mail === 'resend') {
     deps['@trokky/mail'] = '^0.1.3'
     deps['@trokky/mail-adapter-resend'] = '^0.1.0'
+    deps['@trokky/mail-adapter-console'] = '^0.1.0' // Fallback adapter
   } else if (config.mail === 'console') {
     deps['@trokky/mail'] = '^0.1.3'
     deps['@trokky/mail-adapter-console'] = '^0.1.0'
+  }
+
+  // Studio
+  if (config.studio === 'embedded' || config.studio === 'separate') {
+    deps['@trokky/studio'] = '^0.1.14'
   }
 
   return JSON.stringify({
@@ -367,39 +391,115 @@ function generateTrokkyConfig(config: ProjectConfig): string {
     }`
   }
 
-  let mailConfig = ''
-  if (config.mail === 'resend') {
-    mailConfig = `
-  mail: {
-    adapter: new ResendMailAdapter({
-      apiKey: process.env.RESEND_API_KEY!,
-      defaultFrom: process.env.MAIL_FROM || 'noreply@example.com',
-    }),
-  },`
-  } else if (config.mail === 'console') {
-    mailConfig = `
-  mail: {
-    adapter: new ConsoleMailAdapter(),
-  },`
-  }
-
+  // Mail helper function
+  let mailFunction = ''
   let mailImport = ''
   if (config.mail === 'resend') {
-    mailImport = `import { ResendMailAdapter } from '@trokky/mail-adapter-resend'`
-  } else if (config.mail === 'console') {
-    mailImport = `import { ConsoleMailAdapter } from '@trokky/mail-adapter-console'`
+    mailImport = `import { ResendMailAdapter } from '@trokky/mail-adapter-resend'
+import { ConsoleMailAdapter } from '@trokky/mail-adapter-console'`
+    mailFunction = `
+/**
+ * Get mail adapter configuration based on environment
+ */
+function getMailConfig() {
+  const enabled = process.env.TROKKY_MAIL_ENABLED === 'true'
+  const provider = process.env.TROKKY_MAIL_PROVIDER || 'console'
+
+  if (!enabled) {
+    return undefined
   }
 
+  const emailFrom = process.env.EMAIL_FROM || 'noreply@example.com'
+  const emailFromName = process.env.EMAIL_FROM_NAME || 'My App'
+
+  if (provider === 'resend' && process.env.RESEND_API_KEY) {
+    return {
+      adapter: new ResendMailAdapter({
+        apiKey: process.env.RESEND_API_KEY,
+        from: emailFrom,
+        fromName: emailFromName,
+        debug: process.env.NODE_ENV === 'development',
+      }),
+      defaultFrom: emailFrom,
+      defaultFromName: emailFromName,
+    }
+  }
+
+  // Fallback to console adapter
+  return {
+    adapter: new ConsoleMailAdapter({
+      from: emailFrom,
+      fromName: emailFromName,
+      debug: true,
+    }),
+    defaultFrom: emailFrom,
+    defaultFromName: emailFromName,
+  }
+}
+`
+  } else if (config.mail === 'console') {
+    mailImport = `import { ConsoleMailAdapter } from '@trokky/mail-adapter-console'`
+    mailFunction = `
+/**
+ * Get mail adapter configuration
+ */
+function getMailConfig() {
+  const enabled = process.env.TROKKY_MAIL_ENABLED === 'true'
+  if (!enabled) {
+    return undefined
+  }
+
+  const emailFrom = process.env.EMAIL_FROM || 'noreply@example.com'
+  const emailFromName = process.env.EMAIL_FROM_NAME || 'My App'
+
+  return {
+    adapter: new ConsoleMailAdapter({
+      from: emailFrom,
+      fromName: emailFromName,
+      debug: true,
+    }),
+    defaultFrom: emailFrom,
+    defaultFromName: emailFromName,
+  }
+}
+`
+  }
+
+  const mailConfig = config.mail !== 'none' ? `
+  mail: getMailConfig(),` : ''
+
+  // Captcha config (conditional based on env vars)
+  let captchaConfig = ''
+  if (config.captcha === 'turnstile') {
+    captchaConfig = `
+  // Captcha configuration (only enabled if secret key is set)
+  captcha: process.env.TURNSTILE_SECRET_KEY ? {
+    provider: 'turnstile' as const,
+    siteKey: process.env.TURNSTILE_SITE_KEY || '',
+    secretKey: process.env.TURNSTILE_SECRET_KEY,
+  } : undefined,`
+  } else if (config.captcha === 'recaptcha') {
+    captchaConfig = `
+  // Captcha configuration (only enabled if secret key is set)
+  captcha: process.env.RECAPTCHA_SECRET_KEY ? {
+    provider: 'recaptcha' as const,
+    siteKey: process.env.RECAPTCHA_SITE_KEY || '',
+    secretKey: process.env.RECAPTCHA_SECRET_KEY,
+  } : undefined,`
+  }
+
+  // OAuth config (conditional based on env vars)
   let oauthConfig = ''
   if (config.auth === 'oauth') {
     oauthConfig = `
-  oauth: {
+  // OAuth configuration (only enabled if client ID is set)
+  oauth: process.env.GOOGLE_CLIENT_ID ? {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirectUri: process.env.GOOGLE_REDIRECT_URI!,
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback',
     },
-  },`
+  } : undefined,`
   }
 
   let studioConfig = ''
@@ -431,10 +531,15 @@ function generateTrokkyConfig(config: ProjectConfig): string {
   return `/**
  * Trokky Configuration
  */
+
+// Load environment variables first
+import dotenv from 'dotenv'
+dotenv.config()
+
 ${schemaImports}
 ${mailImport}
 ${structureImport}
-
+${mailFunction}
 export default {
   schemas: ${schemas},
 
@@ -453,7 +558,7 @@ export default {
       firstName: 'Admin',
       lastName: 'User',
     },
-  },${oauthConfig}${mailConfig}${studioConfig}
+  },${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}
 }
 `
 }
@@ -472,6 +577,15 @@ function generateEnvExample(config: ProjectConfig): string {
     'ADMIN_EMAIL=admin@example.com',
     'ADMIN_PASSWORD=admin123',
   ]
+
+  // Studio URL (for separate studio or external access)
+  if (config.studio === 'separate' || config.studio === 'embedded') {
+    lines.push(
+      '',
+      '# Studio',
+      'STUDIO_URL=http://localhost:3000/studio'
+    )
+  }
 
   if (config.dataAdapter === 'postgres') {
     lines.push('', '# Database', 'DATABASE_URL=postgres://user:password@localhost:5432/trokky')
@@ -501,8 +615,21 @@ function generateEnvExample(config: ProjectConfig): string {
     )
   }
 
-  if (config.mail === 'resend') {
-    lines.push('', '# Email (Resend)', 'RESEND_API_KEY=re_xxxxx', 'MAIL_FROM=noreply@example.com')
+  if (config.mail !== 'none') {
+    lines.push(
+      '',
+      '# Email',
+      'TROKKY_MAIL_ENABLED=true',
+      `TROKKY_MAIL_PROVIDER=${config.mail}`
+    )
+    if (config.mail === 'resend') {
+      lines.push('RESEND_API_KEY=re_xxxxx')
+    }
+    lines.push(
+      'EMAIL_FROM=noreply@example.com',
+      'EMAIL_FROM_NAME=My App',
+      'EMAIL_REPLY_TO=support@example.com'
+    )
   }
 
   if (config.auth === 'oauth') {
@@ -511,6 +638,24 @@ function generateEnvExample(config: ProjectConfig): string {
       'GOOGLE_CLIENT_ID=your-client-id',
       'GOOGLE_CLIENT_SECRET=your-client-secret',
       'GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback'
+    )
+  }
+
+  if (config.captcha === 'turnstile') {
+    lines.push(
+      '',
+      '# Cloudflare Turnstile',
+      'TURNSTILE_SITE_KEY=your-site-key',
+      'TURNSTILE_SECRET_KEY=your-secret-key'
+    )
+  }
+
+  if (config.captcha === 'recaptcha') {
+    lines.push(
+      '',
+      '# Google reCAPTCHA',
+      'RECAPTCHA_SITE_KEY=your-site-key',
+      'RECAPTCHA_SECRET_KEY=your-secret-key'
     )
   }
 
@@ -672,7 +817,7 @@ import type { ContentSchema } from '@trokky/types'
 export const articleSchema: ContentSchema = {
   name: 'article',
   title: 'Article',
-  type: 'collection',
+  type: 'document',
   fields: [
     {
       name: 'title',
@@ -715,7 +860,7 @@ import type { ContentSchema } from '@trokky/types'
 export const pageSchema: ContentSchema = {
   name: 'page',
   title: 'Page',
-  type: 'collection',
+  type: 'document',
   fields: [
     {
       name: 'title',
@@ -911,6 +1056,7 @@ export const createCommand = new Command()
   .option('--mail <provider>', 'Mail provider (none, resend, console)')
   .option('--auth <mode>', 'Auth mode (basic, oauth, none)')
   .option('--studio <mode>', 'Studio mode (embedded, separate, none)')
+  .option('--captcha <provider>', 'Captcha provider (none, turnstile, recaptcha)')
   .option('--examples', 'Include example schemas')
   .option('-y, --yes', 'Skip prompts and use defaults')
   .action(async (projectName: string, options) => {
@@ -937,6 +1083,7 @@ export const createCommand = new Command()
         mail: (options.mail || templateDefaults.mail) as MailProvider,
         auth: (options.auth || templateDefaults.auth) as AuthMode,
         studio: (options.studio || templateDefaults.studio) as StudioMode,
+        captcha: (options.captcha || templateDefaults.captcha) as CaptchaProvider,
         includeExamples: options.examples ?? templateDefaults.includeExamples ?? false,
       }
     } else {
@@ -957,6 +1104,7 @@ export const createCommand = new Command()
     console.log(chalk.gray(`  Mail:         ${config.mail}`))
     console.log(chalk.gray(`  Auth:         ${config.auth}`))
     console.log(chalk.gray(`  Studio:       ${config.studio}`))
+    console.log(chalk.gray(`  Captcha:      ${config.captcha}`))
     console.log(chalk.gray(`  Examples:     ${config.includeExamples ? 'yes' : 'no'}`))
     console.log()
 
