@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
+import { getBasePath } from '@/utils/navigation';
 
 interface OAuthCallbackPageProps {
   onLoginSuccess: () => void;
@@ -200,11 +201,6 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
   const handleRetry = () => {
     // Redirect to login page
     window.location.href = getBasePath() + '/';
-  };
-
-  const getBasePath = () => {
-    const config = (window as any).TROKKY_CONFIG;
-    return config?.basePath || '';
   };
 
   return (

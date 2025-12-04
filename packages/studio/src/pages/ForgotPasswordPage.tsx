@@ -5,6 +5,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
+import { getStudioPath, navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
 
@@ -91,7 +92,7 @@ export function ForgotPasswordPage() {
                 The link will expire in 1 hour.
               </p>
               <Button
-                onClick={() => window.location.href = '/'}
+                onClick={() => navigateTo('/')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
                 Back to Sign In
@@ -115,7 +116,7 @@ export function ForgotPasswordPage() {
         <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20 p-8 shadow-xl">
           <div className="mb-6">
             <a
-              href="/"
+              href={getStudioPath('/')}
               className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />

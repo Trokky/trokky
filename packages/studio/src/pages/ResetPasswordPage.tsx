@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { CheckCircleIcon, XCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
 
@@ -156,7 +157,7 @@ export function ResetPasswordPage() {
                 Your password has been successfully reset. You can now sign in with your new password.
               </p>
               <Button
-                onClick={() => window.location.href = '/'}
+                onClick={() => navigateTo('/')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
                 Sign In
@@ -194,7 +195,7 @@ export function ResetPasswordPage() {
                 Reset links expire after 1 hour. Please request a new one.
               </p>
               <Button
-                onClick={() => window.location.href = '/forgot-password'}
+                onClick={() => navigateTo('/forgot-password')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
                 Request New Link

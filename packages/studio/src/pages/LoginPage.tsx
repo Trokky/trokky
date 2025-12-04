@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { storageService, STORAGE_KEYS } from '@/utils/storage';
+import { getStudioPath } from '@/utils/navigation';
 import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
@@ -774,7 +775,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               </label>
 
               <a
-                href="/forgot-password"
+                href={getStudioPath('/forgot-password')}
                 className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
               >
                 Forgot password?
