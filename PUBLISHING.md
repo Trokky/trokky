@@ -15,12 +15,15 @@ This guide explains how to publish new versions of Trokky packages to GitHub Pac
 1. Edit code in packages/*/src/
 2. npm run build
 3. Create .changeset/fix-name.md
-4. git commit (code changes)
+4. git commit (code changes + changeset file)
 5. npm run version-packages
 6. git commit (version bumps)
 7. npm run build
 8. git push origin main
 9. NODE_AUTH_TOKEN=ghp_XXX npm publish (in package directory)
+
+# IMPORTANT: Never manually edit package.json versions - let version-packages handle it
+# IMPORTANT: Always commit before publishing
 ```
 
 ## Detailed Workflow
