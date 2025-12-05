@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.1.2
+
+### Patch Changes
+
+- d90b005: feat(client): Add fluent query builder and image URL builder APIs
+
+  New features for easier frontend development:
+
+  **Fluent Query Builder**
+  - `client.from('article')` - Start a chainable query
+  - `.published()` / `.draft()` - Filter by status
+  - `.where()` / `.eq()` / `.gt()` / `.lt()` etc. - Add filters
+  - `.expand('category')` - Auto-resolve reference fields
+  - `.sort()` / `.newest()` / `.oldest()` - Sort results
+  - `.limit()` / `.offset()` - Pagination
+  - `.fetch()` / `.first()` / `.count()` - Execute query
+
+  **Singleton Builder**
+  - `client.singleton('homepage')` - Fetch singleton documents
+  - `.expand()` - Resolve references in singletons
+  - `.fresh()` - Bypass cache
+
+  **Image URL Builder**
+  - `client.imageUrl(media).width(800).format('webp').url()` - Fluent URL building
+  - `client.createImageUrlBuilder()` - Create reusable factory
+  - `getSrcSet()` - Generate responsive srcset strings
+  - `getBestVariant()` - Auto-select best variant for viewport
+
+  **Server Helpers** (new `/server` export)
+  - `createMediaProxy()` - Generic media proxy factory
+  - `createAstroMediaProxy()` - Astro-specific handler
+  - `createNextMediaProxy()` - Next.js App Router handler
+  - `createExpressMediaProxy()` - Express middleware
+
+  All changes are backward compatible - existing code continues to work unchanged.
+
 All notable changes to the `@trokky/client` package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -10,18 +46,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Core Client Features
+
 - **TrokkyClient**: Main client class orchestrating all SDK functionality
 - **HttpClient**: Low-level HTTP client with authentication and error handling
 - **DocumentClient**: High-level document operations with smart caching
 - **CacheManager**: TTL-based caching system with automatic cleanup
 
 #### Authentication & Security
+
 - JWT token management with automatic refresh
 - Comprehensive error handling with retry logic and exponential backoff
 - Support for Bearer token authentication
 - Automatic token storage and retrieval
 
 #### Document Operations
+
 - Complete CRUD operations for documents
 - Advanced querying with filtering, sorting, and pagination
 - Search functionality with text queries and field targeting
@@ -29,24 +68,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch operations support
 
 #### Media Management
+
 - File upload support with progress tracking
 - Media retrieval and deletion
 - Support for both File objects and Buffer data
 - Automatic FormData handling
 
 #### TypeScript Features
+
 - **TypeGenerator**: Automatic TypeScript type generation from schemas
 - Full type safety throughout the SDK
 - Generic document types with proper inference
 - Validation schema generation
 
 #### Framework Integration
+
 - Framework-agnostic design (React, Vue, Svelte, Node.js)
 - Browser and server-side environment support
 - Automatic environment detection for crypto operations
 - Support for serverless and edge runtime environments
 
 #### Developer Experience
+
 - Comprehensive TypeScript definitions
 - Auto-completion and IntelliSense support
 - Debug mode with detailed logging
@@ -55,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Implementation
 
 #### HTTP Client (`src/http/client.ts`)
+
 - Automatic request/response handling with proper error mapping
 - Configurable timeout and retry mechanisms
 - Request interceptors for authentication
@@ -62,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for all HTTP methods (GET, POST, PUT, PATCH, DELETE)
 
 #### Caching System (`src/cache/manager.ts`)
+
 - In-memory cache with TTL (Time To Live) support
 - Automatic cleanup of expired entries
 - Cache key generation for consistent caching
@@ -69,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable cache duration
 
 #### Document Client (`src/document/client.ts`)
+
 - High-level abstraction over HTTP operations
 - Smart cache integration with invalidation
 - Query builder with MongoDB-style operators
@@ -76,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic cache warming and updating
 
 #### Type Generator (`src/generator/index.ts`)
+
 - Schema-to-TypeScript conversion
 - Support for complex field types (objects, arrays, references)
 - Validation schema generation
@@ -85,6 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### API Reference
 
 #### Main Client
+
 ```typescript
 class TrokkyClient {
   // Authentication
@@ -92,19 +140,26 @@ class TrokkyClient {
   refreshAuth(): Promise<AuthTokens>
   logout(): Promise<void>
   isAuthenticated(): boolean
-  
+
   // Documents
   getDocument<T>(type: string, id: string): Promise<DocumentResult<T>>
-  queryDocuments<T>(type: string, options?: QueryOptions): Promise<CollectionResult<T>>
+  queryDocuments<T>(
+    type: string,
+    options?: QueryOptions
+  ): Promise<CollectionResult<T>>
   createDocument<T>(type: string, data: T): Promise<DocumentResult<T>>
-  updateDocument<T>(type: string, id: string, data: Partial<T>): Promise<DocumentResult<T>>
+  updateDocument<T>(
+    type: string,
+    id: string,
+    data: Partial<T>
+  ): Promise<DocumentResult<T>>
   deleteDocument(type: string, id: string): Promise<void>
-  
+
   // Media
   uploadFile(file: File | Buffer, filename?: string): Promise<MediaResult>
   getMedia(id: string): Promise<MediaResult>
   deleteMedia(id: string): Promise<void>
-  
+
   // Utilities
   ping(): Promise<{ status: string; timestamp: string }>
   health(): Promise<{ status: string; services: Record<string, string> }>
@@ -114,6 +169,7 @@ class TrokkyClient {
 ```
 
 #### Type Generation
+
 ```typescript
 class TypeGenerator {
   generateFromUrl(): Promise<void>
