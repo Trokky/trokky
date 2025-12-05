@@ -489,10 +489,10 @@ export class TypeGenerator {
   private generateIndex(documents: DocumentSchema[]): string {
     let content = `/**\n * Generated TypeScript types for Trokky CMS\n * Auto-generated - do not edit manually\n */\n\n`
 
-    // Export document types
+    // Export document types (no .js extension for better compatibility)
     for (const document of documents) {
       const filename = this.camelToKebab(document.name)
-      content += `export * from './${filename}.js'\n`
+      content += `export * from './${filename}'\n`
     }
 
     // Export utility types
@@ -521,11 +521,168 @@ export class TypeGenerator {
 }
 
 /**
- * CLI function for generating types
+ * CLI function for generating types from URL
  */
 export async function generateTypes(options: TypeGeneratorOptions): Promise<void> {
   const generator = new TypeGenerator(options)
   await generator.generateFromUrl()
+}
+
+/**
+ * Generate types from local schema files
+ *
+ * @example
+ * ```typescript
+ * await generateTypesFromPath({
+ *   schemaPath: '../cms/schemas',
+ *   outputDir: './src/types/cms'
+ * })
+ * ```
+ */
+export async function generateTypesFromPath(options: {
+  schemaPath: string
+  outputDir: string
+  namespace?: string
+  fileExtension?: 'ts' | 'd.ts'
+  includeValidation?: boolean
+}): Promise<void> {
+  const fs = await import('fs/promises')
+  const path = await import('path')
+  const { pathToFileURL } = await import('url')
+
+  const schemaDir = path.resolve(options.schemaPath)
+
+  // Check if schemas/index.ts exists
+  const indexPath = path.join(schemaDir, 'index.ts')
+  const indexJsPath = path.join(schemaDir, 'index.js')
+
+  let schemas: any[] = []
+
+  // Try to import from index file first
+  try {
+    // Check which file exists
+    let importPath: string
+    try {
+      await fs.access(indexJsPath)
+      importPath = indexJsPath
+    } catch {
+      // If .js doesn't exist, try .ts via tsx or direct import
+      importPath = indexPath
+    }
+
+    const fileUrl = pathToFileURL(importPath).href
+    const module = await import(/* @vite-ignore */ fileUrl)
+
+    if (module.schemas && Array.isArray(module.schemas)) {
+      schemas = module.schemas
+    } else {
+      // Try to find all exported schemas
+      schemas = Object.values(module).filter(
+        (exp: any) => exp && typeof exp === 'object' && exp.name && exp.fields
+      )
+    }
+  } catch (err) {
+    // Fallback: read individual schema files
+    console.log('Could not import schemas/index, scanning individual files...')
+
+    const files = await fs.readdir(schemaDir)
+    const schemaFiles = files.filter(f =>
+      (f.endsWith('.ts') || f.endsWith('.js')) &&
+      f !== 'index.ts' &&
+      f !== 'index.js' &&
+      !f.startsWith('utils')
+    )
+
+    for (const file of schemaFiles) {
+      try {
+        const filePath = path.join(schemaDir, file)
+        const fileUrl = pathToFileURL(filePath).href
+        const module = await import(/* @vite-ignore */ fileUrl)
+
+        // Find schema export (usually named *Schema)
+        const schemaExport = Object.values(module).find(
+          (exp: any) => exp && typeof exp === 'object' && exp.name && exp.fields
+        )
+
+        if (schemaExport) {
+          schemas.push(schemaExport)
+        }
+      } catch (fileErr) {
+        console.warn(`Warning: Could not import ${file}:`, fileErr)
+      }
+    }
+  }
+
+  if (schemas.length === 0) {
+    throw new Error(`No schemas found in ${schemaDir}`)
+  }
+
+  console.log(`Found ${schemas.length} schemas`)
+
+  // Transform to ProjectSchema format
+  const projectSchema: ProjectSchema = {
+    name: 'TrokkyProject',
+    version: '1.0.0',
+    documents: schemas.map(schema => ({
+      name: schema.name,
+      title: schema.title || schema.name,
+      description: schema.description,
+      fields: transformSchemaFields(schema.fields)
+    }))
+  }
+
+  // Generate types using existing generator
+  const generator = new TypeGenerator({
+    schemaUrl: '', // Not used
+    outputDir: options.outputDir,
+    namespace: options.namespace || 'Trokky',
+    fileExtension: options.fileExtension || 'ts',
+    includeValidation: options.includeValidation ?? true
+  })
+
+  await generator.generateFromSchema(projectSchema)
+}
+
+/**
+ * Transform Trokky schema fields to generator format
+ */
+function transformSchemaFields(fields: Record<string, any> | any[]): FieldSchema[] {
+  // Handle array format
+  if (Array.isArray(fields)) {
+    return fields.map(field => transformSingleField(field.name, field))
+  }
+
+  // Handle Record format (modern ObjectField format)
+  return Object.entries(fields).map(([name, field]) => transformSingleField(name, field))
+}
+
+function transformSingleField(name: string, field: any): FieldSchema {
+  const result: FieldSchema = {
+    name,
+    type: field.type,
+    title: field.title,
+    description: field.description,
+    required: field.required,
+    validation: field.validation,
+    options: field.options
+  }
+
+  // Handle nested object fields
+  if (field.type === 'object' && field.fields) {
+    result.fields = transformSchemaFields(field.fields)
+  }
+
+  // Handle array 'of' field
+  if (field.type === 'array' && field.of) {
+    result.of = transformSingleField('item', field.of)
+  }
+
+  // Handle reference 'to' field
+  if (field.type === 'reference' && field.to) {
+    result.to = field.to
+  }
+
+  return result
 }
 
 /**

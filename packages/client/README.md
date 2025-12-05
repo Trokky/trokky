@@ -49,15 +49,52 @@ const posts = await client.queryDocuments('post', {
 
 ### TypeScript Type Generation
 
-Generate TypeScript types from your Trokky schemas:
+Generate TypeScript types from your Trokky schemas using the CLI or programmatically.
+
+#### CLI Usage
+
+```bash
+# From local compiled schemas (recommended for development)
+npx trokky-client generate-types --schema-path ../cms/dist/schemas -o ./src/types/cms
+
+# From remote API (requires running CMS server)
+npx trokky-client generate-types \
+  --schema-url http://localhost:3000/api/collections \
+  --auth-token YOUR_API_TOKEN \
+  -o ./src/types/cms
+```
+
+**CLI Options:**
+| Option | Description |
+|--------|-------------|
+| `-p, --schema-path <path>` | Local path to compiled schemas directory |
+| `-u, --schema-url <url>` | API URL to fetch schemas from |
+| `-o, --output-dir <dir>` | Output directory (default: `./src/types/trokky`) |
+| `-t, --auth-token <token>` | API token for authentication |
+| `-n, --namespace <name>` | TypeScript namespace (default: `Trokky`) |
+| `-e, --extension <ext>` | File extension: `ts` or `d.ts` (default: `ts`) |
+| `--no-validation` | Skip validation schema generation |
+
+> **Note:** The `--schema-path` option requires compiled JS files. Run `npm run build` in your CMS project first.
+
+#### Programmatic Usage
 
 ```typescript
-import { generateTypes } from '@trokky/client/generator'
+import { generateTypes, generateTypesFromPath } from '@trokky/client/generator'
 
-await generateTypes({
-  schemaUrl: 'https://your-trokky-api.com/api/v1/schema',
-  outputDir: './src/types/trokky',
+// From local schemas
+await generateTypesFromPath({
+  schemaPath: '../cms/dist/schemas',
+  outputDir: './src/types/cms',
   namespace: 'Trokky',
+  includeValidation: true
+})
+
+// From remote API
+await generateTypes({
+  schemaUrl: 'https://your-api.com/api/collections',
+  outputDir: './src/types/trokky',
+  authToken: 'your-token',
   includeValidation: true
 })
 ```
