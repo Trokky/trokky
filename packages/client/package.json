@@ -26,6 +26,16 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js",
+      "require": "./dist/query/index.js"
+    },
     "./generator": {
       "types": "./dist/generator/index.d.ts",
       "import": "./dist/generator/index.js",

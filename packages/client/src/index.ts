@@ -9,9 +9,22 @@ export { DocumentClient } from './document/client.js'
 export { TrokkyClient } from './client.js'
 export { MediaHelper } from './media/helper.js'
 
+// Fluent Query Builder
+export { QueryBuilder, SingletonBuilder } from './query/builder.js'
+export type { QueryBuilderOptions, ExpandConfig } from './query/builder.js'
+
+// Fluent Image URL Builder
+export {
+  ImageUrlBuilder,
+  createImageUrlBuilder,
+  getSrcSet,
+  getBestVariant
+} from './media/url-builder.js'
+export type { ImageUrlBuilderOptions, ImageFormat, ImageFit } from './media/url-builder.js'
+
 // Shortcode support
 export { ShortcodeResolver, createMediaUrlResolver } from './shortcodes/resolver.js'
-export { 
+export {
   parseShortcodeAttrs,
   parseImageShortcode,
   shortcodeToHtml,

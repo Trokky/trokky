@@ -8,16 +8,19 @@ import { CacheManager } from './cache/manager.js'
 import { DocumentClient } from './document/client.js'
 import { MediaHelper } from './media/helper.js'
 import { ShortcodeResolver } from './shortcodes/resolver.js'
+import { QueryBuilder, SingletonBuilder } from './query/builder.js'
+import { ImageUrlBuilder, createImageUrlBuilder } from './media/url-builder.js'
 
-import type { 
-  ClientConfig, 
-  AuthConfig, 
+import type {
+  ClientConfig,
+  AuthConfig,
   AuthTokens,
   QueryOptions,
   DocumentResult,
   CollectionResult,
   MediaResult,
-  BaseDocument
+  BaseDocument,
+  MediaFieldValue
 } from './types/index.js'
 
 export class TrokkyClient {
@@ -320,5 +323,78 @@ export class TrokkyClient {
    */
   destroy(): void {
     this.cache.destroy()
+  }
+
+  // ============================================
+  // Fluent Query Builder API
+  // ============================================
+
+  /**
+   * Start a fluent query for a collection type
+   *
+   * @example
+   * ```typescript
+   * const articles = await client
+   *   .from('article')
+   *   .published()
+   *   .expand('category')
+   *   .sort({ _createdAt: 'desc' })
+   *   .limit(10)
+   *   .fetch()
+   * ```
+   */
+  from<T extends BaseDocument = BaseDocument>(type: string): QueryBuilder<T> {
+    return new QueryBuilder<T>(this.http, this.cache, type)
+  }
+
+  /**
+   * Fetch a singleton document (e.g., homepage, settings)
+   *
+   * @example
+   * ```typescript
+   * const homepage = await client.singleton('homepage').fetch()
+   * const settings = await client.singleton('settings', 'site-settings').fetch()
+   * ```
+   */
+  singleton<T extends BaseDocument = BaseDocument>(type: string, id?: string): SingletonBuilder<T> {
+    return new SingletonBuilder<T>(this.http, this.cache, type, id)
+  }
+
+  // ============================================
+  // Fluent Image URL Builder API
+  // ============================================
+
+  /**
+   * Create an image URL builder for a media field
+   *
+   * @example
+   * ```typescript
+   * const url = client.imageUrl(article.featuredImage)
+   *   .width(800)
+   *   .height(400)
+   *   .format('webp')
+   *   .url()
+   * ```
+   */
+  imageUrl(source: MediaFieldValue | string | null | undefined): ImageUrlBuilder {
+    return new ImageUrlBuilder({
+      baseUrl: this.http.getBaseUrl()
+    }).image(source)
+  }
+
+  /**
+   * Create a reusable image URL builder factory
+   *
+   * @example
+   * ```typescript
+   * const urlFor = client.createImageUrlBuilder()
+   * const url = urlFor(article.image).width(800).url()
+   * ```
+   */
+  createImageUrlBuilder(options?: { proxyPath?: string }) {
+    return createImageUrlBuilder({
+      baseUrl: this.http.getBaseUrl(),
+      proxyPath: options?.proxyPath
+    })
   }
 }
