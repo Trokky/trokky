@@ -8,10 +8,75 @@ This guide explains how to publish new versions of Trokky packages to GitHub Pac
 - GitHub Personal Access Token with `write:packages` permission
 - Node.js 18+ installed
 
-## Quick Reference
+## Publishing Methods
+
+There are three ways to publish packages. Choose based on your situation:
+
+| Method | When to Use | Automation Level |
+|--------|-------------|------------------|
+| **Automated (Recommended)** | Regular releases, new features, bug fixes | Full CI/CD |
+| **Manual GitHub Action** | Quick fixes, re-publishing failed releases | Semi-automated |
+| **Local CLI** | Debugging, emergencies, offline publishing | Manual |
+
+### Recommended: Automated Publishing via GitHub Actions
+
+This is the preferred method for most releases. The CI/CD pipeline handles versioning and publishing automatically.
 
 ```bash
-# Complete workflow for publishing a bug fix
+# Automated workflow (RECOMMENDED)
+1. Edit code in packages/*/src/
+2. npm run build
+3. npm test
+4. Create .changeset/fix-name.md
+5. git commit (code changes + changeset file)
+6. git push origin main
+7. Wait for "Release PR" to be created by GitHub Actions
+8. Review and merge the Release PR
+9. GitHub Actions automatically publishes the packages
+```
+
+**How it works:**
+- Push triggers `.github/workflows/release-changesets.yml`
+- Pipeline detects changeset files and creates a "Release PR"
+- The Release PR contains version bumps and CHANGELOG updates
+- Merging the PR triggers automatic publishing to GitHub Packages
+
+### Alternative: Manual GitHub Action
+
+Use this when you need to publish without going through the Release PR flow.
+
+1. Go to GitHub repo > Actions > "Manual Publish"
+2. Click "Run workflow"
+3. Select package(s) to publish: `all` or specific package name
+4. Click "Run workflow"
+
+**When to use:**
+- Re-publishing after a failed automated release
+- Publishing a hotfix quickly
+- Publishing packages that were versioned locally
+
+### Alternative: Local CLI Publishing
+
+Use this as a last resort or for debugging.
+
+```bash
+# Local workflow
+1. Edit code in packages/*/src/
+2. npm run build
+3. Create .changeset/fix-name.md
+4. git commit (code changes + changeset file)
+5. npm run version-packages
+6. git commit (version bumps)
+7. npm run build
+8. git push origin main
+9. cd packages/[package-name]
+10. NODE_AUTH_TOKEN=ghp_XXX npm publish
+```
+
+## Quick Reference (Local Publishing)
+
+```bash
+# Complete workflow for LOCAL publishing (use only when CI/CD is not available)
 1. Edit code in packages/*/src/
 2. npm run build
 3. Create .changeset/fix-name.md
@@ -26,7 +91,32 @@ This guide explains how to publish new versions of Trokky packages to GitHub Pac
 # IMPORTANT: Always commit before publishing
 ```
 
-## Detailed Workflow
+## GitHub Actions Workflows
+
+### release-changesets.yml (Automatic)
+
+**Triggers:** Push to `main` when `.changeset/**` or `packages/**` files change
+
+**Behavior:**
+1. Checks if any changeset files exist (`.changeset/*.md`)
+2. If changesets found: Creates a "Release PR" with version bumps
+3. When Release PR is merged: Publishes all affected packages
+
+**File:** `.github/workflows/release-changesets.yml`
+
+### manual-publish.yml (Manual)
+
+**Triggers:** Manual dispatch from GitHub Actions UI
+
+**Options:**
+- `all` - Publish all packages
+- Individual packages: `client`, `core`, `routes`, `fields`, `studio`, `express`, `adapter-filesystem`, etc.
+
+**File:** `.github/workflows/manual-publish.yml`
+
+## Detailed Workflow (Local Publishing)
+
+The following steps detail the local publishing workflow. For automated publishing, simply push your changeset and let GitHub Actions handle the rest.
 
 ### Step 1: Make Your Code Changes
 
