@@ -260,6 +260,9 @@ function generatePackageJson(config: ProjectConfig): string {
     deps['@trokky/studio'] = '^0.1.14'
   }
 
+  // Media processing (Sharp for image variants)
+  deps['sharp'] = '^0.33.0'
+
   return JSON.stringify({
     name: config.name,
     version: '0.1.0',
@@ -468,6 +471,56 @@ function getMailConfig() {
   const mailConfig = config.mail !== 'none' ? `
   mail: getMailConfig(),` : ''
 
+  // Media processing section (always included for full template, optional for others)
+  const mediaProcessingConfig = `
+  // Media processing with Sharp
+  media: {
+    processor: 'sharp' as const,
+    variants: [
+      {
+        name: 'thumbnail',
+        width: 300,
+        height: 200,
+        format: 'webp' as const,
+        quality: 80,
+        fit: 'cover' as const,
+      },
+      {
+        name: 'medium',
+        width: 800,
+        height: 600,
+        format: 'webp' as const,
+        quality: 85,
+        fit: 'inside' as const,
+      },
+      {
+        name: 'large',
+        width: 1200,
+        height: 800,
+        format: 'webp' as const,
+        quality: 90,
+        fit: 'cover' as const,
+      },
+    ],
+    upload: {
+      maxFileSize: 50 * 1024 * 1024, // 50MB
+      maxFiles: 10,
+      allowedMimeTypes: [
+        // Images
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/svg+xml',
+        // Documents
+        'application/pdf',
+        // Video
+        'video/mp4',
+        'video/webm',
+      ],
+    },
+  },`
+
   // Captcha config (conditional based on env vars)
   let captchaConfig = ''
   if (config.captcha === 'turnstile') {
@@ -547,7 +600,7 @@ export default {
     data: ${dataConfig},
     media: ${mediaConfig},
   },
-
+${mediaProcessingConfig}
   security: {
     enabled: true,
     jwtSecret: process.env.JWT_SECRET || 'change-me-in-production',
