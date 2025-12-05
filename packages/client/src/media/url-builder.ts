@@ -193,21 +193,33 @@ export class ImageUrlBuilder {
       return null
     }
 
-    const basePath = this.options.proxyPath || this.options.baseUrl
-
-    // If using a predefined variant, return variant URL
-    if (this._variant) {
-      if (this._variant === 'original') {
-        return `${basePath}/media/${this.mediaId}/file`
-      }
-      return `${basePath}/media/${this.mediaId}/variants/${this._variant}`
-    }
+    const isProxy = !!this.options.proxyPath
+    // When using proxyPath, it replaces the full path (e.g., '/media')
+    // When using baseUrl, we need to add /media prefix
+    const basePath = isProxy
+      ? this.options.proxyPath
+      : `${this.options.baseUrl}/media`
 
     // Build URL with transformation parameters
     const params = new URLSearchParams()
 
-    if (this._width) params.set('w', this._width.toString())
-    if (this._height) params.set('h', this._height.toString())
+    // For proxy mode with variants, convert to width params
+    if (isProxy && this._variant && this._variant !== 'original') {
+      const variantWidths: Record<string, number> = {
+        thumbnail: 300,
+        medium: 800,
+        large: 1200
+      }
+      const width = variantWidths[this._variant]
+      if (width) {
+        params.set('w', width.toString())
+      }
+    } else {
+      // Use explicit width/height if set
+      if (this._width) params.set('w', this._width.toString())
+      if (this._height) params.set('h', this._height.toString())
+    }
+
     if (this._format && this._format !== 'auto') params.set('fm', this._format)
     if (this._quality) params.set('q', this._quality.toString())
     if (this._fit) params.set('fit', this._fit)
@@ -217,14 +229,16 @@ export class ImageUrlBuilder {
 
     const queryString = params.toString()
 
-    // If no transformations, return original file URL
-    if (!queryString) {
-      return `${basePath}/media/${this.mediaId}/file`
+    // For non-proxy mode with variants, use the /variants/ path
+    if (!isProxy && this._variant) {
+      if (this._variant === 'original') {
+        return `${basePath}/${this.mediaId}/file`
+      }
+      return `${basePath}/${this.mediaId}/variants/${this._variant}`
     }
 
-    // Return transform URL (for future on-the-fly transformations)
-    // For now, fall back to file URL since server may not support transforms
-    return `${basePath}/media/${this.mediaId}/file${queryString ? `?${queryString}` : ''}`
+    // Return URL with query params
+    return `${basePath}/${this.mediaId}/file${queryString ? `?${queryString}` : ''}`
   }
 
   /**
@@ -270,12 +284,17 @@ export function getSrcSet(
   }
 
   const mediaId = source.asset._ref
-  const basePath = options.proxyPath || options.baseUrl
+  const isProxy = !!options.proxyPath
+  // When using proxyPath, it replaces the full path (e.g., '/media')
+  // When using baseUrl, we need to add /media prefix
+  const basePath = isProxy
+    ? options.proxyPath
+    : `${options.baseUrl}/media`
 
-  // If using named variants
-  if (options.variants) {
+  // If using named variants (only for non-proxy mode)
+  if (options.variants && !isProxy) {
     const variantWidths: Record<string, number> = {
-      thumbnail: 200,
+      thumbnail: 300,
       medium: 800,
       large: 1200,
       original: 1920
@@ -285,18 +304,18 @@ export function getSrcSet(
       .map(variant => {
         const width = variantWidths[variant] || 800
         const url = variant === 'original'
-          ? `${basePath}/media/${mediaId}/file`
-          : `${basePath}/media/${mediaId}/variants/${variant}`
+          ? `${basePath}/${mediaId}/file`
+          : `${basePath}/${mediaId}/variants/${variant}`
         return `${url} ${width}w`
       })
       .join(', ')
   }
 
-  // If using custom widths
+  // Use custom widths or defaults (works for both proxy and non-proxy)
   const widths = options.widths || [400, 800, 1200, 1920]
 
   return widths
-    .map(w => `${basePath}/media/${mediaId}/file?w=${w} ${w}w`)
+    .map(w => `${basePath}/${mediaId}/file?w=${w} ${w}w`)
     .join(', ')
 }
 
