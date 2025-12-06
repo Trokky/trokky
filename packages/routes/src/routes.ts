@@ -3827,9 +3827,16 @@ export class TrokkyRoutes {
   /**
    * Validate Authorization Request (for consent page)
    * GET /auth/authorize
-   * No authentication required - returns info for consent page
+   * Authentication optional - if authenticated, checks for existing consent
    */
   private async validateAuthorizationRequest(request: HttpRequest): Promise<HttpResponse> {
+    // Try to authenticate, but don't fail if no token present
+    // This allows consent checking for logged-in users
+    try {
+      await this.validateAuthentication(request)
+    } catch {
+      // Ignore auth errors - user just won't get auto-approval
+    }
     const { validateAuthorizationRequest: handler } = await import('./auth/oauth2-server.js')
     return handler(this.core, request)
   }

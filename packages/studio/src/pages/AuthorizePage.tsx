@@ -19,6 +19,7 @@ interface AuthorizationInfo {
   redirectUri: string;
   state: string;
   codeChallenge: string;
+  hasExistingConsent?: boolean;
 }
 
 type AuthStatus = 'loading' | 'pending' | 'redirecting' | 'error';
@@ -75,7 +76,16 @@ export function AuthorizePage() {
 
       if (response.success && response.data) {
         setAuthInfo(response.data);
-        setStatus('pending');
+
+        // Auto-approve if user has existing consent for all requested scopes
+        // Stay in 'loading' state during auto-approve to avoid UI flicker
+        if (response.data.hasExistingConsent) {
+          // Don't change status - keep showing loading spinner
+          // This prevents the visual glitch from rapid state changes
+          await autoApprove(response.data);
+        } else {
+          setStatus('pending');
+        }
       } else {
         setStatus('error');
         const errorMsg = typeof response.error === 'string'
@@ -87,6 +97,30 @@ export function AuthorizePage() {
       setStatus('error');
       const errorMsg = err?.message || 'Failed to validate authorization request';
       setError(errorMsg);
+    }
+  };
+
+  const autoApprove = async (info: AuthorizationInfo) => {
+    try {
+      const response = await apiClient.post<{ redirectUrl: string }>('/auth/authorize', {
+        action: 'approve',
+        client_id: info.client.id,
+        redirect_uri: info.redirectUri,
+        scopes: info.scopes,
+        state: info.state,
+        code_challenge: info.codeChallenge
+      });
+
+      if (response.success && response.data?.redirectUrl) {
+        // Redirect immediately - no state change needed, user will leave the page
+        window.location.href = response.data.redirectUrl;
+      } else {
+        // If auto-approve fails, fall back to showing consent screen
+        setStatus('pending');
+      }
+    } catch {
+      // If auto-approve fails, fall back to showing consent screen
+      setStatus('pending');
     }
   };
 
