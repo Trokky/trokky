@@ -1,6 +1,6 @@
 {
   "name": "@trokky/trokky",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "TypeScript-native client SDK and CLI for Trokky CMS with project scaffolding, backup/restore, and migration tools",
   "type": "module",
   "main": "./dist/index.js",
