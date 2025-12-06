@@ -8,6 +8,7 @@ import { migrateCommand } from './migrate.js'
 import { cleanCommand } from './clean.js'
 import { createCommand } from './create.js'
 import { configCommand } from './config.js'
+import { loginCommand } from './login.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../../package.json')
@@ -20,6 +21,7 @@ program
   .version(pkg.version)
 
 program.addCommand(createCommand)
+program.addCommand(loginCommand)
 program.addCommand(configCommand)
 program.addCommand(backupCommand)
 program.addCommand(restoreCommand)

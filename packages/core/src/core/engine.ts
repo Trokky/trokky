@@ -86,6 +86,11 @@ import {
   type CaptchaProtectedEndpoint,
   type CaptchaVerificationResult
 } from '../security/captcha/index.js'
+import {
+  OAuth2AuthorizationServer,
+  type OAuth2ServerConfig
+} from '../security/oauth2/index.js'
+import type { OAuth2Scope, TokenResponse } from '../types/oauth2.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -109,6 +114,17 @@ export interface TrokkyCoreOptions {
   eventBus?: TrokkyEventBus // Custom event bus instance
   eventBusConfig?: EventBusConfig // Event bus configuration (used if eventBus is not provided)
   enableEvents?: boolean // Enable event emission (default: true)
+
+  // OAuth2 Authorization Server configuration
+  oauth2?: {
+    enabled?: boolean // Enable OAuth2 authorization server (default: false)
+    issuer?: string // Base URL for the OAuth2 server (required if enabled)
+    accessTokenTtl?: number // Access token lifetime in seconds (default: 3600)
+    refreshTokenTtl?: number // Refresh token lifetime in seconds (default: 2592000)
+    deviceCodeTtl?: number // Device code lifetime in seconds (default: 600)
+    authCodeTtl?: number // Authorization code lifetime in seconds (default: 600)
+    pollingInterval?: number // Minimum polling interval in seconds (default: 5)
+  }
 }
 
 export interface AuditEvent {
@@ -153,6 +169,9 @@ export class TrokkyCore {
   // Event system
   private eventBus: TrokkyEventBus
   private eventsEnabled: boolean
+
+  // OAuth2 Authorization Server (enables CLI login and external SSO)
+  private oauth2Server: OAuth2AuthorizationServer | null = null
 
   // Secure callbacks for sensitive operations (not logged in events)
   private userCreatedWithPasswordCallback?: (user: User, temporaryPassword: string) => Promise<void>
@@ -400,11 +419,33 @@ export class TrokkyCore {
 
   // Initialization
   public async init(): Promise<void> {
-    // Initialize image processor asynchronously 
+    // Initialize image processor asynchronously
     if (!this.options.imageProcessor) {
       this.imageProcessor = await createImageProcessor(this.imageProcessorConfig)
     } else {
       this.imageProcessor = this.options.imageProcessor
+    }
+
+    // Initialize OAuth2 Authorization Server if enabled
+    if (this.options.oauth2?.enabled) {
+      const oauth2Config = this.options.oauth2
+      if (!oauth2Config.issuer) {
+        this.logger.warn('OAuth2 enabled but no issuer configured - using default localhost')
+      }
+
+      this.oauth2Server = new OAuth2AuthorizationServer({
+        issuer: oauth2Config.issuer || 'http://localhost:3000',
+        jwtSecret: this.jwtSecret,
+        accessTokenTtl: oauth2Config.accessTokenTtl,
+        refreshTokenTtl: oauth2Config.refreshTokenTtl,
+        deviceCodeTtl: oauth2Config.deviceCodeTtl,
+        authCodeTtl: oauth2Config.authCodeTtl,
+        pollingInterval: oauth2Config.pollingInterval
+      })
+
+      this.logger.info('OAuth2 Authorization Server initialized', {
+        issuer: oauth2Config.issuer || 'http://localhost:3000'
+      })
     }
 
     // Setup admin user from environment variables if configured
@@ -3526,10 +3567,164 @@ export class TrokkyCore {
     return adminUser
   }
 
+  // ============================================
+  // OAuth2 Authorization Server Methods
+  // ============================================
+
+  /**
+   * Get the OAuth2 Authorization Server instance
+   * Returns null if OAuth2 is not enabled
+   */
+  public getOAuth2Server(): OAuth2AuthorizationServer | null {
+    return this.oauth2Server
+  }
+
+  /**
+   * Generate OAuth2 tokens for a user
+   * Used by the OAuth2 routes to create access and refresh tokens
+   */
+  public async generateOAuth2Tokens(
+    user: User,
+    scopes: OAuth2Scope[],
+    clientId: string
+  ): Promise<{
+    accessToken: string
+    refreshToken?: string
+    expiresIn: number
+  }> {
+    const accessTokenTtl = this.options.oauth2?.accessTokenTtl ?? 3600
+    const refreshTokenTtl = this.options.oauth2?.refreshTokenTtl ?? 2592000
+    const includeRefreshToken = scopes.includes('offline_access')
+
+    // Convert OAuth2 scopes to permissions for the token payload
+    const permissions = this.oauth2Server?.scopesToPermissions(scopes) || []
+
+    // Generate access token
+    const accessTokenPayload = {
+      sub: user.id,
+      type: 'oauth2_access',
+      clientId,
+      scopes,
+      permissions,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    }
+
+    const accessToken = await this.cryptoAdapter.generateJWT(accessTokenPayload, this.jwtSecret, {
+      expiresIn: accessTokenTtl
+    })
+
+    let refreshToken: string | undefined
+    if (includeRefreshToken) {
+      const refreshTokenPayload = {
+        sub: user.id,
+        type: 'oauth2_refresh',
+        clientId,
+        scopes
+      }
+
+      refreshToken = await this.cryptoAdapter.generateJWT(refreshTokenPayload, this.jwtSecret, {
+        expiresIn: refreshTokenTtl
+      })
+    }
+
+    this.logger.info('OAuth2 tokens generated', {
+      userId: user.id,
+      clientId,
+      scopes,
+      includeRefreshToken
+    })
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: accessTokenTtl
+    }
+  }
+
+  /**
+   * Refresh an OAuth2 access token using a refresh token
+   * Returns new tokens if the refresh token is valid
+   */
+  public async refreshOAuth2Token(
+    refreshToken: string,
+    clientId: string,
+    requestedScope?: string
+  ): Promise<TokenResponse | null> {
+    try {
+      // Verify refresh token
+      const payload = await this.cryptoAdapter.verifyJWT(refreshToken, this.jwtSecret) as {
+        sub: string
+        type: string
+        clientId: string
+        scopes: OAuth2Scope[]
+      } | null
+
+      if (!payload) {
+        this.logger.warn('Invalid refresh token')
+        return null
+      }
+
+      // Validate token type and client
+      if (payload.type !== 'oauth2_refresh') {
+        this.logger.warn('Invalid token type for refresh', { type: payload.type })
+        return null
+      }
+
+      if (payload.clientId !== clientId) {
+        this.logger.warn('Client ID mismatch for refresh', {
+          expected: payload.clientId,
+          received: clientId
+        })
+        return null
+      }
+
+      // Get user to ensure they still exist and are active
+      const user = await this.getUser(payload.sub)
+      if (!user || !user.isActive) {
+        this.logger.warn('User not found or inactive for refresh', { userId: payload.sub })
+        return null
+      }
+
+      // Determine scopes - can only narrow, not expand
+      let scopes = payload.scopes
+      if (requestedScope) {
+        const requestedScopes = requestedScope.split(' ').filter(Boolean) as OAuth2Scope[]
+        scopes = requestedScopes.filter(s => payload.scopes.includes(s))
+      }
+
+      // Generate new tokens
+      const tokens = await this.generateOAuth2Tokens(user, scopes, clientId)
+
+      this.logger.info('OAuth2 token refreshed', {
+        userId: user.id,
+        clientId,
+        scopes
+      })
+
+      return {
+        access_token: tokens.accessToken,
+        token_type: 'Bearer',
+        expires_in: tokens.expiresIn,
+        refresh_token: tokens.refreshToken,
+        scope: scopes.join(' ')
+      }
+    } catch (error) {
+      this.logger.warn('OAuth2 token refresh failed', { error })
+      return null
+    }
+  }
+
   // Rate limiter cleanup (call periodically)
   public cleanup(): void {
     if (this.rateLimiter) {
       this.rateLimiter.cleanup()
+    }
+
+    // Stop OAuth2 server cleanup interval
+    if (this.oauth2Server) {
+      this.oauth2Server.stopCleanup()
     }
   }
 }

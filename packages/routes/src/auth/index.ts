@@ -49,3 +49,13 @@ export {
   validateCaptcha,
   getClientIp,
 } from './captcha.js'
+
+export {
+  startDeviceAuthorization,
+  getDeviceCodeInfo,
+  verifyDeviceCode,
+  handleTokenRequest,
+  validateAuthorizationRequest,
+  handleAuthorizationDecision,
+  getServerMetadata,
+} from './oauth2-server.js'

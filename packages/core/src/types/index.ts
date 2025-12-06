@@ -472,3 +472,29 @@ export type {
   PasswordResetRequest,
   PasswordResetVerification
 } from './mail.js'
+
+// OAuth2 Authorization Server types
+export type {
+  OAuth2GrantType,
+  OAuth2ClientType,
+  OAuth2Client,
+  OAuth2Scope,
+  DeviceAuthorizationRequest,
+  DeviceAuthorizationResponse,
+  DeviceCodeState,
+  DeviceTokenRequest,
+  AuthorizationRequest,
+  AuthorizationCodeState,
+  AuthorizationCodeTokenRequest,
+  RefreshTokenRequest,
+  TokenResponse,
+  OAuth2ErrorResponse,
+  OAuth2ErrorCode,
+  UserConsent,
+  OAuth2AccessToken,
+  OAuth2RefreshToken,
+  CreateOAuth2ClientData,
+  UpdateOAuth2ClientData
+} from './oauth2.js'
+
+export { SCOPE_TO_PERMISSIONS, BUILTIN_CLI_CLIENT } from './oauth2.js'
