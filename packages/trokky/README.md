@@ -24,6 +24,51 @@ npm install @trokky/trokky
 
 ## CLI Commands
 
+### Login
+
+Authenticate with a Trokky instance using browser-based OAuth2 Device Authorization:
+
+```bash
+trokky login https://your-site.com --name my-instance
+```
+
+This opens your browser for authentication. Once approved, credentials are saved locally.
+
+Options:
+- `--name` - Name for this instance in config (default: derived from URL)
+- `--set-default` - Set this instance as the default (default: true)
+
+### Config
+
+Manage saved Trokky instances:
+
+```bash
+# List all configured instances
+trokky config list
+
+# Add instance manually with API token
+trokky config add my-instance --url https://your-site.com/api --token YOUR_TOKEN
+
+# Remove an instance
+trokky config remove my-instance
+
+# Set default instance
+trokky config set-default my-instance
+
+# Show config file location
+trokky config path
+```
+
+Once configured, you can run commands without `--url` and `--token`:
+
+```bash
+# Uses default instance
+trokky backup --output backup.zip
+
+# Uses specific instance
+trokky backup --instance my-instance --output backup.zip
+```
+
 ### Backup
 
 Create a complete backup of your Trokky CMS:
@@ -162,12 +207,32 @@ const media = await client.uploadFile(file)
 
 ## Authentication
 
+There are two ways to authenticate with Trokky:
+
+### Option 1: Browser Login (Recommended)
+
+Use the `trokky login` command for browser-based authentication:
+
+```bash
+trokky login https://your-site.com --name my-instance
+```
+
+This uses OAuth2 Device Authorization Flow - your browser opens, you log in to Studio, and credentials are saved automatically with refresh token support.
+
+### Option 2: API Tokens
+
 Get API tokens from your Trokky Studio:
 1. Go to `/studio` in your Trokky instance
-2. Navigate to API Keys section
+2. Navigate to Settings > API Keys
 3. Generate tokens with appropriate permissions:
    - **Read** tokens for backup
    - **Write** tokens for restore/migration
+
+Add tokens to your config:
+
+```bash
+trokky config add my-instance --url https://your-site.com/api --token YOUR_TOKEN
+```
 
 ## Examples
 
