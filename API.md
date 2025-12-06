@@ -348,11 +348,11 @@ Authorization: Bearer {token}
 Content-Type: application/json
 ```
 
-**Request Body (approve):**
+**Request Body (authorize):**
 ```json
 {
   "user_code": "WDJB-MJHT",
-  "action": "approve"
+  "action": "authorize"
 }
 ```
 
