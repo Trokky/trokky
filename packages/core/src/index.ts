@@ -19,7 +19,7 @@ export { DocumentValidator } from './validation/validator.js'
 export { SecurityValidator } from './security/validation.js'
 export { RateLimiter, type RateLimitConfig } from './security/rate-limiter.js'
 
-// OAuth
+// OAuth (Google)
 export {
   GoogleOAuthService,
   type GoogleOAuthConfig,
@@ -27,6 +27,13 @@ export {
   type GoogleTokenResponse,
   type PKCEChallenge,
 } from './security/oauth/index.js'
+
+// OAuth2 Authorization Server (SSO Provider)
+export {
+  OAuth2AuthorizationServer,
+  type OAuth2ServerConfig,
+  type OAuth2ClientConfig
+} from './security/oauth2/index.js'
 
 // MFA (Multi-Factor Authentication)
 export {
@@ -293,3 +300,28 @@ export type {
   PasswordResetRequest,
   PasswordResetVerification
 } from './types/mail.js'
+
+// OAuth2 types
+export type {
+  OAuth2GrantType,
+  OAuth2ClientType,
+  OAuth2Client,
+  OAuth2Scope,
+  DeviceAuthorizationRequest,
+  DeviceAuthorizationResponse,
+  DeviceCodeState,
+  DeviceTokenRequest,
+  AuthorizationRequest,
+  AuthorizationCodeState,
+  AuthorizationCodeTokenRequest,
+  RefreshTokenRequest,
+  TokenResponse,
+  OAuth2ErrorResponse,
+  OAuth2ErrorCode,
+  UserConsent,
+  OAuth2AccessToken,
+  OAuth2RefreshToken,
+  CreateOAuth2ClientData,
+  UpdateOAuth2ClientData
+} from './types/oauth2.js'
+export { BUILTIN_CLI_CLIENT, SCOPE_TO_PERMISSIONS } from './types/oauth2.js'

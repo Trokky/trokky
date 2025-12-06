@@ -555,6 +555,25 @@ function getMailConfig() {
   } : undefined,`
   }
 
+  // OAuth2 Authorization Server config (for CLI login via trokky login)
+  const oauth2Config = `
+  // OAuth2 Authorization Server (enables 'trokky login' CLI command and SSO for external apps)
+  oauth2: {
+    enabled: true,
+    issuer: process.env.OAUTH2_ISSUER || 'http://localhost:3000',
+    // Register external OAuth2 clients for SSO (Authorization Code Flow with PKCE)
+    // clients: [
+    //   {
+    //     id: 'my-app',
+    //     name: 'My Application',
+    //     description: 'External app that authenticates via Trokky',
+    //     type: 'public', // 'public' for SPAs/mobile, 'confidential' for server-side apps
+    //     redirectUris: ['http://localhost:4000/callback'],
+    //     allowedScopes: ['openid', 'profile', 'content:read', 'offline_access'],
+    //   },
+    // ],
+  },`
+
   let studioConfig = ''
   if (config.studio === 'embedded') {
     studioConfig = `
@@ -611,7 +630,7 @@ ${mediaProcessingConfig}
       firstName: 'Admin',
       lastName: 'User',
     },
-  },${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}
+  },${oauth2Config}${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}
 }
 `
 }
@@ -639,6 +658,13 @@ function generateEnvExample(config: ProjectConfig): string {
       'STUDIO_URL=http://localhost:3000/studio'
     )
   }
+
+  // OAuth2 Authorization Server (for CLI login)
+  lines.push(
+    '',
+    '# OAuth2 Authorization Server (for trokky login CLI)',
+    'OAUTH2_ISSUER=http://localhost:3000'
+  )
 
   if (config.dataAdapter === 'postgres') {
     lines.push('', '# Database', 'DATABASE_URL=postgres://user:password@localhost:5432/trokky')

@@ -133,6 +133,14 @@ export class TrokkyRoutes {
     this.addRoute('DELETE', `${basePath}/auth/mfa/trusted-devices`, this.revokeAllTrustedDevices.bind(this))
     this.addRoute('POST', `${basePath}/admin/users/:userId/mfa/reset`, this.adminResetUserMFA.bind(this))
 
+    // OAuth2 Authorization Server routes (Device Flow + Authorization Code Flow)
+    this.addRoute('POST', `${basePath}/auth/device`, this.startDeviceAuthorization.bind(this))
+    this.addRoute('GET', `${basePath}/auth/device/verify`, this.getDeviceCodeInfo.bind(this))
+    this.addRoute('POST', `${basePath}/auth/device/verify`, this.verifyDeviceCode.bind(this))
+    this.addRoute('POST', `${basePath}/auth/token`, this.handleOAuth2TokenRequest.bind(this))
+    this.addRoute('GET', `${basePath}/auth/authorize`, this.validateAuthorizationRequest.bind(this))
+    this.addRoute('POST', `${basePath}/auth/authorize`, this.handleAuthorizationDecision.bind(this))
+
     // Token management routes (admin/user)
     this.addRoute('GET', `${basePath}/tokens`, this.listTokens.bind(this))
     this.addRoute('POST', `${basePath}/tokens`, this.createToken.bind(this))
@@ -3768,6 +3776,73 @@ export class TrokkyRoutes {
     }
     const { adminResetUserMFA: handler } = await import('./auth/mfa.js')
     return handler(request, this.core)
+  }
+
+  // ==========================================================================
+  // OAuth2 Authorization Server Routes (Device Flow + Authorization Code Flow)
+  // ==========================================================================
+
+  /**
+   * Start Device Authorization Flow
+   * POST /auth/device
+   * No authentication required - called by CLI
+   */
+  private async startDeviceAuthorization(request: HttpRequest): Promise<HttpResponse> {
+    const { startDeviceAuthorization: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Get Device Code Info (for verification page)
+   * GET /auth/device/verify?code=XXXX-XXXX
+   * Authentication required - called by Studio
+   */
+  private async getDeviceCodeInfo(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { getDeviceCodeInfo: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Verify (Authorize/Deny) Device Code
+   * POST /auth/device/verify
+   * Authentication required - called by Studio
+   */
+  private async verifyDeviceCode(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { verifyDeviceCode: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * OAuth2 Token Endpoint
+   * POST /auth/token
+   * Handles device code exchange, authorization code exchange, and token refresh
+   */
+  private async handleOAuth2TokenRequest(request: HttpRequest): Promise<HttpResponse> {
+    const { handleTokenRequest: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Validate Authorization Request (for consent page)
+   * GET /auth/authorize
+   * No authentication required - returns info for consent page
+   */
+  private async validateAuthorizationRequest(request: HttpRequest): Promise<HttpResponse> {
+    const { validateAuthorizationRequest: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Handle Authorization Decision (approve/deny)
+   * POST /auth/authorize
+   * Authentication required - called when user approves/denies
+   */
+  private async handleAuthorizationDecision(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { handleAuthorizationDecision: handler } = await import('./auth/oauth2-server.js')
+    return handler(this.core, request)
   }
 
 }

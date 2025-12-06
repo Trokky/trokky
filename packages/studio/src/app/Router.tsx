@@ -14,6 +14,8 @@ import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { DocumentEditorPage } from '@/components/document';
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
+import { DeviceAuthPage } from '@/pages/DeviceAuthPage';
+import { AuthorizePage } from '@/pages/AuthorizePage';
 
 // Get basename from config if available
 const getBasename = () => {
@@ -28,6 +30,24 @@ const router = createBrowserRouter([
     element: (
       <ErrorBoundary>
         <OAuthCallbackPage onLoginSuccess={() => window.location.href = getBasename() + '/'} />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    // Device authorization route (standalone, no layout - for CLI login)
+    path: '/auth/device',
+    element: (
+      <ErrorBoundary>
+        <DeviceAuthPage />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    // Authorization Code Flow consent page (standalone, no layout - for SSO)
+    path: '/auth/authorize',
+    element: (
+      <ErrorBoundary>
+        <AuthorizePage />
       </ErrorBoundary>
     ),
   },

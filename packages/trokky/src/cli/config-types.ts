@@ -11,6 +11,12 @@ export interface TrokkyInstance {
   url: string
   /** API token for authentication */
   token: string
+  /** Refresh token for OAuth2 (optional) */
+  refreshToken?: string
+  /** Authentication type */
+  authType?: 'api-token' | 'oauth2'
+  /** Token expiration timestamp (ISO string) for OAuth2 */
+  tokenExpiresAt?: string
   /** Optional description/label for the instance */
   description?: string
   /** When this instance was added */
