@@ -8,6 +8,7 @@ import unzipper from 'unzipper'
 import { TrokkyClient } from '../client.js'
 import { SchemaAnalyzer } from './schema-analyzer.js'
 import { ReferenceScanner } from './reference-scanner.js'
+import { requireCredentials, credentialOptions } from './credentials.js'
 import type { BackupManifest, IdMapping, SchemaDefinition } from './types.js'
 
 // Helper function to sanitize document data by removing null values and empty objects
@@ -62,8 +63,9 @@ function sanitizeDocument(obj: any): any {
 
 export const restoreCommand = new Command('restore')
   .description('Restore content from a Trokky backup file')
-  .requiredOption('--url <url>', 'Target Trokky instance URL')
-  .requiredOption('--token <token>', 'Authentication token')
+  .option(credentialOptions.url.flags, credentialOptions.url.description)
+  .option(credentialOptions.token.flags, credentialOptions.token.description)
+  .option(credentialOptions.instance.flags, credentialOptions.instance.description)
   .requiredOption('--input <file>', 'Backup file path (e.g., backup.zip)')
   .option('--collections <collections>', 'Comma-separated list of collections to restore (restores all if not specified)')
   .option('--with-dependencies', 'Include all dependencies of specified collections')
@@ -71,13 +73,20 @@ export const restoreCommand = new Command('restore')
   .option('--overwrite', 'Overwrite existing documents')
   .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
+    // Resolve credentials from CLI flags, env vars, or config file
+    const credentials = await requireCredentials({
+      url: options.url,
+      token: options.token,
+      instance: options.instance
+    })
+
     const spinner = ora('Initializing restore...').start()
     const tempDir = join(process.cwd(), `trokky-restore-${Date.now()}`)
 
     try {
       const client = new TrokkyClient({
-        baseUrl: options.url,
-        apiToken: options.token
+        baseUrl: credentials.url,
+        apiToken: credentials.token
       })
 
       // Step 1: Extract backup

@@ -7,24 +7,33 @@ import ora from 'ora'
 import archiver from 'archiver'
 import { TrokkyClient } from '../client.js'
 import { SchemaAnalyzer } from './schema-analyzer.js'
+import { requireCredentials, credentialOptions } from './credentials.js'
 import type { BackupManifest, SchemaDefinition, MediaIndex, BackupStatistics } from './types.js'
 
 export const backupCommand = new Command('backup')
   .description('Create a schema-driven backup of a Trokky instance')
-  .requiredOption('--url <url>', 'Trokky instance URL')
-  .requiredOption('--token <token>', 'Authentication token')
+  .option(credentialOptions.url.flags, credentialOptions.url.description)
+  .option(credentialOptions.token.flags, credentialOptions.token.description)
+  .option(credentialOptions.instance.flags, credentialOptions.instance.description)
   .requiredOption('--output <file>', 'Output file path (e.g., backup.zip)')
   .option('--collections <collections>', 'Comma-separated list of collections to backup (backups all if not specified)')
   .option('--skip-media', 'Skip media files')
   .option('--description <text>', 'Backup description for documentation')
   .action(async (options) => {
+    // Resolve credentials from CLI flags, env vars, or config file
+    const credentials = await requireCredentials({
+      url: options.url,
+      token: options.token,
+      instance: options.instance
+    })
+
     const spinner = ora('Initializing backup...').start()
     const tempDir = join(process.cwd(), `trokky-backup-${Date.now()}`)
 
     try {
       const client = new TrokkyClient({
-        baseUrl: options.url,
-        apiToken: options.token
+        baseUrl: credentials.url,
+        apiToken: credentials.token
       })
 
       await mkdir(tempDir, { recursive: true })
@@ -75,7 +84,7 @@ export const backupCommand = new Command('backup')
 
           for (const asset of mediaAssets) {
             try {
-              const mediaUrl = `${options.url}/media/${asset.id}/file`
+              const mediaUrl = `${credentials.url}/media/${asset.id}/file`
               const mediaData = await client.downloadMedia(mediaUrl)
               const mediaPath = join(mediaDir, asset.filename)
               await writeFile(mediaPath, Buffer.from(mediaData))
@@ -144,7 +153,7 @@ export const backupCommand = new Command('backup')
         version: '2.0',
         timestamp: new Date().toISOString(),
         source: {
-          url: options.url,
+          url: credentials.url,
           description: options.description || 'Trokky backup'
         },
         schemas: schemasToBackup,

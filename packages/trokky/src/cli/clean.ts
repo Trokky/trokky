@@ -2,23 +2,32 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import ora from 'ora'
 import { TrokkyClient } from '../client.js'
+import { requireCredentials, credentialOptions } from './credentials.js'
 
 export const cleanCommand = new Command('clean')
   .description('Clean (delete) all content from a Trokky instance')
-  .requiredOption('--url <url>', 'Trokky instance URL')
-  .requiredOption('--token <token>', 'Authentication token (write permissions required)')
+  .option(credentialOptions.url.flags, credentialOptions.url.description)
+  .option(credentialOptions.token.flags, credentialOptions.token.description)
+  .option(credentialOptions.instance.flags, credentialOptions.instance.description)
   .option('--collections <collections>', 'Comma-separated list of collections to clean (cleans all if not specified)')
   .option('--media-only', 'Clean only media files, leave documents intact')
   .option('--documents-only', 'Clean only documents, leave media files intact')
   .option('--dry-run', 'Show what would be deleted without actually deleting')
   .option('--confirm', 'Confirm destructive operation (required for actual deletion)')
   .action(async (options) => {
+    // Resolve credentials from CLI flags, env vars, or config file
+    const credentials = await requireCredentials({
+      url: options.url,
+      token: options.token,
+      instance: options.instance
+    })
+
     const spinner = ora('Starting clean operation...').start()
 
     try {
       const client = new TrokkyClient({
-        baseUrl: options.url,
-        apiToken: options.token
+        baseUrl: credentials.url,
+        apiToken: credentials.token
       })
 
       // Require confirmation for non-dry-run operations
@@ -26,10 +35,10 @@ export const cleanCommand = new Command('clean')
         spinner.fail('Confirmation required for destructive operation')
         console.log(chalk.red(`
 WARNING: This operation will PERMANENTLY DELETE content from:
-   ${options.url}
+   ${credentials.url}
 
 To proceed, add --confirm flag:
-   trokky clean --url ${options.url} --token <token> --confirm
+   trokky clean --url ${credentials.url} --token <token> --confirm
 
 Or use --dry-run to preview what would be deleted first.`))
         process.exit(1)
@@ -175,7 +184,7 @@ Clean Summary:`))
         console.log(chalk.white(`   Media files: ${mode.toLowerCase()} ${totalMediaDeleted}`))
       }
 
-      console.log(chalk.white(`   Instance: ${options.url}`))
+      console.log(chalk.white(`   Instance: ${credentials.url}`))
       console.log(chalk.white(`   Mode: ${options.dryRun ? 'Dry run' : 'Live deletion'}`))
 
       if (failedDeletions.length > 0) {
@@ -192,7 +201,7 @@ Clean Summary:`))
       if (options.dryRun) {
         console.log(chalk.yellow(`
 To actually perform the deletion, run:
-   trokky clean --url ${options.url} --token <token> --confirm`))
+   trokky clean --url ${credentials.url} --token <token> --confirm`))
       }
 
     } catch (error: any) {

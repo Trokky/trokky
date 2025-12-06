@@ -4,30 +4,59 @@ import ora from 'ora'
 import { TrokkyClient } from '../client.js'
 import { SchemaAnalyzer } from './schema-analyzer.js'
 import { ReferenceScanner } from './reference-scanner.js'
+import { resolveCredentials } from './config-manager.js'
 import type { IdMapping, SchemaDefinition } from './types.js'
 
 export const migrateCommand = new Command('migrate')
   .description('Migrate content between Trokky instances with schema-driven reference mapping')
-  .requiredOption('--from <url>', 'Source Trokky instance URL')
-  .requiredOption('--to <url>', 'Target Trokky instance URL')
-  .requiredOption('--from-token <token>', 'Source authentication token')
-  .requiredOption('--to-token <token>', 'Target authentication token')
+  .option('--from <url>', 'Source Trokky instance URL (or use --from-instance)')
+  .option('--to <url>', 'Target Trokky instance URL (or use --to-instance)')
+  .option('--from-token <token>', 'Source authentication token')
+  .option('--to-token <token>', 'Target authentication token')
+  .option('--from-instance <name>', 'Use a configured instance as source')
+  .option('--to-instance <name>', 'Use a configured instance as target')
   .option('--collections <collections>', 'Comma-separated list of collections to migrate (migrates all if not specified)')
   .option('--skip-media', 'Skip media files')
   .option('--clean', 'Delete all content in target before migration')
   .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
+    // Resolve source credentials
+    const sourceCredentials = await resolveCredentials({
+      url: options.from,
+      token: options.fromToken,
+      instance: options.fromInstance
+    })
+
+    if (!sourceCredentials) {
+      console.error(chalk.red('Source credentials not found.'))
+      console.error(chalk.gray('Provide --from and --from-token, or use --from-instance with a configured instance.'))
+      process.exit(1)
+    }
+
+    // Resolve target credentials
+    const targetCredentials = await resolveCredentials({
+      url: options.to,
+      token: options.toToken,
+      instance: options.toInstance
+    })
+
+    if (!targetCredentials) {
+      console.error(chalk.red('Target credentials not found.'))
+      console.error(chalk.gray('Provide --to and --to-token, or use --to-instance with a configured instance.'))
+      process.exit(1)
+    }
+
     const spinner = ora('Initializing migration...').start()
 
     try {
       const sourceClient = new TrokkyClient({
-        baseUrl: options.from,
-        apiToken: options.fromToken
+        baseUrl: sourceCredentials.url,
+        apiToken: sourceCredentials.token
       })
 
       const targetClient = new TrokkyClient({
-        baseUrl: options.to,
-        apiToken: options.toToken
+        baseUrl: targetCredentials.url,
+        apiToken: targetCredentials.token
       })
 
       // Step 1: Fetch schemas from source
@@ -137,7 +166,7 @@ export const migrateCommand = new Command('migrate')
           } else {
             for (const asset of mediaAssets) {
               try {
-                const mediaUrl = `${options.from}/media/${asset.id}/file`
+                const mediaUrl = `${sourceCredentials.url}/media/${asset.id}/file`
                 const mediaData = await sourceClient.downloadMedia(mediaUrl)
                 const result = await targetClient.uploadFile(Buffer.from(mediaData), asset.filename)
 
@@ -245,8 +274,8 @@ export const migrateCommand = new Command('migrate')
 
       console.log(chalk.bold('\nMigration Summary'))
       console.log(chalk.gray('─'.repeat(50)))
-      console.log(`Source:                ${chalk.cyan(options.from)}`)
-      console.log(`Target:                ${chalk.cyan(options.to)}`)
+      console.log(`Source:                ${chalk.cyan(sourceCredentials.url)}`)
+      console.log(`Target:                ${chalk.cyan(targetCredentials.url)}`)
       console.log(`Documents migrated:    ${chalk.cyan(totalDocuments)}`)
       console.log(`Media migrated:        ${chalk.cyan(mediaCount)}`)
       console.log(`References updated:    ${chalk.cyan(totalReferencesUpdated)}`)
