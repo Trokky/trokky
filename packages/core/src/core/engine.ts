@@ -124,6 +124,16 @@ export interface TrokkyCoreOptions {
     deviceCodeTtl?: number // Device code lifetime in seconds (default: 600)
     authCodeTtl?: number // Authorization code lifetime in seconds (default: 600)
     pollingInterval?: number // Minimum polling interval in seconds (default: 5)
+    clients?: Array<{
+      id: string
+      name: string
+      description?: string
+      type?: 'public' | 'confidential'
+      secret?: string
+      redirectUris: string[]
+      allowedScopes?: string[]
+      grantTypes?: string[]
+    }>
   }
 }
 
@@ -440,11 +450,13 @@ export class TrokkyCore {
         refreshTokenTtl: oauth2Config.refreshTokenTtl,
         deviceCodeTtl: oauth2Config.deviceCodeTtl,
         authCodeTtl: oauth2Config.authCodeTtl,
-        pollingInterval: oauth2Config.pollingInterval
+        pollingInterval: oauth2Config.pollingInterval,
+        clients: oauth2Config.clients
       })
 
       this.logger.info('OAuth2 Authorization Server initialized', {
-        issuer: oauth2Config.issuer || 'http://localhost:3000'
+        issuer: oauth2Config.issuer || 'http://localhost:3000',
+        clients: oauth2Config.clients?.length || 0
       })
     }
 
@@ -1713,23 +1725,27 @@ export class TrokkyCore {
 
   public async verifyAuthToken(token: string): Promise<UserSession | null> {
     const decoded = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret)
-    
-    if (!decoded || !decoded.userId || !decoded.username) {
+
+    // Handle both standard 'userId' claim and OAuth2 'sub' claim
+    const userId = decoded?.userId || decoded?.sub
+    const username = decoded?.username
+
+    if (!decoded || !userId || !username) {
       return null
     }
 
     // Fetch fresh user data from storage to get current permissions
     try {
-      const currentUser = await this.getUser(decoded.userId)
+      const currentUser = await this.getUser(userId)
       if (!currentUser || !currentUser.isActive) {
         return null // User no longer exists or is inactive
       }
 
       return {
-        userId: decoded.userId,
-        username: decoded.username,
+        userId,
+        username,
         role: currentUser.role, // Use fresh role from storage
-        permissions: currentUser.permissions, // Use fresh permissions from storage  
+        permissions: currentUser.permissions, // Use fresh permissions from storage
         loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
         expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
       }
@@ -1738,10 +1754,10 @@ export class TrokkyCore {
       if (!decoded.role || !decoded.permissions) {
         return null
       }
-      
+
       return {
-        userId: decoded.userId,
-        username: decoded.username,
+        userId,
+        username,
         role: decoded.role,
         permissions: decoded.permissions,
         loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),

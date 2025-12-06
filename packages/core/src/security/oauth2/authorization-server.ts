@@ -13,6 +13,7 @@ import { randomBytes, createHash, timingSafeEqual } from 'crypto'
 import type {
   OAuth2Client,
   OAuth2Scope,
+  OAuth2GrantType,
   DeviceCodeState,
   AuthorizationCodeState,
   TokenResponse,
@@ -21,6 +22,28 @@ import type {
 } from '../../types/oauth2.js'
 import type { User, Permission } from '../../types/user.js'
 import { SCOPE_TO_PERMISSIONS, BUILTIN_CLI_CLIENT as CLI_CLIENT } from '../../types/oauth2.js'
+
+/**
+ * Configuration for registering an OAuth2 client
+ */
+export interface OAuth2ClientConfig {
+  /** Unique client identifier */
+  id: string
+  /** Human-readable client name */
+  name: string
+  /** Client description (optional) */
+  description?: string
+  /** Client type: 'public' for SPAs/native apps, 'confidential' for server-side apps */
+  type?: 'public' | 'confidential'
+  /** Client secret (required for confidential clients) */
+  secret?: string
+  /** Allowed redirect URIs */
+  redirectUris: string[]
+  /** Allowed scopes (default: all scopes) */
+  allowedScopes?: string[]
+  /** Allowed grant types (default: authorization_code, refresh_token) */
+  grantTypes?: string[]
+}
 
 /**
  * Configuration for the OAuth2 Authorization Server
@@ -40,6 +63,8 @@ export interface OAuth2ServerConfig {
   authCodeTtl?: number
   /** Minimum polling interval in seconds (default: 5) */
   pollingInterval?: number
+  /** External OAuth2 clients to register */
+  clients?: OAuth2ClientConfig[]
 }
 
 /**
@@ -48,7 +73,8 @@ export interface OAuth2ServerConfig {
  * Handles device authorization and authorization code flows.
  */
 export class OAuth2AuthorizationServer {
-  private config: Required<OAuth2ServerConfig>
+  private config: Required<Omit<OAuth2ServerConfig, 'clients'>>
+  private externalClients: OAuth2ClientConfig[]
 
   // In-memory stores (should be replaced with persistent storage in production)
   private deviceCodes: Map<string, DeviceCodeState> = new Map()
@@ -68,9 +94,13 @@ export class OAuth2AuthorizationServer {
       authCodeTtl: config.authCodeTtl ?? 600,
       pollingInterval: config.pollingInterval ?? 5
     }
+    this.externalClients = config.clients || []
 
     // Register built-in CLI client
     this.registerBuiltInClient()
+
+    // Register external clients from config
+    this.registerExternalClients()
 
     // Start cleanup interval
     this.startCleanup()
@@ -86,6 +116,32 @@ export class OAuth2AuthorizationServer {
       createdAt: now,
       updatedAt: now
     })
+  }
+
+  /**
+   * Register external OAuth2 clients from config
+   */
+  private registerExternalClients(): void {
+    const now = new Date().toISOString()
+    for (const clientConfig of this.externalClients) {
+      const client: OAuth2Client = {
+        id: clientConfig.id,
+        name: clientConfig.name,
+        description: clientConfig.description,
+        type: clientConfig.type || 'public',
+        secretHash: clientConfig.secret ? this.hashSecret(clientConfig.secret) : undefined,
+        redirectUris: clientConfig.redirectUris,
+        allowedScopes: (clientConfig.allowedScopes || [
+          'openid', 'profile', 'content:read', 'content:write',
+          'content:delete', 'media:read', 'media:write', 'offline_access'
+        ]) as OAuth2Scope[],
+        grantTypes: (clientConfig.grantTypes || ['authorization_code', 'refresh_token']) as OAuth2GrantType[],
+        isActive: true,
+        createdAt: now,
+        updatedAt: now
+      }
+      this.clients.set(client.id, client)
+    }
   }
 
   /**

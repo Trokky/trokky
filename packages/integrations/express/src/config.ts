@@ -560,7 +560,7 @@ export interface TrokkyConfig {
   oauth?: OAuthConfig
   /** CAPTCHA configuration */
   captcha?: CaptchaConfig
-  /** OAuth2 Authorization Server configuration (for CLI login) */
+  /** OAuth2 Authorization Server configuration (for CLI login and SSO) */
   oauth2?: {
     enabled?: boolean
     issuer?: string
@@ -569,6 +569,25 @@ export interface TrokkyConfig {
     deviceCodeTtl?: number
     authCodeTtl?: number
     pollingInterval?: number
+    /** External OAuth2 clients for SSO */
+    clients?: Array<{
+      /** Unique client identifier */
+      id: string
+      /** Human-readable client name */
+      name: string
+      /** Client description */
+      description?: string
+      /** Client type: 'public' for SPAs/native apps, 'confidential' for server-side apps */
+      type?: 'public' | 'confidential'
+      /** Client secret (required for confidential clients) */
+      secret?: string
+      /** Allowed redirect URIs */
+      redirectUris: string[]
+      /** Allowed scopes */
+      allowedScopes?: string[]
+      /** Allowed grant types */
+      grantTypes?: string[]
+    }>
   }
   /** Features configuration */
   features?: FeaturesConfig

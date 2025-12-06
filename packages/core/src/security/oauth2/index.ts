@@ -8,5 +8,6 @@
 
 export {
   OAuth2AuthorizationServer,
-  type OAuth2ServerConfig
+  type OAuth2ServerConfig,
+  type OAuth2ClientConfig
 } from './authorization-server.js'

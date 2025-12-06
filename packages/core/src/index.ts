@@ -31,7 +31,8 @@ export {
 // OAuth2 Authorization Server (SSO Provider)
 export {
   OAuth2AuthorizationServer,
-  type OAuth2ServerConfig
+  type OAuth2ServerConfig,
+  type OAuth2ClientConfig
 } from './security/oauth2/index.js'
 
 // MFA (Multi-Factor Authentication)

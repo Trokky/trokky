@@ -49,6 +49,16 @@ function AppContent() {
 
   const handleLoginSuccess = () => {
     logger.info('Login successful, rechecking auth state');
+
+    // Check if there's a pending OAuth redirect
+    const oauthRedirect = sessionStorage.getItem('trokky_oauth_redirect');
+    if (oauthRedirect) {
+      sessionStorage.removeItem('trokky_oauth_redirect');
+      logger.info('Redirecting to OAuth flow', { url: oauthRedirect });
+      window.location.href = oauthRedirect;
+      return;
+    }
+
     checkAuth();
   };
 
@@ -66,7 +76,7 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    // Handle password reset routes (accessible without authentication)
+    // Handle routes accessible without authentication
     const currentPath = window.location.pathname;
     const basePath = (window as any).TROKKY_CONFIG?.basePath || '';
     const normalizedPath = currentPath.replace(basePath, '');
@@ -81,6 +91,14 @@ function AppContent() {
 
     if (normalizedPath === '/oauth/callback') {
       return <OAuthCallbackPage onLoginSuccess={handleLoginSuccess} />;
+    }
+
+    // OAuth authorization routes - redirect to login first, preserving OAuth params
+    if (normalizedPath === '/auth/authorize' || normalizedPath === '/auth/device') {
+      // Store the full URL so we can redirect back after login
+      const fullUrl = window.location.href;
+      sessionStorage.setItem('trokky_oauth_redirect', fullUrl);
+      return <LoginPage onLoginSuccess={handleLoginSuccess} />;
     }
 
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
