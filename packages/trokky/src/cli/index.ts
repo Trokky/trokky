@@ -9,6 +9,7 @@ import { cleanCommand } from './clean.js'
 import { createCommand } from './create.js'
 import { configCommand } from './config.js'
 import { loginCommand } from './login.js'
+import { devCommand } from './dev.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../../package.json')
@@ -27,5 +28,10 @@ program.addCommand(backupCommand)
 program.addCommand(restoreCommand)
 program.addCommand(migrateCommand)
 program.addCommand(cleanCommand)
+
+// Developer tools - only visible when TROKKY_DEV_MODE=1
+if (process.env.TROKKY_DEV_MODE === '1') {
+  program.addCommand(devCommand)
+}
 
 program.parse()

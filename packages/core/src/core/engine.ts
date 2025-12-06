@@ -3732,6 +3732,185 @@ export class TrokkyCore {
     }
   }
 
+  // ============================================
+  // OAuth2 Consent Management
+  // ============================================
+
+  /**
+   * Check if a user has an existing consent for a client with the given scopes
+   * Returns the consent if all requested scopes are already consented, null otherwise
+   */
+  public async getUserConsent(
+    userId: string,
+    clientId: string,
+    requestedScopes: OAuth2Scope[]
+  ): Promise<{ hasConsent: boolean; consentedScopes: OAuth2Scope[] }> {
+    try {
+      const user = await this.getUser(userId)
+      if (!user) {
+        this.logger.debug('getUserConsent: user not found', { userId })
+        return { hasConsent: false, consentedScopes: [] }
+      }
+
+      this.logger.debug('getUserConsent: checking consent', {
+        userId,
+        clientId,
+        requestedScopes,
+        userPreferences: user.preferences
+      })
+
+      // Get consents from user preferences
+      const consents = (user.preferences?._oauth2Consents || {}) as Record<string, {
+        scopes: OAuth2Scope[]
+        grantedAt: string
+        expiresAt?: string
+      }>
+
+      const consent = consents[clientId]
+      if (!consent) {
+        this.logger.debug('getUserConsent: no consent found for client', { clientId, consents })
+        return { hasConsent: false, consentedScopes: [] }
+      }
+
+      // Check if consent has expired
+      if (consent.expiresAt && new Date(consent.expiresAt) < new Date()) {
+        this.logger.debug('getUserConsent: consent expired', { consent })
+        return { hasConsent: false, consentedScopes: [] }
+      }
+
+      // Check if all requested scopes are already consented
+      const consentedScopes = consent.scopes || []
+      const hasAllScopes = requestedScopes.every(scope => consentedScopes.includes(scope))
+
+      this.logger.debug('getUserConsent: result', {
+        hasAllScopes,
+        consentedScopes,
+        requestedScopes
+      })
+
+      return {
+        hasConsent: hasAllScopes,
+        consentedScopes
+      }
+    } catch (error) {
+      this.logger.warn('Failed to check user consent', { error, userId, clientId })
+      return { hasConsent: false, consentedScopes: [] }
+    }
+  }
+
+  /**
+   * Save user consent for a client
+   * Stores in user preferences for persistence
+   */
+  public async saveUserConsent(
+    userId: string,
+    clientId: string,
+    scopes: OAuth2Scope[],
+    expiresInDays?: number
+  ): Promise<boolean> {
+    try {
+      this.logger.info('saveUserConsent: starting', { userId, clientId, scopes })
+
+      const user = await this.getUser(userId)
+      if (!user) {
+        this.logger.warn('Cannot save consent - user not found', { userId })
+        return false
+      }
+
+      // Get existing consents
+      const currentPreferences = user.preferences || {}
+      const existingConsents = (currentPreferences._oauth2Consents || {}) as Record<string, {
+        scopes: OAuth2Scope[]
+        grantedAt: string
+        expiresAt?: string
+      }>
+
+      this.logger.debug('saveUserConsent: existing state', {
+        currentPreferences,
+        existingConsents
+      })
+
+      // Merge scopes if consent already exists
+      const existingConsent = existingConsents[clientId]
+      const mergedScopes = existingConsent
+        ? [...new Set([...existingConsent.scopes, ...scopes])] as OAuth2Scope[]
+        : scopes
+
+      // Calculate expiry (default: 365 days, or never if not specified)
+      const expiresAt = expiresInDays
+        ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString()
+        : undefined
+
+      // Update consents
+      const updatedConsents = {
+        ...existingConsents,
+        [clientId]: {
+          scopes: mergedScopes,
+          grantedAt: new Date().toISOString(),
+          expiresAt
+        }
+      }
+
+      const newPreferences = {
+        ...currentPreferences,
+        _oauth2Consents: updatedConsents
+      }
+
+      this.logger.debug('saveUserConsent: saving new preferences', { newPreferences })
+
+      // Save to user preferences
+      await this.updateUser(userId, {
+        preferences: newPreferences
+      })
+
+      this.logger.info('User consent saved successfully', {
+        userId,
+        clientId,
+        scopes: mergedScopes
+      })
+
+      return true
+    } catch (error) {
+      this.logger.error('Failed to save user consent', { error, userId, clientId })
+      return false
+    }
+  }
+
+  /**
+   * Revoke user consent for a client
+   */
+  public async revokeUserConsent(userId: string, clientId: string): Promise<boolean> {
+    try {
+      const user = await this.getUser(userId)
+      if (!user) {
+        return false
+      }
+
+      const currentPreferences = user.preferences || {}
+      const existingConsents = (currentPreferences._oauth2Consents || {}) as Record<string, unknown>
+
+      if (!existingConsents[clientId]) {
+        return true // Already revoked
+      }
+
+      // Remove the consent for this client
+      const { [clientId]: _removed, ...remainingConsents } = existingConsents
+
+      await this.updateUser(userId, {
+        preferences: {
+          ...currentPreferences,
+          _oauth2Consents: remainingConsents
+        }
+      })
+
+      this.logger.info('User consent revoked', { userId, clientId })
+      return true
+    } catch (error) {
+      this.logger.error('Failed to revoke user consent', { error, userId, clientId })
+      return false
+    }
+  }
+
   // Rate limiter cleanup (call periodically)
   public cleanup(): void {
     if (this.rateLimiter) {

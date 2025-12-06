@@ -630,6 +630,7 @@ export async function handleTokenRequest(
  * GET /auth/authorize
  *
  * This validates the request and returns info for the consent page.
+ * Also checks if user has already consented to these scopes (for auto-approve).
  * The actual redirect/code generation happens after user approval via POST.
  */
 export async function validateAuthorizationRequest(
@@ -703,6 +704,25 @@ export async function validateAuthorizationRequest(
       }
     }
 
+    // Check if user has already consented to these scopes
+    let hasExistingConsent = false
+    if (request.user) {
+      const consentResult = await core.getUserConsent(
+        request.user.id,
+        validation.client.id,
+        validation.scopes
+      )
+      hasExistingConsent = consentResult.hasConsent
+
+      if (hasExistingConsent) {
+        logger.debug('User has existing consent for client', {
+          userId: request.user.id,
+          clientId: validation.client.id,
+          scopes: validation.scopes
+        })
+      }
+    }
+
     // Return authorization request info for the consent page
     // The actual consent page is rendered by Studio
     return {
@@ -723,7 +743,9 @@ export async function validateAuthorizationRequest(
           scopes: validation.scopes,
           redirectUri: params.redirect_uri,
           state: params.state,
-          codeChallenge: params.code_challenge
+          codeChallenge: params.code_challenge,
+          // Include consent status for auto-approve in Studio
+          hasExistingConsent
         }
       }
     }
@@ -821,11 +843,15 @@ export async function handleAuthorizationDecision(
       }
     }
 
+    // Save user consent for future auto-approval
+    const scopesToSave = (scopes || []) as OAuth2Scope[]
+    await core.saveUserConsent(request.user.id, client_id, scopesToSave)
+
     // Generate authorization code
     const code = oauth2Server.generateAuthorizationCode(
       client_id,
       redirect_uri,
-      (scopes || []) as OAuth2Scope[],
+      scopesToSave,
       code_challenge,
       request.user.id
     )
@@ -835,7 +861,8 @@ export async function handleAuthorizationDecision(
 
     logger.info('Authorization code issued', {
       clientId: client_id,
-      userId: request.user.id
+      userId: request.user.id,
+      consentSaved: true
     })
 
     return {
