@@ -293,6 +293,130 @@ trokky migrate --from https://prod.com/api --to https://staging.com/api \
   --collections articles,authors,media --clean
 ```
 
+## OAuth2 SSO Configuration
+
+Trokky can act as an OAuth2 Authorization Server, allowing external applications to authenticate users via your Trokky instance (Single Sign-On).
+
+### Registering OAuth2 Clients
+
+Add external applications to your `trokky.config.ts`:
+
+```typescript
+export default {
+  // ... other config
+
+  oauth2: {
+    enabled: true,
+    issuer: process.env.OAUTH2_ISSUER || 'http://localhost:3000',
+    clients: [
+      {
+        id: 'my-web-app',
+        name: 'My Web Application',
+        description: 'External app that authenticates via Trokky',
+        type: 'public',
+        redirectUris: ['https://myapp.com/callback', 'http://localhost:4000/callback'],
+        allowedScopes: ['openid', 'profile', 'content:read', 'offline_access'],
+      },
+      {
+        id: 'my-backend-service',
+        name: 'Backend Service',
+        type: 'confidential',
+        secret: process.env.OAUTH_CLIENT_SECRET,
+        redirectUris: ['https://api.myapp.com/auth/callback'],
+        allowedScopes: ['openid', 'profile', 'content:read', 'content:write'],
+      },
+    ],
+  },
+}
+```
+
+### Client Configuration Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `id` | string | Unique client identifier |
+| `name` | string | Human-readable name shown on consent screen |
+| `description` | string | Optional description shown on consent screen |
+| `type` | `'public'` \| `'confidential'` | Public for SPAs/mobile apps, confidential for server-side apps |
+| `secret` | string | Required for confidential clients |
+| `redirectUris` | string[] | Allowed callback URLs (must match exactly) |
+| `allowedScopes` | string[] | Scopes this client can request |
+
+### Available Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `openid` | Access user identity |
+| `profile` | Access user profile (username, email, name) |
+| `content:read` | Read content from collections |
+| `content:write` | Create and update content |
+| `content:delete` | Delete content |
+| `media:read` | Read media files |
+| `media:write` | Upload media files |
+| `offline_access` | Issue refresh tokens for long-lived access |
+
+### Authorization Code Flow with PKCE
+
+External applications use the Authorization Code Flow with PKCE:
+
+1. **Redirect user to authorization endpoint:**
+   ```
+   GET /studio/auth/authorize?
+     response_type=code&
+     client_id=my-web-app&
+     redirect_uri=https://myapp.com/callback&
+     scope=openid%20profile%20content:read%20offline_access&
+     state=random-state-value&
+     code_challenge=BASE64URL(SHA256(code_verifier))&
+     code_challenge_method=S256
+   ```
+
+2. **User authenticates and approves** on the Trokky consent screen
+
+3. **Trokky redirects back** with authorization code:
+   ```
+   https://myapp.com/callback?code=AUTH_CODE&state=random-state-value
+   ```
+
+4. **Exchange code for tokens:**
+   ```bash
+   POST /api/auth/token
+   Content-Type: application/json
+
+   {
+     "grant_type": "authorization_code",
+     "code": "AUTH_CODE",
+     "redirect_uri": "https://myapp.com/callback",
+     "client_id": "my-web-app",
+     "code_verifier": "original-code-verifier"
+   }
+   ```
+
+5. **Response:**
+   ```json
+   {
+     "access_token": "eyJ...",
+     "token_type": "Bearer",
+     "expires_in": 3600,
+     "refresh_token": "eyJ...",
+     "scope": "openid profile content:read offline_access"
+   }
+   ```
+
+6. **Use access token** to call Trokky API:
+   ```bash
+   GET /api/auth/me
+   Authorization: Bearer ACCESS_TOKEN
+   ```
+
+### Security Notes
+
+- Always use HTTPS in production
+- PKCE is required for all clients (prevents authorization code interception)
+- Redirect URIs must match exactly (no wildcards)
+- Unregistered clients receive `invalid_client` error
+- Invalid redirect URIs are blocked (prevents open redirect attacks)
+
 ## Requirements
 
 - Node.js 18+
