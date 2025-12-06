@@ -560,6 +560,16 @@ export interface TrokkyConfig {
   oauth?: OAuthConfig
   /** CAPTCHA configuration */
   captcha?: CaptchaConfig
+  /** OAuth2 Authorization Server configuration (for CLI login) */
+  oauth2?: {
+    enabled?: boolean
+    issuer?: string
+    accessTokenTtl?: number
+    refreshTokenTtl?: number
+    deviceCodeTtl?: number
+    authCodeTtl?: number
+    pollingInterval?: number
+  }
   /** Features configuration */
   features?: FeaturesConfig
   /** HTTP server settings */

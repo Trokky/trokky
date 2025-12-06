@@ -168,6 +168,16 @@ export const loginCommand = new Command('login')
       console.log(chalk.gray(`  Code expires in ${Math.floor(deviceAuth.expires_in / 60)} minutes`))
       console.log('')
 
+      // Try to open browser automatically
+      try {
+        const open = await import('open')
+        await open.default(deviceAuth.verification_uri_complete)
+        console.log(chalk.green('  Browser opened automatically'))
+        console.log('')
+      } catch {
+        // Silently fail if open is not available
+      }
+
       // Wait for user to authorize
       const pollSpinner = ora('Waiting for authorization...').start()
 

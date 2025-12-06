@@ -428,6 +428,7 @@ export class TrokkyExpress {
         enableSecurity: fullConfig.security.enabled,
         jwtSecret: fullConfig.security.jwtSecret,
         cryptoOptions: fullConfig.security.cryptoOptions,
+        oauth2: fullConfig.oauth2,
       }
 
       const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
