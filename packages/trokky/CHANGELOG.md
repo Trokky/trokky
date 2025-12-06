@@ -1,5 +1,13 @@
 # @trokky/trokky
 
+## 0.1.11
+
+### Patch Changes
+
+- 12bebc2: Fix CLI version display and GitHub Actions workflow
+  - Read version dynamically from package.json instead of hardcoded value
+  - Fix release workflow that was preventing automatic publishing (remove custom check job that blocked release PR merges)
+
 ## 0.1.10
 
 ### Patch Changes
