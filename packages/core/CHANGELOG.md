@@ -1,5 +1,11 @@
 # @trokky/core
 
+## 0.1.22
+
+### Patch Changes
+
+- 304a841: Fix auto-thumbnail singleton check to use `schema.singleton === true` instead of `schema.type === 'singleton'`
+
 ## 0.1.21
 
 ### Patch Changes
