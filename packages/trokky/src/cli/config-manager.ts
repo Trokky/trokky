@@ -271,3 +271,161 @@ export function maskToken(token: string): string {
   }
   return `${token.slice(0, 4)}...${token.slice(-4)}`
 }
+
+/**
+ * Token refresh response from the OAuth2 server
+ */
+interface TokenRefreshResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+  refresh_token?: string
+  scope?: string
+}
+
+/**
+ * Check if a token is expired or about to expire
+ * Returns true if token expires within the buffer time (default 5 minutes)
+ */
+export function isTokenExpired(tokenExpiresAt: string | undefined, bufferSeconds: number = 300): boolean {
+  if (!tokenExpiresAt) {
+    return false // No expiration info, assume valid
+  }
+
+  const expiresAt = new Date(tokenExpiresAt).getTime()
+  const now = Date.now()
+  const bufferMs = bufferSeconds * 1000
+
+  return now >= (expiresAt - bufferMs)
+}
+
+/**
+ * Result of a token refresh attempt
+ */
+export type TokenRefreshResult =
+  | { success: true; token: string; expiresAt: string }
+  | { success: false; error: string; requiresRelogin: boolean }
+
+/**
+ * Refresh an OAuth2 access token using the refresh token
+ */
+export async function refreshAccessToken(
+  instanceName: string,
+  instance: TrokkyInstance
+): Promise<TokenRefreshResult> {
+  if (!instance.refreshToken) {
+    return {
+      success: false,
+      error: 'No refresh token available',
+      requiresRelogin: true
+    }
+  }
+
+  if (instance.authType !== 'oauth2') {
+    return {
+      success: false,
+      error: 'Instance does not use OAuth2 authentication',
+      requiresRelogin: false
+    }
+  }
+
+  try {
+    // Build the token endpoint URL
+    const tokenUrl = `${instance.url}/auth/token`
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: instance.refreshToken,
+        client_id: 'trokky-cli'
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorDescription = (errorData as any).error_description || (errorData as any).error || response.statusText
+
+      // Check if refresh token is expired or invalid
+      if (response.status === 400 || response.status === 401) {
+        return {
+          success: false,
+          error: `Token refresh failed: ${errorDescription}`,
+          requiresRelogin: true
+        }
+      }
+
+      return {
+        success: false,
+        error: `Token refresh failed: ${errorDescription}`,
+        requiresRelogin: false
+      }
+    }
+
+    const tokenData = await response.json() as TokenRefreshResponse
+
+    // Calculate new expiration time
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+
+    // Update the stored instance with new tokens
+    const config = await loadConfig()
+    if (config.instances[instanceName]) {
+      config.instances[instanceName] = {
+        ...config.instances[instanceName],
+        token: tokenData.access_token,
+        tokenExpiresAt: expiresAt,
+        // Update refresh token if a new one was provided
+        refreshToken: tokenData.refresh_token || instance.refreshToken,
+        updatedAt: new Date().toISOString()
+      }
+      await saveConfig(config)
+    }
+
+    return {
+      success: true,
+      token: tokenData.access_token,
+      expiresAt
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      success: false,
+      error: `Token refresh failed: ${message}`,
+      requiresRelogin: false
+    }
+  }
+}
+
+/**
+ * Get a valid token for an instance, refreshing if necessary
+ * Returns the token and whether it was refreshed
+ */
+export async function getValidToken(
+  instanceName: string,
+  instance: TrokkyInstance
+): Promise<{ token: string; refreshed: boolean } | { error: string; requiresRelogin: boolean }> {
+  // If not OAuth2 or no expiration info, just return the current token
+  if (instance.authType !== 'oauth2' || !instance.tokenExpiresAt) {
+    return { token: instance.token, refreshed: false }
+  }
+
+  // Check if token is expired or about to expire
+  if (!isTokenExpired(instance.tokenExpiresAt)) {
+    return { token: instance.token, refreshed: false }
+  }
+
+  // Token is expired, try to refresh
+  const refreshResult = await refreshAccessToken(instanceName, instance)
+
+  if (refreshResult.success) {
+    return { token: refreshResult.token, refreshed: true }
+  }
+
+  return {
+    error: refreshResult.error,
+    requiresRelogin: refreshResult.requiresRelogin
+  }
+}
