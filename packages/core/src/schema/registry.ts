@@ -88,7 +88,7 @@ export class SchemaRegistry {
    */
   private injectAutoThumbnailField(schema: ContentSchema): ContentSchema {
     const autoThumbnailConfig = this.config?.autoThumbnail || {}
-    
+
     // Check if feature is enabled (default: true)
     if (autoThumbnailConfig.enabled === false) {
       return schema
@@ -101,7 +101,7 @@ export class SchemaRegistry {
 
     // Skip singletons if configured to do so (default: true)
     const skipSingletons = autoThumbnailConfig.skipSingletons !== false
-    if (skipSingletons && schema.type === 'singleton') {
+    if (skipSingletons && schema.singleton === true) {
       return schema
     }
 
