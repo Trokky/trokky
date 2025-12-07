@@ -99,15 +99,72 @@ export function detectContentFormat(
 }
 
 /**
- * Convert editor content to HTML with shortcodes for storage
+ * Convert absolute URL to relative path
+ * e.g., "http://localhost:3000/api/media/xxx" -> "/api/media/xxx"
+ */
+function toRelativeUrl(url: string): string {
+  if (!url) return url
+
+  try {
+    // If it's already a relative URL, return as-is
+    if (url.startsWith('/')) return url
+
+    // Parse and extract pathname
+    const parsed = new URL(url)
+    return parsed.pathname + parsed.search + parsed.hash
+  } catch {
+    // If URL parsing fails, return original
+    return url
+  }
+}
+
+/**
+ * Convert editor content to HTML for storage
+ *
+ * For HTML format, we use relative URLs (without host) for portability
+ * The data-trokky-id is preserved for reference
  */
 function editorToHtml(editor: Editor): string {
   const html = editor.getHTML()
-  return contentToShortcodes(html)
+  return normalizeHtmlImages(html)
+}
+
+/**
+ * Normalize HTML images - convert to relative URLs and ensure consistent attribute order
+ */
+function normalizeHtmlImages(html: string): string {
+  return html.replace(
+    /<img([^>]*)>/g,
+    (match, attrs) => {
+      // Extract attributes
+      const src = attrs.match(/src="([^"]*)"/)?.[1] || ''
+      const alt = attrs.match(/alt="([^"]*)"/)?.[1] || ''
+      const title = attrs.match(/title="([^"]*)"/)?.[1]
+      const trokkyId = attrs.match(/data-trokky-id="([^"]*)"/)?.[1]
+      const trokkyVariant = attrs.match(/data-trokky-variant="([^"]*)"/)?.[1]
+      const className = attrs.match(/class="([^"]*)"/)?.[1]
+
+      // Convert to relative URL for portability
+      const relativeSrc = toRelativeUrl(src)
+
+      // Build normalized img tag
+      let imgAttrs = `src="${relativeSrc}"`
+      if (alt) imgAttrs += ` alt="${alt}"`
+      if (title) imgAttrs += ` title="${title}"`
+      if (className) imgAttrs += ` class="${className}"`
+      if (trokkyId) imgAttrs += ` data-trokky-id="${trokkyId}"`
+      if (trokkyVariant) imgAttrs += ` data-trokky-variant="${trokkyVariant}"`
+
+      return `<img ${imgAttrs}>`
+    }
+  )
 }
 
 /**
  * Convert editor content to ProseMirror JSON with shortcodes for storage
+ *
+ * For ProseMirror format, we use shortcode references since this format
+ * is meant for re-editing and needs the media ID for the editor
  */
 function editorToProseMirror(editor: Editor): ProseMirrorDocument {
   const json = editor.getJSON() as ProseMirrorDocument
@@ -116,12 +173,13 @@ function editorToProseMirror(editor: Editor): ProseMirrorDocument {
 
 /**
  * Convert editor content to Markdown for storage
+ *
+ * For Markdown format, we output standard Markdown image syntax
+ * with actual URLs, making it ready for rendering
  */
 function editorToMarkdown(editor: Editor): string {
-  // Get HTML and convert to markdown
   const html = editor.getHTML()
-  const htmlWithShortcodes = contentToShortcodes(html)
-  return htmlToMarkdown(htmlWithShortcodes)
+  return htmlToMarkdown(html)
 }
 
 /**
@@ -153,10 +211,20 @@ export function htmlToMarkdown(html: string): string {
   // Convert links
   markdown = markdown.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
 
-  // Convert images (including shortcodes)
-  markdown = markdown.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>/gi, '![$2]($1)')
-  markdown = markdown.replace(/<img[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>/gi, '![$1]($2)')
-  markdown = markdown.replace(/<img[^>]*src="([^"]*)"[^>]*\/?>/gi, '![]($1)')
+  // Convert images - parse attributes regardless of order, use relative URLs
+  markdown = markdown.replace(/<img([^>]*)>/gi, (match, attrs) => {
+    const src = attrs.match(/src="([^"]*)"/)?.[1] || ''
+    const alt = attrs.match(/alt="([^"]*)"/)?.[1] || ''
+    const title = attrs.match(/title="([^"]*)"/)?.[1]
+
+    // Convert to relative URL for portability
+    const relativeSrc = toRelativeUrl(src)
+
+    if (title) {
+      return `![${alt}](${relativeSrc} "${title}")`
+    }
+    return `![${alt}](${relativeSrc})`
+  })
 
   // Convert lists
   markdown = markdown.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, content) => {
