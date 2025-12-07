@@ -10,7 +10,22 @@ export interface RichTextValidation extends BaseValidation {
   customValidation?: (content: string) => boolean | string;
 }
 
+/**
+ * Output format for richtext content storage
+ * - 'html': HTML string (default, backwards compatible)
+ * - 'prosemirror': ProseMirror/TipTap JSON document structure
+ * - 'markdown': Markdown string
+ */
+export type RichTextOutputFormat = 'html' | 'prosemirror' | 'markdown';
+
 export interface RichTextFieldOptions extends BaseFieldOptions {
+  /**
+   * Output format for storage
+   * - 'html': HTML string (default)
+   * - 'prosemirror': ProseMirror JSON document
+   * - 'markdown': Markdown string
+   */
+  outputFormat?: RichTextOutputFormat;
   /** Toolbar items to show */
   toolbar?: string[];
   /** Heading levels to allow (e.g., [1, 2, 3] for H1, H2, H3) */
@@ -44,7 +59,31 @@ export interface ToolbarGroup {
   items: string[];
 }
 
-// Simple rich text content (just HTML)
+/**
+ * ProseMirror document node structure
+ */
+export interface ProseMirrorNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: ProseMirrorNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  text?: string;
+}
+
+/**
+ * ProseMirror document structure (TipTap JSON format)
+ */
+export interface ProseMirrorDocument {
+  type: 'doc';
+  content: ProseMirrorNode[];
+}
+
+/**
+ * Rich text content value - can be string (HTML/Markdown) or ProseMirror JSON
+ */
+export type RichTextValue = string | ProseMirrorDocument;
+
+// Simple rich text content (just HTML) - kept for backwards compatibility
 export interface RichTextContent {
   /** HTML content */
   html: string;
@@ -70,6 +109,7 @@ export const RICHTEXT_FIELD_DEFAULTS = {
   } as RichTextValidation,
   
   options: {
+    outputFormat: 'html',
     placeholder: 'Start typing...',
     toolbar: [
       'bold', 'italic', 'underline', 'strikethrough',

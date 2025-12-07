@@ -1,11 +1,11 @@
 import type { FieldPlugin } from '../../base/FieldPlugin';
-import type { RichTextFieldDefinition, RichTextContent } from './definition';
+import type { RichTextFieldDefinition, RichTextContent, RichTextValue, ProseMirrorDocument } from './definition';
 import { RichTextFieldComponent } from './component';
 import { RichTextFieldPreview } from './preview';
 import { validateRichTextField, getDefaultRichTextValue } from './validation';
 import { RICHTEXT_FIELD_DEFAULTS } from './definition';
 
-export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, string | RichTextContent> = {
+export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, RichTextValue> = {
   type: 'richtext',
   displayName: 'Rich Text',
   description: 'Rich text editor with formatting',
@@ -95,5 +95,6 @@ export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, string | 
 
 export * from './definition';
 export * from './validation';
+export * from './format-converter';
 export { RichTextFieldComponent } from './component';
 export { RichTextFieldPreview } from './preview';

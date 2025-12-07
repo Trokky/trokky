@@ -1,13 +1,16 @@
-import type { 
-  RichTextFieldDefinition, 
+import type {
+  RichTextFieldDefinition,
   RichTextValidation,
-  RichTextContent
+  RichTextContent,
+  RichTextValue,
+  ProseMirrorDocument
 } from './definition';
 import type { ValidationResult, DocumentContext } from '../../base/FieldDefinition';
 import { RICHTEXT_FIELD_DEFAULTS } from './definition';
+import { proseMirrorToHtml } from './format-converter';
 
 export function validateRichTextField(
-  value: string | RichTextContent | undefined,
+  value: RichTextValue | undefined,
   definition: RichTextFieldDefinition,
   context?: DocumentContext
 ): ValidationResult {
@@ -134,39 +137,65 @@ export function getDefaultRichTextValue(definition: RichTextFieldDefinition): an
   return '';
 }
 
-export function getHTMLContent(value: string | RichTextContent | undefined): string {
+/**
+ * Check if value is a ProseMirror document
+ */
+function isProseMirrorDocument(value: unknown): value is ProseMirrorDocument {
+  return typeof value === 'object' && value !== null && (value as ProseMirrorDocument).type === 'doc';
+}
+
+/**
+ * Check if value is a RichTextContent object
+ */
+function isRichTextContent(value: unknown): value is RichTextContent {
+  return typeof value === 'object' && value !== null && 'html' in value && typeof (value as RichTextContent).html === 'string';
+}
+
+export function getHTMLContent(value: RichTextValue | RichTextContent | undefined): string {
   if (!value) return '';
-  
+
   if (typeof value === 'string') {
     return value;
   }
-  
-  if (typeof value === 'object' && value.html) {
-    return value.html;
+
+  // Handle ProseMirror document
+  if (isProseMirrorDocument(value)) {
+    return proseMirrorToHtml(value);
   }
-  
+
+  // Handle RichTextContent (cast needed due to union type)
+  const richTextContent = value as RichTextContent;
+  if (richTextContent.html) {
+    return richTextContent.html;
+  }
+
   return '';
 }
 
-export function getTextContent(value: string | RichTextContent | undefined): string {
+export function getTextContent(value: RichTextValue | RichTextContent | undefined): string {
   if (!value) return '';
-  
+
   if (typeof value === 'string') {
     // Strip HTML tags to get plain text
     return stripHTML(value);
   }
-  
-  if (typeof value === 'object') {
-    if (value.text) {
-      return value.text;
-    }
-    
-    if (value.html) {
-      return stripHTML(value.html);
-    }
-    
+
+  // Handle ProseMirror document
+  if (isProseMirrorDocument(value)) {
+    const html = proseMirrorToHtml(value);
+    return stripHTML(html);
   }
-  
+
+  // Handle RichTextContent (cast needed due to union type)
+  const richTextContent = value as RichTextContent;
+  if (richTextContent.text) {
+    return richTextContent.text;
+  }
+
+  if (richTextContent.html) {
+    return stripHTML(richTextContent.html);
+  }
+
   return '';
 }
 
@@ -190,10 +219,10 @@ export function calculateReadTime(text: string, wordsPerMinute: number = 200): n
   return Math.ceil(wordCount / wordsPerMinute);
 }
 
-export function getContentStats(value: string | RichTextContent | undefined) {
+export function getContentStats(value: RichTextValue | RichTextContent | undefined) {
   const textContent = getTextContent(value);
   const htmlContent = getHTMLContent(value);
-  
+
   return {
     characters: textContent.length,
     charactersWithSpaces: textContent.length,
