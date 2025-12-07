@@ -4,7 +4,7 @@
  */
 
 import chalk from 'chalk'
-import { resolveCredentials } from './config-manager.js'
+import { resolveCredentials, loadConfig, getValidToken } from './config-manager.js'
 import type { ResolvedCredentials, ResolveOptions } from './config-types.js'
 import { ENV_VARS } from './config-types.js'
 import { TrokkyClient } from '../client.js'
@@ -131,25 +131,63 @@ export interface CliClientResult {
  * This is the primary entry point for CLI commands that need to interact
  * with a Trokky instance. It handles:
  * - Credential resolution (CLI flags > env vars > config file)
+ * - Automatic token refresh for OAuth2 instances
  * - Instance info display (when using a configured instance)
  * - Client creation
  */
 export async function createCliClient(options: CliClientOptions): Promise<CliClientResult> {
   const credentials = await requireCredentials(options)
 
+  // For config-based credentials, check if token needs refresh
+  let token = credentials.token
+  let tokenRefreshed = false
+
+  if (credentials.source === 'config' && credentials.instanceName) {
+    const config = await loadConfig()
+    const instance = config.instances[credentials.instanceName]
+
+    if (instance) {
+      const tokenResult = await getValidToken(credentials.instanceName, instance)
+
+      if ('error' in tokenResult) {
+        // Token refresh failed
+        if (tokenResult.requiresRelogin) {
+          console.error(chalk.red(`\nSession expired for instance '${credentials.instanceName}'.`))
+          console.error(chalk.yellow(`Please run: trokky login ${credentials.url.replace('/api', '')}`))
+          process.exit(1)
+        } else {
+          // Non-fatal error, try with existing token
+          if (!options.quiet && !options.silent) {
+            console.error(chalk.yellow(`Warning: ${tokenResult.error}`))
+          }
+        }
+      } else {
+        token = tokenResult.token
+        tokenRefreshed = tokenResult.refreshed
+      }
+    }
+  }
+
   // Display instance info when using a configured instance (unless quiet/silent mode)
   const shouldShowInstanceInfo = !options.quiet && !options.silent && credentials.source === 'config' && credentials.instanceName
   if (shouldShowInstanceInfo) {
-    console.error(chalk.gray(`Using instance: ${credentials.instanceName} (${credentials.url})`))
+    const refreshNote = tokenRefreshed ? chalk.green(' (token refreshed)') : ''
+    console.error(chalk.gray(`Using instance: ${credentials.instanceName} (${credentials.url})${refreshNote}`))
   }
 
   try {
     const client = new TrokkyClient({
       baseUrl: credentials.url,
-      apiToken: credentials.token
+      apiToken: token
     })
 
-    return { client, credentials }
+    // Update credentials with potentially refreshed token
+    const updatedCredentials: ResolvedCredentials = {
+      ...credentials,
+      token
+    }
+
+    return { client, credentials: updatedCredentials }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Failed to create Trokky client: ${message}`)
