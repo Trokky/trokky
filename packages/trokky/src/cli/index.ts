@@ -10,6 +10,7 @@ import { createCommand } from './create.js'
 import { configCommand } from './config.js'
 import { loginCommand } from './login.js'
 import { devCommand } from './dev.js'
+import { documentsCommand } from './documents/index.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../../package.json')
@@ -24,6 +25,7 @@ program
 program.addCommand(createCommand)
 program.addCommand(loginCommand)
 program.addCommand(configCommand)
+program.addCommand(documentsCommand)
 program.addCommand(backupCommand)
 program.addCommand(restoreCommand)
 program.addCommand(migrateCommand)
