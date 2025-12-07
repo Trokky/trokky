@@ -1,8 +1,7 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
 import ora from 'ora'
-import { TrokkyClient } from '../client.js'
-import { requireCredentials, credentialOptions } from './credentials.js'
+import { createCliClient, credentialOptions } from './credentials.js'
 
 export const cleanCommand = new Command('clean')
   .description('Clean (delete) all content from a Trokky instance')
@@ -16,7 +15,7 @@ export const cleanCommand = new Command('clean')
   .option('--confirm', 'Confirm destructive operation (required for actual deletion)')
   .action(async (options) => {
     // Resolve credentials from CLI flags, env vars, or config file
-    const credentials = await requireCredentials({
+    const { client, credentials } = await createCliClient({
       url: options.url,
       token: options.token,
       instance: options.instance
@@ -25,10 +24,6 @@ export const cleanCommand = new Command('clean')
     const spinner = ora('Starting clean operation...').start()
 
     try {
-      const client = new TrokkyClient({
-        baseUrl: credentials.url,
-        apiToken: credentials.token
-      })
 
       // Require confirmation for non-dry-run operations
       if (!options.dryRun && !options.confirm) {

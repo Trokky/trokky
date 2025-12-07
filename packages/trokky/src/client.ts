@@ -149,4 +149,9 @@ export class TrokkyClient {
   async getStudioConfig(): Promise<any> {
     return this.http.get('/config/studio')
   }
+
+  // Utility
+  getBaseUrl(): string {
+    return (this.http as any).config?.baseUrl || ''
+  }
 }

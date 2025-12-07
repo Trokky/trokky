@@ -132,6 +132,100 @@ Options:
 - **Production safety**: Detects and warns about production URLs
 - **Clean migration**: Option to clean target before migration
 
+### Documents
+
+Quick CRUD operations for content management (alias: `trokky docs`):
+
+```bash
+# List documents in a collection
+trokky docs list posts
+trokky docs list posts --limit 10 --offset 0
+trokky docs list posts --filter '{"status":"published"}'
+trokky docs list posts --sort '{"_createdAt":"desc"}'
+trokky docs list posts --ids-only    # Just IDs for piping
+
+# Get a single document
+trokky docs get posts abc123
+trokky docs get posts abc123 --pretty
+
+# Singletons - ID is optional (auto-detected)
+trokky docs get homepage              # Detects singleton, uses collection name as ID
+trokky docs update homepage --patch '{"title":"New Title"}'
+trokky docs delete homepage --confirm
+
+# Create a document
+trokky docs create posts ./post.json
+trokky docs create posts --data '{"title":"Hello World"}'
+echo '{"title":"From stdin"}' | trokky docs create posts
+
+# Update a document
+trokky docs update posts abc123 ./updated.json
+trokky docs update posts abc123 --data '{"title":"New Title"}'
+trokky docs update posts abc123 --patch '{"status":"published"}'  # Partial update
+
+# Delete document(s)
+trokky docs delete posts abc123
+trokky docs delete posts abc123 def456 ghi789
+trokky docs delete posts abc123 --confirm  # Skip confirmation
+```
+
+**Singleton Support:**
+
+For singleton collections (e.g., `homepage`, `settings`), the document ID is optional. The CLI automatically detects singletons and uses the collection name as the ID:
+
+```bash
+# These are equivalent for singletons:
+trokky docs get homepage
+trokky docs get homepage homepage
+
+# Update singleton without specifying ID
+trokky docs update settings --patch '{"theme":"dark"}'
+```
+
+**Global Options:**
+- `--url <url>` - Trokky instance URL (or `TROKKY_URL` env var)
+- `--token <token>` - API token (or `TROKKY_TOKEN` env var)
+- `--instance <name>` - Use a specific configured instance
+- `--pretty` - Colorized, formatted JSON output
+- `--quiet` - Suppress all status messages (for scripting)
+
+**Instance Display:**
+
+When using a configured instance, the CLI displays which instance is being used:
+
+```bash
+$ trokky docs list posts
+Using instance: production (https://cms.example.com/api)
+[{"_id":"post-1",...}]
+```
+
+This is automatically suppressed with `--quiet` or `--ids-only` for clean piping.
+
+**List Options:**
+- `--limit <n>` - Number of documents to return
+- `--offset <n>` - Offset for pagination
+- `--filter <json>` - Filter criteria as JSON
+- `--sort <json>` - Sort criteria as JSON
+- `--ids-only` - Output only document IDs (one per line, for piping)
+
+**Create/Update Options:**
+- `[file]` - JSON file path
+- `--data <json>` - Inline JSON data
+- `--patch <json>` - Partial update (update only, merges with existing)
+
+**Delete Options:**
+- `--confirm` - Skip confirmation prompt (for scripting)
+
+**Piping Examples:**
+```bash
+# Delete all drafts
+trokky documents list posts --filter '{"status":"draft"}' --ids-only | \
+  xargs trokky documents delete posts --confirm
+
+# Export to file
+trokky documents list posts > posts-backup.json
+```
+
 ### Clean
 
 Remove all content from a Trokky instance (useful for development/testing):
