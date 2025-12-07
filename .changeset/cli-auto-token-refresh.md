@@ -1,5 +1,5 @@
 ---
-"trokky": patch
+"@trokky/trokky": patch
 ---
 
 Add automatic OAuth2 token refresh for CLI commands
