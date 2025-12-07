@@ -132,6 +132,70 @@ Options:
 - **Production safety**: Detects and warns about production URLs
 - **Clean migration**: Option to clean target before migration
 
+### Documents
+
+Quick CRUD operations for content management (alias: `trokky docs`):
+
+```bash
+# List documents in a collection
+trokky documents list posts
+trokky documents list posts --limit 10 --offset 0
+trokky documents list posts --filter '{"status":"published"}'
+trokky documents list posts --sort '{"_createdAt":"desc"}'
+trokky documents list posts --ids-only    # Just IDs for piping
+
+# Get a single document
+trokky documents get posts abc123
+trokky documents get posts abc123 --pretty
+
+# Create a document
+trokky documents create posts ./post.json
+trokky documents create posts --data '{"title":"Hello World"}'
+echo '{"title":"From stdin"}' | trokky documents create posts
+
+# Update a document
+trokky documents update posts abc123 ./updated.json
+trokky documents update posts abc123 --data '{"title":"New Title"}'
+trokky documents update posts abc123 --patch '{"status":"published"}'  # Partial update
+
+# Delete document(s)
+trokky documents delete posts abc123
+trokky documents delete posts abc123 def456 ghi789
+trokky documents delete posts abc123 --confirm  # Skip confirmation
+```
+
+**Global Options:**
+- `--url <url>` - Trokky instance URL (or `TROKKY_URL` env var)
+- `--token <token>` - API token (or `TROKKY_TOKEN` env var)
+- `--instance <name>` - Use a specific configured instance
+- `--pretty` - Colorized, formatted JSON output
+- `--quiet` - Suppress status messages (for scripting)
+
+**List Options:**
+- `--limit <n>` - Number of documents to return
+- `--offset <n>` - Offset for pagination
+- `--filter <json>` - Filter criteria as JSON
+- `--sort <json>` - Sort criteria as JSON
+- `--ids-only` - Output only document IDs (one per line, for piping)
+
+**Create/Update Options:**
+- `[file]` - JSON file path
+- `--data <json>` - Inline JSON data
+- `--patch <json>` - Partial update (update only, merges with existing)
+
+**Delete Options:**
+- `--confirm` - Skip confirmation prompt (for scripting)
+
+**Piping Examples:**
+```bash
+# Delete all drafts
+trokky documents list posts --filter '{"status":"draft"}' --ids-only | \
+  xargs trokky documents delete posts --confirm
+
+# Export to file
+trokky documents list posts > posts-backup.json
+```
+
 ### Clean
 
 Remove all content from a Trokky instance (useful for development/testing):
