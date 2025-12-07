@@ -5,10 +5,9 @@ import { join } from 'path'
 import chalk from 'chalk'
 import ora from 'ora'
 import unzipper from 'unzipper'
-import { TrokkyClient } from '../client.js'
 import { SchemaAnalyzer } from './schema-analyzer.js'
 import { ReferenceScanner } from './reference-scanner.js'
-import { requireCredentials, credentialOptions } from './credentials.js'
+import { createCliClient, credentialOptions } from './credentials.js'
 import type { BackupManifest, IdMapping, SchemaDefinition } from './types.js'
 
 // Helper function to sanitize document data by removing null values and empty objects
@@ -74,7 +73,7 @@ export const restoreCommand = new Command('restore')
   .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
     // Resolve credentials from CLI flags, env vars, or config file
-    const credentials = await requireCredentials({
+    const { client } = await createCliClient({
       url: options.url,
       token: options.token,
       instance: options.instance
@@ -84,10 +83,6 @@ export const restoreCommand = new Command('restore')
     const tempDir = join(process.cwd(), `trokky-restore-${Date.now()}`)
 
     try {
-      const client = new TrokkyClient({
-        baseUrl: credentials.url,
-        apiToken: credentials.token
-      })
 
       // Step 1: Extract backup
       spinner.text = 'Extracting backup archive...'

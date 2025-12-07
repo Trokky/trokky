@@ -5,8 +5,7 @@
 
 import { Command } from 'commander'
 import ora from 'ora'
-import { TrokkyClient } from '../../client.js'
-import { requireCredentials, credentialOptions } from '../credentials.js'
+import { createCliClient, credentialOptions } from '../credentials.js'
 import { outputDocuments, outputError, type OutputOptions } from '../utils/output.js'
 
 export const listCommand = new Command('list')
@@ -23,10 +22,12 @@ export const listCommand = new Command('list')
   .option('--pretty', 'Colorized, formatted output')
   .option('--quiet', 'Suppress status messages')
   .action(async (collection: string, options) => {
-    const credentials = await requireCredentials({
+    const { client } = await createCliClient({
       url: options.url,
       token: options.token,
-      instance: options.instance
+      instance: options.instance,
+      quiet: options.quiet,
+      silent: options.idsOnly // Suppress instance info when outputting IDs for piping
     })
 
     const outputOpts: OutputOptions = {
@@ -35,13 +36,9 @@ export const listCommand = new Command('list')
       idsOnly: options.idsOnly
     }
 
-    const spinner = options.quiet ? null : ora('Fetching documents...').start()
+    const spinner = (options.quiet || options.idsOnly) ? null : ora('Fetching documents...').start()
 
     try {
-      const client = new TrokkyClient({
-        baseUrl: credentials.url,
-        apiToken: credentials.token
-      })
 
       // Build query options
       const queryOptions: Record<string, unknown> = {}

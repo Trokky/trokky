@@ -138,30 +138,48 @@ Quick CRUD operations for content management (alias: `trokky docs`):
 
 ```bash
 # List documents in a collection
-trokky documents list posts
-trokky documents list posts --limit 10 --offset 0
-trokky documents list posts --filter '{"status":"published"}'
-trokky documents list posts --sort '{"_createdAt":"desc"}'
-trokky documents list posts --ids-only    # Just IDs for piping
+trokky docs list posts
+trokky docs list posts --limit 10 --offset 0
+trokky docs list posts --filter '{"status":"published"}'
+trokky docs list posts --sort '{"_createdAt":"desc"}'
+trokky docs list posts --ids-only    # Just IDs for piping
 
 # Get a single document
-trokky documents get posts abc123
-trokky documents get posts abc123 --pretty
+trokky docs get posts abc123
+trokky docs get posts abc123 --pretty
+
+# Singletons - ID is optional (auto-detected)
+trokky docs get homepage              # Detects singleton, uses collection name as ID
+trokky docs update homepage --patch '{"title":"New Title"}'
+trokky docs delete homepage --confirm
 
 # Create a document
-trokky documents create posts ./post.json
-trokky documents create posts --data '{"title":"Hello World"}'
-echo '{"title":"From stdin"}' | trokky documents create posts
+trokky docs create posts ./post.json
+trokky docs create posts --data '{"title":"Hello World"}'
+echo '{"title":"From stdin"}' | trokky docs create posts
 
 # Update a document
-trokky documents update posts abc123 ./updated.json
-trokky documents update posts abc123 --data '{"title":"New Title"}'
-trokky documents update posts abc123 --patch '{"status":"published"}'  # Partial update
+trokky docs update posts abc123 ./updated.json
+trokky docs update posts abc123 --data '{"title":"New Title"}'
+trokky docs update posts abc123 --patch '{"status":"published"}'  # Partial update
 
 # Delete document(s)
-trokky documents delete posts abc123
-trokky documents delete posts abc123 def456 ghi789
-trokky documents delete posts abc123 --confirm  # Skip confirmation
+trokky docs delete posts abc123
+trokky docs delete posts abc123 def456 ghi789
+trokky docs delete posts abc123 --confirm  # Skip confirmation
+```
+
+**Singleton Support:**
+
+For singleton collections (e.g., `homepage`, `settings`), the document ID is optional. The CLI automatically detects singletons and uses the collection name as the ID:
+
+```bash
+# These are equivalent for singletons:
+trokky docs get homepage
+trokky docs get homepage homepage
+
+# Update singleton without specifying ID
+trokky docs update settings --patch '{"theme":"dark"}'
 ```
 
 **Global Options:**
@@ -169,7 +187,19 @@ trokky documents delete posts abc123 --confirm  # Skip confirmation
 - `--token <token>` - API token (or `TROKKY_TOKEN` env var)
 - `--instance <name>` - Use a specific configured instance
 - `--pretty` - Colorized, formatted JSON output
-- `--quiet` - Suppress status messages (for scripting)
+- `--quiet` - Suppress all status messages (for scripting)
+
+**Instance Display:**
+
+When using a configured instance, the CLI displays which instance is being used:
+
+```bash
+$ trokky docs list posts
+Using instance: production (https://cms.example.com/api)
+[{"_id":"post-1",...}]
+```
+
+This is automatically suppressed with `--quiet` or `--ids-only` for clean piping.
 
 **List Options:**
 - `--limit <n>` - Number of documents to return

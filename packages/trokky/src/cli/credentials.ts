@@ -7,6 +7,7 @@ import chalk from 'chalk'
 import { resolveCredentials } from './config-manager.js'
 import type { ResolvedCredentials, ResolveOptions } from './config-types.js'
 import { ENV_VARS } from './config-types.js'
+import { TrokkyClient } from '../client.js'
 
 /**
  * Result of attempting to get credentials
@@ -107,3 +108,50 @@ export const credentialOptions = {
     description: 'Use a specific configured instance'
   }
 } as const
+
+/**
+ * Options for creating a CLI client
+ */
+export interface CliClientOptions extends ResolveOptions {
+  quiet?: boolean
+  silent?: boolean // Completely suppress all output (for --ids-only, piping, etc.)
+}
+
+/**
+ * Result of creating a CLI client
+ */
+export interface CliClientResult {
+  client: TrokkyClient
+  credentials: ResolvedCredentials
+}
+
+/**
+ * Create a TrokkyClient for CLI commands
+ *
+ * This is the primary entry point for CLI commands that need to interact
+ * with a Trokky instance. It handles:
+ * - Credential resolution (CLI flags > env vars > config file)
+ * - Instance info display (when using a configured instance)
+ * - Client creation
+ */
+export async function createCliClient(options: CliClientOptions): Promise<CliClientResult> {
+  const credentials = await requireCredentials(options)
+
+  // Display instance info when using a configured instance (unless quiet/silent mode)
+  const shouldShowInstanceInfo = !options.quiet && !options.silent && credentials.source === 'config' && credentials.instanceName
+  if (shouldShowInstanceInfo) {
+    console.error(chalk.gray(`Using instance: ${credentials.instanceName} (${credentials.url})`))
+  }
+
+  try {
+    const client = new TrokkyClient({
+      baseUrl: credentials.url,
+      apiToken: credentials.token
+    })
+
+    return { client, credentials }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Failed to create Trokky client: ${message}`)
+  }
+}

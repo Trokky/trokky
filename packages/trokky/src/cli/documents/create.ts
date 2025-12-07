@@ -6,8 +6,7 @@
 import { Command } from 'commander'
 import { readFile } from 'fs/promises'
 import ora from 'ora'
-import { TrokkyClient } from '../../client.js'
-import { requireCredentials, credentialOptions } from '../credentials.js'
+import { createCliClient, credentialOptions } from '../credentials.js'
 import {
   outputDocument,
   outputError,
@@ -29,10 +28,11 @@ export const createCommand = new Command('create')
   .option('--pretty', 'Colorized, formatted output')
   .option('--quiet', 'Suppress status messages')
   .action(async (collection: string, file: string | undefined, options) => {
-    const credentials = await requireCredentials({
+    const { client } = await createCliClient({
       url: options.url,
       token: options.token,
-      instance: options.instance
+      instance: options.instance,
+      quiet: options.quiet
     })
 
     const outputOpts: OutputOptions = {
@@ -70,11 +70,6 @@ export const createCommand = new Command('create')
 
     try {
       const data = parseJsonInput(jsonData, file || '--data')
-
-      const client = new TrokkyClient({
-        baseUrl: credentials.url,
-        apiToken: credentials.token
-      })
 
       const result = await client.createDocument(collection, data as Record<string, unknown>)
       // DocumentResult contains the document data directly

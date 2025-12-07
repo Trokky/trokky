@@ -5,9 +5,8 @@ import { join } from 'path'
 import chalk from 'chalk'
 import ora from 'ora'
 import archiver from 'archiver'
-import { TrokkyClient } from '../client.js'
 import { SchemaAnalyzer } from './schema-analyzer.js'
-import { requireCredentials, credentialOptions } from './credentials.js'
+import { createCliClient, credentialOptions } from './credentials.js'
 import type { BackupManifest, SchemaDefinition, MediaIndex, BackupStatistics } from './types.js'
 
 export const backupCommand = new Command('backup')
@@ -21,7 +20,7 @@ export const backupCommand = new Command('backup')
   .option('--description <text>', 'Backup description for documentation')
   .action(async (options) => {
     // Resolve credentials from CLI flags, env vars, or config file
-    const credentials = await requireCredentials({
+    const { client, credentials } = await createCliClient({
       url: options.url,
       token: options.token,
       instance: options.instance
@@ -31,10 +30,6 @@ export const backupCommand = new Command('backup')
     const tempDir = join(process.cwd(), `trokky-backup-${Date.now()}`)
 
     try {
-      const client = new TrokkyClient({
-        baseUrl: credentials.url,
-        apiToken: credentials.token
-      })
 
       await mkdir(tempDir, { recursive: true })
 
