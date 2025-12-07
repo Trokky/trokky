@@ -69,6 +69,12 @@ import {
   contentToShortcodes,
   type TrokkyImageShortcode,
 } from './shortcodes'
+import {
+  editorToStorageFormat,
+  storageToEditorFormat,
+  detectContentFormat,
+} from './format-converter'
+import type { RichTextOutputFormat, ProseMirrorDocument } from './definition'
 
 const logger = createStudioLogger('RichTextField')
 
@@ -545,10 +551,19 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         ? [CharacterCount.configure({ limit: characterLimit })]
         : []),
     ],
-    content:
-      studioContext?.mediaUrlGenerator && value
-        ? resolveShortcodes(value, studioContext.mediaUrlGenerator)
-        : value || '',
+    content: (() => {
+      // Get output format from options (default to 'html' for backwards compatibility)
+      const outputFormat: RichTextOutputFormat = options.outputFormat || 'html'
+
+      // Convert stored content to editor format (HTML or ProseMirror JSON)
+      const editorContent = storageToEditorFormat(
+        value as string | ProseMirrorDocument | undefined,
+        outputFormat,
+        studioContext?.mediaUrlGenerator || undefined
+      )
+
+      return editorContent || ''
+    })(),
     editable: !isDisabled && !isReadonly,
     editorProps: {
       handlePaste: (view, event) => {
@@ -614,15 +629,17 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     onUpdate: ({ editor }) => {
       if (isViewMode || !onChange) return
 
-      const html = editor.getHTML()
-      // 🎯 CRITICAL: Transform HTML to shortcodes for storage
-      const contentToSave = contentToShortcodes(html)
+      // Get output format from options (default to 'html' for backwards compatibility)
+      const outputFormat: RichTextOutputFormat = options.outputFormat || 'html'
 
-      logger.debug('Content updated and transformed to shortcodes', {
+      // 🎯 CRITICAL: Transform content to specified format for storage
+      const contentToSave = editorToStorageFormat(editor, outputFormat)
+
+      logger.debug('Content updated and transformed for storage', {
         fieldId,
-        htmlLength: html.length,
-        shortcodeLength: contentToSave.length,
-        hasShortcodes: contentToSave !== html,
+        outputFormat,
+        contentType: typeof contentToSave,
+        contentLength: typeof contentToSave === 'string' ? contentToSave.length : JSON.stringify(contentToSave).length,
       })
 
       onChange(contentToSave)
@@ -637,21 +654,29 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     if (editor && value !== undefined) {
       const currentContent = editor.getHTML()
 
-      // Transform shortcodes to HTML for display in editor
-      const htmlForEditor = studioContext?.mediaUrlGenerator
-        ? resolveShortcodes(value, studioContext.mediaUrlGenerator)
-        : value
+      // Get output format from options (default to 'html' for backwards compatibility)
+      const outputFormat: RichTextOutputFormat = options.outputFormat || 'html'
 
-      if (currentContent !== htmlForEditor) {
-        editor.commands.setContent(htmlForEditor, false) // false = don't emit update event
-        logger.debug('Editor content synced with shortcode resolution', {
-          originalValue: value,
-          resolvedHtml: htmlForEditor,
-          valueHasShortcodes: value !== htmlForEditor,
+      // Transform stored content to editor format
+      const editorContent = storageToEditorFormat(
+        value as string | ProseMirrorDocument | undefined,
+        outputFormat,
+        studioContext?.mediaUrlGenerator || undefined
+      )
+
+      // Compare as strings (convert ProseMirror JSON to string if needed)
+      const editorContentStr = typeof editorContent === 'string' ? editorContent : ''
+
+      if (currentContent !== editorContentStr && editorContentStr) {
+        editor.commands.setContent(editorContent, false) // false = don't emit update event
+        logger.debug('Editor content synced with format conversion', {
+          outputFormat,
+          valueType: typeof value,
+          editorContentType: typeof editorContent,
         })
       }
     }
-  }, [editor, value, isFullscreen, studioContext?.mediaUrlGenerator, logger])
+  }, [editor, value, isFullscreen, studioContext?.mediaUrlGenerator, logger, options.outputFormat])
 
   // Update editor editable state when read-only props change
   useEffect(() => {
