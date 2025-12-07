@@ -1,6 +1,6 @@
 {
   "name": "@trokky/studio",
-  "version": "0.1.25",
+  "version": "0.2.0",
   "description": "Trokky Studio v2 - Zero-config content management interface",
   "type": "module",
   "scripts": {
