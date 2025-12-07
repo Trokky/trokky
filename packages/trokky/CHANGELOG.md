@@ -1,5 +1,15 @@
 # @trokky/trokky
 
+## 0.1.15
+
+### Patch Changes
+
+- 8cd5fb8: Add automatic OAuth2 token refresh for CLI commands
+  - Automatically refresh expired access tokens using stored refresh tokens
+  - Display "(token refreshed)" indicator when token is refreshed
+  - Clear error message when refresh fails and re-login is required
+  - 5-minute buffer to proactively refresh tokens before expiration
+
 ## 0.1.14
 
 ### Patch Changes
