@@ -76,6 +76,7 @@ export class TrokkyRoutes {
     // Media routes
     this.addRoute('GET', `${basePath}/media`, this.listMedia.bind(this))
     this.addRoute('POST', `${basePath}/media/upload`, this.uploadMedia.bind(this))
+    this.addRoute('POST', `${basePath}/media/bulk-delete`, this.bulkDeleteMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id`, this.getMedia.bind(this))
     this.addRoute('PUT', `${basePath}/media/:id`, this.updateMedia.bind(this))
     this.addRoute('GET', `${basePath}/media/:id/file`, this.serveMediaFile.bind(this))
@@ -1174,6 +1175,60 @@ export class TrokkyRoutes {
 
       await this.core.deleteMedia(id)
       return this.successResponse({ message: 'Media file deleted successfully' })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  private async bulkDeleteMedia(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      // SECURITY: Validate authentication before processing
+      await this.validateAuthentication(request)
+
+      const body = request.body as { ids?: string[] }
+
+      if (!body?.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
+        return this.errorResponse(new Error('Invalid request: ids array is required'), 400)
+      }
+
+      // Validate all IDs before deleting
+      for (const id of body.ids) {
+        SecurityValidator.validateDocumentId(id)
+      }
+
+      // Limit bulk operations to prevent abuse
+      const maxBulkOperations = 100
+      if (body.ids.length > maxBulkOperations) {
+        return this.errorResponse(
+          new Error(`Cannot delete more than ${maxBulkOperations} files at once`),
+          400
+        )
+      }
+
+      const results: { id: string; success: boolean; error?: string }[] = []
+      let successCount = 0
+      let errorCount = 0
+
+      // Delete each file and track results
+      for (const id of body.ids) {
+        try {
+          await this.core.deleteMedia(id)
+          results.push({ id, success: true })
+          successCount++
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          results.push({ id, success: false, error: errorMessage })
+          errorCount++
+          this.logger.warn('Failed to delete media file during bulk operation', { id, error: errorMessage })
+        }
+      }
+
+      return this.successResponse({
+        message: `Bulk delete completed: ${successCount} succeeded, ${errorCount} failed`,
+        results,
+        successCount,
+        errorCount
+      })
     } catch (error) {
       return this.errorResponse(error)
     }

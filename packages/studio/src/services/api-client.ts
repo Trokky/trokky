@@ -615,6 +615,28 @@ export class ApiClient {
   }
 
   /**
+   * Bulk delete media files
+   */
+  async bulkDeleteMedia(ids: string[]): Promise<
+    ApiResponse<{
+      message: string
+      results: { id: string; success: boolean; error?: string }[]
+      successCount: number
+      errorCount: number
+    }>
+  > {
+    if (!this.hasFeature('media')) {
+      throw new ApiClientError('Media feature not available')
+    }
+    return this.post<{
+      message: string
+      results: { id: string; success: boolean; error?: string }[]
+      successCount: number
+      errorCount: number
+    }>('/media/bulk-delete', { ids })
+  }
+
+  /**
    * Regenerate variants for media file
    */
   async regenerateMediaVariants(
