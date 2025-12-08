@@ -2,7 +2,7 @@
 "@trokky/core": minor
 "@trokky/routes": minor
 "@trokky/client": minor
-"trokky": minor
+"@trokky/trokky": minor
 ---
 
 feat: add server-side reference expansion support
