@@ -26,6 +26,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useApiClient } from '@/hooks/useApiClient';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -96,8 +97,14 @@ export function MediaPage() {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<MediaFile | null>(null);
   const [currentViewerIndex, setCurrentViewerIndex] = useState(0);
+
+  // Selection state for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -619,6 +626,149 @@ export function MediaPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Selection helpers
+  const handleItemSelect = useCallback((id: string, selected: boolean, shiftKey = false) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+
+      if (shiftKey && lastSelectedId && selected) {
+        // Range selection with shift key
+        const currentIndex = filteredFiles.findIndex(f => f.id === id);
+        const lastIndex = filteredFiles.findIndex(f => f.id === lastSelectedId);
+
+        if (currentIndex !== -1 && lastIndex !== -1) {
+          const start = Math.min(currentIndex, lastIndex);
+          const end = Math.max(currentIndex, lastIndex);
+
+          for (let i = start; i <= end; i++) {
+            next.add(filteredFiles[i].id);
+          }
+        }
+      } else {
+        if (selected) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+      }
+
+      return next;
+    });
+
+    if (selected) {
+      setLastSelectedId(id);
+    }
+  }, [filteredFiles, lastSelectedId]);
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredFiles.length) {
+      // All selected, deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all
+      setSelectedIds(new Set(filteredFiles.map(f => f.id)));
+    }
+  }, [filteredFiles, selectedIds.size]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
+  }, []);
+
+  // Bulk delete handler
+  const handleBulkDelete = useCallback(() => {
+    if (selectedIds.size === 0 || !canDelete) return;
+    setIsBulkDeleteModalOpen(true);
+  }, [selectedIds.size, canDelete]);
+
+  const confirmBulkDelete = async () => {
+    if (selectedIds.size === 0 || !canDelete || isDeleting) return;
+
+    if (!apiClient.hasFeature('media')) {
+      logger.warn('Bulk delete attempted but media feature not available');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const idsToDelete = Array.from(selectedIds);
+      const response = await apiClient.bulkDeleteMedia(idsToDelete);
+
+      if (response.success) {
+        const { successCount, errorCount } = response.data || { successCount: 0, errorCount: 0 };
+
+        if (errorCount > 0) {
+          studioContext?.utils.showToast(
+            `Deleted ${successCount} file(s), ${errorCount} failed`,
+            'warning'
+          );
+        } else {
+          studioContext?.utils.showToast(
+            successCount === 1 ? 'File deleted' : `${successCount} files deleted`,
+            'success'
+          );
+        }
+
+        await loadMediaFiles();
+        clearSelection();
+
+        // Close viewer if the current file was deleted
+        if (isViewerOpen && selectedFile && selectedIds.has(selectedFile.id)) {
+          setIsViewerOpen(false);
+        }
+      }
+    } catch (error) {
+      logger.error('Bulk delete failed:', error);
+      studioContext?.utils.showToast('Failed to delete files', 'error');
+    } finally {
+      setIsDeleting(false);
+      setIsBulkDeleteModalOpen(false);
+    }
+  };
+
+  // Clear selection when filters change
+  useEffect(() => {
+    clearSelection();
+  }, [selectedType, searchQuery, clearSelection]);
+
+  // Keyboard shortcuts for selection and bulk operations
+  useEffect(() => {
+    // Don't handle keyboard shortcuts when viewer is open or when typing in an input
+    if (isViewerOpen || isEditModalOpen || isDeleteModalOpen || isBulkDeleteModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Cmd/Ctrl + A to select all
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Escape to clear selection
+      if (e.key === 'Escape' && selectedIds.size > 0) {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+
+      // Delete/Backspace to delete selected
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && canDelete) {
+        e.preventDefault();
+        handleBulkDelete();
+        return;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isViewerOpen, isEditModalOpen, isDeleteModalOpen, isBulkDeleteModalOpen, selectedIds.size, canDelete, handleSelectAll, clearSelection, handleBulkDelete]);
+
   // Get variant count for a media file
   const getVariantCount = (file: MediaFile) => {
     return file.metadata?.imageVariants ? Object.keys(file.metadata.imageVariants).length : 0;
@@ -654,18 +804,44 @@ export function MediaPage() {
   };
 
   // Render media item
-  const renderMediaItem = (file: MediaFile) => {
+  const renderMediaItem = (file: MediaFile, index: number) => {
     const FileIcon = getFileIcon(file.contentType);
     const isImage = file.contentType.startsWith('image/');
     const variantCount = getVariantCount(file);
+    const isSelected = selectedIds.has(file.id);
 
     if (viewMode === 'grid') {
       return (
         <div
           key={file.id}
-          className="group relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => openViewer(file)}
+          className={`group relative bg-white dark:bg-gray-800 rounded-lg border overflow-hidden hover:shadow-md transition-all cursor-pointer ${
+            isSelected
+              ? 'ring-2 ring-blue-500 border-blue-500 shadow-lg'
+              : 'border-gray-200 dark:border-gray-700'
+          }`}
+          onClick={(e) => {
+            if (e.shiftKey && canDelete) {
+              e.preventDefault();
+              handleItemSelect(file.id, true, true);
+            } else {
+              openViewer(file);
+            }
+          }}
         >
+          {/* Checkbox - always visible when delete permission */}
+          {canDelete && (
+            <div
+              className="absolute top-2 left-2 z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isSelected}
+                onChange={(checked) => handleItemSelect(file.id, checked)}
+                aria-label={`Select ${file.metadata?.title || file.filename}`}
+              />
+            </div>
+          )}
+
           <div className="aspect-square flex items-center justify-center bg-gray-50 dark:bg-gray-900">
             {isImage ? (
               <img
@@ -678,14 +854,14 @@ export function MediaPage() {
               <FileIcon className="h-12 w-12 text-gray-400" />
             )}
           </div>
-          
+
           {/* Variant count badge */}
           {variantCount > 0 && (
             <div className="absolute top-2 right-2 bg-primary-600 text-white text-xs px-2 py-1 rounded-full">
               {variantCount}
             </div>
           )}
-          
+
           {/* Overlay */}
           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
             <div className="flex space-x-2">
@@ -729,7 +905,7 @@ export function MediaPage() {
               )}
             </div>
           </div>
-          
+
           {/* Info */}
           <div className="p-3">
             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -747,9 +923,34 @@ export function MediaPage() {
       return (
         <div
           key={file.id}
-          className="flex items-center space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-sm transition-shadow cursor-pointer"
-          onClick={() => openViewer(file)}
+          className={`flex items-center space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border hover:shadow-sm transition-all cursor-pointer ${
+            isSelected
+              ? 'ring-2 ring-blue-500 border-blue-500 shadow-lg'
+              : 'border-gray-200 dark:border-gray-700'
+          }`}
+          onClick={(e) => {
+            if (e.shiftKey && canDelete) {
+              e.preventDefault();
+              handleItemSelect(file.id, true, true);
+            } else {
+              openViewer(file);
+            }
+          }}
         >
+          {/* Checkbox for list view */}
+          {canDelete && (
+            <div
+              className="flex-shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isSelected}
+                onChange={(checked) => handleItemSelect(file.id, checked)}
+                aria-label={`Select ${file.metadata?.title || file.filename}`}
+              />
+            </div>
+          )}
+
           <div className="flex-shrink-0">
             {isImage ? (
               <img
@@ -764,7 +965,7 @@ export function MediaPage() {
               </div>
             )}
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
               {file.metadata?.title || file.filename}
@@ -778,7 +979,7 @@ export function MediaPage() {
               </p>
             )}
           </div>
-          
+
           {(canEdit || canDelete) && (
             <div className="flex space-x-1">
               {canEdit && (
@@ -936,6 +1137,52 @@ export function MediaPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Toolbar - appears when items are selected */}
+      {selectedIds.size > 0 && canDelete && (
+        <div className="mb-4 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                checked={selectedIds.size === filteredFiles.length}
+                indeterminate={selectedIds.size > 0 && selectedIds.size < filteredFiles.length}
+                onChange={handleSelectAll}
+                aria-label="Select all files"
+              />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                {selectedIds.size} {selectedIds.size === 1 ? 'file' : 'files'} selected
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSelection}
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+            >
+              Clear selection
+            </Button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSelectAll}
+              className="text-blue-600 dark:text-blue-400"
+            >
+              {selectedIds.size === filteredFiles.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+            >
+              <TrashIcon className="h-4 w-4 mr-2" />
+              {isDeleting ? 'Deleting...' : 'Delete Selected'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-4 lg:gap-6">
         {/* Sidebar with media type filters */}
         <div className={`${isFilterSidebarOpen ? 'block' : 'hidden'} lg:block w-48 lg:w-56 flex-shrink-0`}>
@@ -1013,7 +1260,7 @@ export function MediaPage() {
                   ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4'
                   : 'space-y-2'
               }>
-                {paginatedFiles.map(renderMediaItem)}
+                {paginatedFiles.map((file, index) => renderMediaItem(file, index))}
               </div>
 
               {/* Pagination Controls */}
@@ -1514,6 +1761,48 @@ export function MediaPage() {
                 variant="secondary"
                 onClick={() => setIsDeleteModalOpen(false)}
                 className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && selectedIds.size > 0 && (
+        <Modal
+          isOpen={isBulkDeleteModalOpen}
+          onClose={() => setIsBulkDeleteModalOpen(false)}
+          title="Delete Selected Media"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <ExclamationTriangleIcon className="h-6 w-6 text-red-600 mt-1" />
+              <div>
+                <p className="text-gray-900 dark:text-white">
+                  Are you sure you want to delete {selectedIds.size} {selectedIds.size === 1 ? 'file' : 'files'}?
+                </p>
+                <p className="text-sm text-red-600 mt-2">
+                  This action cannot be undone. All selected files will be permanently removed
+                  and any content using these media files may be affected.
+                </p>
+              </div>
+            </div>
+            <div className="flex space-x-3 pt-4">
+              <Button
+                variant="danger"
+                onClick={confirmBulkDelete}
+                className="flex-1"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'File' : 'Files'}`}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="flex-1"
+                disabled={isDeleting}
               >
                 Cancel
               </Button>
