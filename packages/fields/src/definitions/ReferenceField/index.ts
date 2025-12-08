@@ -41,7 +41,8 @@ export const referenceFieldPlugin: FieldPlugin<ReferenceFieldDefinition, Referen
       required: schemaField.required || false,
       validation: schemaField.validation || {},
       options: schemaField.options || {},
-      to: schemaField.to || 'document',
+      // Keep `to` as undefined for universal references (don't default to 'document')
+      to: schemaField.to,
       bidirectional: schemaField.bidirectional,
       bidirectionalConfig: schemaField.bidirectionalConfig,
       default: schemaField.default
@@ -89,6 +90,27 @@ export const referenceFieldPlugin: FieldPlugin<ReferenceFieldDefinition, Referen
           description: 'Multiple author references',
           to: 'author',
           validation: { multiple: true, maxReferences: 5 }
+        }
+      },
+      {
+        name: 'Universal Reference',
+        definition: {
+          type: 'reference' as const,
+          title: 'Featured Content',
+          description: 'Reference to any document type'
+          // No `to` property = universal reference
+        }
+      },
+      {
+        name: 'Filtered Universal Reference',
+        definition: {
+          type: 'reference' as const,
+          title: 'Related Content',
+          description: 'Reference to specific document types',
+          options: {
+            includeTypes: ['article', 'video', 'faq'],
+            excludeTypes: ['draft']
+          }
         }
       }
     ]

@@ -96,17 +96,28 @@ function validateSingleReference(
     if (!ref._ref.trim()) {
       errors.push('Reference ID cannot be empty');
     }
-    
+
     if (!ref._type) {
       errors.push('Reference type is required');
     }
-    
-    // Validate against target types
-    const allowedTypes = getTargetTypes(definition);
-    if (allowedTypes.length > 0 && !allowedTypes.includes(ref._type)) {
-      errors.push(`Reference type '${ref._type}' is not allowed. Allowed types: ${allowedTypes.join(', ')}`);
+
+    // Validate against target types (typed reference) or includeTypes/excludeTypes (universal reference)
+    if (ref._type && !isTypeAllowed(ref._type, definition)) {
+      const allowedTypes = getTargetTypes(definition);
+      if (allowedTypes.length > 0) {
+        // Typed reference: show allowed types
+        errors.push(`Reference type '${ref._type}' is not allowed. Allowed types: ${allowedTypes.join(', ')}`);
+      } else {
+        // Universal reference with filters
+        const { includeTypes, excludeTypes } = definition.options || {};
+        if (includeTypes && includeTypes.length > 0) {
+          errors.push(`Reference type '${ref._type}' is not allowed. Allowed types: ${includeTypes.join(', ')}`);
+        } else if (excludeTypes && excludeTypes.length > 0) {
+          errors.push(`Reference type '${ref._type}' is excluded.`);
+        }
+      }
     }
-    
+
     return { isValid: errors.length === 0, errors };
   }
   
@@ -114,18 +125,94 @@ function validateSingleReference(
   return { isValid: false, errors };
 }
 
+/**
+ * Get the allowed target types for a reference field.
+ * Returns an empty array for universal references (when `to` is not specified),
+ * which means any document type is allowed.
+ */
 function getTargetTypes(definition: ReferenceFieldDefinition): string[] {
   const { to } = definition;
-  
+
+  // Universal reference: no `to` specified, any type allowed
+  if (!to) {
+    return [];
+  }
+
   if (typeof to === 'string') {
     return [to];
   }
-  
+
   if (Array.isArray(to)) {
     return to.map(target => typeof target === 'string' ? target : target.type);
   }
-  
+
   return [];
+}
+
+/**
+ * Check if a reference type is allowed based on the field definition.
+ * For universal references, applies includeTypes/excludeTypes filtering.
+ */
+export function isTypeAllowed(
+  refType: string,
+  definition: ReferenceFieldDefinition
+): boolean {
+  const { to, options } = definition;
+
+  // Typed reference: check against explicit `to` types
+  if (to) {
+    const allowedTypes = getTargetTypes(definition);
+    return allowedTypes.includes(refType);
+  }
+
+  // Universal reference: apply includeTypes/excludeTypes filtering
+  const { includeTypes, excludeTypes } = options || {};
+
+  // If includeTypes is specified, type must be in the list
+  if (includeTypes && includeTypes.length > 0) {
+    if (!includeTypes.includes(refType)) {
+      return false;
+    }
+  }
+
+  // If excludeTypes is specified, type must not be in the list
+  if (excludeTypes && excludeTypes.length > 0) {
+    if (excludeTypes.includes(refType)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Get filtered document types for universal references.
+ * Applies includeTypes/excludeTypes filtering to the list of all available types.
+ */
+export function getFilteredTypes(
+  definition: ReferenceFieldDefinition,
+  allTypes: string[]
+): string[] {
+  const { to, options } = definition;
+
+  // Typed reference: return explicit `to` types
+  if (to) {
+    return getTargetTypes(definition);
+  }
+
+  // Universal reference: apply filtering
+  const { includeTypes, excludeTypes } = options || {};
+  let types = [...allTypes];
+
+  if (includeTypes && includeTypes.length > 0) {
+    types = types.filter(t => includeTypes.includes(t));
+  }
+
+  if (excludeTypes && excludeTypes.length > 0) {
+    types = types.filter(t => !excludeTypes.includes(t));
+  }
+
+  return types;
 }
 
 export function sanitizeReferenceValue(
