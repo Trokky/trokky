@@ -118,6 +118,17 @@ export {
 
 // Utilities
 export { IdGenerator, type IdGeneratorOptions } from './utils/id-generator.js'
+export {
+  expandDocumentReferences,
+  expandDocumentsReferences,
+  parseExpandParam,
+  findReferenceFields,
+  isReference,
+  type ReferenceValue,
+  type ExpandOptions,
+  type DocumentFetcher,
+  type SchemaGetter
+} from './utils/reference-expander.js'
 export { 
   TrokkyLogger, 
   LoggerFactory, 

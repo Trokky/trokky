@@ -261,6 +261,11 @@ await client.logout()
 // Get document by ID
 const post = await client.getDocument<PostDocument>('post', 'post-id')
 
+// Get document with reference expansion
+const post = await client.getDocument<PostDocument>('post', 'post-id', {
+  expand: 'author,categories[]'
+})
+
 // Query documents
 const posts = await client.queryDocuments<PostDocument>('post', {
   filter: { published: true },
@@ -382,6 +387,60 @@ await generateTypesFromSchema(schema, {
 ```
 
 ## Advanced Usage
+
+### Reference Expansion
+
+Expand reference fields to include full document data instead of just reference IDs. This is done server-side for optimal performance.
+
+```typescript
+// Direct API - expand specific fields
+const post = await client.getDocument<PostDocument>('post', 'post-id', {
+  expand: 'author,categories[]'  // Use [] suffix for array references
+})
+
+// Expand all reference fields
+const post = await client.getDocument<PostDocument>('post', 'post-id', {
+  expand: '*'
+})
+```
+
+#### Query Builder with Expansion
+
+```typescript
+import { createQueryBuilder } from '@trokky/client'
+
+const query = createQueryBuilder<PostDocument>(client)
+
+// Query with reference expansion
+const posts = await query
+  .collection('post')
+  .filter({ published: true })
+  .expand('author')           // Single reference field
+  .expand('categories', true) // Array reference field (pass true)
+  .sort('createdAt', 'desc')
+  .limit(10)
+  .fetch()
+```
+
+#### Singleton with Expansion
+
+```typescript
+// Fetch singleton with expanded references
+const homepage = await query
+  .singleton<HomepageDocument>('homepage')
+  .expand('featuredPosts', true)  // Array of references
+  .expand('heroImage')            // Single reference
+  .fetch()
+```
+
+#### Expand Parameter Formats
+
+| Format | Description |
+|--------|-------------|
+| `author` | Expand single reference field |
+| `categories[]` | Expand array reference field |
+| `author,tags[]` | Expand multiple fields |
+| `*` | Expand all reference fields |
 
 ### Custom HTTP Client
 

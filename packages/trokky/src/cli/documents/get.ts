@@ -20,6 +20,7 @@ export const getCommand = new Command('get')
   .option(credentialOptions.token.flags, credentialOptions.token.description)
   .option(credentialOptions.instance.flags, credentialOptions.instance.description)
   .option('--fields <paths>', 'Comma-separated field paths to return (e.g., title,meta.description)')
+  .option('--expand <fields>', 'Expand reference fields (comma-separated, or * for all)')
   .option('--pretty', 'Colorized, formatted output')
   .option('--quiet', 'Suppress status messages')
   .action(async (collection: string, id: string | undefined, options) => {
@@ -56,7 +57,9 @@ export const getCommand = new Command('get')
         }
       }
 
-      const result = await client.getDocument(collection, documentId)
+      const result = await client.getDocument(collection, documentId, {
+        expand: options.expand
+      })
       const document = unwrapDocument(result)
 
       spinner?.stop()

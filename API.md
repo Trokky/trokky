@@ -49,7 +49,7 @@ Cookie: trokky_session=<session_token>
 
 ### List Documents
 ```http
-GET /api/documents/:collection
+GET /api/collections/:collection
 ```
 
 **Query Parameters:**
@@ -58,42 +58,115 @@ GET /api/documents/:collection
 | `limit` | number | 50 | Number of documents to return |
 | `offset` | number | 0 | Number of documents to skip |
 | `filter` | JSON | - | Filter criteria |
-| `sort` | string | - | Sort field and direction (e.g., `_createdAt_DESC`) |
+| `sort` | string | - | Sort field and direction (e.g., `_createdAt.desc`) |
 | `select` | string | - | Comma-separated fields to include |
+| `expand` | string | - | Comma-separated reference fields to expand (or `*` for all) |
 
 **Response:**
 ```json
 {
-  "data": [...],
-  "meta": {
-    "total": 150,
+  "documents": [...],
+  "pagination": {
+    "page": 1,
     "limit": 50,
-    "offset": 0,
-    "hasMore": true
+    "total": 150,
+    "pages": 3
   }
 }
 ```
 
 ### Get Single Document
 ```http
-GET /api/documents/:collection/:id
+GET /api/collections/:collection/:id
+```
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `expand` | string | - | Comma-separated reference fields to expand (or `*` for all) |
+
+**Example - Expand a reference field:**
+```http
+GET /api/collections/homepage/homepage?expand=documentation.featuredDocument
+```
+
+**Example - Expand multiple fields:**
+```http
+GET /api/collections/article/article-123?expand=author,categories[]
+```
+
+**Example - Expand all reference fields:**
+```http
+GET /api/collections/homepage/homepage?expand=*
+```
+
+**Response without expansion:**
+```json
+{
+  "document": {
+    "_id": "homepage",
+    "documentation": {
+      "featuredDocument": {
+        "_ref": "legalText-abc123",
+        "_type": "legalText"
+      }
+    }
+  }
+}
+```
+
+**Response with expansion:**
+```json
+{
+  "document": {
+    "_id": "homepage",
+    "documentation": {
+      "featuredDocument": {
+        "_id": "legalText-abc123",
+        "_type": "legalText",
+        "title": "Legal Document Title",
+        "description": "Document description...",
+        "file": { ... }
+      }
+    }
+  }
+}
 ```
 
 ### Create Document
 ```http
-POST /api/documents/:collection
+POST /api/collections/:collection
 Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "data": {
+    "title": "My Document",
+    "content": "Document content..."
+  }
+}
 ```
 
 ### Update Document
 ```http
-PUT /api/documents/:collection/:id
+PUT /api/collections/:collection/:id
 Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "data": {
+    "title": "Updated Title"
+  }
+}
 ```
 
 ### Delete Document
 ```http
-DELETE /api/documents/:collection/:id
+DELETE /api/collections/:collection/:id
 ```
 
 ---
