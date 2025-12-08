@@ -9,11 +9,13 @@ import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
 import { heroiconsAdapter } from './adapters/heroicons.js';
+import { customSvgAdapter } from './adapters/custom-svg.js';
 
 // Icon library registry
 const iconLibraries: Record<string, IconLibraryAdapter> = {
   fontawesome: fontawesomeAdapter,
   heroicons: heroiconsAdapter,
+  custom: customSvgAdapter,
 };
 
 // Register additional libraries
