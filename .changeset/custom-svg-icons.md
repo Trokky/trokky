@@ -12,9 +12,11 @@ Studio navigation:
 - Default viewBox is `0 0 24 24` to match Heroicons
 
 IconField:
-- Add custom SVG adapter as third icon library option
+- Add "Custom SVG" tab allowing users to paste their own SVG path data
+- Live preview of custom SVG with stroke/fill style toggle
+- Optional name field for the custom icon
+- SVG path data stored in the `svg` field of IconValue
 - Export `customSvgAdapter`, `registerCustomIcon`, and `renderSvgPath` utilities
-- Supports stroke and fill styles
 
 Example usage in structure.ts:
 ```ts
