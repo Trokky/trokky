@@ -170,7 +170,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
       />
 
       {/* Modal - full screen on mobile, constrained on larger screens */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md sm:max-w-lg flex flex-col h-full sm:h-auto" style={{ maxHeight: '100vh', ['--sm-max-height' as string]: '500px' }}>
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg sm:max-w-2xl flex flex-col h-full sm:h-auto" style={{ maxHeight: '100vh', ['--sm-max-height' as string]: '600px' }}>
         <style>{`@media (min-width: 640px) { [style*="--sm-max-height"] { max-height: var(--sm-max-height) !important; } }`}</style>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
