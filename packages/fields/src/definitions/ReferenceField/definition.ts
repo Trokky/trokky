@@ -21,6 +21,16 @@ export interface ReferenceFieldOptions extends BaseFieldOptions {
   showCount?: boolean;
   /** Filter query to apply when searching for references (e.g., "_status == 'published'") */
   filter?: string | Record<string, any>;
+  /**
+   * For universal references (when `to` is omitted): whitelist specific document types.
+   * Only documents of these types will be available for selection.
+   */
+  includeTypes?: string[];
+  /**
+   * For universal references (when `to` is omitted): blacklist specific document types.
+   * Documents of these types will be excluded from selection.
+   */
+  excludeTypes?: string[];
 }
 
 export interface ReferenceTarget {
@@ -34,7 +44,15 @@ export interface ReferenceFieldDefinition extends BaseFieldDefinition {
   type: 'reference';
   validation?: ReferenceValidation;
   options?: ReferenceFieldOptions;
-  to: string | Array<ReferenceTarget | string>;
+  /**
+   * Target document type(s) for this reference.
+   * - If specified: Only documents of these types can be referenced (typed reference)
+   * - If omitted: Any document type can be referenced (universal reference)
+   *
+   * For universal references, use `options.includeTypes` and `options.excludeTypes`
+   * to filter available document types.
+   */
+  to?: string | Array<ReferenceTarget | string>;
   bidirectional?: boolean;
   bidirectionalConfig?: {
     targetField?: string;

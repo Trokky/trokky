@@ -6,12 +6,13 @@ import type {
   ReferenceSearchResult,
   ReferenceOperations
 } from './definition.js';
-import { 
+import {
   validateReferenceField,
   sanitizeReferenceValue,
   getDefaultReferenceValue,
   normalizeReferenceValue,
-  getReferenceDisplayValue
+  getReferenceDisplayValue,
+  getFilteredTypes
 } from './validation.js';
 
 // Performance optimization: LRU cache for search results
@@ -97,16 +98,90 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   // Filter out empty placeholder references (from array add item)
   const currentReferences = allReferences.filter(ref => !((ref as any)._empty) && ref._ref);
   
+  // State for dynamically loaded document types (for universal references)
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<string[]>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+
+  // Check if this is a universal reference (no `to` specified)
+  const isUniversalReference = !referenceDefinition.to;
+
+  // Load all document types for universal references
+  useEffect(() => {
+    if (!isUniversalReference) return;
+
+    let mounted = true;
+    const abortController = new AbortController();
+
+    const loadDocumentTypes = async () => {
+      const apiClient = studioContext?.apiClient || props.studioContext?.apiClient;
+      if (!apiClient?.getSchemas || abortController.signal.aborted) return;
+
+      setIsLoadingTypes(true);
+      try {
+        const response = await apiClient.getSchemas();
+        if (abortController.signal.aborted || !mounted) return;
+
+        if (response.success && response.data) {
+          // Extract collection names from schemas with proper typing
+          interface SchemaResponse {
+            name?: string;
+            type?: string;
+          }
+          const types = response.data
+            .map((schema: SchemaResponse) => schema.name || schema.type)
+            .filter((name: string | undefined): name is string => typeof name === 'string' && name.length > 0);
+          setAvailableDocumentTypes(types);
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted && mounted) {
+          console.warn('Failed to load document types for universal reference:', error);
+        }
+      } finally {
+        if (!abortController.signal.aborted && mounted) {
+          setIsLoadingTypes(false);
+        }
+      }
+    };
+
+    loadDocumentTypes();
+
+    return () => {
+      mounted = false;
+      abortController.abort();
+    };
+  }, [isUniversalReference]);
+
+  // Target type structure
+  interface TargetType {
+    type: string;
+    displayName: string;
+    icon?: string;
+    filter?: Record<string, any>;
+  }
+
   // Get target types with filter support
-  const targetTypes = useMemo(() => {
+  const targetTypes = useMemo((): TargetType[] => {
     const { to } = referenceDefinition;
+
+    // Universal reference: use dynamically loaded types with filtering
+    if (!to) {
+      const filteredTypes = getFilteredTypes(referenceDefinition, availableDocumentTypes);
+      return filteredTypes.map(type => ({
+        type,
+        displayName: type,
+        icon: undefined,
+        filter: undefined
+      }));
+    }
+
+    // Typed reference: use explicit `to` types
     if (typeof to === 'string') {
-      return [{ type: to, displayName: to, filter: undefined }];
+      return [{ type: to, displayName: to, icon: undefined, filter: undefined }];
     }
     if (Array.isArray(to)) {
       return to.map(target =>
         typeof target === 'string'
-          ? { type: target, displayName: target, filter: undefined }
+          ? { type: target, displayName: target, icon: undefined, filter: undefined }
           : {
               type: target.type,
               displayName: target.displayName || target.type,
@@ -116,7 +191,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       );
     }
     return [];
-  }, [referenceDefinition.to]);
+  }, [referenceDefinition, availableDocumentTypes]);
   
   // Resolve references to display names
   useEffect(() => {
@@ -591,10 +666,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
         </div>
         
         <div className="max-h-48 overflow-y-auto">
-          {isLoading ? (
+          {isLoading || isLoadingTypes ? (
             <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
               <div className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></div>
-              Searching...
+              {isLoadingTypes ? 'Loading document types...' : 'Searching...'}
             </div>
           ) : searchResults.length > 0 ? (
             searchResults.map(result => (
@@ -719,11 +794,18 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                   </svg>
                   <span>{options.placeholder || 'Select reference...'}</span>
                 </div>
-                {availableCount !== null && availableCount > 0 && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
-                    {availableCount} available
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {isUniversalReference && (
+                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                      Any type
+                    </span>
+                  )}
+                  {availableCount !== null && availableCount > 0 && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {availableCount} available
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
           ) : null}

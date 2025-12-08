@@ -59,7 +59,106 @@ import { FieldRenderer } from '@trokky/fields';
 - `array` - Lists with drag/drop
 - `object` - Nested field groups
 - `slug` - URL-safe slugs
-- `reference` - Document references
+- `reference` - Document references (typed or universal)
+
+## Reference Field
+
+The reference field supports both **typed references** (specific document types) and **universal references** (any document type).
+
+### Typed Reference (Traditional)
+
+Reference to specific document type(s):
+
+```typescript
+// Single type
+{
+  type: 'reference',
+  title: 'Author',
+  to: 'author'
+}
+
+// Multiple types
+{
+  type: 'reference',
+  title: 'Related Content',
+  to: ['article', 'video', 'faq']
+}
+```
+
+### Universal Reference
+
+Reference to any document type by omitting the `to` property:
+
+```typescript
+// Any document type
+{
+  type: 'reference',
+  title: 'Featured Item',
+  description: 'Feature any content type on this page'
+  // to: undefined (omitted = universal)
+}
+```
+
+### Filtered Universal Reference
+
+Use `includeTypes` or `excludeTypes` to filter which types are available:
+
+```typescript
+// Whitelist specific types
+{
+  type: 'reference',
+  title: 'Related Content',
+  options: {
+    includeTypes: ['article', 'video', 'faq', 'case-study']
+  }
+}
+
+// Blacklist specific types
+{
+  type: 'reference',
+  title: 'Any Content',
+  options: {
+    excludeTypes: ['draft', 'system-config', 'media']
+  }
+}
+
+// Combine with other options
+{
+  type: 'reference',
+  title: 'Related Resources',
+  validation: {
+    multiple: true,
+    maxReferences: 5
+  },
+  options: {
+    includeTypes: ['article', 'video'],
+    groupByType: true,
+    filter: "_status == 'published'"
+  }
+}
+```
+
+### Reference Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `includeTypes` | `string[]` | Whitelist: only allow these document types |
+| `excludeTypes` | `string[]` | Blacklist: exclude these document types |
+| `filter` | `string` | Filter query (e.g., `"_status == 'published'"`) |
+| `groupByType` | `boolean` | Group results by document type in dropdown |
+| `showPreview` | `boolean` | Show preview of referenced document |
+| `allowCreate` | `boolean` | Allow creating new documents from picker |
+| `displayField` | `string` | Field to display as title (default: `title`) |
+
+### When to Use Each Type
+
+| Use Case | Recommendation |
+|----------|----------------|
+| Author field on blog post | Typed: `to: 'author'` |
+| Related articles | Typed: `to: 'article'` |
+| Featured content (any type) | Universal: omit `to` |
+| Related resources (mixed) | Filtered: `includeTypes: ['article', 'video', 'faq']` |
+| Flexible page builder | Universal with `excludeTypes: ['system-config']` |
 
 ## License
 
