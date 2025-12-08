@@ -3,7 +3,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  FolderIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   MagnifyingGlassIcon,
@@ -221,13 +220,11 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
     const isActive = itemPath ? isActiveRoute(itemPath) : false;
 
     if (item.type === 'divider') {
-      // In collapsed mode, show a subtle separator, otherwise show full divider
+      // Hide dividers in collapsed mode for cleaner icon list
       if (isCollapsed) {
-        return (
-          <div key={item.id} className="mx-3 my-2 border-t border-gray-200 dark:border-gray-700" />
-        );
+        return null;
       }
-      
+
       return (
         <div key={item.id} className={cn(
           'border-t border-gray-200 dark:border-gray-700',
@@ -243,6 +240,15 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
     }
 
     if (item.type === 'group') {
+      // In collapsed mode, render children directly (flat list of icons)
+      if (isCollapsed) {
+        return (
+          <div key={item.id}>
+            {item.children?.map(child => renderNavigationItem(child, depth))}
+          </div>
+        );
+      }
+
       const isExpanded = expandedGroups.has(item.id);
       const hasActiveChild = groupContainsActiveRoute(item);
 
@@ -253,32 +259,21 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
             onClick={() => toggleGroup(item.id)}
             className={cn(
               'w-full flex items-center justify-between px-3 py-2 text-xs font-medium uppercase tracking-wider rounded-lg transition-colors',
-              isCollapsed
-                ? 'justify-center'
-                : '',
               hasActiveChild
                 ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300'
             )}
-            title={isCollapsed ? item.title : undefined}
           >
-            {!isCollapsed && (
-              <>
-                <span>{item.title}</span>
-                {isExpanded ? (
-                  <ChevronUpIcon className="h-4 w-4" />
-                ) : (
-                  <ChevronDownIcon className="h-4 w-4" />
-                )}
-              </>
-            )}
-            {isCollapsed && (
-              <FolderIcon className="h-5 w-5" />
+            <span>{item.title}</span>
+            {isExpanded ? (
+              <ChevronUpIcon className="h-4 w-4" />
+            ) : (
+              <ChevronDownIcon className="h-4 w-4" />
             )}
           </button>
 
           {/* Group children - only shown when expanded */}
-          {isExpanded && !isCollapsed && item.children && (
+          {isExpanded && item.children && (
             <div className="space-y-1">
               {item.children.map(child => renderNavigationItem(child, depth + 1))}
             </div>
@@ -299,7 +294,7 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         className={({ isActive: navIsActive }) => {
           const active = navIsActive || isActive;
           return cn(
-            'flex items-center transition-colors group relative',
+            'flex items-center transition-colors',
             isCollapsed
               ? 'p-2 mx-1 rounded-lg justify-center'
               : 'px-3 py-1.5 rounded-lg text-sm',
@@ -323,13 +318,6 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
             </span>
           </div>
         )}
-
-        {/* Tooltip for collapsed mode */}
-        {isCollapsed && (
-          <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-            {item.title}
-          </div>
-        )}
       </NavLink>
     );
   };
@@ -337,9 +325,9 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
   const sidebarWidth = isCollapsed ? 'w-16' : 'w-64';
 
   return (
-    <div 
+    <div
       className={cn(
-        'h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-200 overflow-hidden',
+        'h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-200',
         isMobile ? 'w-64' : sidebarWidth
       )}
     >
@@ -444,9 +432,9 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
               to="/content"
               onClick={handleItemClick}
               className={({ isActive }) => cn(
-                'flex items-center transition-colors group relative',
-                isCollapsed 
-                  ? 'p-2 mx-1 rounded-lg justify-center' 
+                'flex items-center transition-colors',
+                isCollapsed
+                  ? 'p-2 mx-1 rounded-lg justify-center'
                   : 'px-3 py-2 rounded-lg',
                 isActive
                   ? isCollapsed
@@ -459,13 +447,6 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
               <DocumentTextIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
               {!isCollapsed && (
                 <span className="font-medium">Content</span>
-              )}
-              
-              {/* Tooltip for collapsed mode */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  Content
-                </div>
               )}
             </NavLink>
           </>
