@@ -1,6 +1,7 @@
 ---
 "@trokky/i18n": minor
 "@trokky/studio": minor
+"@trokky/express": minor
 ---
 
 Add internationalization (i18n) support to Trokky
@@ -10,6 +11,22 @@ Add internationalization (i18n) support to Trokky
 - Integrate i18n provider into Studio application
 - Add language preference selector in User Preferences page
 - Support automatic browser language detection with localStorage persistence
+- Add i18n configuration support to `trokky.config.ts`
+
+Configuration example:
+```typescript
+// trokky.config.ts
+export default {
+  // ... other config
+  i18n: {
+    defaultLocale: 'en',
+    supportedLocales: ['en', 'fr'],
+    fallbackLocale: 'en',
+    detectBrowserLanguage: true,
+    debug: false,
+  },
+}
+```
 
 Key features:
 - `TrokkyI18nProvider` component for wrapping applications
@@ -18,3 +35,4 @@ Key features:
 - `useErrorTranslation` hook for translating error codes
 - `useFieldTranslation` hook for field-related translations
 - Translation files organized by namespace: common, studio, fields, auth, errors
+- Configuration propagates from `trokky.config.ts` through Express to Studio

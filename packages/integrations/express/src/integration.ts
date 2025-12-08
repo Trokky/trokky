@@ -258,6 +258,7 @@ export class TrokkyExpress {
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
             mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
+            i18n: (global as any).__TROKKY_I18N_CONFIG__ || undefined,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -301,6 +302,7 @@ export class TrokkyExpress {
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
             mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
+            i18n: (global as any).__TROKKY_I18N_CONFIG__ || undefined,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -466,6 +468,15 @@ export class TrokkyExpress {
           ;(global as any).__TROKKY_STRUCTURE__ = fullConfig.studio.structure
           logger.debug('✅ Structure configuration registered globally')
         }
+      }
+
+      // Register i18n configuration globally for API endpoint access
+      if (fullConfig.i18n) {
+        ;(global as any).__TROKKY_I18N_CONFIG__ = fullConfig.i18n
+        logger.debug('✅ i18n configuration registered globally', {
+          defaultLocale: fullConfig.i18n.defaultLocale,
+          supportedLocales: fullConfig.i18n.supportedLocales,
+        })
       }
 
       // 4. Create admin user if specified

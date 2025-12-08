@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TrokkyI18nProvider } from '@trokky/i18n';
+import { TrokkyI18nProvider, type I18nConfig } from '@trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,22 @@ import { createStudioLogger } from '@/utils/logger';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import '@/utils/debug'; // Load debug utilities
+
+/**
+ * Get i18n configuration from window.TROKKY_CONFIG or use defaults
+ */
+function getI18nConfig(): I18nConfig {
+  const windowConfig = (window as any).TROKKY_CONFIG;
+  const i18nConfig = windowConfig?.i18n;
+
+  return {
+    defaultLocale: i18nConfig?.defaultLocale || 'en',
+    supportedLocales: i18nConfig?.supportedLocales || ['en', 'fr'],
+    fallbackLocale: i18nConfig?.fallbackLocale || 'en',
+    detectBrowserLanguage: i18nConfig?.detectBrowserLanguage ?? true,
+    debug: i18nConfig?.debug ?? import.meta.env.DEV,
+  };
+}
 
 // Create a client
 const queryClient = new QueryClient({
@@ -118,6 +134,9 @@ function AppContent() {
 export function App() {
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
+  // Get i18n config from window.TROKKY_CONFIG (memoized to prevent re-initialization)
+  const i18nConfig = useMemo(() => getI18nConfig(), []);
+
   useEffect(() => {
     // Initialize API client synchronously - config is already available
     apiClient.initialize();
@@ -167,7 +186,7 @@ export function App() {
   }, []);
 
   return (
-    <TrokkyI18nProvider config={{ debug: import.meta.env.DEV }}>
+    <TrokkyI18nProvider config={i18nConfig}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <StudioContextProvider branding={branding}>
