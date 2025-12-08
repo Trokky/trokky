@@ -7,6 +7,9 @@
  * - "fa:icon-name" - FontAwesome (e.g., "fa:file-alt", "fa:cog")
  * - "FaIconName" - Legacy FontAwesome format (e.g., "FaFileAlt", "FaCog")
  * - "icon-name" - Plain name, defaults to Heroicons (e.g., "document-text")
+ * - "svg:M12 2L2 7..." - Custom SVG path data (stroke style, viewBox 0 0 24 24)
+ * - "svg-fill:M12 2L2 7..." - Custom SVG path data (fill style, viewBox 0 0 24 24)
+ * - "svg[0 0 20 20]:M12 2..." - Custom SVG with custom viewBox
  */
 
 import React from 'react';
@@ -165,14 +168,39 @@ function normalizeFaIconName(name: string): string {
 
 // Parse icon string and return library and name
 interface ParsedIcon {
-  library: 'heroicons' | 'fontawesome';
+  library: 'heroicons' | 'fontawesome' | 'custom-svg';
   name: string;
-  style?: string;
+  style?: 'stroke' | 'fill';
+  viewBox?: string;
 }
 
 function parseIconString(iconString: string): ParsedIcon {
   if (!iconString) {
     return { library: 'heroicons', name: 'document' };
+  }
+
+  // Format: "svg-fill[viewBox]:path" - Custom SVG with fill style and optional viewBox
+  // Format: "svg-fill:path" - Custom SVG with fill style
+  if (iconString.startsWith('svg-fill')) {
+    const viewBoxMatch = iconString.match(/^svg-fill\[([^\]]+)\]:(.+)$/);
+    if (viewBoxMatch) {
+      return { library: 'custom-svg', name: viewBoxMatch[2], style: 'fill', viewBox: viewBoxMatch[1] };
+    }
+    const pathData = iconString.slice(9); // "svg-fill:".length = 9
+    return { library: 'custom-svg', name: pathData, style: 'fill' };
+  }
+
+  // Format: "svg[viewBox]:path" - Custom SVG with custom viewBox
+  // Format: "svg:path" - Custom SVG path (stroke style, default viewBox)
+  if (iconString.startsWith('svg')) {
+    const viewBoxMatch = iconString.match(/^svg\[([^\]]+)\]:(.+)$/);
+    if (viewBoxMatch) {
+      return { library: 'custom-svg', name: viewBoxMatch[2], style: 'stroke', viewBox: viewBoxMatch[1] };
+    }
+    if (iconString.startsWith('svg:')) {
+      const pathData = iconString.slice(4); // "svg:".length = 4
+      return { library: 'custom-svg', name: pathData, style: 'stroke' };
+    }
   }
 
   // Format: "hi:icon-name" - Heroicons
@@ -241,12 +269,56 @@ function renderFontAwesomeIcon(name: string, size: number = 16, className?: stri
   );
 }
 
+// Render a custom SVG icon from path data
+function renderCustomSvg(
+  pathData: string,
+  size: number = 16,
+  className?: string,
+  style: 'stroke' | 'fill' = 'stroke',
+  viewBox: string = '0 0 24 24'
+): React.ReactNode {
+  if (style === 'fill') {
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox={viewBox}
+        fill="currentColor"
+        width={size}
+        height={size}
+        className={className}
+      >
+        <path d={pathData} />
+      </svg>
+    );
+  }
+
+  // Default: stroke style (like Heroicons outline)
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox={viewBox}
+      strokeWidth={1.5}
+      stroke="currentColor"
+      width={size}
+      height={size}
+      className={className}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d={pathData} />
+    </svg>
+  );
+}
+
 /**
  * Render an icon by name
- * Supports formats: "hi:name", "fa:name", "FaName", "name"
+ * Supports formats: "hi:name", "fa:name", "FaName", "name", "svg:path", "svg-fill:path"
  */
 export function renderIcon(iconString: string, size: number = 16, className?: string): React.ReactNode {
   const parsed = parseIconString(iconString);
+
+  if (parsed.library === 'custom-svg') {
+    return renderCustomSvg(parsed.name, size, className, parsed.style, parsed.viewBox);
+  }
 
   if (parsed.library === 'heroicons') {
     return renderHeroicon(parsed.name, size, className);

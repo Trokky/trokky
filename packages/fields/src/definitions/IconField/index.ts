@@ -15,6 +15,7 @@ export { IconFieldComponent, registerIconLibrary } from './component.js';
 export { IconFieldPreview } from './preview.js';
 export { fontawesomeAdapter } from './adapters/fontawesome.js';
 export { heroiconsAdapter } from './adapters/heroicons.js';
+export { customSvgAdapter, setCustomIcons, getCustomIcons, clearCustomIcons, renderSvgPath } from './adapters/custom-svg.js';
 
 export const IconFieldPlugin: FieldPlugin<IconFieldDefinition, IconValue | null> = {
   // Plugin metadata

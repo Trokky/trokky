@@ -6,14 +6,16 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter } from './definition.js';
+import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter, CustomIconDefinition } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
 import { heroiconsAdapter } from './adapters/heroicons.js';
+import { customSvgAdapter, setCustomIcons, getCustomIcons } from './adapters/custom-svg.js';
 
 // Icon library registry
 const iconLibraries: Record<string, IconLibraryAdapter> = {
   fontawesome: fontawesomeAdapter,
   heroicons: heroiconsAdapter,
+  custom: customSvgAdapter,
 };
 
 // Register additional libraries
@@ -64,9 +66,10 @@ interface IconPickerModalProps {
   availableLibraries: string[];
   currentValue?: IconValue;
   options: IconFieldDefinition['options'];
+  customIcons?: Record<string, CustomIconDefinition>;
 }
 
-function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, currentValue, options }: IconPickerModalProps) {
+function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, currentValue, options, customIcons }: IconPickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLibrary, setSelectedLibrary] = useState<string>(
     currentValue?.library || availableLibraries[0] || 'fontawesome'
@@ -80,6 +83,26 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
   });
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [page, setPage] = useState(0);
+
+  // Custom SVG input state (for ad-hoc paste)
+  const [customSvgPath, setCustomSvgPath] = useState<string>(
+    currentValue?.library === 'custom' && currentValue?.svg ? currentValue.svg : ''
+  );
+  const [customSvgStyle, setCustomSvgStyle] = useState<'stroke' | 'fill'>('stroke');
+  const [customSvgName, setCustomSvgName] = useState<string>(
+    currentValue?.library === 'custom' ? currentValue?.name || 'custom-icon' : 'custom-icon'
+  );
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  // Load custom icons into adapter when modal opens
+  useEffect(() => {
+    if (isOpen && customIcons) {
+      setCustomIcons(customIcons);
+    }
+  }, [isOpen, customIcons]);
+
+  // Check if there are user-provided custom icons
+  const hasCustomIconLibrary = customIcons && Object.keys(customIcons).length > 0;
 
   const pageSize = options?.pageSize || 50;
 
@@ -147,7 +170,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
       />
 
       {/* Modal - full screen on mobile, constrained on larger screens */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md sm:max-w-lg flex flex-col h-full sm:h-auto" style={{ maxHeight: '100vh', ['--sm-max-height' as string]: '500px' }}>
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg sm:max-w-2xl flex flex-col h-full sm:h-auto" style={{ maxHeight: '100vh', ['--sm-max-height' as string]: '600px' }}>
         <style>{`@media (min-width: 640px) { [style*="--sm-max-height"] { max-height: var(--sm-max-height) !important; } }`}</style>
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -257,9 +280,197 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
           </div>
         </div>
 
-        {/* Icons grid */}
+        {/* Icons grid or Custom SVG input */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 bg-gray-50 dark:bg-gray-900/50">
-          {paginatedIcons.length === 0 ? (
+          {selectedLibrary === 'custom' ? (
+            // Custom SVG mode - show grid if icons available, or paste input
+            <div className="h-full flex flex-col">
+              {/* Toggle between grid and paste input */}
+              {hasCustomIconLibrary && (
+                <div className="flex items-center justify-between px-2 py-2 border-b border-gray-200 dark:border-gray-700 mb-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {showCustomInput ? 'Paste custom SVG path' : `${filteredIcons.length} custom icons`}
+                  </span>
+                  <button
+                    onClick={() => setShowCustomInput(!showCustomInput)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    {showCustomInput ? 'Show icon library' : 'Paste new SVG'}
+                  </button>
+                </div>
+              )}
+
+              {/* Show paste input if no custom icons OR if toggled to paste mode */}
+              {(!hasCustomIconLibrary || showCustomInput) ? (
+                <div className="p-4 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      SVG Path Data
+                    </label>
+                    <textarea
+                      value={customSvgPath}
+                      onChange={(e) => setCustomSvgPath(e.target.value)}
+                      placeholder="M12 2L2 7l10 5 10-5-10-5z..."
+                      className="w-full h-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Paste the &quot;d&quot; attribute from an SVG path element (viewBox: 0 0 24 24)
+                    </p>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Style
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setCustomSvgStyle('stroke')}
+                          className={`px-3 py-1.5 text-sm rounded ${
+                            customSvgStyle === 'stroke'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Stroke (outline)
+                        </button>
+                        <button
+                          onClick={() => setCustomSvgStyle('fill')}
+                          className={`px-3 py-1.5 text-sm rounded ${
+                            customSvgStyle === 'fill'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Fill (solid)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Name (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={customSvgName}
+                        onChange={(e) => setCustomSvgName(e.target.value)}
+                        placeholder="my-custom-icon"
+                        className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview */}
+                  {customSvgPath && (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Preview
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-12 h-12 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                          {customSvgStyle === 'fill' ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              width={24}
+                              height={24}
+                              className="text-gray-700 dark:text-gray-300"
+                            >
+                              <path d={customSvgPath} />
+                            </svg>
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              width={24}
+                              height={24}
+                              className="text-gray-700 dark:text-gray-300"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d={customSvgPath} />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          {customSvgName || 'custom-icon'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Use button */}
+                  <button
+                    onClick={() => {
+                      if (customSvgPath) {
+                        const iconMeta: IconMeta & { svg?: string } = {
+                          name: customSvgName || 'custom-icon',
+                          style: customSvgStyle,
+                        };
+                        iconMeta.svg = customSvgPath;
+                        onSelect(iconMeta, 'custom');
+                        onClose();
+                      }
+                    }}
+                    disabled={!customSvgPath}
+                    className="w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Use Custom Icon
+                  </button>
+                </div>
+              ) : (
+                // Show custom icons grid
+                <div className="flex-1">
+                  {paginatedIcons.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <p className="text-sm">No custom icons found</p>
+                      <p className="text-xs mt-1">Try a different search term or paste a new SVG</p>
+                    </div>
+                  ) : (
+                    <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                      {paginatedIcons.map((icon: any) => {
+                        const isSelected = currentValue?.name === icon.name;
+                        return (
+                          <button
+                            key={icon.name}
+                            onClick={() => {
+                              // For custom icons from library, include the path
+                              const iconWithPath: IconMeta & { svg?: string } = {
+                                name: icon.name,
+                                style: icon.style,
+                                label: icon.label,
+                              };
+                              if (icon.path) {
+                                iconWithPath.svg = icon.path;
+                              }
+                              onSelect(iconWithPath, 'custom');
+                              onClose();
+                            }}
+                            title={icon.label || icon.name}
+                            className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <div className="text-gray-700 dark:text-gray-300" style={{ fontSize: '18px' }}>
+                              {adapter.renderIcon(icon, 18)}
+                            </div>
+                            <span className="text-gray-400 dark:text-gray-500 truncate w-full text-center" style={{ fontSize: '7px', lineHeight: '1.2', marginTop: '2px' }}>
+                              {icon.label || icon.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : paginatedIcons.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <p className="text-sm">No icons found</p>
               <p className="text-xs mt-1">Try a different search term or category</p>
@@ -391,12 +602,16 @@ export function IconFieldComponent(props: FieldComponentProps) {
   }, [value]);
 
   // Handle icon selection
-  const handleSelect = useCallback((icon: IconMeta, library: string) => {
+  const handleSelect = useCallback((icon: IconMeta & { svg?: string }, library: string) => {
     const newValue: IconValue = {
       library: library as any,
       name: icon.name,
       style: icon.style,
     };
+    // For custom SVG, store the path data
+    if (library === 'custom' && icon.svg) {
+      newValue.svg = icon.svg;
+    }
     onChange(newValue);
   }, [onChange]);
 
@@ -467,9 +682,22 @@ export function IconFieldComponent(props: FieldComponentProps) {
             isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600'
           }`}
         >
-          {iconValue && valueAdapter ? (
+          {iconValue ? (
             <span className="text-xl text-gray-700 dark:text-gray-300">
-              {valueAdapter.renderIcon({ name: iconValue.name, style: iconValue.style }, 20)}
+              {iconValue.library === 'custom' && iconValue.svg ? (
+                // Render custom SVG directly from stored path
+                iconValue.style === 'fill' ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width={20} height={20}>
+                    <path d={iconValue.svg} />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" width={20} height={20}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={iconValue.svg} />
+                  </svg>
+                )
+              ) : valueAdapter ? (
+                valueAdapter.renderIcon({ name: iconValue.name, style: iconValue.style }, 20)
+              ) : null}
             </span>
           ) : (
             <span className="text-gray-400 dark:text-gray-500 text-sm">?</span>
@@ -528,6 +756,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
         availableLibraries={availableLibraries}
         currentValue={iconValue || undefined}
         options={options}
+        customIcons={options?.customIcons}
       />
     </>
   );
