@@ -10,6 +10,7 @@ import ora from 'ora'
 import { createCliClient, credentialOptions } from '../credentials.js'
 import { outputDocument, outputError, type OutputOptions } from '../utils/output.js'
 import { checkCollection } from '../utils/collections.js'
+import { pickFields, parseFieldsArg, unwrapDocument } from '../utils/dot-path.js'
 
 export const getCommand = new Command('get')
   .description('Get a single document by ID (for singletons, ID is optional)')
@@ -18,6 +19,7 @@ export const getCommand = new Command('get')
   .option(credentialOptions.url.flags, credentialOptions.url.description)
   .option(credentialOptions.token.flags, credentialOptions.token.description)
   .option(credentialOptions.instance.flags, credentialOptions.instance.description)
+  .option('--fields <paths>', 'Comma-separated field paths to return (e.g., title,meta.description)')
   .option('--pretty', 'Colorized, formatted output')
   .option('--quiet', 'Suppress status messages')
   .action(async (collection: string, id: string | undefined, options) => {
@@ -55,12 +57,18 @@ export const getCommand = new Command('get')
       }
 
       const result = await client.getDocument(collection, documentId)
-      // DocumentResult contains the document data directly
-      const document = result
+      const document = unwrapDocument(result)
 
       spinner?.stop()
 
-      outputDocument(document, outputOpts)
+      // Apply field filtering if --fields option is provided
+      let output: unknown = document
+      if (options.fields) {
+        const fieldPaths = parseFieldsArg(options.fields)
+        output = pickFields(document, fieldPaths)
+      }
+
+      outputDocument(output, outputOpts)
     } catch (error: unknown) {
       spinner?.fail('Failed to get document')
       const message = error instanceof Error ? error.message : String(error)

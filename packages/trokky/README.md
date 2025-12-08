@@ -148,6 +148,10 @@ trokky docs list posts --ids-only    # Just IDs for piping
 trokky docs get posts abc123
 trokky docs get posts abc123 --pretty
 
+# Get specific fields using dot-notation
+trokky docs get posts abc123 --fields title,author.name,meta.published
+trokky docs get homepage --fields hero.title,seo.description
+
 # Singletons - ID is optional (auto-detected)
 trokky docs get homepage              # Detects singleton, uses collection name as ID
 trokky docs update homepage --patch '{"title":"New Title"}'
@@ -162,6 +166,11 @@ echo '{"title":"From stdin"}' | trokky docs create posts
 trokky docs update posts abc123 ./updated.json
 trokky docs update posts abc123 --data '{"title":"New Title"}'
 trokky docs update posts abc123 --patch '{"status":"published"}'  # Partial update
+
+# Update specific fields using dot-notation (deep merge)
+trokky docs update posts abc123 --set "title=New Title"
+trokky docs update posts abc123 --set "meta.published=true" --set "meta.author=John"
+trokky docs update homepage --set "hero.title=Welcome" --set "hero.subtitle=Hello World"
 
 # Delete document(s)
 trokky docs delete posts abc123
@@ -208,13 +217,40 @@ This is automatically suppressed with `--quiet` or `--ids-only` for clean piping
 - `--sort <json>` - Sort criteria as JSON
 - `--ids-only` - Output only document IDs (one per line, for piping)
 
+**Get Options:**
+- `--fields <paths>` - Comma-separated field paths to return (e.g., `title,meta.description,author.name`)
+
 **Create/Update Options:**
 - `[file]` - JSON file path
 - `--data <json>` - Inline JSON data
-- `--patch <json>` - Partial update (update only, merges with existing)
+- `--patch <json>` - Partial update (deep merges with existing document)
+- `--set <path=value>` - Set specific field paths (repeatable, deep merges with existing)
 
 **Delete Options:**
 - `--confirm` - Skip confirmation prompt (for scripting)
+
+**Deep Merge Behavior:**
+
+Both `--patch` and `--set` use deep merge to preserve existing data:
+
+```bash
+# Given a document with:
+# { "meta": { "title": "Hello", "author": "John", "published": false } }
+
+# Update only meta.published, preserving title and author:
+trokky docs update posts abc123 --set "meta.published=true"
+# Result: { "meta": { "title": "Hello", "author": "John", "published": true } }
+
+# Same with --patch:
+trokky docs update posts abc123 --patch '{"meta":{"published":true}}'
+# Result: { "meta": { "title": "Hello", "author": "John", "published": true } }
+```
+
+The `--set` option also supports JSON values:
+```bash
+trokky docs update posts abc123 --set "tags=[\"news\",\"featured\"]"
+trokky docs update posts abc123 --set "meta.views=100"
+```
 
 **Piping Examples:**
 ```bash

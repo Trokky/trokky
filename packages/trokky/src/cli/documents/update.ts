@@ -19,6 +19,7 @@ import {
   type OutputOptions
 } from '../utils/output.js'
 import { checkCollection } from '../utils/collections.js'
+import { parseSetArgs, deepMerge, unwrapDocument } from '../utils/dot-path.js'
 
 export const updateCommand = new Command('update')
   .description('Update an existing document (for singletons, ID is optional)')
@@ -30,6 +31,9 @@ export const updateCommand = new Command('update')
   .option(credentialOptions.instance.flags, credentialOptions.instance.description)
   .option('--data <json>', 'Full document data (replaces)')
   .option('--patch <json>', 'Partial update data (merges)')
+  .option('--set <path=value...>', 'Set specific field paths (e.g., --set "title=New Title" --set "meta.published=true")', (value: string, previous: string[]) => {
+    return previous ? [...previous, value] : [value]
+  }, [])
   .option('--pretty', 'Colorized, formatted output')
   .option('--quiet', 'Suppress status messages')
   .action(async (collection: string, idOrFile: string | undefined, file: string | undefined, options) => {
@@ -79,11 +83,18 @@ export const updateCommand = new Command('update')
       }
     }
 
-    // Determine data source: --data, --patch, file argument, or stdin
+    // Determine data source: --set, --data, --patch, file argument, or stdin
     let jsonData: string | undefined
     let isPatch = false
+    let isSetUpdate = false
+    let setData: Record<string, unknown> | undefined
 
-    if (options.patch) {
+    // Handle --set option for path-based updates
+    if (options.set && options.set.length > 0) {
+      setData = parseSetArgs(options.set)
+      isSetUpdate = true
+      isPatch = true // --set is always a partial update
+    } else if (options.patch) {
       jsonData = options.patch
       isPatch = true
     } else if (options.data) {
@@ -100,11 +111,13 @@ export const updateCommand = new Command('update')
       jsonData = await readStdin()
     }
 
-    if (!jsonData) {
-      outputError('No data provided. Use --data, --patch, provide a file path, or pipe JSON via stdin.')
+    if (!jsonData && !setData) {
+      outputError('No data provided. Use --set, --data, --patch, provide a file path, or pipe JSON via stdin.')
       console.error('\nExamples:')
       console.error('  trokky documents update posts abc123 --data \'{"title":"Updated"}\'')
       console.error('  trokky documents update posts abc123 --patch \'{"status":"published"}\'')
+      console.error('  trokky documents update posts abc123 --set "title=New Title"')
+      console.error('  trokky documents update posts abc123 --set "meta.published=true" --set "meta.author=John"')
       console.error('  trokky documents update posts abc123 ./updated-post.json')
       process.exit(1)
     }
@@ -112,19 +125,34 @@ export const updateCommand = new Command('update')
     const spinner = options.quiet ? null : ora('Updating document...').start()
 
     try {
-      const data = parseJsonInput(jsonData, filePath || (isPatch ? '--patch' : '--data'))
+      // Get update data from either --set or JSON input
+      let data: Record<string, unknown>
+      if (isSetUpdate && setData) {
+        // For --set, we need to fetch the existing document and deep merge
+        // to preserve other fields at the same level
+        const existingResult = await client.getDocument(collection, documentId)
+        const existingDoc = unwrapDocument(existingResult)
 
-      // For patch updates, we might need to fetch the existing document first
-      // and merge the changes. However, the API might support partial updates directly.
-      // For now, we pass the data as-is to updateDocument which does a partial update.
-      const result = await client.updateDocument(collection, documentId, data as Record<string, unknown>)
-      // DocumentResult contains the document data directly
-      const document = result
+        // Deep merge: existing document + set changes
+        data = deepMerge(existingDoc, setData)
+      } else if (isPatch) {
+        // For --patch, also fetch existing document and deep merge
+        const patchData = parseJsonInput(jsonData!, filePath || '--patch') as Record<string, unknown>
+        const existingResult = await client.getDocument(collection, documentId)
+        const existingDoc = unwrapDocument(existingResult)
+
+        data = deepMerge(existingDoc, patchData)
+      } else {
+        data = parseJsonInput(jsonData!, filePath || '--data') as Record<string, unknown>
+      }
+
+      const result = await client.updateDocument(collection, documentId, data)
+      const document = unwrapDocument(result)
 
       spinner?.stop()
 
       if (!options.quiet) {
-        const updateType = isPatch ? 'patched' : 'updated'
+        const updateType = isSetUpdate ? 'updated (set)' : (isPatch ? 'patched' : 'updated')
         outputSuccess(`Document ${updateType}: ${documentId}`, outputOpts)
       }
 
