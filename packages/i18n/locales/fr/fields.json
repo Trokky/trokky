@@ -1,0 +1,150 @@
+{
+  "types": {
+    "string": {
+      "label": "Texte",
+      "placeholder": "Saisissez du texte...",
+      "description": "Champ de texte sur une ligne"
+    },
+    "text": {
+      "label": "Zone de texte",
+      "placeholder": "Saisissez du texte...",
+      "description": "Champ de texte multiligne"
+    },
+    "number": {
+      "label": "Nombre",
+      "placeholder": "Saisissez un nombre",
+      "placeholderInteger": "Saisissez un nombre entier",
+      "placeholderCurrency": "0,00",
+      "placeholderPercentage": "0,00 %",
+      "description": "Champ de valeur numerique"
+    },
+    "boolean": {
+      "label": "Booleen",
+      "description": "Champ vrai/faux"
+    },
+    "date": {
+      "label": "Date",
+      "placeholder": "Selectionnez une date...",
+      "description": "Selecteur de date"
+    },
+    "datetime": {
+      "label": "Date et heure",
+      "placeholder": "Selectionnez une date et une heure...",
+      "description": "Selecteur de date et heure"
+    },
+    "image": {
+      "label": "Image",
+      "placeholder": "Selectionnez ou importez une image",
+      "description": "Champ d'import d'image",
+      "selectImage": "Selectionner une image",
+      "changeImage": "Changer l'image",
+      "removeImage": "Supprimer l'image"
+    },
+    "file": {
+      "label": "Fichier",
+      "placeholder": "Selectionnez ou importez un fichier",
+      "description": "Champ d'import de fichier",
+      "selectFile": "Selectionner un fichier",
+      "changeFile": "Changer le fichier",
+      "removeFile": "Supprimer le fichier"
+    },
+    "reference": {
+      "label": "Reference",
+      "placeholder": "Selectionnez un element...",
+      "description": "Reference vers un autre document",
+      "noResults": "Aucun element correspondant trouve",
+      "loading": "Chargement..."
+    },
+    "array": {
+      "label": "Liste",
+      "description": "Liste d'elements",
+      "addItem": "Ajouter un element",
+      "removeItem": "Supprimer l'element",
+      "moveUp": "Deplacer vers le haut",
+      "moveDown": "Deplacer vers le bas",
+      "empty": "Aucun element"
+    },
+    "object": {
+      "label": "Objet",
+      "description": "Groupe de champs imbriques"
+    },
+    "select": {
+      "label": "Selection",
+      "placeholder": "Selectionnez une option...",
+      "description": "Champ de selection deroulante",
+      "noOptions": "Aucune option disponible"
+    },
+    "richtext": {
+      "label": "Texte enrichi",
+      "placeholder": "Commencez a ecrire...",
+      "description": "Editeur de texte enrichi"
+    },
+    "portableText": {
+      "label": "Texte portable",
+      "placeholder": "Commencez a ecrire...",
+      "description": "Editeur de contenu en blocs"
+    },
+    "slug": {
+      "label": "Slug",
+      "placeholder": "slug-du-document",
+      "description": "Identifiant compatible URL",
+      "generate": "Generer"
+    },
+    "email": {
+      "label": "E-mail",
+      "placeholder": "email@exemple.com",
+      "description": "Champ d'adresse e-mail"
+    },
+    "url": {
+      "label": "URL",
+      "placeholder": "https://exemple.com",
+      "description": "Champ d'adresse web"
+    },
+    "color": {
+      "label": "Couleur",
+      "placeholder": "#000000",
+      "description": "Selecteur de couleur"
+    }
+  },
+  "validation": {
+    "required": "Ce champ est obligatoire",
+    "minLength": "Doit contenir au moins {{min}} caracteres",
+    "maxLength": "Ne doit pas depasser {{max}} caracteres",
+    "min": "Doit etre au moins {{min}}",
+    "max": "Ne doit pas depasser {{max}}",
+    "pattern": "Format invalide",
+    "email": "Doit etre une adresse e-mail valide",
+    "url": "Doit etre une URL valide",
+    "unique": "Cette valeur doit etre unique",
+    "invalidType": "Type de valeur invalide",
+    "invalidDate": "Date invalide",
+    "invalidNumber": "Doit etre un nombre valide",
+    "invalidInteger": "Doit etre un nombre entier",
+    "positive": "Doit etre un nombre positif",
+    "negative": "Doit etre un nombre negatif",
+    "fileSize": "La taille du fichier doit etre inferieure a {{max}}",
+    "fileType": "Type de fichier invalide",
+    "imageSize": "Les dimensions de l'image doivent etre {{width}}x{{height}} ou moins"
+  },
+  "richtext": {
+    "bold": "Gras",
+    "italic": "Italique",
+    "underline": "Souligne",
+    "strikethrough": "Barre",
+    "heading1": "Titre 1",
+    "heading2": "Titre 2",
+    "heading3": "Titre 3",
+    "paragraph": "Paragraphe",
+    "bulletList": "Liste a puces",
+    "numberedList": "Liste numerotee",
+    "blockquote": "Citation",
+    "codeBlock": "Bloc de code",
+    "link": "Lien",
+    "image": "Image",
+    "table": "Tableau",
+    "undo": "Annuler",
+    "redo": "Retablir",
+    "clear": "Effacer le formatage"
+  },
+  "noValue": "Aucune valeur"
+}

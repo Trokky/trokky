@@ -1,0 +1,150 @@
+{
+  "types": {
+    "string": {
+      "label": "Text",
+      "placeholder": "Enter text...",
+      "description": "Single line text field"
+    },
+    "text": {
+      "label": "Text Area",
+      "placeholder": "Enter text...",
+      "description": "Multi-line text field"
+    },
+    "number": {
+      "label": "Number",
+      "placeholder": "Enter number",
+      "placeholderInteger": "Enter whole number",
+      "placeholderCurrency": "0.00",
+      "placeholderPercentage": "0.00%",
+      "description": "Numeric value field"
+    },
+    "boolean": {
+      "label": "Boolean",
+      "description": "True/false toggle field"
+    },
+    "date": {
+      "label": "Date",
+      "placeholder": "Select date...",
+      "description": "Date picker field"
+    },
+    "datetime": {
+      "label": "Date & Time",
+      "placeholder": "Select date and time...",
+      "description": "Date and time picker field"
+    },
+    "image": {
+      "label": "Image",
+      "placeholder": "Select or upload an image",
+      "description": "Image upload field",
+      "selectImage": "Select Image",
+      "changeImage": "Change Image",
+      "removeImage": "Remove Image"
+    },
+    "file": {
+      "label": "File",
+      "placeholder": "Select or upload a file",
+      "description": "File upload field",
+      "selectFile": "Select File",
+      "changeFile": "Change File",
+      "removeFile": "Remove File"
+    },
+    "reference": {
+      "label": "Reference",
+      "placeholder": "Select an item...",
+      "description": "Reference to another document",
+      "noResults": "No matching items found",
+      "loading": "Loading..."
+    },
+    "array": {
+      "label": "Array",
+      "description": "List of items",
+      "addItem": "Add Item",
+      "removeItem": "Remove Item",
+      "moveUp": "Move Up",
+      "moveDown": "Move Down",
+      "empty": "No items"
+    },
+    "object": {
+      "label": "Object",
+      "description": "Nested fields group"
+    },
+    "select": {
+      "label": "Select",
+      "placeholder": "Select an option...",
+      "description": "Dropdown selection field",
+      "noOptions": "No options available"
+    },
+    "richtext": {
+      "label": "Rich Text",
+      "placeholder": "Start typing...",
+      "description": "Rich text editor field"
+    },
+    "portableText": {
+      "label": "Portable Text",
+      "placeholder": "Start typing...",
+      "description": "Block content editor"
+    },
+    "slug": {
+      "label": "Slug",
+      "placeholder": "document-slug",
+      "description": "URL-friendly identifier",
+      "generate": "Generate"
+    },
+    "email": {
+      "label": "Email",
+      "placeholder": "email@example.com",
+      "description": "Email address field"
+    },
+    "url": {
+      "label": "URL",
+      "placeholder": "https://example.com",
+      "description": "Web address field"
+    },
+    "color": {
+      "label": "Color",
+      "placeholder": "#000000",
+      "description": "Color picker field"
+    }
+  },
+  "validation": {
+    "required": "This field is required",
+    "minLength": "Must be at least {{min}} characters",
+    "maxLength": "Must be no more than {{max}} characters",
+    "min": "Must be at least {{min}}",
+    "max": "Must be no more than {{max}}",
+    "pattern": "Invalid format",
+    "email": "Must be a valid email address",
+    "url": "Must be a valid URL",
+    "unique": "This value must be unique",
+    "invalidType": "Invalid value type",
+    "invalidDate": "Invalid date",
+    "invalidNumber": "Must be a valid number",
+    "invalidInteger": "Must be a whole number",
+    "positive": "Must be a positive number",
+    "negative": "Must be a negative number",
+    "fileSize": "File size must be less than {{max}}",
+    "fileType": "Invalid file type",
+    "imageSize": "Image dimensions must be {{width}}x{{height}} or smaller"
+  },
+  "richtext": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough",
+    "heading1": "Heading 1",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "paragraph": "Paragraph",
+    "bulletList": "Bullet List",
+    "numberedList": "Numbered List",
+    "blockquote": "Blockquote",
+    "codeBlock": "Code Block",
+    "link": "Link",
+    "image": "Image",
+    "table": "Table",
+    "undo": "Undo",
+    "redo": "Redo",
+    "clear": "Clear Formatting"
+  },
+  "noValue": "No value"
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TrokkyI18nProvider } from '@trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -166,14 +167,16 @@ export function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <StudioContextProvider branding={branding}>
-          <div className="App">
-            <AppContent />
-          </div>
-        </StudioContextProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <TrokkyI18nProvider config={{ debug: import.meta.env.DEV }}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <StudioContextProvider branding={branding}>
+            <div className="App">
+              <AppContent />
+            </div>
+          </StudioContextProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </TrokkyI18nProvider>
   );
 }

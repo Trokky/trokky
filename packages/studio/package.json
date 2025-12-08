@@ -19,6 +19,7 @@
     "@heroicons/react": "^2.2.0",
     "@tanstack/react-query": "^5.0.0",
     "@trokky/fields": "*",
+    "@trokky/i18n": "*",
     "@trokky/types": "*",
     "clsx": "^2.0.0",
     "date-fns": "^2.29.0",
