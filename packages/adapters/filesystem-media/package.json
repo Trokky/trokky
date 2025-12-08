@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-filesystem-media",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "Filesystem-based media storage adapter for Trokky CMS (files, variants, media)",
   "type": "module",
   "main": "dist/index.js",

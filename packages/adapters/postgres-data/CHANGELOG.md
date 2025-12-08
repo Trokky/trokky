@@ -1,5 +1,12 @@
 # @trokky/adapter-postgres-data
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [3bbba91]
+  - @trokky/core@1.0.0
+
 ## 0.1.9
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @trokky/express
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [3bbba91]
+  - @trokky/core@1.0.0
+  - @trokky/routes@1.0.0
+  - @trokky/adapter-filesystem-data@1.0.0
+  - @trokky/adapter-filesystem-media@1.0.0
+
 ## 0.1.20
 
 ### Patch Changes
