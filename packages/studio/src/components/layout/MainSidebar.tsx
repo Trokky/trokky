@@ -1,75 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  DocumentTextIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FolderIcon,
-  TagIcon,
-  UserIcon,
-  DocumentIcon,
-  Bars3Icon,
-  HomeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
-  InformationCircleIcon,
-  ClockIcon,
-  HeartIcon,
-  ScaleIcon,
-  ChartBarIcon,
-  HandRaisedIcon,
-  Cog6ToothIcon,
-  ListBulletIcon,
-  MapPinIcon,
-  NewspaperIcon,
-  QuestionMarkCircleIcon,
-  Squares2X2Icon,
-  BookOpenIcon,
-  PencilSquareIcon,
-  ArchiveBoxIcon,
-  CalendarIcon,
-  PhotoIcon,
-  GlobeAltIcon,
-  BuildingOfficeIcon,
-  BriefcaseIcon,
-  AcademicCapIcon,
-  BeakerIcon,
-  BoltIcon,
-  ChatBubbleLeftRightIcon,
-  CheckCircleIcon,
-  CloudIcon,
-  CodeBracketIcon,
-  CubeIcon,
-  CurrencyDollarIcon,
-  EnvelopeIcon,
-  FlagIcon,
-  GiftIcon,
-  HashtagIcon,
-  LinkIcon,
-  LockClosedIcon,
-  MegaphoneIcon,
-  MusicalNoteIcon,
-  PaperClipIcon,
-  PhoneIcon,
-  PlayIcon,
-  PresentationChartLineIcon,
-  RocketLaunchIcon,
-  ShieldCheckIcon,
-  ShoppingBagIcon,
-  ShoppingCartIcon,
-  SparklesIcon,
-  StarIcon,
-  SunIcon,
-  TrophyIcon,
-  TruckIcon,
-  VideoCameraIcon,
-  WrenchIcon
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useNavigation } from '@/hooks/useStructure';
 import type { NavigationItem as StructureNavigationItem } from '@/types/structure';
+import { renderIcon } from '@/utils/icons';
 
 interface MainSidebarProps {
   isMobile?: boolean;
@@ -82,152 +26,6 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const { navigation, loading, error } = useNavigation();
-
-  const getIconComponent = (iconName: string) => {
-    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-      // Heroicons names
-      'home': HomeIcon,
-      'document-text': DocumentTextIcon,
-      'document': DocumentIcon,
-      'user': UserIcon,
-      'folder': FolderIcon,
-      'tag': TagIcon,
-      'menu': Bars3Icon,
-      'cog': Cog6ToothIcon,
-      'list': ListBulletIcon,
-      'newspaper': NewspaperIcon,
-      'map': MapPinIcon,
-      'question': QuestionMarkCircleIcon,
-      'info': InformationCircleIcon,
-      'chart': ChartBarIcon,
-      'heart': HeartIcon,
-      'scale': ScaleIcon,
-      'clock': ClockIcon,
-      'hand': HandRaisedIcon,
-      'grid': Squares2X2Icon,
-      'book': BookOpenIcon,
-      'edit': PencilSquareIcon,
-      'archive': ArchiveBoxIcon,
-      'calendar': CalendarIcon,
-      'photo': PhotoIcon,
-      'globe': GlobeAltIcon,
-      'building': BuildingOfficeIcon,
-      'briefcase': BriefcaseIcon,
-      'academic': AcademicCapIcon,
-      'beaker': BeakerIcon,
-      'bolt': BoltIcon,
-      'chat': ChatBubbleLeftRightIcon,
-      'check': CheckCircleIcon,
-      'cloud': CloudIcon,
-      'code': CodeBracketIcon,
-      'cube': CubeIcon,
-      'dollar': CurrencyDollarIcon,
-      'envelope': EnvelopeIcon,
-      'flag': FlagIcon,
-      'gift': GiftIcon,
-      'hashtag': HashtagIcon,
-      'link': LinkIcon,
-      'lock': LockClosedIcon,
-      'megaphone': MegaphoneIcon,
-      'music': MusicalNoteIcon,
-      'paperclip': PaperClipIcon,
-      'phone': PhoneIcon,
-      'play': PlayIcon,
-      'presentation': PresentationChartLineIcon,
-      'rocket': RocketLaunchIcon,
-      'shield': ShieldCheckIcon,
-      'shopping-bag': ShoppingBagIcon,
-      'shopping-cart': ShoppingCartIcon,
-      'sparkles': SparklesIcon,
-      'star': StarIcon,
-      'sun': SunIcon,
-      'trophy': TrophyIcon,
-      'truck': TruckIcon,
-      'video': VideoCameraIcon,
-      'wrench': WrenchIcon,
-
-      // Font Awesome icon mappings (FaXxx -> Heroicons)
-      'FaFileAlt': DocumentTextIcon,
-      'FaFile': DocumentIcon,
-      'FaInfoCircle': InformationCircleIcon,
-      'FaHistory': ClockIcon,
-      'FaBullseye': CheckCircleIcon,
-      'FaHeart': HeartIcon,
-      'FaBalanceScale': ScaleIcon,
-      'FaChartBar': ChartBarIcon,
-      'FaHandsHelping': HandRaisedIcon,
-      'FaHandshake': HandRaisedIcon,
-      'FaCog': Cog6ToothIcon,
-      'FaList': ListBulletIcon,
-      'FaMapMarkedAlt': MapPinIcon,
-      'FaMap': MapPinIcon,
-      'FaNewspaper': NewspaperIcon,
-      'FaQuestionCircle': QuestionMarkCircleIcon,
-      'FaTags': TagIcon,
-      'FaTag': TagIcon,
-      'FaBars': Bars3Icon,
-      'FaSitemap': Squares2X2Icon,
-      'FaFolder': FolderIcon,
-      'FaFolderOpen': FolderIcon,
-      'FaHome': HomeIcon,
-      'FaUser': UserIcon,
-      'FaUsers': UserIcon,
-      'FaBook': BookOpenIcon,
-      'FaBookOpen': BookOpenIcon,
-      'FaEdit': PencilSquareIcon,
-      'FaPen': PencilSquareIcon,
-      'FaArchive': ArchiveBoxIcon,
-      'FaCalendar': CalendarIcon,
-      'FaCalendarAlt': CalendarIcon,
-      'FaImage': PhotoIcon,
-      'FaImages': PhotoIcon,
-      'FaGlobe': GlobeAltIcon,
-      'FaBuilding': BuildingOfficeIcon,
-      'FaBriefcase': BriefcaseIcon,
-      'FaGraduationCap': AcademicCapIcon,
-      'FaFlask': BeakerIcon,
-      'FaBolt': BoltIcon,
-      'FaComments': ChatBubbleLeftRightIcon,
-      'FaComment': ChatBubbleLeftRightIcon,
-      'FaCheckCircle': CheckCircleIcon,
-      'FaCheck': CheckCircleIcon,
-      'FaCloud': CloudIcon,
-      'FaCode': CodeBracketIcon,
-      'FaCube': CubeIcon,
-      'FaDollarSign': CurrencyDollarIcon,
-      'FaEnvelope': EnvelopeIcon,
-      'FaFlag': FlagIcon,
-      'FaGift': GiftIcon,
-      'FaHashtag': HashtagIcon,
-      'FaLink': LinkIcon,
-      'FaLock': LockClosedIcon,
-      'FaBullhorn': MegaphoneIcon,
-      'FaMusic': MusicalNoteIcon,
-      'FaPaperclip': PaperClipIcon,
-      'FaPhone': PhoneIcon,
-      'FaPlay': PlayIcon,
-      'FaChartLine': PresentationChartLineIcon,
-      'FaRocket': RocketLaunchIcon,
-      'FaShieldAlt': ShieldCheckIcon,
-      'FaShoppingBag': ShoppingBagIcon,
-      'FaShoppingCart': ShoppingCartIcon,
-      'FaMagic': SparklesIcon,
-      'FaStar': StarIcon,
-      'FaSun': SunIcon,
-      'FaTrophy': TrophyIcon,
-      'FaTruck': TruckIcon,
-      'FaVideo': VideoCameraIcon,
-      'FaWrench': WrenchIcon,
-      'FaCogs': Cog6ToothIcon,
-      'FaClipboardList': ListBulletIcon,
-      'FaListAlt': ListBulletIcon,
-      'FaFileContract': DocumentTextIcon,
-      'FaGavel': ScaleIcon,
-      'FaLandmark': BuildingOfficeIcon,
-      'FaUniversity': BuildingOfficeIcon,
-    };
-    return iconMap[iconName] || DocumentIcon;
-  };
 
   const handleItemClick = () => {
     if (onItemClick) {
@@ -402,7 +200,7 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
   }, [searchQuery, filteredNavigation]);
 
   const renderNavigationItem = (item: StructureNavigationItem, depth = 0) => {
-    const IconComponent = getIconComponent(item.icon || 'document-text');
+    const iconName = item.icon || 'document';
     
     // Generate content path for document types
     let itemPath = item.path;
@@ -515,12 +313,9 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         }}
         title={isCollapsed ? item.title : undefined}
       >
-        <IconComponent
-          className={cn(
-            'h-4 w-4 flex-shrink-0',
-            isCollapsed ? '' : 'mr-2'
-          )}
-        />
+        <span className={cn('flex-shrink-0', isCollapsed ? '' : 'mr-2')}>
+          {renderIcon(iconName, 16)}
+        </span>
         {!isCollapsed && (
           <div className="flex-1 min-w-0">
             <span className="block truncate">

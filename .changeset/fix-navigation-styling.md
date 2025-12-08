@@ -2,8 +2,13 @@
 "@trokky/studio": patch
 ---
 
-Fix Studio navigation styling and icon mapping
+Fix Studio navigation styling and add scalable icon utility
 
-- Add comprehensive Font Awesome to Heroicons icon mapping for structure.ts compatibility
+- Add scalable icon utility (utils/icons.tsx) that supports multiple formats:
+  - "hi:icon-name" for Heroicons
+  - "fa:icon-name" for FontAwesome
+  - "FaIconName" for legacy FontAwesome format
+  - Plain names default to Heroicons
 - Reduce document item size in navigation to be more coherent with category headers
-- Icons now display correctly based on structure.ts configuration
+- Icons from structure.ts now render correctly using the new utility
+- FontAwesome icons are automatically mapped to equivalent Heroicons
