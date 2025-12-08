@@ -34,6 +34,22 @@ export interface IconMeta {
   unicode?: string;
 }
 
+// Custom icon definition with SVG path
+export interface CustomIconDefinition {
+  /** SVG path data (the "d" attribute) */
+  path: string;
+  /** Icon style: stroke (outline) or fill (solid) */
+  style?: 'stroke' | 'fill';
+  /** Display label */
+  label?: string;
+  /** Category for grouping */
+  category?: string;
+  /** Search tags */
+  tags?: string[];
+  /** Custom viewBox (defaults to "0 0 24 24") */
+  viewBox?: string;
+}
+
 // Icon library adapter interface
 export interface IconLibraryAdapter {
   name: IconLibrary;
@@ -78,8 +94,8 @@ export interface IconFieldOptions extends BaseFieldOptions {
   pageSize?: number;
   /** Show recently used icons */
   showRecent?: boolean;
-  /** Custom icon set (for library: 'custom') */
-  customIcons?: IconMeta[];
+  /** Custom icon set (for library: 'custom') - record of name to icon definition */
+  customIcons?: Record<string, CustomIconDefinition>;
 }
 
 // Complete icon field definition

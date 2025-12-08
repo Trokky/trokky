@@ -12,18 +12,32 @@ Studio navigation:
 - Default viewBox is `0 0 24 24` to match Heroicons
 
 IconField:
-- Add "Custom SVG" tab allowing users to paste their own SVG path data
-- Live preview of custom SVG with stroke/fill style toggle
-- Optional name field for the custom icon
+- Add `customIcons` option to define a reusable custom icon library
+- Custom icons appear in searchable grid in Custom SVG tab
+- Toggle to "Paste new SVG" for ad-hoc custom icons
+- Live preview with stroke/fill style toggle
 - SVG path data stored in the `svg` field of IconValue
-- Export `customSvgAdapter`, `registerCustomIcon`, and `renderSvgPath` utilities
+- Export `CustomIconDefinition` type, `setCustomIcons`, `getCustomIcons`, `clearCustomIcons`, `renderSvgPath`
 
-Example usage in structure.ts:
+Example usage:
 ```ts
+// icons.ts - Define custom icon library
+export const myCustomIcons: Record<string, CustomIconDefinition> = {
+  'gavel': {
+    path: 'M12 3l1.5 1.5L9 9...',
+    style: 'stroke',
+    label: 'Gavel',
+    category: 'legal',
+    tags: ['law', 'judge'],
+  },
+};
+
+// schema.ts - Use in IconField
 {
-  type: 'singleton',
-  title: 'Custom Page',
-  schemaType: 'customPage',
-  icon: 'svg:M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'
+  type: 'icon',
+  options: {
+    libraries: ['fontawesome', 'heroicons', 'custom'],
+    customIcons: myCustomIcons,
+  }
 }
 ```
