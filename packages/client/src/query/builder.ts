@@ -345,6 +345,12 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
       queryParams.set('select', options.select.join(','))
     }
 
+    // Add server-side expansion if configured
+    if (this._expand.length > 0) {
+      const expandFields = this._expand.map(e => e.isArray ? `${e.field}[]` : e.field)
+      queryParams.set('expand', expandFields.join(','))
+    }
+
     // Add timestamp for fresh queries
     if (!this._options.noTimestamp && !this._options.useCache) {
       queryParams.set('_t', Date.now().toString())
@@ -357,8 +363,9 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
     // Extract documents from result
     let documents: T[] = (result as any).data || []
 
-    // Expand references if configured
-    if (this._expand.length > 0 && documents.length > 0) {
+    // Note: References are now expanded server-side via the expand query param
+    // Client-side expansion is kept as fallback for older API versions
+    if (this._expand.length > 0 && documents.length > 0 && !this.hasExpandedReferences(documents)) {
       documents = await this.expandReferences(documents)
     }
 
@@ -404,6 +411,32 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
   async exists(): Promise<boolean> {
     const count = await this.count()
     return count > 0
+  }
+
+  /**
+   * Check if references have already been expanded by the server
+   */
+  private hasExpandedReferences(documents: T[]): boolean {
+    if (documents.length === 0) return false
+    const doc = documents[0]
+
+    for (const expandConfig of this._expand) {
+      const fieldValue = (doc as any)[expandConfig.field]
+      if (fieldValue) {
+        // If it's an array, check first item
+        if (expandConfig.isArray && Array.isArray(fieldValue) && fieldValue.length > 0) {
+          const firstItem = fieldValue[0]
+          // If it has _id, it's been expanded (not just a reference with _ref)
+          if (firstItem && typeof firstItem === 'object' && '_id' in firstItem) {
+            return true
+          }
+        } else if (typeof fieldValue === 'object' && '_id' in fieldValue && !('_ref' in fieldValue)) {
+          // Single reference that's been expanded (has _id but no _ref)
+          return true
+        }
+      }
+    }
+    return false
   }
 
   /**
@@ -586,6 +619,12 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
       queryParams.set('_t', Date.now().toString())
     }
 
+    // Add server-side expansion if configured
+    if (this._expand.length > 0) {
+      const expandFields = this._expand.map(e => e.isArray ? `${e.field}[]` : e.field)
+      queryParams.set('expand', expandFields.join(','))
+    }
+
     // For singletons, try specific ID first, then fall back to collection query
     let endpoint: string
 
@@ -616,8 +655,9 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
         return null
       }
 
-      // Expand references if configured
-      if (doc && this._expand.length > 0) {
+      // Note: References are now expanded server-side via the expand query param
+      // Client-side expansion is kept as fallback for older API versions
+      if (doc && this._expand.length > 0 && !this.hasExpandedReferences(doc)) {
         doc = await this.expandReferences(doc)
       }
 
@@ -626,6 +666,29 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
       console.warn(`Failed to fetch singleton ${this._type}:`, error)
       return null
     }
+  }
+
+  /**
+   * Check if references have already been expanded by the server
+   */
+  private hasExpandedReferences(doc: T): boolean {
+    for (const expandConfig of this._expand) {
+      const fieldValue = (doc as any)[expandConfig.field]
+      if (fieldValue) {
+        // If it's an array, check first item
+        if (expandConfig.isArray && Array.isArray(fieldValue) && fieldValue.length > 0) {
+          const firstItem = fieldValue[0]
+          // If it has _id, it's been expanded (not just a reference with _ref)
+          if (firstItem && typeof firstItem === 'object' && '_id' in firstItem) {
+            return true
+          }
+        } else if (typeof fieldValue === 'object' && '_id' in fieldValue && !('_ref' in fieldValue)) {
+          // Single reference that's been expanded (has _id but no _ref)
+          return true
+        }
+      }
+    }
+    return false
   }
 
   /**

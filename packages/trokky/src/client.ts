@@ -28,8 +28,18 @@ export class TrokkyClient {
   }
 
   // Documents
-  async getDocument<T extends BaseDocument>(type: string, id: string): Promise<DocumentResult<T>> {
-    return this.http.get<DocumentResult<T>>(`/collections/${type}/${id}`)
+  async getDocument<T extends BaseDocument>(
+    type: string,
+    id: string,
+    options?: { expand?: string | string[] }
+  ): Promise<DocumentResult<T>> {
+    const params = new URLSearchParams()
+    if (options?.expand) {
+      const expandValue = Array.isArray(options.expand) ? options.expand.join(',') : options.expand
+      params.set('expand', expandValue)
+    }
+    const query = params.toString()
+    return this.http.get<DocumentResult<T>>(`/collections/${type}/${id}${query ? `?${query}` : ''}`)
   }
 
   async queryDocuments<T extends BaseDocument>(

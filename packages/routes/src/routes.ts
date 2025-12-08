@@ -33,7 +33,7 @@ import type {
   GetWebhookDeliveriesRequest,
   TestWebhookRequest
 } from './types.js'
-import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, MediaFile } from '@trokky/core'
+import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, MediaFile, expandDocumentReferences, parseExpandParam } from '@trokky/core'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -565,6 +565,31 @@ export class TrokkyRoutes {
         })
       }
 
+      // Handle reference expansion if requested
+      const { expand } = request.query
+      if (expand && documents.length > 0) {
+        const schema = this.core.getSchema(collection)
+        const expandFields = parseExpandParam(expand as string | string[], schema || undefined)
+
+        if (expandFields.length > 0) {
+          // Create a document fetcher that uses the core
+          const fetchDocument = async (refCollection: string, refId: string) => {
+            return this.core.getDocument(refCollection, refId)
+          }
+
+          // Expand references in all documents
+          documents = await Promise.all(
+            documents.map(doc =>
+              expandDocumentReferences(
+                doc as Record<string, unknown>,
+                { fields: expandFields },
+                fetchDocument
+              )
+            )
+          ) as typeof documents
+        }
+      }
+
       // Use actual database count, not filtered result length
       const total = totalCount
 
@@ -656,7 +681,7 @@ export class TrokkyRoutes {
       SecurityValidator.validateDocumentId(id)
 
       let document = await this.core.getDocument(collection, id)
-      
+
       // If document not found, check if this is a singleton that should be auto-created
       if (!document) {
         const singletonDocument = await this.tryAutoCreateSingleton(collection, id)
@@ -664,6 +689,26 @@ export class TrokkyRoutes {
           document = singletonDocument
         } else {
           return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
+        }
+      }
+
+      // Handle reference expansion if requested
+      const { expand } = request.query
+      if (expand && document) {
+        const schema = this.core.getSchema(collection)
+        const expandFields = parseExpandParam(expand as string | string[], schema || undefined)
+
+        if (expandFields.length > 0) {
+          // Create a document fetcher that uses the core
+          const fetchDocument = async (refCollection: string, refId: string) => {
+            return this.core.getDocument(refCollection, refId)
+          }
+
+          document = await expandDocumentReferences(
+            document as Record<string, unknown>,
+            { fields: expandFields },
+            fetchDocument
+          ) as typeof document
         }
       }
 
