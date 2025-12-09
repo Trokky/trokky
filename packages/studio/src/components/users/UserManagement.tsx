@@ -22,57 +22,54 @@ import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 import { USER_PERMISSIONS } from '@/constants/permissions';
 import { ROLE_PERMISSIONS, type UserRole, type Permission, type User } from '@/types';
 import { generateWebSecurePassword } from '@/utils/web-crypto';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('UserManagement');
 
-// Define available roles and permissions
-const USER_ROLES: { value: UserRole; label: string; description: string }[] = [
-  { value: 'admin', label: 'Administrator', description: 'Full access to all features' },
-  { value: 'editor', label: 'Editor', description: 'Create, edit, and publish content' },
-  { value: 'author', label: 'Author', description: 'Create and edit own content' },
-  { value: 'viewer', label: 'Viewer', description: 'Read-only access to content' }
-];
+// Define available roles (labels are loaded from translations)
+const USER_ROLE_VALUES: UserRole[] = ['admin', 'editor', 'author', 'viewer'];
 
-const PERMISSIONS: { value: Permission; label: string; group: string }[] = [
+// Permission definitions with i18n keys
+const PERMISSION_DEFS: { value: Permission; labelKey: string; group: string }[] = [
   // Global Content Permissions
-  { value: 'content:*', label: 'All Content Operations', group: 'Content' },
-  { value: 'content:read', label: 'View All Content', group: 'Content' },
-  { value: 'content:write', label: 'Edit All Content', group: 'Content' },
-  { value: 'content:delete', label: 'Delete All Content', group: 'Content' },
-  { value: 'content:publish', label: 'Publish All Content', group: 'Content' },
-  
+  { value: 'content:*', labelKey: 'userManagement.permissions.allContent', group: 'Content' },
+  { value: 'content:read', labelKey: 'userManagement.permissions.viewAllContent', group: 'Content' },
+  { value: 'content:write', labelKey: 'userManagement.permissions.editAllContent', group: 'Content' },
+  { value: 'content:delete', labelKey: 'userManagement.permissions.deleteAllContent', group: 'Content' },
+  { value: 'content:publish', labelKey: 'userManagement.permissions.publishAllContent', group: 'Content' },
+
   // Note: Dynamic schema permissions are handled via the custom permission input below
   // Individual schema permissions like 'articles:read', 'products:write' etc. are added as custom permissions
-  
+
   // Media permissions
-  { value: 'media:read', label: 'View Media', group: 'Media' },
-  { value: 'media:upload', label: 'Upload Media', group: 'Media' },
-  { value: 'media:edit', label: 'Edit Media', group: 'Media' },
-  { value: 'media:delete', label: 'Delete Media', group: 'Media' },
-  
+  { value: 'media:read', labelKey: 'userManagement.permissions.viewMedia', group: 'Media' },
+  { value: 'media:upload', labelKey: 'userManagement.permissions.uploadMedia', group: 'Media' },
+  { value: 'media:edit', labelKey: 'userManagement.permissions.editMedia', group: 'Media' },
+  { value: 'media:delete', labelKey: 'userManagement.permissions.deleteMedia', group: 'Media' },
+
   // User management permissions
-  { value: 'users:read', label: 'View Users', group: 'Users' },
-  { value: 'users:write', label: 'Edit Users', group: 'Users' },
-  { value: 'users:delete', label: 'Delete Users', group: 'Users' },
-  { value: 'users:invite', label: 'Invite Users', group: 'Users' },
-  
+  { value: 'users:read', labelKey: 'userManagement.permissions.viewUsers', group: 'Users' },
+  { value: 'users:write', labelKey: 'userManagement.permissions.editUsers', group: 'Users' },
+  { value: 'users:delete', labelKey: 'userManagement.permissions.deleteUsers', group: 'Users' },
+  { value: 'users:invite', labelKey: 'userManagement.permissions.inviteUsers', group: 'Users' },
+
   // Settings permissions
-  { value: 'settings:read', label: 'View Settings', group: 'Settings' },
-  { value: 'settings:write', label: 'Edit Settings', group: 'Settings' },
-  
+  { value: 'settings:read', labelKey: 'userManagement.permissions.viewSettings', group: 'Settings' },
+  { value: 'settings:write', labelKey: 'userManagement.permissions.editSettings', group: 'Settings' },
+
   // Studio access
-  { value: 'studio:access', label: 'Studio Access', group: 'Access' },
-  
+  { value: 'studio:access', labelKey: 'userManagement.permissions.studioAccess', group: 'Access' },
+
   // API Tokens
-  { value: 'tokens:read', label: 'View API Tokens', group: 'Tokens' },
-  { value: 'tokens:write', label: 'Create API Tokens', group: 'Tokens' },
-  { value: 'tokens:delete', label: 'Delete API Tokens', group: 'Tokens' },
-  
+  { value: 'tokens:read', labelKey: 'userManagement.permissions.viewTokens', group: 'Tokens' },
+  { value: 'tokens:write', labelKey: 'userManagement.permissions.createTokens', group: 'Tokens' },
+  { value: 'tokens:delete', labelKey: 'userManagement.permissions.deleteTokens', group: 'Tokens' },
+
   // Webhooks
-  { value: 'webhooks:read', label: 'View Webhooks', group: 'Webhooks' },
-  { value: 'webhooks:write', label: 'Create/Edit Webhooks', group: 'Webhooks' },
-  { value: 'webhooks:delete', label: 'Delete Webhooks', group: 'Webhooks' },
-  { value: 'webhooks:test', label: 'Test Webhooks', group: 'Webhooks' }
+  { value: 'webhooks:read', labelKey: 'userManagement.permissions.viewWebhooks', group: 'Webhooks' },
+  { value: 'webhooks:write', labelKey: 'userManagement.permissions.createEditWebhooks', group: 'Webhooks' },
+  { value: 'webhooks:delete', labelKey: 'userManagement.permissions.deleteWebhooks', group: 'Webhooks' },
+  { value: 'webhooks:test', labelKey: 'userManagement.permissions.testWebhooks', group: 'Webhooks' }
 ];
 
 interface UserFormData {
@@ -93,6 +90,7 @@ interface UserModalProps {
 }
 
 function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
+  const { t } = useT('studio');
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     email: '',
@@ -105,7 +103,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Load dynamic schema permissions
   const { dynamicPermissions, loading: permissionsLoading, error: permissionsError } = useDynamicPermissions();
   const [hasCustomPermissions, setHasCustomPermissions] = useState(false);
@@ -162,7 +160,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
     // Validate permission format (schema:action)
     const permissionRegex = /^[a-z][a-z0-9_-]*:(read|write|delete|\*)$/i;
     if (!permissionRegex.test(customPermission.trim())) {
-      alert('Permission must be in format "schema:action" (e.g., "articles:read", "products:write", "events:*")');
+      alert(t('userManagement.modal.permissionValidationError'));
       return;
     }
     
@@ -250,18 +248,25 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
 
 
+  // Convert permission definitions to use translated labels
+  const PERMISSIONS = PERMISSION_DEFS.map(perm => ({
+    value: perm.value,
+    label: t(perm.labelKey),
+    group: perm.group
+  }));
+
   // Organize permissions: Content first, then dynamic schemas, then system permissions
   const contentPermissions = PERMISSIONS.filter(perm => perm.group === 'Content');
-  const systemPermissions = PERMISSIONS.filter(perm => 
+  const systemPermissions = PERMISSIONS.filter(perm =>
     perm.group !== 'Content' && perm.value !== 'studio:access' // Exclude studio:access (handled separately)
   );
-  
+
   const allPermissions = [
     ...contentPermissions,     // Global content permissions first
-    ...dynamicPermissions,     // Then dynamic schema permissions  
+    ...dynamicPermissions,     // Then dynamic schema permissions
     ...systemPermissions       // Then system permissions (Media, Users, etc.)
   ];
-  
+
   // Group permissions by category
   const groupedPermissions = allPermissions.reduce((acc, perm) => {
     if (!acc[perm.group]) acc[perm.group] = [];
@@ -275,7 +280,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={user ? 'Edit User' : 'Create User'}
+      title={user ? t('userManagement.modal.editTitle') : t('userManagement.modal.createTitle')}
       size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -293,13 +298,13 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
             {/* Basic Information */}
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1">
-                Basic Information
+                {t('userManagement.modal.basicInfo')}
               </h3>
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Username *
+                    {t('userManagement.modal.username')} *
                   </label>
                   <Input
                     type="text"
@@ -311,7 +316,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email *
+                    {t('userManagement.modal.email')} *
                   </label>
                   <Input
                     type="email"
@@ -325,7 +330,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Full Name *
+                  {t('userManagement.modal.fullName')} *
                 </label>
                 <Input
                   type="text"
@@ -338,7 +343,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {user ? 'New Password (optional)' : 'Password *'}
+                  {user ? t('userManagement.modal.newPassword') : `${t('userManagement.modal.password')} *`}
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -370,14 +375,14 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                     disabled={isLoading}
                     className="px-3"
                   >
-                    Generate
+                    {t('userManagement.modal.generatePassword')}
                   </Button>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role
+                  {t('userManagement.modal.role')}
                 </label>
                 <select
                   value={formData.role}
@@ -385,9 +390,9 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                   disabled={isLoading}
                 >
-                  {USER_ROLES.map(role => (
-                    <option key={role.value} value={role.value}>
-                      {role.label} - {role.description}
+                  {USER_ROLE_VALUES.map(role => (
+                    <option key={role} value={role}>
+                      {t(`userManagement.roles.${role}`)} - {t(`userManagement.roles.${role}Desc`)}
                     </option>
                   ))}
                 </select>
@@ -398,7 +403,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-1">
-                  Access & Permissions
+                  {t('userManagement.modal.accessPermissions')}
                 </h3>
                 {hasCustomPermissions && (
                   <button
@@ -406,7 +411,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                     onClick={resetToRolePermissions}
                     className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                   >
-                    Reset
+                    {t('userManagement.modal.reset')}
                   </button>
                 )}
               </div>
@@ -422,10 +427,10 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Active user account
+                      {t('userManagement.modal.activeAccount')}
                     </span>
                   </label>
-                  
+
                   <label className="flex items-center">
                     <input
                       type="checkbox"
@@ -434,7 +439,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Studio Access
+                      {t('userManagement.modal.studioAccess')}
                     </span>
                   </label>
                 </div>
@@ -446,7 +451,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                   <div className="flex items-center">
                     <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2" />
                     <span className="text-xs text-amber-800 dark:text-amber-200">
-                      Custom permissions
+                      {t('userManagement.modal.customPermissions')}
                     </span>
                   </div>
                 </div>
@@ -457,16 +462,16 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                 {permissionsLoading && (
                   <div className="flex items-center justify-center py-4">
                     <LoadingSpinner size="sm" className="mr-2" />
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Loading schema permissions...</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{t('userManagement.modal.loadingSchemaPermissions')}</span>
                   </div>
                 )}
-                
+
                 {permissionsError && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md mb-3">
                     <div className="flex items-center">
                       <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2" />
                       <span className="text-xs text-amber-800 dark:text-amber-200">
-                        Failed to load schema permissions: {permissionsError}
+                        {t('userManagement.modal.failedLoadSchemaPermissions', { error: permissionsError })}
                       </span>
                     </div>
                   </div>
@@ -484,7 +489,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                         {group}
                         {(isContentGroup || isDynamicContentGroup) && hasContentWildcard && (
                           <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                            {isContentGroup ? '(All Content Operations enabled)' : '(Covered by All Content Operations)'}
+                            {isContentGroup ? t('userManagement.modal.allContentEnabled') : t('userManagement.modal.coveredByAllContent')}
                           </span>
                         )}
                       </h4>
@@ -519,7 +524,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
               {!formData.permissions.includes('content:*') && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Custom Schema Permissions
+                    {t('userManagement.modal.customSchemaPermissions')}
                   </label>
                   <div className="space-y-2">
                     {/* Add Custom Permission */}
@@ -528,24 +533,24 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                         type="text"
                         value={customPermission}
                         onChange={(e) => setCustomPermission(e.target.value)}
-                        placeholder="e.g., custom:read, external:write, special:*"
+                        placeholder={t('userManagement.modal.customPermissionPlaceholder')}
                         className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
                         onKeyPress={(e) => e.key === 'Enter' && addCustomPermission()}
                       />
-                      <Button 
+                      <Button
                         type="button"
-                        size="sm" 
+                        size="sm"
                         onClick={addCustomPermission}
                         disabled={!customPermission.trim()}
                       >
-                        Add
+                        {t('userManagement.modal.addPermission')}
                       </Button>
                     </div>
-                    
+
                     {/* Display Custom Permissions */}
                     {formData.permissions.filter(p => !allPermissions.some(perm => perm.value === p)).length > 0 && (
                       <div className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Custom permissions:</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">{t('userManagement.modal.customPermissionsLabel')}</div>
                         <div className="flex flex-wrap gap-1">
                           {formData.permissions
                             .filter(p => !allPermissions.some(perm => perm.value === p))
@@ -570,7 +575,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
                     )}
                     
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Format: <code>schema:action</code> (e.g., custom:read, external:write, special:*). Schema permissions are auto-generated above.
+                      {t('userManagement.modal.permissionFormatHelp')}
                     </div>
                   </div>
                 </div>
@@ -581,16 +586,16 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
           {/* Form Actions */}
           <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <Button variant="ghost" onClick={onClose} disabled={isLoading}>
-              Cancel
+              {t('userManagement.modal.cancel')}
             </Button>
             <Button type="submit" onClick={handleSubmit} disabled={isLoading}>
               {isLoading ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  {user ? 'Updating...' : 'Creating...'}
+                  {user ? t('userManagement.modal.updating') : t('userManagement.modal.creating')}
                 </>
               ) : (
-                user ? 'Update User' : 'Create User'
+                user ? t('userManagement.modal.updateUser') : t('userManagement.createUser')
               )}
             </Button>
           </div>
@@ -600,6 +605,7 @@ function UserModal({ user, isOpen, onClose, onSave }: UserModalProps) {
 }
 
 export function UserManagement() {
+  const { t } = useT('studio');
   const { user: currentUser } = useAuth();
   const { hasPermission } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -682,7 +688,7 @@ export function UserManagement() {
   };
 
   const handleDeleteUser = async (user: User) => {
-    if (!confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
+    if (!confirm(t('userManagement.deleteConfirm', { username: user.username }))) {
       return;
     }
 
@@ -697,7 +703,7 @@ export function UserManagement() {
   };
 
   const handleResetMFA = async (user: User) => {
-    if (!confirm(`Are you sure you want to reset MFA for "${user.username}"? They will need to set up MFA again.`)) {
+    if (!confirm(t('userManagement.resetMfaConfirm', { username: user.username }))) {
       return;
     }
 
@@ -709,7 +715,7 @@ export function UserManagement() {
       }
     } catch (error) {
       logger.error('Failed to reset MFA', error);
-      alert('Failed to reset MFA. Please try again.');
+      alert(t('userManagement.failedResetMfa'));
     }
   };
 
@@ -745,15 +751,15 @@ export function UserManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">User Management</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('userManagement.title')}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage user accounts, roles, and permissions
+            {t('userManagement.subtitle')}
           </p>
         </div>
         {canCreateUser && (
           <Button onClick={handleCreateUser}>
             <PlusIcon className="h-4 w-4 mr-2" />
-            Add User
+            {t('userManagement.addUser')}
           </Button>
         )}
       </div>
@@ -761,7 +767,7 @@ export function UserManagement() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <Input
-            placeholder="Search users..."
+            placeholder={t('userManagement.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -779,19 +785,19 @@ export function UserManagement() {
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    User
+                    {t('userManagement.tableHeaders.user')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Role
+                    {t('userManagement.tableHeaders.role')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    {t('userManagement.tableHeaders.status')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Login
+                    {t('userManagement.tableHeaders.lastLogin')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('userManagement.tableHeaders.actions')}
                   </th>
                 </tr>
               </thead>
@@ -814,9 +820,9 @@ export function UserManagement() {
                           {user.role}
                         </span>
                         {hasCustomPermissions(user) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-full" title="Custom permissions - differs from role defaults">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-full" title={t('userManagement.customPermissionsTooltip')}>
                             <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
-                            Custom
+                            {t('userManagement.custom')}
                           </span>
                         )}
                       </div>
@@ -828,21 +834,21 @@ export function UserManagement() {
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                             : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                         }`}>
-                          {user.isActive ? 'Active' : 'Inactive'}
+                          {user.isActive ? t('userManagement.status.active') : t('userManagement.status.inactive')}
                         </span>
                         {hasMFAEnabled(user) && (
                           <span
                             className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400 rounded-full"
-                            title="MFA Enabled"
+                            title={t('userManagement.mfaEnabled')}
                           >
                             <ShieldCheckIcon className="h-3 w-3 mr-1" />
-                            MFA
+                            {t('userManagement.mfa')}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                      {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : t('userManagement.never')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
@@ -851,7 +857,7 @@ export function UserManagement() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleEditUser(user)}
-                            title="Edit user"
+                            title={t('userManagement.editUserTitle')}
                           >
                             <PencilIcon className="h-4 w-4" />
                           </Button>
@@ -862,7 +868,7 @@ export function UserManagement() {
                             variant="ghost"
                             onClick={() => handleResetMFA(user)}
                             className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
-                            title="Reset MFA"
+                            title={t('userManagement.resetMfaTitle')}
                           >
                             <ArrowPathIcon className="h-4 w-4" />
                           </Button>
@@ -873,7 +879,7 @@ export function UserManagement() {
                             variant="ghost"
                             onClick={() => handleDeleteUser(user)}
                             className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                            title="Delete user"
+                            title={t('userManagement.deleteUserTitle')}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>

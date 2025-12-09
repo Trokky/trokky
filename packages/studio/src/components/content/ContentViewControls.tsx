@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
+import { useT } from '@trokky/i18n';
 
 export type ViewType = 'list' | 'grid' | 'table' | 'calendar' | 'kanban';
 
@@ -78,7 +79,7 @@ export function ContentViewControls({
   onViewChange,
   searchQuery,
   onSearchChange,
-  searchPlaceholder = "Search...",
+  searchPlaceholder,
   availableFilters,
   activeFilters,
   onFilterChange,
@@ -87,15 +88,19 @@ export function ContentViewControls({
   currentSort,
   onSortChange,
   onCreateNew,
-  createNewLabel = "Create",
+  createNewLabel,
   totalItems = 0,
   selectedItems = 0,
   bulkActions = [],
   onBulkAction
 }: ContentViewControlsProps) {
+  const { t } = useT('studio');
   const [showFilters, setShowFilters] = useState(false);
   const [showSorts, setShowSorts] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  const effectiveSearchPlaceholder = searchPlaceholder || t('nav.searchPlaceholder');
+  const effectiveCreateLabel = createNewLabel || t('common.create');
 
   const activeFilterCount = Object.values(activeFilters).filter(v =>
     v !== undefined && v !== null && v !== ''
@@ -133,11 +138,11 @@ export function ContentViewControls({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={searchPlaceholder}
+                placeholder={effectiveSearchPlaceholder}
                 className="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
+
             {/* Filter toggle */}
             {availableFilters.length > 0 && (
               <Button
@@ -149,7 +154,7 @@ export function ContentViewControls({
                 )}
               >
                 <FunnelIcon className="h-4 w-4 mr-2" />
-                Filters
+                {t('contentView.filters')}
                 {activeFilterCount > 0 && (
                   <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200 rounded-full">
                     {activeFilterCount}
@@ -157,7 +162,7 @@ export function ContentViewControls({
                 )}
               </Button>
             )}
-            
+
             {/* Sort dropdown */}
             {availableSorts.length > 0 && (
               <div ref={sortDropdownRef} className="relative">
@@ -170,7 +175,7 @@ export function ContentViewControls({
                   )}
                 >
                   <ArrowsUpDownIcon className="h-4 w-4 mr-2" />
-                  Sort
+                  {t('contentView.sort')}
                   {currentSort && (
                     <span className="ml-2 text-xs">
                       {availableSorts.find(s => s.field === currentSort.field)?.label || currentSort.field}
@@ -194,7 +199,7 @@ export function ContentViewControls({
                               "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                             )}
                           >
-                            {sort.label} (A-Z)
+                            {t('contentView.sortAsc', { label: sort.label })}
                           </button>
                           <button
                             onClick={() => {
@@ -207,7 +212,7 @@ export function ContentViewControls({
                               "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
                             )}
                           >
-                            {sort.label} (Z-A)
+                            {t('contentView.sortDesc', { label: sort.label })}
                           </button>
                         </div>
                       ))}
@@ -216,7 +221,7 @@ export function ContentViewControls({
                 )}
               </div>
             )}
-            
+
             {/* Clear filters */}
             {hasActiveFilters && (
               <Button
@@ -225,7 +230,7 @@ export function ContentViewControls({
                 onClick={onClearFilters}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                Clear all
+                {t('contentView.clearAll')}
               </Button>
             )}
           </div>
@@ -236,11 +241,11 @@ export function ContentViewControls({
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {selectedItems > 0 ? (
                 <span>
-                  {selectedItems} of {totalItems} selected
+                  {t('contentView.selectedOfTotal', { selected: selectedItems, total: totalItems })}
                 </span>
               ) : (
                 <span>
-                  {totalItems} items
+                  {t('contentView.itemsCount', { count: totalItems })}
                 </span>
               )}
             </div>
@@ -292,7 +297,7 @@ export function ContentViewControls({
             {onCreateNew && (
               <Button onClick={onCreateNew}>
                 <PlusIcon className="h-4 w-4 mr-2" />
-                {createNewLabel}
+                {effectiveCreateLabel}
               </Button>
             )}
           </div>
@@ -314,7 +319,7 @@ export function ContentViewControls({
                     value={activeFilters[filter.id] || ''}
                     onChange={(e) => onFilterChange(filter.id, e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder={`Filter by ${filter.label.toLowerCase()}`}
+                    placeholder={t('contentView.filterBy', { label: filter.label.toLowerCase() })}
                   />
                 )}
                 {filter.type === 'select' && (
@@ -323,7 +328,7 @@ export function ContentViewControls({
                     onChange={(e) => onFilterChange(filter.id, e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">All {filter.label}</option>
+                    <option value="">{t('contentView.allLabel', { label: filter.label })}</option>
                     {filter.options?.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -337,9 +342,9 @@ export function ContentViewControls({
                     onChange={(e) => onFilterChange(filter.id, e.target.value === 'true' ? true : e.target.value === 'false' ? false : '')}
                     className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">All</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
+                    <option value="">{t('contentView.all')}</option>
+                    <option value="true">{t('contentView.yes')}</option>
+                    <option value="false">{t('contentView.no')}</option>
                   </select>
                 )}
                 {filter.type === 'date' && (

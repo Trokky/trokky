@@ -4,6 +4,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { GoogleLoginButton } from './GoogleLoginButton';
+import { useT } from '@trokky/i18n';
 
 interface OAuthProvider {
   provider: 'google' | 'github' | 'microsoft';
@@ -28,6 +29,7 @@ interface OAuthStatus {
  * Used in User Preferences page.
  */
 export function OAuthProvidersList() {
+  const { t } = useT('studio');
   const { user, refetch: refetchUser } = useCurrentUser();
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,14 +68,14 @@ export function OAuthProvidersList() {
       if (response.success) {
         // Refresh user data from server
         await refetchUser();
-        setMessage({ type: 'success', text: `${getProviderName(provider)} account unlinked successfully` });
+        setMessage({ type: 'success', text: t('oauth.unlinkSuccess', { provider: getProviderName(provider) }) });
       } else {
-        throw new Error(response.error?.message || 'Failed to unlink account');
+        throw new Error(response.error?.message || t('oauth.unlinkFailed'));
       }
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Failed to unlink account',
+        text: error instanceof Error ? error.message : t('oauth.unlinkFailed'),
       });
     } finally {
       setUnlinkingProvider(null);
@@ -83,7 +85,7 @@ export function OAuthProvidersList() {
   };
 
   const handleLinkSuccess = async () => {
-    setMessage({ type: 'success', text: 'Account linked successfully' });
+    setMessage({ type: 'success', text: t('oauth.accountLinked') });
     // Refresh user data from server
     await refetchUser();
   };
@@ -174,6 +176,7 @@ export function OAuthProvidersList() {
           getProviderIcon={getProviderIcon}
           getProviderName={getProviderName}
           formatDate={formatDate}
+          t={t}
         />
       )}
 
@@ -193,6 +196,7 @@ interface ProviderRowProps {
   getProviderIcon: (provider: string) => React.ReactNode;
   getProviderName: (provider: string) => string;
   formatDate: (date: string) => string;
+  t: (key: string, params?: Record<string, string>) => string;
 }
 
 function ProviderRow({
@@ -206,6 +210,7 @@ function ProviderRow({
   getProviderIcon,
   getProviderName,
   formatDate,
+  t,
 }: ProviderRowProps) {
   return (
     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -217,10 +222,10 @@ function ProviderRow({
           </h4>
           {isLinked && linkedData ? (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {linkedData.email} - Linked {formatDate(linkedData.linkedAt)}
+              {linkedData.email} - {t('oauth.linked', { date: formatDate(linkedData.linkedAt) })}
             </p>
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400">Not connected</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('oauth.notConnected')}</p>
           )}
         </div>
       </div>
@@ -234,7 +239,7 @@ function ProviderRow({
             disabled={isUnlinking}
             className="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
           >
-            {isUnlinking ? <LoadingSpinner size="sm" /> : 'Unlink'}
+            {isUnlinking ? <LoadingSpinner size="sm" /> : t('oauth.unlink')}
           </Button>
         ) : provider === 'google' ? (
           <GoogleLoginButton
@@ -245,7 +250,7 @@ function ProviderRow({
           />
         ) : (
           <Button variant="outline" size="sm" disabled>
-            Coming Soon
+            {t('oauth.comingSoon')}
           </Button>
         )}
       </div>

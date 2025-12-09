@@ -71,6 +71,9 @@ export function setStoredLanguage(locale: SupportedLocale): void {
   localStorage.setItem(LANGUAGE_STORAGE_KEY, locale);
 }
 
+// Store the initialized instance
+let initializedInstance: typeof i18n | null = null;
+
 /**
  * Initialize i18next with Trokky configuration
  */
@@ -82,19 +85,17 @@ export function initI18n(config: I18nConfig = {}): typeof i18n {
     debug = false,
   } = config;
 
-  // Only initialize once
-  if (i18n.isInitialized) {
-    return i18n;
+  // Only initialize once - return existing instance
+  if (initializedInstance) {
+    return initializedInstance;
   }
-
-  const i18nInstance = i18n.createInstance();
 
   // Add language detector if browser detection is enabled
   if (detectBrowserLanguage && typeof window !== 'undefined') {
-    i18nInstance.use(LanguageDetector);
+    i18n.use(LanguageDetector);
   }
 
-  i18nInstance.use(initReactI18next).init({
+  i18n.use(initReactI18next).init({
     resources,
     lng: getStoredLanguage() || defaultLocale,
     fallbackLng: fallbackLocale,
@@ -122,7 +123,8 @@ export function initI18n(config: I18nConfig = {}): typeof i18n {
       : undefined,
   });
 
-  return i18nInstance;
+  initializedInstance = i18n;
+  return i18n;
 }
 
 /**

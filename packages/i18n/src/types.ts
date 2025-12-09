@@ -33,7 +33,7 @@ export const SUPPORTED_LOCALES: SupportedLocale[] = ['en', 'fr'];
  */
 export const LOCALE_NAMES: Record<SupportedLocale, string> = {
   en: 'English',
-  fr: 'Francais',
+  fr: 'Français',
 };
 
 /**

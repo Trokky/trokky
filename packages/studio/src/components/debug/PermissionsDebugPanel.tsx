@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useT } from '@trokky/i18n'
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -48,6 +49,7 @@ export function PermissionsDebugPanel({
   canUpdate = true,
   canDelete = true,
 }: PermissionsDebugPanelProps) {
+  const { t } = useT('studio')
   const { user, permissions } = useAuth()
   const [isExpanded, setIsExpanded] = useState(false)
   const [showFieldDetails, setShowFieldDetails] = useState(false)
@@ -137,7 +139,7 @@ export function PermissionsDebugPanel({
             <div className="flex items-center gap-2">
               <ShieldCheckIcon className="w-5 h-5 text-blue-500" />
               <span className="font-medium text-sm text-gray-900 dark:text-white">
-                Permissions Debug
+                {t('permissionsDebug.title')}
               </span>
               {user?.role && (
                 <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
@@ -156,7 +158,7 @@ export function PermissionsDebugPanel({
           <button
             onClick={copyDebugInfo}
             className="px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-l border-gray-200 dark:border-gray-600"
-            title="Copy debug info to clipboard"
+            title={t('permissionsDebug.copyToClipboard')}
           >
             {copied ? (
               <CheckIcon className="w-4 h-4 text-green-500" />
@@ -172,45 +174,45 @@ export function PermissionsDebugPanel({
             {/* User Info */}
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                Current User
+                {t('permissionsDebug.currentUser')}
               </h3>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-2 space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Username:
+                    {t('permissionsDebug.username')}
                   </span>
                   <span className="font-mono text-gray-900 dark:text-white">
-                    {user?.username || 'Not logged in'}
+                    {user?.username || t('permissionsDebug.notLoggedIn')}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Email:
+                    {t('permissionsDebug.email')}
                   </span>
                   <span className="font-mono text-gray-900 dark:text-white">
-                    {user?.email || 'N/A'}
+                    {user?.email || t('permissionsDebug.notAvailable')}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Role:
+                    {t('permissionsDebug.role')}
                   </span>
                   <span className="font-mono text-gray-900 dark:text-white">
-                    {user?.role || 'guest'}
+                    {user?.role || t('permissionsDebug.guest')}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Admin:
+                    {t('permissionsDebug.admin')}
                   </span>
                   <span className="font-mono">
                     {userPermissions.isAdmin ? (
                       <span className="text-green-600 dark:text-green-400">
-                        ✓ Yes
+                        ✓ {t('permissionsDebug.yes')}
                       </span>
                     ) : (
                       <span className="text-red-600 dark:text-red-400">
-                        ✗ No
+                        ✗ {t('permissionsDebug.no')}
                       </span>
                     )}
                   </span>
@@ -221,30 +223,31 @@ export function PermissionsDebugPanel({
             {/* Document Permissions */}
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                Document Permissions
+                {t('permissionsDebug.documentPermissions')}
               </h3>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-2 space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Type:
+                    {t('permissionsDebug.type')}
                   </span>
                   <span className="font-mono text-gray-900 dark:text-white">
                     {documentType}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-600 dark:text-gray-400">ID:</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('permissionsDebug.id')}</span>
                   <span className="font-mono text-gray-900 dark:text-white">
-                    {documentId || (isNew ? 'New Document' : 'N/A')}
+                    {documentId || (isNew ? t('permissionsDebug.newDocument') : t('permissionsDebug.notAvailable'))}
                   </span>
                 </div>
                 <div className="pt-2 space-y-1 border-t border-gray-200 dark:border-gray-700">
-                  <PermissionRow label="Can Create" value={canCreate} />
-                  <PermissionRow label="Can Update" value={canUpdate} />
-                  <PermissionRow label="Can Delete" value={canDelete} />
+                  <PermissionRow label={t('permissionsDebug.canCreate')} value={canCreate} t={t} />
+                  <PermissionRow label={t('permissionsDebug.canUpdate')} value={canUpdate} t={t} />
+                  <PermissionRow label={t('permissionsDebug.canDelete')} value={canDelete} t={t} />
                   <PermissionRow
-                    label="Can Read"
+                    label={t('permissionsDebug.canRead')}
                     value={userPermissions.canRead}
+                    t={t}
                   />
                 </div>
               </div>
@@ -255,13 +258,13 @@ export function PermissionsDebugPanel({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Field States ({fields.length})
+                    {t('permissionsDebug.fieldStates', { count: fields.length })}
                   </h3>
                   <button
                     onClick={() => setShowFieldDetails(!showFieldDetails)}
                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    {showFieldDetails ? 'Hide' : 'Show'} Details
+                    {showFieldDetails ? t('permissionsDebug.hideDetails') : t('permissionsDebug.showDetails')}
                   </button>
                 </div>
 
@@ -277,24 +280,24 @@ export function PermissionsDebugPanel({
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
                           <FieldState
-                            label="Disabled"
+                            label={t('permissionsDebug.disabled')}
                             value={field.isDisabled}
                           />
                           <FieldState
-                            label="Readonly"
+                            label={t('permissionsDebug.readonly')}
                             value={field.isReadonly}
                           />
                           <FieldState
-                            label="Required"
+                            label={t('permissionsDebug.required')}
                             value={field.isRequired}
                           />
                           <FieldState
-                            label="Has Error"
+                            label={t('permissionsDebug.hasError')}
                             value={field.hasError}
                           />
                           <div className="col-span-2 mt-1">
                             <span className="text-gray-600 dark:text-gray-400">
-                              Value:{' '}
+                              {t('permissionsDebug.value')}{' '}
                             </span>
                             <span className="font-mono text-gray-700 dark:text-gray-300">
                               {field.value === undefined
@@ -320,10 +323,9 @@ export function PermissionsDebugPanel({
               <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                 <InformationCircleIcon className="w-4 h-4" />
                 <span>
-                  Debug mode is{' '}
-                  {process.env.NODE_ENV === 'development'
-                    ? 'ON (dev)'
-                    : 'ON (manual)'}
+                  {import.meta.env.DEV
+                    ? t('permissionsDebug.debugModeDev')
+                    : t('permissionsDebug.debugModeManual')}
                 </span>
               </div>
               <button
@@ -339,9 +341,8 @@ export function PermissionsDebugPanel({
                 className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 {localStorage.getItem('trokky_debug_permissions') === 'true'
-                  ? 'Disable'
-                  : 'Enable'}{' '}
-                in Production
+                  ? t('permissionsDebug.disableInProduction')
+                  : t('permissionsDebug.enableInProduction')}
               </button>
             </div>
           </div>
@@ -351,7 +352,7 @@ export function PermissionsDebugPanel({
   )
 }
 
-function PermissionRow({ label, value }: { label: string; value: boolean }) {
+function PermissionRow({ label, value, t }: { label: string; value: boolean; t: (key: string) => string }) {
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="text-gray-600 dark:text-gray-400">{label}:</span>
@@ -360,14 +361,14 @@ function PermissionRow({ label, value }: { label: string; value: boolean }) {
           <>
             <ShieldCheckIcon className="w-3 h-3 text-green-500" />
             <span className="text-green-600 dark:text-green-400 font-medium">
-              Allowed
+              {t('permissionsDebug.allowed')}
             </span>
           </>
         ) : (
           <>
             <ShieldExclamationIcon className="w-3 h-3 text-red-500" />
             <span className="text-red-600 dark:text-red-400 font-medium">
-              Denied
+              {t('permissionsDebug.denied')}
             </span>
           </>
         )}

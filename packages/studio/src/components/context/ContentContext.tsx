@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import { useT } from '@trokky/i18n';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { StructureContextSidebar } from './StructureContextSidebar';
 import { cn } from '@/utils/cn';
@@ -20,12 +21,13 @@ export function ContentContext() {
 }
 
 function ContentOverviewContext() {
+  const { t } = useT('studio');
   const { documentTypes } = useDocumentTypes();
-  
+
   return (
     <>
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Content Types
+        {t('contextSidebar.contentTypes')}
       </h3>
       <div className="space-y-2">
         {documentTypes.map((type) => (
@@ -56,7 +58,7 @@ function ContentOverviewContext() {
         
         {documentTypes.length === 0 && (
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            No content types available
+            {t('contextSidebar.noContentTypes')}
           </div>
         )}
       </div>

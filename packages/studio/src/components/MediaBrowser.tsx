@@ -7,9 +7,10 @@
 import React from 'react';
 import type { MediaFieldValue, MediaType } from '../types';
 import { MediaBrowserContent } from './MediaBrowserContent';
+import { useT } from '@trokky/i18n';
 
 // Custom modal component with proper backdrop
-const CustomModal = ({ isOpen, onClose, title, children }: any) => {
+const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {
   if (!isOpen) return null;
   
   return (
@@ -31,8 +32,9 @@ const CustomModal = ({ isOpen, onClose, title, children }: any) => {
               <button
                 onClick={onClose}
                 className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+                aria-label={closeLabel}
               >
-                <span className="sr-only">Close</span>
+                <span className="sr-only">{closeLabel}</span>
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -76,25 +78,43 @@ interface MediaBrowserProps {
   } | null;
 }
 
-export function MediaBrowser({ 
-  isOpen, 
-  onClose, 
-  onSelect, 
-  mediaTypeFilter, 
+export function MediaBrowser({
+  isOpen,
+  onClose,
+  onSelect,
+  mediaTypeFilter,
   showVariantSelector = false,
   context,
   apiClient,
   logger,
   mediaUrlGenerator
 }: MediaBrowserProps) {
+  const { t } = useT('studio');
+
   const handleSelect = (value: MediaFieldValue) => {
     onSelect(value);
     onClose();
   };
 
-  const modalTitle = mediaTypeFilter
-    ? `Select ${mediaTypeFilter === 'audio' ? 'an' : 'a'} ${mediaTypeFilter} from your media library`
-    : 'Select a file from your media library';
+  const getModalSubtitle = () => {
+    if (!mediaTypeFilter) {
+      return t('mediaBrowser.selectFile');
+    }
+    switch (mediaTypeFilter) {
+      case 'image':
+        return t('mediaBrowser.selectImage');
+      case 'video':
+        return t('mediaBrowser.selectVideo');
+      case 'audio':
+        return t('mediaBrowser.selectAudio');
+      case 'document':
+        return t('mediaBrowser.selectDocument');
+      default:
+        return t('mediaBrowser.selectFile');
+    }
+  };
+
+  const closeLabel = t('mediaBrowser.close');
 
   return (
     <CustomModal
@@ -102,12 +122,13 @@ export function MediaBrowser({
       onClose={onClose}
       title={
         <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Browse Media</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">{t('mediaBrowser.title')}</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {modalTitle}
+            {getModalSubtitle()}
           </p>
         </div>
       }
+      closeLabel={closeLabel}
     >
       <MediaBrowserContent
         onSelect={handleSelect}

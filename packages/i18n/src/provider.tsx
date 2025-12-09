@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import type { i18n as I18nInstance } from 'i18next';
 
 import type { I18nConfig, SupportedLocale } from './types.js';
-import { initI18n, getStoredLanguage, setStoredLanguage } from './config.js';
+import { initI18n, setStoredLanguage } from './config.js';
 
 export interface TrokkyI18nProviderProps {
   /** Children to render */
@@ -41,10 +40,8 @@ export function TrokkyI18nProvider({
   initialLocale,
   onLanguageChange,
 }: TrokkyI18nProviderProps): React.ReactElement {
-  const [i18nInstance, setI18nInstance] = useState<I18nInstance | null>(null);
-
-  useEffect(() => {
-    // Initialize i18n
+  // Initialize i18n synchronously - it's safe because init() is sync with bundled resources
+  const i18nInstance = useMemo(() => {
     const instance = initI18n(config);
 
     // Set initial locale if provided
@@ -53,25 +50,23 @@ export function TrokkyI18nProvider({
       setStoredLanguage(initialLocale);
     }
 
-    // Listen for language changes
+    return instance;
+  }, [config, initialLocale]);
+
+  // Set up language change listener
+  useEffect(() => {
+    if (!onLanguageChange) return;
+
     const handleLanguageChanged = (lng: string) => {
-      if (onLanguageChange) {
-        onLanguageChange(lng as SupportedLocale);
-      }
+      onLanguageChange(lng as SupportedLocale);
     };
 
-    instance.on('languageChanged', handleLanguageChanged);
-    setI18nInstance(instance);
+    i18nInstance.on('languageChanged', handleLanguageChanged);
 
     return () => {
-      instance.off('languageChanged', handleLanguageChanged);
+      i18nInstance.off('languageChanged', handleLanguageChanged);
     };
-  }, [config, initialLocale, onLanguageChange]);
-
-  // Show nothing while initializing
-  if (!i18nInstance) {
-    return <>{children}</>;
-  }
+  }, [i18nInstance, onLanguageChange]);
 
   return (
     <I18nextProvider i18n={i18nInstance}>

@@ -10,6 +10,7 @@ import {
   KeyIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 type MFAMethod = 'totp' | 'email';
 
@@ -28,6 +29,7 @@ export function MFAVerification({
   onBack,
   onError,
 }: MFAVerificationProps) {
+  const { t } = useT('studio');
   const [code, setCode] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<MFAMethod | 'backup'>(
     methods.includes('totp') ? 'totp' : methods[0]
@@ -76,7 +78,7 @@ export function MFAVerification({
     e.preventDefault();
 
     if (!code.trim()) {
-      setError('Please enter the verification code');
+      setError(t('mfa.enterCode'));
       return;
     }
 
@@ -151,24 +153,24 @@ export function MFAVerification({
   const getMethodLabel = (method: MFAMethod | 'backup') => {
     switch (method) {
       case 'totp':
-        return 'Authenticator App';
+        return t('mfa.authenticatorApp');
       case 'email':
-        return 'Email Code';
+        return t('mfa.emailCode');
       case 'backup':
-        return 'Backup Code';
+        return t('mfa.backupCode');
     }
   };
 
   const getMethodDescription = (method: MFAMethod | 'backup') => {
     switch (method) {
       case 'totp':
-        return 'Enter the 6-digit code from your authenticator app';
+        return t('mfa.totpDescription');
       case 'email':
         return codeSent
-          ? 'Enter the code sent to your email'
-          : 'A code will be sent to your email';
+          ? t('mfa.emailDescriptionSent')
+          : t('mfa.emailDescriptionPending');
       case 'backup':
-        return 'Enter one of your backup codes (format: XXXX-XXXX)';
+        return t('mfa.backupDescription');
     }
   };
 
@@ -186,7 +188,7 @@ export function MFAVerification({
           <ArrowLeftIcon className="h-5 w-5" />
         </button>
         <h2 className="ml-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
-          Two-Factor Authentication
+          {t('mfa.title')}
         </h2>
       </div>
 
@@ -263,7 +265,7 @@ export function MFAVerification({
             htmlFor="trust-device"
             className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer"
           >
-            Trust this device for 30 days
+            {t('mfa.trustDevice')}
           </label>
         </div>
 
@@ -276,10 +278,10 @@ export function MFAVerification({
           {isLoading ? (
             <>
               <LoadingSpinner size="sm" className="mr-2" />
-              Verifying...
+              {t('mfa.verifying')}
             </>
           ) : (
-            'Verify'
+            t('mfa.verify')
           )}
         </Button>
 
@@ -291,7 +293,7 @@ export function MFAVerification({
             disabled={isSendingCode}
             className="w-full text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
           >
-            {isSendingCode ? 'Sending...' : "Didn't receive the code? Resend"}
+            {isSendingCode ? t('mfa.sendingCode') : t('mfa.resendCode')}
           </button>
         )}
       </form>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useT } from '@trokky/i18n';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -20,6 +21,8 @@ interface MainSidebarProps {
 }
 
 export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps) {
+  const { t } = useT('studio');
+  const { t: tCommon } = useT('common');
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -339,13 +342,13 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         )}>
           {!isCollapsed && (
             <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Navigation
+              {t('sidebar.navigation')}
             </h2>
           )}
           <button
             onClick={toggleCollapsed}
             className="p-1 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
           >
             {isCollapsed ? (
               <ChevronRightIcon className="h-4 w-4" />
@@ -365,14 +368,14 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search navigation..."
+              placeholder={t('sidebar.searchNavigation')}
               className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
-                title="Clear search"
+                title={tCommon('actions.clear')}
               >
                 <XMarkIcon className="h-4 w-4" />
               </button>
@@ -387,15 +390,15 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
             {!isCollapsed && (
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading navigation...</span>
+              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{t('sidebar.loadingNavigation')}</span>
             )}
           </div>
         )}
-        
+
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <p className="text-sm text-red-600 dark:text-red-400">
-              Failed to load navigation
+              {t('sidebar.failedToLoad')}
             </p>
           </div>
         )}
@@ -409,13 +412,13 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
         ) : searchQuery && navigation ? (
           <div className="text-center py-8">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No results found for "{searchQuery}"
+              {t('sidebar.noResultsFor', { query: searchQuery })}
             </p>
             <button
               onClick={() => setSearchQuery('')}
               className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:underline"
             >
-              Clear search
+              {t('sidebar.clearSearch')}
             </button>
           </div>
         ) : (
@@ -423,7 +426,7 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
             {/* Fallback navigation when no structure is provided */}
             {!isCollapsed && (
               <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Content
+                {t('nav.content')}
               </div>
             )}
 
@@ -442,11 +445,11 @@ export function MainSidebar({ isMobile = false, onItemClick }: MainSidebarProps)
                     : 'bg-primary-50 text-primary-700 border-r-2 border-primary-500 dark:bg-primary-900/20 dark:text-primary-300'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
               )}
-              title={isCollapsed ? 'Content' : undefined}
+              title={isCollapsed ? t('nav.content') : undefined}
             >
               <DocumentTextIcon className={cn('h-5 w-5 flex-shrink-0', isCollapsed ? '' : 'mr-3')} />
               {!isCollapsed && (
-                <span className="font-medium">Content</span>
+                <span className="font-medium">{t('nav.content')}</span>
               )}
             </NavLink>
           </>

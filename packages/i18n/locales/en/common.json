@@ -1,4 +1,7 @@
 {
+  "app": {
+    "loadingStudio": "Loading Studio..."
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",

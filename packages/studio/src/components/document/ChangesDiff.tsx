@@ -1,15 +1,16 @@
 /**
  * ChangesDiff - Visual diff component for showing document changes
- * 
+ *
  * Displays before/after comparison of document fields
  */
 
 import { useState } from 'react';
-import { 
+import {
   PlusIcon,
   EyeIcon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 interface ChangesDiffProps {
   before?: Record<string, unknown>;
@@ -18,6 +19,7 @@ interface ChangesDiffProps {
 }
 
 export function ChangesDiff({ before, after, operation }: ChangesDiffProps) {
+  const { t } = useT('studio');
   const [showSystemFields, setShowSystemFields] = useState(false);
 
   // Get all changed fields by comparing before and after
@@ -173,7 +175,7 @@ export function ChangesDiff({ before, after, operation }: ChangesDiffProps) {
   if (changes.length === 0) {
     return (
       <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-        No visible changes
+        {t('changesDiff.noVisibleChanges')}
       </div>
     );
   }
@@ -183,7 +185,7 @@ export function ChangesDiff({ before, after, operation }: ChangesDiffProps) {
       {/* Show/hide system fields toggle */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-          Changes ({changes.length})
+          {t('changesDiff.changesCount', { count: changes.length })}
         </span>
         <button
           onClick={() => setShowSystemFields(!showSystemFields)}
@@ -194,7 +196,7 @@ export function ChangesDiff({ before, after, operation }: ChangesDiffProps) {
           ) : (
             <EyeIcon className="h-3 w-3" />
           )}
-          <span>{showSystemFields ? 'Hide' : 'Show'} system fields</span>
+          <span>{showSystemFields ? t('changesDiff.hideSystemFields') : t('changesDiff.showSystemFields')}</span>
         </button>
       </div>
 
@@ -220,19 +222,19 @@ export function ChangesDiff({ before, after, operation }: ChangesDiffProps) {
                   {(change.changeType === 'removed' || change.changeType === 'modified') && change.beforeValue !== undefined && (
                     <div className="mt-1">
                       <div className="text-xs text-red-600 dark:text-red-400 font-medium">
-                        - Before:
+                        - {t('changesDiff.before')}
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 bg-red-100 dark:bg-red-900/30 rounded px-2 py-1 mt-1 font-mono">
                         {formatValue(change.beforeValue)}
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Show after value for added/modified */}
                   {(change.changeType === 'added' || change.changeType === 'modified') && change.afterValue !== undefined && (
                     <div className="mt-1">
                       <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                        + After:
+                        + {t('changesDiff.after')}
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 bg-green-100 dark:bg-green-900/30 rounded px-2 py-1 mt-1 font-mono">
                         {formatValue(change.afterValue)}

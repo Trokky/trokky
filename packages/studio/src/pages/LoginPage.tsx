@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
@@ -48,6 +49,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps) {
+  const { t } = useT('auth');
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
@@ -339,7 +341,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
 
     // Validate CAPTCHA if required
     if (captcha.isRequired && !captcha.token) {
-      setError('Please complete the CAPTCHA verification');
+      setError(t('errors.captchaRequired'));
       setIsLoading(false);
       return;
     }
@@ -466,10 +468,10 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               {/* Header */}
               <div className="text-center mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                 <h2 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">
-                  Two-Factor Authentication Required
+                  {t('mfa.required')}
                 </h2>
                 <p className="text-sm text-amber-700 dark:text-amber-300">
-                  {mfaState.message || 'Your organization requires MFA. Please set up two-factor authentication to continue.'}
+                  {mfaState.message || t('mfa.setupRequired')}
                 </p>
               </div>
 
@@ -484,7 +486,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               {setupState.step === 'select' && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                    Choose your preferred authentication method:
+                    {t('mfa.chooseMethod')}
                   </p>
 
                   {mfaState.allowedMethods?.includes('totp') && (
@@ -500,8 +502,8 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                           </svg>
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">Authenticator App</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">Use Google Authenticator, Authy, etc.</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{t('mfa.authenticatorApp')}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{t('mfa.authenticatorAppDesc')}</div>
                         </div>
                       </div>
                     </button>
@@ -520,8 +522,8 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                           </svg>
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">Email Code</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">Receive a code via email</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{t('mfa.emailCode')}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{t('mfa.emailCodeDesc')}</div>
                         </div>
                       </div>
                     </button>
@@ -540,7 +542,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                 <div className="space-y-4">
                   <div className="text-center">
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      Scan this QR code with your authenticator app:
+                      {t('mfa.scanQR')}
                     </p>
                     {setupState.totpQrCode && (
                       <div className="flex justify-center mb-4">
@@ -553,7 +555,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     )}
                     {setupState.totpSecret && (
                       <div className="mb-4">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Or enter this code manually:</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('mfa.manualEntry')}</p>
                         <code className="text-sm bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-mono">
                           {setupState.totpSecret}
                         </code>
@@ -563,7 +565,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Enter the 6-digit code from your app:
+                      {t('mfa.enterCode')}
                     </label>
                     <Input
                       type="text"
@@ -581,7 +583,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     disabled={setupState.isLoading || setupState.verificationCode.length !== 6}
                     className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium disabled:opacity-50"
                   >
-                    {setupState.isLoading ? <LoadingSpinner size="sm" /> : 'Verify & Complete Setup'}
+                    {setupState.isLoading ? <LoadingSpinner size="sm" /> : t('mfa.verifyComplete')}
                   </Button>
 
                   <button
@@ -589,7 +591,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     onClick={() => setSetupState(prev => ({ ...prev, step: 'select', verificationCode: '', error: undefined }))}
                     className="w-full text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   >
-                    Choose different method
+                    {t('mfa.chooseDifferent')}
                   </button>
                 </div>
               )}
@@ -604,13 +606,13 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                       </svg>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      We've sent a verification code to your email address.
+                      {t('mfa.emailSent')}
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Enter the 6-digit code:
+                      {t('mfa.enterEmailCode')}
                     </label>
                     <Input
                       type="text"
@@ -628,7 +630,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     disabled={setupState.isLoading || setupState.verificationCode.length !== 6}
                     className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium disabled:opacity-50"
                   >
-                    {setupState.isLoading ? <LoadingSpinner size="sm" /> : 'Verify & Complete Setup'}
+                    {setupState.isLoading ? <LoadingSpinner size="sm" /> : t('mfa.verifyComplete')}
                   </Button>
 
                   <button
@@ -636,7 +638,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     onClick={() => setSetupState(prev => ({ ...prev, step: 'select', verificationCode: '', error: undefined }))}
                     className="w-full text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   >
-                    Choose different method
+                    {t('mfa.chooseDifferent')}
                   </button>
                 </div>
               )}
@@ -651,10 +653,10 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                       </svg>
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Save Your Backup Codes
+                      {t('mfa.backupCodes.title')}
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      These codes can be used to access your account if you lose your authenticator. Each code can only be used once.
+                      {t('mfa.backupCodes.description')}
                     </p>
                   </div>
 
@@ -677,13 +679,13 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                       <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
-                      Copy Codes
+                      {t('mfa.backupCodes.copy')}
                     </Button>
                   </div>
 
                   <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      <strong>Important:</strong> Store these codes in a safe place. You won't be able to see them again after this page.
+                      <strong>{t('mfa.backupCodes.warning').split(':')[0]}:</strong> {t('mfa.backupCodes.warning').split(':').slice(1).join(':')}
                     </p>
                   </div>
 
@@ -691,7 +693,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     onClick={completeLoginAfterBackupCodes}
                     className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium"
                   >
-                    I've Saved My Codes - Continue to Dashboard
+                    {t('mfa.backupCodes.continue')}
                   </Button>
                 </div>
               )}
@@ -703,7 +705,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   onClick={handleMFABack}
                   className="w-full text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
-                  Back to login
+                  {t('login.backToLogin')}
                 </button>
               )}
             </div>
@@ -727,7 +729,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   type="text"
                   value={credentials.username}
                   onChange={handleInputChange('username')}
-                  placeholder="Email or username"
+                  placeholder={t('login.emailOrUsername')}
                   required
                   disabled={isLoading}
                   autoComplete="username"
@@ -741,7 +743,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   type={showPassword ? "text" : "password"}
                   value={credentials.password}
                   onChange={handleInputChange('password')}
-                  placeholder="Password"
+                  placeholder={t('login.password')}
                   required
                   disabled={isLoading}
                   autoComplete="current-password"
@@ -771,14 +773,14 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   onChange={setRememberMe}
                   className="mr-2"
                 />
-                <span className="text-gray-600 dark:text-gray-400">Stay signed in</span>
+                <span className="text-gray-600 dark:text-gray-400">{t('login.rememberMe')}</span>
               </label>
 
               <a
                 href={getStudioPath('/forgot-password')}
                 className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
               >
-                Forgot password?
+                {t('login.forgotPassword')}
               </a>
             </div>
 
@@ -795,7 +797,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   ) : (
                     <ChevronRightIcon className="h-3 w-3 mr-1" />
                   )}
-                  Advanced
+                  {t('advanced.title')}
                 </button>
               </div>
             )}
@@ -807,12 +809,12 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   type="url"
                   value={backendUrl}
                   onChange={(e) => setBackendUrl(e.target.value)}
-                  placeholder="Backend URL"
+                  placeholder={t('advanced.backendUrl')}
                   disabled={isLoading}
                   className="text-sm bg-transparent border-gray-300 dark:border-gray-600 px-4 py-2"
                 />
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Custom backend API endpoint
+                  {t('advanced.customEndpoint')}
                 </p>
               </div>
             )}
@@ -839,10 +841,10 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               {isLoading ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  Signing in...
+                  {t('login.signingIn')}
                 </>
               ) : (
-                'Sign In'
+                t('login.signIn')
               )}
             </Button>
 
@@ -855,7 +857,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   </div>
                   <div className="relative flex justify-center text-sm">
                     <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                      or continue with
+                      {t('login.orContinueWith')}
                     </span>
                   </div>
                 </div>

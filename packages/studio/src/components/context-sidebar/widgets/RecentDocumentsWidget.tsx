@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ClockIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import { useT } from '@trokky/i18n'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 
 export interface RecentDocumentsWidgetConfig {
@@ -28,26 +29,29 @@ interface RecentDocument {
   [key: string]: any
 }
 
-export function RecentDocumentsWidget({ 
-  config, 
-  context 
-}: { 
+export function RecentDocumentsWidget({
+  config,
+  context
+}: {
   config: RecentDocumentsWidgetConfig
-  context: ContextSidebarRenderContext 
+  context: ContextSidebarRenderContext
 }) {
+  const { t } = useT('studio')
   const [documents, setDocuments] = useState<RecentDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  
+
   const { data, ui, utils, context: currentContext, api } = context
   const schemaType = config.schemaType || currentContext.schemaType
   const limit = config.limit || 5
-  const title = config.title || `Recent ${schemaType ? schemaType.charAt(0).toUpperCase() + schemaType.slice(1) + 's' : 'Documents'}`
+  const title = config.title || (schemaType
+    ? t('contextSidebar.widgets.recentDocuments.defaultTitle', { schema: schemaType.charAt(0).toUpperCase() + schemaType.slice(1) + 's' })
+    : t('contextSidebar.widgets.recentDocuments.defaultTitleFallback'))
   
   useEffect(() => {
     if (!schemaType) {
-      setError('No schema type specified')
+      setError(t('contextSidebar.widgets.recentDocuments.noSchemaType'))
       setLoading(false)
       return
     }
@@ -61,7 +65,7 @@ export function RecentDocumentsWidget({
         setDocuments(recentDocs || [])
       } catch (err) {
         console.error('Failed to load recent documents:', err)
-        setError('Failed to load recent documents')
+        setError(t('contextSidebar.widgets.recentDocuments.failedToLoad'))
       } finally {
         setLoading(false)
       }
@@ -146,11 +150,11 @@ export function RecentDocumentsWidget({
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-gray-900 dark:text-white truncate font-medium">
-                  {doc.title || doc.name || 'Untitled'}
+                  {doc.title || doc.name || t('contextSidebar.widgets.recentDocuments.untitled')}
                 </div>
                 {config.showAuthor && doc.author && (
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    by {typeof doc.author === 'object' && doc.author.name ? doc.author.name : doc.author}
+                    {t('contextSidebar.widgets.recentDocuments.by')} {typeof doc.author === 'object' && doc.author.name ? doc.author.name : doc.author}
                   </div>
                 )}
                 {config.showTime !== false && (
@@ -165,7 +169,7 @@ export function RecentDocumentsWidget({
         
         {documents.length === 0 && (
           <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-            No recent documents
+            {t('contextSidebar.widgets.recentDocuments.noDocuments')}
           </div>
         )}
       </div>

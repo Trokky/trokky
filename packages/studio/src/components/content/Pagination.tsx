@@ -1,11 +1,12 @@
-import { 
-  ChevronLeftIcon, 
+import {
+  ChevronLeftIcon,
   ChevronRightIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
+import { useT } from '@trokky/i18n';
 
 export interface PaginationProps {
   currentPage: number;
@@ -32,6 +33,7 @@ export function Pagination({
   showFirstLast = true,
   maxVisiblePages = 7
 }: PaginationProps) {
+  const { t } = useT('studio');
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
   
@@ -95,13 +97,13 @@ export function Pagination({
       {/* Left side - Items info and page size selector */}
       <div className="flex items-center space-x-6">
         <div className="text-sm text-gray-700 dark:text-gray-300">
-          Showing {startItem} to {endItem} of {totalItems} results
+          {t('pagination.showing', { start: startItem, end: endItem, total: totalItems })}
         </div>
-        
+
         {showPageSizeSelector && onPageSizeChange && (
           <div className="flex items-center space-x-2">
             <label className="text-sm text-gray-700 dark:text-gray-300">
-              Show:
+              {t('pagination.show')}
             </label>
             <select
               value={pageSize}
@@ -117,7 +119,7 @@ export function Pagination({
           </div>
         )}
       </div>
-      
+
       {/* Right side - Pagination controls */}
       {totalPages > 1 && (
         <div className="flex items-center space-x-1">
@@ -129,12 +131,12 @@ export function Pagination({
               onClick={() => onPageChange(1)}
               disabled={currentPage === 1}
               className="p-2"
-              title="First page"
+              title={t('pagination.firstPage')}
             >
               <ChevronDoubleLeftIcon className="h-4 w-4" />
             </Button>
           )}
-          
+
           {/* Previous page button */}
           <Button
             variant="outline"
@@ -142,7 +144,7 @@ export function Pagination({
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
             className="p-2"
-            title="Previous page"
+            title={t('pagination.previousPage')}
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
@@ -179,11 +181,11 @@ export function Pagination({
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
             className="p-2"
-            title="Next page"
+            title={t('pagination.nextPage')}
           >
             <ChevronRightIcon className="h-4 w-4" />
           </Button>
-          
+
           {/* Last page button */}
           {showFirstLast && (
             <Button
@@ -192,7 +194,7 @@ export function Pagination({
               onClick={() => onPageChange(totalPages)}
               disabled={currentPage === totalPages}
               className="p-2"
-              title="Last page"
+              title={t('pagination.lastPage')}
             >
               <ChevronDoubleRightIcon className="h-4 w-4" />
             </Button>

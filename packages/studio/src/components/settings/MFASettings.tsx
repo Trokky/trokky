@@ -18,6 +18,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 type MFAMethodType = 'totp' | 'email';
 
@@ -51,6 +52,7 @@ interface MFASettingsProps {
 type SetupStep = 'idle' | 'totp-qr' | 'totp-verify' | 'email-verify' | 'backup-codes';
 
 export function MFASettings({ onToast }: MFASettingsProps) {
+  const { t } = useT('studio');
   const [mfaStatus, setMfaStatus] = useState<MFAStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [setupStep, setSetupStep] = useState<SetupStep>('idle');
@@ -88,7 +90,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       }
     } catch (err) {
       console.error('Failed to load MFA status:', err);
-      toast('Failed to load MFA status', 'error');
+      toast(t('mfa.toast.loadFailed'), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -118,8 +120,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         throw new Error(response.error?.message || 'Failed to initialize TOTP setup');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize TOTP setup');
-      toast('Failed to initialize TOTP setup', 'error');
+      setError(err instanceof Error ? err.message : t('mfa.toast.totpInitFailed'));
+      toast(t('mfa.toast.totpInitFailed'), 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -127,7 +129,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
   const verifyTOTPSetup = async () => {
     if (!verificationCode.trim()) {
-      setError('Please enter the verification code');
+      setError(t('mfa.enterCode'));
       return;
     }
 
@@ -147,12 +149,12 @@ export function MFASettings({ onToast }: MFASettingsProps) {
           setSetupStep('idle');
           await loadMFAStatus();
         }
-        toast('Authenticator app enabled successfully!', 'success');
+        toast(t('mfa.toast.totpEnabled'), 'success');
       } else {
         throw new Error(response.error?.message || 'Invalid verification code');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed');
+      setError(err instanceof Error ? err.message : t('mfa.verifying'));
     } finally {
       setIsProcessing(false);
       setVerificationCode('');
@@ -167,13 +169,13 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       const response = await apiClient.post('/auth/mfa/setup/email', {});
       if (response.success) {
         setSetupStep('email-verify');
-        toast('Verification code sent to your email', 'success');
+        toast(t('mfa.toast.emailCodeSent'), 'success');
       } else {
-        throw new Error(response.error?.message || 'Failed to send verification code');
+        throw new Error(response.error?.message || t('mfa.toast.emailSendFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification code');
-      toast('Failed to send verification code', 'error');
+      setError(err instanceof Error ? err.message : t('mfa.toast.emailSendFailed'));
+      toast(t('mfa.toast.emailSendFailed'), 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -181,7 +183,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
   const verifyEmailOTPSetup = async () => {
     if (!verificationCode.trim()) {
-      setError('Please enter the verification code');
+      setError(t('mfa.enterCode'));
       return;
     }
 
@@ -201,12 +203,12 @@ export function MFASettings({ onToast }: MFASettingsProps) {
           setSetupStep('idle');
           await loadMFAStatus();
         }
-        toast('Email verification enabled successfully!', 'success');
+        toast(t('mfa.toast.emailEnabled'), 'success');
       } else {
         throw new Error(response.error?.message || 'Invalid verification code');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed');
+      setError(err instanceof Error ? err.message : t('mfa.verifying'));
     } finally {
       setIsProcessing(false);
       setVerificationCode('');
@@ -216,7 +218,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
   // Disable MFA Method
   const disableMFAMethod = async (method: MFAMethodType) => {
     if (!disablePassword) {
-      setError('Password is required');
+      setError(t('mfa.errors.passwordRequired'));
       return;
     }
 
@@ -232,7 +234,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         setShowDisableDialog(null);
         setDisablePassword('');
         await loadMFAStatus();
-        toast(`${method === 'totp' ? 'Authenticator app' : 'Email verification'} disabled`, 'success');
+        toast(method === 'totp' ? t('mfa.toast.authenticatorDisabled') : t('mfa.toast.emailDisabled'), 'success');
       } else {
         throw new Error(response.error?.message || 'Failed to disable MFA');
       }
@@ -246,7 +248,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
   // Disable All MFA
   const disableAllMFA = async () => {
     if (!disableAllPassword) {
-      setError('Password is required');
+      setError(t('mfa.errors.passwordRequired'));
       return;
     }
 
@@ -261,7 +263,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         setShowDisableAllDialog(false);
         setDisableAllPassword('');
         await loadMFAStatus();
-        toast('All MFA has been disabled', 'success');
+        toast(t('mfa.toast.allDisabled'), 'success');
       } else {
         throw new Error(response.error?.message || 'Failed to disable MFA');
       }
@@ -275,7 +277,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
   // Regenerate Backup Codes
   const regenerateBackupCodes = async () => {
     if (!regeneratePassword) {
-      setError('Password is required');
+      setError(t('mfa.errors.passwordRequired'));
       return;
     }
 
@@ -293,7 +295,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         setShowRegenerateDialog(false);
         setRegeneratePassword('');
         await loadMFAStatus();
-        toast('Backup codes regenerated. Save them securely!', 'success');
+        toast(t('mfa.toast.backupCodesRegenerated'), 'success');
       } else {
         throw new Error(response.error?.message || 'Failed to regenerate backup codes');
       }
@@ -311,31 +313,31 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       if (response.success) {
         setTrustedDevices(prev => prev.filter(d => d.id !== deviceId));
         await loadMFAStatus();
-        toast('Device trust revoked', 'success');
+        toast(t('mfa.toast.deviceRevoked'), 'success');
       }
     } catch (err) {
-      toast('Failed to revoke device trust', 'error');
+      toast(t('mfa.toast.deviceRevokeFailed'), 'error');
     }
   };
 
   const revokeAllTrustedDevices = async () => {
-    if (!confirm('Are you sure you want to revoke trust from all devices?')) return;
+    if (!confirm(t('mfa.trustedDevice.confirmRevokeAll'))) return;
 
     try {
       const response = await apiClient.delete('/auth/mfa/trusted-devices');
       if (response.success) {
         setTrustedDevices([]);
         await loadMFAStatus();
-        toast('All device trusts revoked', 'success');
+        toast(t('mfa.toast.allDevicesRevoked'), 'success');
       }
     } catch (err) {
-      toast('Failed to revoke device trusts', 'error');
+      toast(t('mfa.toast.allDevicesRevokeFailed'), 'error');
     }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast('Copied to clipboard', 'info');
+    toast(t('mfa.copiedToClipboard'), 'info');
   };
 
   const cancelSetup = () => {
@@ -369,10 +371,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         <ShieldCheckIcon className="h-6 w-6 text-primary-500" />
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Two-Factor Authentication
+            {t('mfa.title')}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Add an extra layer of security to your account
+            {t('mfa.subtitle')}
           </p>
         </div>
       </div>
@@ -382,12 +384,12 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         {mfaStatus?.enabled ? (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
             <CheckCircleIcon className="h-4 w-4" />
-            MFA Enabled
+            {t('mfa.enabled')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
             <ExclamationTriangleIcon className="h-4 w-4" />
-            MFA Not Enabled
+            {t('mfa.notEnabled')}
           </span>
         )}
       </div>
@@ -396,11 +398,11 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       {setupStep === 'totp-qr' && totpSetupData && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Set Up Authenticator App
+            {t('mfa.setup.authenticator')}
           </h4>
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              {t('mfa.setup.scanQrCode')}
             </p>
             <div className="flex justify-center">
               <img
@@ -411,7 +413,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                Or enter this code manually:
+                {t('mfa.setup.orEnterManually')}
               </p>
               <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded font-mono text-sm">
                 {totpSetupData.manualEntryKey}
@@ -425,10 +427,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSetup}>
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button onClick={() => setSetupStep('totp-verify')}>
-                Next
+                {t('mfa.next')}
               </Button>
             </div>
           </div>
@@ -438,11 +440,11 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       {setupStep === 'totp-verify' && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Verify Authenticator Code
+            {t('mfa.setup.verifyAuthenticatorCode')}
           </h4>
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Enter the 6-digit code from your authenticator app to verify setup.
+              {t('mfa.setup.enterCodeToVerify')}
             </p>
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
@@ -460,11 +462,11 @@ export function MFASettings({ onToast }: MFASettingsProps) {
             />
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSetup}>
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button onClick={verifyTOTPSetup} disabled={isProcessing || verificationCode.length !== 6}>
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                Verify
+                {t('mfa.verify')}
               </Button>
             </div>
           </div>
@@ -474,11 +476,11 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       {setupStep === 'email-verify' && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Verify Email Code
+            {t('mfa.setup.verifyEmailCode')}
           </h4>
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Enter the code sent to your email address.
+              {t('mfa.setup.enterEmailCode')}
             </p>
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
@@ -496,11 +498,11 @@ export function MFASettings({ onToast }: MFASettingsProps) {
             />
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSetup}>
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button onClick={verifyEmailOTPSetup} disabled={isProcessing || verificationCode.length !== 6}>
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                Verify
+                {t('mfa.verify')}
               </Button>
             </div>
           </div>
@@ -510,12 +512,12 @@ export function MFASettings({ onToast }: MFASettingsProps) {
       {setupStep === 'backup-codes' && backupCodes.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            Save Your Backup Codes
+            {t('mfa.setup.saveBackupCodes')}
           </h4>
           <div className="space-y-4">
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Important:</strong> Save these backup codes in a secure place. You can use them to access your account if you lose your authenticator device.
+                {t('mfa.setup.backupCodesImportant')}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded">
@@ -531,10 +533,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 onClick={() => copyToClipboard(backupCodes.join('\n'))}
               >
                 <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                Copy All
+                {t('mfa.copyAll')}
               </Button>
               <Button onClick={finishBackupCodesSetup}>
-                Done
+                {t('mfa.done')}
               </Button>
             </div>
           </div>
@@ -551,27 +553,27 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 <DevicePhoneMobileIcon className="h-8 w-8 text-gray-400" />
                 <div>
                   <h4 className="font-medium text-gray-900 dark:text-white">
-                    Authenticator App
+                    {t('mfa.authenticatorApp')}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Use an app like Google Authenticator or Authy
+                    {t('mfa.authenticatorAppDesc')}
                   </p>
                 </div>
               </div>
               {totpMethod?.enabled ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600 dark:text-green-400">Enabled</span>
+                  <span className="text-sm text-green-600 dark:text-green-400">{t('mfa.enabled')}</span>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setShowDisableDialog('totp')}
                   >
-                    Disable
+                    {t('mfa.disable')}
                   </Button>
                 </div>
               ) : (
                 <Button size="sm" onClick={initTOTPSetup} disabled={isProcessing}>
-                  Set Up
+                  {t('mfa.setUp')}
                 </Button>
               )}
             </div>
@@ -584,27 +586,27 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 <EnvelopeIcon className="h-8 w-8 text-gray-400" />
                 <div>
                   <h4 className="font-medium text-gray-900 dark:text-white">
-                    Email Verification
+                    {t('mfa.emailVerification')}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Receive verification codes via email
+                    {t('mfa.emailVerificationDesc')}
                   </p>
                 </div>
               </div>
               {emailMethod?.enabled ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600 dark:text-green-400">Enabled</span>
+                  <span className="text-sm text-green-600 dark:text-green-400">{t('mfa.enabled')}</span>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setShowDisableDialog('email')}
                   >
-                    Disable
+                    {t('mfa.disable')}
                   </Button>
                 </div>
               ) : (
                 <Button size="sm" onClick={initEmailOTPSetup} disabled={isProcessing}>
-                  Set Up
+                  {t('mfa.setUp')}
                 </Button>
               )}
             </div>
@@ -618,10 +620,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   <KeyIcon className="h-8 w-8 text-gray-400" />
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-white">
-                      Backup Codes
+                      {t('mfa.backupCodes')}
                     </h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {mfaStatus.backupCodesRemaining} codes remaining
+                      {t('mfa.backupCodesRemaining', { count: mfaStatus.backupCodesRemaining })}
                     </p>
                   </div>
                 </div>
@@ -632,7 +634,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   disabled={isProcessing}
                 >
                   <ArrowPathIcon className="h-4 w-4 mr-1" />
-                  Regenerate
+                  {t('mfa.regenerate')}
                 </Button>
               </div>
             </div>
@@ -646,10 +648,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   <ComputerDesktopIcon className="h-8 w-8 text-gray-400" />
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-white">
-                      Trusted Devices
+                      {t('mfa.trustedDevices')}
                     </h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {mfaStatus.trustedDevicesCount} device{mfaStatus.trustedDevicesCount !== 1 ? 's' : ''} trusted
+                      {t('mfa.trustedDevicesCount', { count: mfaStatus.trustedDevicesCount })}
                     </p>
                   </div>
                 </div>
@@ -661,7 +663,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                     if (!showTrustedDevices) loadTrustedDevices();
                   }}
                 >
-                  {showTrustedDevices ? 'Hide' : 'Manage'}
+                  {showTrustedDevices ? t('mfa.hide') : t('mfa.manage')}
                 </Button>
               </div>
               {showTrustedDevices && (
@@ -676,7 +678,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                           {device.name}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Trusted: {new Date(device.trustedAt).toLocaleDateString()}
+                          {t('mfa.trustedDevice.trusted', { date: new Date(device.trustedAt).toLocaleDateString() })}
                         </p>
                       </div>
                       <button
@@ -694,7 +696,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                       className="w-full mt-2"
                       onClick={revokeAllTrustedDevices}
                     >
-                      Revoke All
+                      {t('mfa.revokeAll')}
                     </Button>
                   )}
                 </div>
@@ -709,10 +711,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-medium text-red-800 dark:text-red-200">
-                      Disable All MFA
+                      {t('mfa.disable.all')}
                     </h4>
                     <p className="text-sm text-red-600 dark:text-red-400">
-                      This will remove all MFA methods and backup codes from your account
+                      {t('mfa.disable.allDesc')}
                     </p>
                   </div>
                   <Button
@@ -722,7 +724,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                     disabled={isProcessing}
                   >
                     <XCircleIcon className="h-4 w-4 mr-1" />
-                    Disable All
+                    {t('mfa.disable.all')}
                   </Button>
                 </div>
               </div>
@@ -736,10 +738,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Disable {showDisableDialog === 'totp' ? 'Authenticator App' : 'Email Verification'}
+              {showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Enter your password to disable this MFA method.
+              {t('mfa.disableDialog.enterPassword')}
             </p>
             {error && (
               <div className="p-3 mb-4 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
@@ -762,7 +764,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   setError(null);
                 }}
               >
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -770,7 +772,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 disabled={isProcessing || !disablePassword}
               >
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                Disable
+                {t('mfa.disable')}
               </Button>
             </div>
           </div>
@@ -782,10 +784,10 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Regenerate Backup Codes
+              {t('mfa.regenerateBackupCodes.title')}
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              This will invalidate all your existing backup codes. Enter your password to confirm.
+              {t('mfa.regenerateBackupCodes.description')}
             </p>
             {error && (
               <div className="p-3 mb-4 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
@@ -808,14 +810,14 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   setError(null);
                 }}
               >
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button
                 onClick={regenerateBackupCodes}
                 disabled={isProcessing || !regeneratePassword}
               >
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                Regenerate
+                {t('mfa.regenerate')}
               </Button>
             </div>
           </div>
@@ -827,12 +829,12 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Your New Backup Codes
+              {t('mfa.setup.newBackupCodes')}
             </h3>
             <div className="space-y-4">
               <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  <strong>Important:</strong> Save these backup codes in a secure place. Your previous codes are now invalid. You can use these codes to access your account if you lose your authenticator device.
+                  {t('mfa.setup.newBackupCodesImportant')}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded">
@@ -848,7 +850,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   onClick={() => copyToClipboard(backupCodes.join('\n'))}
                 >
                   <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                  Copy All
+                  {t('mfa.copyAll')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -856,7 +858,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                     setBackupCodes([]);
                   }}
                 >
-                  Done
+                  {t('mfa.done')}
                 </Button>
               </div>
             </div>
@@ -869,15 +871,15 @@ export function MFASettings({ onToast }: MFASettingsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
-              Disable All MFA
+              {t('mfa.disableDialog.all')}
             </h3>
             <div className="p-4 mb-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <p className="text-sm text-red-800 dark:text-red-200">
-                <strong>Warning:</strong> This will completely disable two-factor authentication on your account. All MFA methods (authenticator app, email) and backup codes will be removed.
+                {t('mfa.disableDialog.allWarning')}
               </p>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Enter your password to confirm.
+              {t('mfa.disableDialog.confirmPassword')}
             </p>
             {error && (
               <div className="p-3 mb-4 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
@@ -900,7 +902,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                   setError(null);
                 }}
               >
-                Cancel
+                {t('mfa.cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -908,7 +910,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 disabled={isProcessing || !disableAllPassword}
               >
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                Disable All MFA
+                {t('mfa.disableDialog.all')}
               </Button>
             </div>
           </div>

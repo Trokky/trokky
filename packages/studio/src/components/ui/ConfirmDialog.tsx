@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  ExclamationTriangleIcon, 
-  XMarkIcon 
+import {
+  ExclamationTriangleIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -19,12 +20,15 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   variant = 'default',
   onConfirm,
   onCancel
 }) => {
+  const { t } = useT('studio');
+  const resolvedConfirmText = confirmText || t('confirmDialog.defaultConfirm');
+  const resolvedCancelText = cancelText || t('confirmDialog.defaultCancel');
   // Handle escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -115,14 +119,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               onClick={onConfirm}
               className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm sm:w-auto ${styles.confirmButton} focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
             >
-              {confirmText}
+              {resolvedConfirmText}
             </button>
             <button
               type="button"
               onClick={onCancel}
               className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
             >
-              {cancelText}
+              {resolvedCancelText}
             </button>
           </div>
         </div>

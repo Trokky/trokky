@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { HomeIcon } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 import { Button } from '@/components/ui/Button';
 
 export function NotFoundPage() {
+  const { t } = useT('studio');
+
   return (
     <div className="min-h-full flex items-center justify-center p-6">
       <div className="text-center">
@@ -10,15 +13,15 @@ export function NotFoundPage() {
           404
         </div>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-          Page not found
+          {t('notFound.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          The page you're looking for doesn't exist or has been moved.
+          {t('notFound.message')}
         </p>
         <Button asChild>
           <Link to="/">
             <HomeIcon className="h-4 w-4 mr-2" />
-            Go to Dashboard
+            {t('notFound.goToDashboard')}
           </Link>
         </Button>
       </div>

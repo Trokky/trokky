@@ -3,7 +3,9 @@
     "string": {
       "label": "Texte",
       "placeholder": "Saisissez du texte...",
-      "description": "Champ de texte sur une ligne"
+      "description": "Champ de texte sur une ligne",
+      "noValue": "Aucune valeur",
+      "selection": "Sélection"
     },
     "text": {
       "label": "Zone de texte",
@@ -16,79 +18,140 @@
       "placeholderInteger": "Saisissez un nombre entier",
       "placeholderCurrency": "0,00",
       "placeholderPercentage": "0,00 %",
-      "description": "Champ de valeur numerique"
+      "description": "Champ de valeur numérique",
+      "noValue": "Aucune valeur",
+      "increaseValue": "Augmenter la valeur",
+      "decreaseValue": "Diminuer la valeur"
     },
     "boolean": {
-      "label": "Booleen",
-      "description": "Champ vrai/faux"
+      "label": "Booléen",
+      "description": "Champ vrai/faux",
+      "yes": "Oui",
+      "no": "Non",
+      "toggle": "Basculer"
     },
     "date": {
       "label": "Date",
-      "placeholder": "Selectionnez une date...",
-      "description": "Selecteur de date"
+      "placeholder": "Sélectionnez une date...",
+      "description": "Sélecteur de date"
     },
     "datetime": {
       "label": "Date et heure",
-      "placeholder": "Selectionnez une date et une heure...",
-      "description": "Selecteur de date et heure"
+      "placeholder": "Sélectionnez une date et une heure...",
+      "description": "Sélecteur de date et heure"
     },
     "image": {
       "label": "Image",
-      "placeholder": "Selectionnez ou importez une image",
+      "placeholder": "Sélectionnez ou importez une image",
       "description": "Champ d'import d'image",
-      "selectImage": "Selectionner une image",
+      "selectImage": "Sélectionner une image",
       "changeImage": "Changer l'image",
       "removeImage": "Supprimer l'image"
     },
     "file": {
       "label": "Fichier",
-      "placeholder": "Selectionnez ou importez un fichier",
+      "placeholder": "Sélectionnez ou importez un fichier",
       "description": "Champ d'import de fichier",
-      "selectFile": "Selectionner un fichier",
+      "selectFile": "Sélectionner un fichier",
       "changeFile": "Changer le fichier",
       "removeFile": "Supprimer le fichier"
     },
     "reference": {
-      "label": "Reference",
-      "placeholder": "Selectionnez un element...",
-      "description": "Reference vers un autre document",
-      "noResults": "Aucun element correspondant trouve",
-      "loading": "Chargement..."
+      "label": "Référence",
+      "placeholder": "Sélectionner une référence...",
+      "description": "Référence vers un autre document",
+      "noResults": "Aucun résultat trouvé",
+      "noResultsFor": "Aucun résultat trouvé pour \"{{query}}\"",
+      "tryDifferentTerm": "Essayez un autre terme de recherche",
+      "noDocumentsAvailable": "Aucun document disponible",
+      "createDocumentsFirst": "Créez d'abord des documents pour les référencer ici",
+      "loading": "Chargement...",
+      "loadingTypes": "Chargement des types de documents...",
+      "searching": "Recherche...",
+      "filterDocuments": "Filtrer les documents...",
+      "allTypes": "Tous les types",
+      "anyType": "Tout type",
+      "available": "{{count}} disponible(s)",
+      "references": "{{count}} référence",
+      "references_plural": "{{count}} références",
+      "ofMax": "sur {{max}} max",
+      "removeReference": "Supprimer la référence",
+      "dragToReorder": "Glisser pour réorganiser",
+      "close": "Fermer",
+      "clear": "Effacer"
     },
     "array": {
       "label": "Liste",
-      "description": "Liste d'elements",
-      "addItem": "Ajouter un element",
-      "removeItem": "Supprimer l'element",
-      "moveUp": "Deplacer vers le haut",
-      "moveDown": "Deplacer vers le bas",
-      "empty": "Aucun element"
+      "description": "Liste d'éléments",
+      "addItem": "Ajouter un élément",
+      "addFirstItem": "Ajouter le premier élément",
+      "removeItem": "Supprimer l'élément",
+      "moveUp": "Déplacer vers le haut",
+      "moveDown": "Déplacer vers le bas",
+      "empty": "Aucun élément ajouté",
+      "items": "éléments",
+      "item": "élément",
+      "itemCount": "{{count}} élément",
+      "itemCount_plural": "{{count}} éléments",
+      "missingDefinition": "Définition 'of' manquante pour le champ tableau",
+      "unknownType": "Type de champ inconnu : {{type}}",
+      "availableTypes": "Types disponibles : {{types}}",
+      "noOptionsConfigured": "Aucune option configurée pour la disposition sélection",
+      "noMatchingOptions": "Aucune option correspondante",
+      "holdCtrlToSelect": "Maintenez Ctrl/Cmd pour sélectionner plusieurs",
+      "removeTag": "Supprimer le tag \"{{tag}}\" ?",
+      "addTag": "Ajouter un tag...",
+      "typeToSearch": "Tapez pour rechercher ou ajouter des tags personnalisés",
+      "selectFromOptions": "Sélectionnez parmi les options disponibles",
+      "add": "Ajouter",
+      "minimum": "Minimum {{count}} élément",
+      "minimum_plural": "Minimum {{count}} éléments",
+      "maximum": "Maximum {{count}} élément",
+      "maximum_plural": "Maximum {{count}} éléments",
+      "range": "{{min}} - {{max}} éléments"
     },
     "object": {
       "label": "Objet",
-      "description": "Groupe de champs imbriques"
+      "description": "Groupe de champs imbriqués",
+      "fields": "champs",
+      "field": "champ",
+      "otherFields": "Autres champs",
+      "invalidConfig": "Configuration de champ invalide : champ objet attendu",
+      "fieldNotRegistered": "Le type de champ '{{type}}' n'est pas enregistré. Veuillez vous assurer que le plugin de champ est chargé."
     },
     "select": {
-      "label": "Selection",
-      "placeholder": "Selectionnez une option...",
-      "description": "Champ de selection deroulante",
+      "label": "Sélection",
+      "placeholder": "Sélectionnez une option...",
+      "description": "Champ de sélection déroulante",
       "noOptions": "Aucune option disponible"
     },
     "richtext": {
       "label": "Texte enrichi",
-      "placeholder": "Commencez a ecrire...",
-      "description": "Editeur de texte enrichi"
+      "placeholder": "Commencez à écrire...",
+      "description": "Éditeur de texte enrichi"
     },
     "portableText": {
       "label": "Texte portable",
-      "placeholder": "Commencez a ecrire...",
-      "description": "Editeur de contenu en blocs"
+      "placeholder": "Commencez à écrire...",
+      "description": "Éditeur de contenu en blocs"
     },
     "slug": {
       "label": "Slug",
-      "placeholder": "slug-du-document",
+      "placeholder": "mon-super-slug",
       "description": "Identifiant compatible URL",
-      "generate": "Generer"
+      "generate": "Générer",
+      "edit": "Modifier",
+      "regenerate": "Régénérer le slug à partir du champ source",
+      "editSlug": "Modifier le slug",
+      "unique": "unique",
+      "noSlugSet": "Aucun slug défini",
+      "autoGeneratedFrom": "Généré automatiquement à partir de : {{source}}",
+      "manuallyEdited": "modifié manuellement",
+      "slugTaken": "Ce slug est déjà pris. Veuillez en choisir un autre.",
+      "checkingUniqueness": "Vérification de l'unicité...",
+      "slugIsUnique": "Le slug est unique",
+      "slugExists": "Le slug existe déjà",
+      "couldNotCheck": "Impossible de vérifier l'unicité"
     },
     "email": {
       "label": "E-mail",
@@ -103,7 +166,52 @@
     "color": {
       "label": "Couleur",
       "placeholder": "#000000",
-      "description": "Selecteur de couleur"
+      "description": "Sélecteur de couleur"
+    },
+    "media": {
+      "label": "Média",
+      "description": "Champ d'import de média",
+      "selectMedia": "Sélectionner un média",
+      "clickToUploadOrBrowse": "Cliquez pour importer ou parcourir",
+      "addMedia": "Ajouter un média",
+      "addImage": "Ajouter une image",
+      "addVideo": "Ajouter une vidéo",
+      "addAudio": "Ajouter un audio",
+      "addDocument": "Ajouter un document",
+      "addArchive": "Ajouter une archive",
+      "dropFilesOrClick": "Glissez des fichiers ici ou cliquez pour importer",
+      "clickToUpload": "Cliquez pour importer",
+      "maxSize": "Taille max : {{size}}",
+      "selectFileToUpload": "Sélectionnez un fichier à importer",
+      "allowed": "Autorisés : {{types}}",
+      "upload": "Importer",
+      "browse": "Parcourir",
+      "cancel": "Annuler",
+      "change": "Changer",
+      "remove": "Supprimer",
+      "uploading": "Import en cours...",
+      "uploadFailed": "Échec de l'import. Veuillez réessayer.",
+      "mediaAssetNotFound": "Le fichier média n'existe plus",
+      "failedToLoadAsset": "Échec du chargement du fichier média",
+      "removeBrokenReference": "Supprimer la référence média cassée",
+      "changeMedia": "Changer le média",
+      "removeMedia": "Supprimer le média",
+      "mediaDetails": "Détails du média",
+      "altText": "Texte alternatif",
+      "altTextPlaceholder": "Décrivez cette image pour l'accessibilité",
+      "caption": "Légende",
+      "captionPlaceholder": "Ajouter une légende",
+      "titleOverride": "Titre personnalisé",
+      "titleOverridePlaceholder": "Remplacer le titre du fichier pour cet usage",
+      "mediaTypes": {
+        "image": "Image",
+        "video": "Vidéo",
+        "audio": "Audio",
+        "document": "Document",
+        "archive": "Archive",
+        "media": "Média"
+      },
+      "unknownSize": "Taille inconnue"
     }
   },
   "validation": {

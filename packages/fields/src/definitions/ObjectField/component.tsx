@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import { FieldWrapper } from '../../components/FieldWrapper.js';
 import type {
@@ -25,11 +26,12 @@ import { ObjectModal } from './ObjectModal.js';
 type ObjectFieldComponentProps = FieldComponentProps;
 
 export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
+  const { t } = useT('fields');
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
-  
+
   // Type guard for object field definition
   if (definition.type !== 'object') {
-    return <div className="text-red-500 text-sm">Invalid field configuration: expected object field</div>;
+    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
   }
   
   const objectDefinition = definition as ObjectFieldDefinition;
@@ -199,7 +201,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
             {fieldDef.required && <span className="text-red-500 ml-1">*</span>}
           </label>
           <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-md">
-            Field type '{fieldDef.type}' is not registered. Please ensure the field plugin is loaded.
+            {t('types.object.fieldNotRegistered', { type: fieldDef.type })}
           </div>
         </div>
       );
@@ -575,7 +577,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         {ungroupedFields.length > 0 && (
           <div className="space-y-4">
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-2">
-              Other Fields
+              {t('types.object.otherFields')}
             </h4>
             {ungroupedFields.map(field => renderField(field.name, field.definition))}
           </div>
@@ -695,7 +697,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
           </div>
 
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>{filledCount}/{totalCount} fields</span>
+            <span>{filledCount}/{totalCount} {t('types.object.fields')}</span>
           </div>
         </div>
       </button>

@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { StringFieldDefinition, StringListOption } from './definition.js';
 
@@ -11,6 +12,7 @@ import type { StringFieldDefinition, StringListOption } from './definition.js';
 type StringFieldComponentProps = FieldComponentProps;
 
 export function StringFieldComponent(props: StringFieldComponentProps) {
+  const { t } = useT('fields');
   const {
     fieldId,
     value,
@@ -43,7 +45,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     if (!displayValue || displayValue.trim() === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No value
+          {t('types.string.noValue')}
         </div>
       );
     }
@@ -68,7 +70,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
               {displayTitle}
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              (Selection)
+              ({t('types.string.selection')})
             </span>
           </div>
         </div>
@@ -221,7 +223,7 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
         style={inputProps.style}
       >
         {!stringDefinition.required && (
-          <option value="">{options.placeholder || 'Select an option...'}</option>
+          <option value="">{options.placeholder || t('types.select.placeholder')}</option>
         )}
         {normalizedOptions.map(option => (
           <option key={option.value} value={option.value}>

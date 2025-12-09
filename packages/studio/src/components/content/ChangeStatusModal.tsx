@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
+import { useT } from '@trokky/i18n';
 
 export interface ChangeStatusModalProps {
   isOpen: boolean;
@@ -11,12 +12,6 @@ export interface ChangeStatusModalProps {
   loading?: boolean;
 }
 
-const STATUS_OPTIONS = [
-  { value: 'draft', label: 'Draft', description: 'Save as draft' },
-  { value: 'published', label: 'Published', description: 'Make documents publicly available' },
-  { value: 'archived', label: 'Archived', description: 'Archive documents' }
-];
-
 export function ChangeStatusModal({
   isOpen,
   onClose,
@@ -24,7 +19,14 @@ export function ChangeStatusModal({
   selectedCount,
   loading = false
 }: ChangeStatusModalProps) {
+  const { t } = useT('studio');
   const [selectedStatus, setSelectedStatus] = useState<string>('published');
+
+  const STATUS_OPTIONS = [
+    { value: 'draft', label: t('changeStatus.draft'), description: t('changeStatus.draftDesc') },
+    { value: 'published', label: t('changeStatus.published'), description: t('changeStatus.publishedDesc') },
+    { value: 'archived', label: t('changeStatus.archived'), description: t('changeStatus.archivedDesc') }
+  ];
 
   if (!isOpen) return null;
 
@@ -46,7 +48,7 @@ export function ChangeStatusModal({
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Change Status
+              {t('changeStatus.title')}
             </h3>
             <button
               onClick={onClose}
@@ -59,7 +61,7 @@ export function ChangeStatusModal({
           {/* Content */}
           <div className="p-6">
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Select the new status for {selectedCount} selected document{selectedCount !== 1 ? 's' : ''}
+              {t('changeStatus.selectStatus', { count: selectedCount })}
             </p>
 
             <div className="space-y-2">
@@ -101,13 +103,13 @@ export function ChangeStatusModal({
               onClick={onClose}
               disabled={loading}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleConfirm}
               disabled={loading}
             >
-              {loading ? 'Updating...' : `Update ${selectedCount} document${selectedCount !== 1 ? 's' : ''}`}
+              {loading ? t('changeStatus.updating') : t('changeStatus.updateDocument', { count: selectedCount })}
             </Button>
           </div>
         </div>

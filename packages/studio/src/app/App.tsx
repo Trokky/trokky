@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TrokkyI18nProvider, type I18nConfig } from '@trokky/i18n';
+import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -45,6 +45,7 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
+  const { t } = useT('common');
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const logger = createStudioLogger('AppContent');
   const lastStateRef = useRef<{ isAuthenticated?: boolean; isLoading?: boolean }>({});
@@ -85,7 +86,7 @@ function AppContent() {
         <div className="text-center">
           <LoadingSpinner size="lg" />
           <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
-            Loading Studio...
+            {t('app.loadingStudio')}
           </h2>
         </div>
       </div>

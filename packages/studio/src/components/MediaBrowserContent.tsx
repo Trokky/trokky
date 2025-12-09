@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react'
 import type { MediaFieldValue, MediaType } from '../types'
+import { useT } from '@trokky/i18n'
 
 // Types for Studio API integration
 interface MediaFile {
@@ -275,6 +276,7 @@ export function MediaBrowserContent({
   logger,
   mediaUrlGenerator,
 }: MediaBrowserContentProps) {
+  const { t } = useT('studio')
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -485,7 +487,7 @@ export function MediaBrowserContent({
             <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search media..."
+              placeholder={t('mediaBrowser.searchPlaceholder')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
@@ -520,7 +522,7 @@ export function MediaBrowserContent({
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-              Back to Grid
+              {t('mediaBrowser.backToGrid')}
             </button>
           </div>
 
@@ -581,7 +583,7 @@ export function MediaBrowserContent({
                           />
                         ) : (
                           <div className="text-gray-500">
-                            No preview URL available
+                            {t('mediaBrowser.noPreviewUrl')}
                           </div>
                         )}
                       </div>
@@ -620,7 +622,7 @@ export function MediaBrowserContent({
                         {getMediaTypeIcon(mediaType)}
                       </div>
                       <p className="text-gray-600 dark:text-gray-400 mb-4">
-                        Preview not available for this file type
+                        {t('mediaBrowser.noPreviewAvailable')}
                       </p>
                     </div>
                   )
@@ -635,7 +637,7 @@ export function MediaBrowserContent({
                   <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                        Image Variants
+                        {t('mediaBrowser.imageVariants')}
                       </h3>
                       {apiClient?.regenerateVariants && (
                         <button
@@ -658,7 +660,7 @@ export function MediaBrowserContent({
                           }}
                           className="text-xs px-2 py-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 border border-blue-600 dark:border-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                         >
-                          Regenerate
+                          {t('mediaBrowser.regenerate')}
                         </button>
                       )}
                     </div>
@@ -687,7 +689,7 @@ export function MediaBrowserContent({
                         </div>
                         <div className="mt-1 text-center">
                           <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                            Original
+                            {t('mediaBrowser.original')}
                           </div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-500">
                             {selectedMedia.metadata?.width} ×{' '}
@@ -745,10 +747,10 @@ export function MediaBrowserContent({
                   <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
                     <div className="text-center">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                        Image Variants
+                        {t('mediaBrowser.imageVariants')}
                       </h3>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        No variants available for this image.
+                        {t('mediaBrowser.noVariantsAvailable')}
                       </p>
                     </div>
                   </div>
@@ -760,12 +762,12 @@ export function MediaBrowserContent({
               {/* File Details Section - Compact on mobile */}
               <div className="p-3 md:p-4 flex-1">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                  File Details
+                  {t('mediaBrowser.fileDetails')}
                 </h3>
                 <dl className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <dt className="font-medium text-gray-500 dark:text-gray-400">
-                      Filename
+                      {t('mediaBrowser.filename')}
                     </dt>
                     <dd className="text-gray-900 dark:text-white truncate ml-2 max-w-[150px]" title={selectedMedia.filename}>
                       {selectedMedia.filename}
@@ -773,7 +775,7 @@ export function MediaBrowserContent({
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium text-gray-500 dark:text-gray-400">
-                      Size
+                      {t('mediaBrowser.size')}
                     </dt>
                     <dd className="text-gray-900 dark:text-white">
                       {formatFileSize(selectedMedia.size)} MB
@@ -781,7 +783,7 @@ export function MediaBrowserContent({
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium text-gray-500 dark:text-gray-400">
-                      Type
+                      {t('mediaBrowser.type')}
                     </dt>
                     <dd className="text-gray-900 dark:text-white truncate ml-2 max-w-[100px]" title={selectedMedia.contentType}>
                       {selectedMedia.contentType.split('/')[1] || selectedMedia.contentType}
@@ -791,7 +793,7 @@ export function MediaBrowserContent({
                     selectedMedia.metadata?.height && (
                       <div className="flex justify-between">
                         <dt className="font-medium text-gray-500 dark:text-gray-400">
-                          Dimensions
+                          {t('mediaBrowser.dimensions')}
                         </dt>
                         <dd className="text-gray-900 dark:text-white">
                           {selectedMedia.metadata.width} × {selectedMedia.metadata.height}
@@ -807,7 +809,7 @@ export function MediaBrowserContent({
                   onClick={handleSelect}
                   className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                 >
-                  Select {selectedVariant === 'original' ? 'Original' : selectedVariant}
+                  {selectedVariant === 'original' ? t('mediaBrowser.selectOriginal') : t('mediaBrowser.selectVariant', { variant: selectedVariant })}
                 </button>
               </div>
             </div>
@@ -881,7 +883,7 @@ export function MediaBrowserContent({
                           .length > 0 && (
                           <div className="flex-shrink-0">
                             <label className="block text-xs font-medium text-gray-700 dark:text-white mb-1">
-                              Variant
+                              {t('mediaBrowser.variant')}
                             </label>
                             <div className="flex items-center space-x-1">
                               {/* Original variant */}
@@ -909,7 +911,7 @@ export function MediaBrowserContent({
                                   }}
                                   className="sr-only"
                                 />
-                                <div className="font-medium">Original</div>
+                                <div className="font-medium">{t('mediaBrowser.original')}</div>
                                 {selectedMedia.metadata?.originalDimensions && (
                                   <div className="text-gray-500 dark:text-gray-400">
                                     {
@@ -972,7 +974,7 @@ export function MediaBrowserContent({
                           onClick={handleSelect}
                           className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                         >
-                          Select
+                          {t('mediaBrowser.select')}
                         </button>
                       </div>
                     </div>
@@ -1093,15 +1095,15 @@ export function MediaBrowserContent({
                 </div>
                 <p className="text-sm text-center">
                   {mediaTypeFilter
-                    ? `No ${mediaTypeFilter} files found${searchTerm ? ' matching your search' : ''}`
-                    : `No media files found${searchTerm ? ' matching your search' : ''}`}
+                    ? (searchTerm ? t('mediaBrowser.noTypeFoundMatching', { type: mediaTypeFilter }) : t('mediaBrowser.noTypeFound', { type: mediaTypeFilter }))
+                    : (searchTerm ? t('mediaBrowser.noMediaFoundMatching') : t('mediaBrowser.noMediaFound'))}
                 </p>
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
                     className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                   >
-                    Clear search
+                    {t('mediaBrowser.clearSearch')}
                   </button>
                 )}
               </div>
@@ -1112,7 +1114,7 @@ export function MediaBrowserContent({
           {filteredMedia.length > itemsPerPage && viewMode === 'grid' && (
             <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
               <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                {startIndex + 1}-{Math.min(endIndex, filteredMedia.length)} of {filteredMedia.length}
+                {t('mediaBrowser.paginationOf', { start: startIndex + 1, end: Math.min(endIndex, filteredMedia.length), total: filteredMedia.length })}
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -1120,7 +1122,7 @@ export function MediaBrowserContent({
                   disabled={currentPage === 1}
                   className="px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Prev
+                  {t('mediaBrowser.prev')}
                 </button>
                 <span className="text-[10px] text-gray-600 dark:text-gray-300 px-1">
                   {currentPage}/{totalPages}
@@ -1130,7 +1132,7 @@ export function MediaBrowserContent({
                   disabled={currentPage === totalPages}
                   className="px-2 py-0.5 text-[10px] font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Next
+                  {t('mediaBrowser.next')}
                 </button>
               </div>
             </div>

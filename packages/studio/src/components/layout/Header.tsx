@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useT } from '@trokky/i18n';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -40,6 +41,7 @@ export function Header({
   showMedia = true,
   showUserMenu = true
 }: HeaderProps) {
+  const { t } = useT('studio');
   const { logout } = useAuth();
   const { user, loading: userLoading } = useCurrentUser();
   const { hasPermission, hasAnyPermission } = usePermissions();
@@ -94,9 +96,9 @@ export function Header({
   };
 
   const themeOptions = [
-    { key: 'light' as const, label: 'Light', icon: SunIcon },
-    { key: 'dark' as const, label: 'Dark', icon: MoonIcon },
-    { key: 'system' as const, label: 'System', icon: ComputerDesktopIcon }
+    { key: 'light' as const, label: t('theme.light'), icon: SunIcon },
+    { key: 'dark' as const, label: t('theme.dark'), icon: MoonIcon },
+    { key: 'system' as const, label: t('theme.system'), icon: ComputerDesktopIcon }
   ];
 
   return (
@@ -141,7 +143,7 @@ export function Header({
               className="w-full flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
             >
               <MagnifyingGlassIcon className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span className="flex-1 truncate">Search...</span>
+              <span className="flex-1 truncate">{t('nav.searchPlaceholder')}</span>
               <kbd className="hidden xl:inline-flex px-1.5 py-0.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
                 ⌘K
               </kbd>
@@ -163,15 +165,15 @@ export function Header({
 
           {/* Create dropdown - only for regular documents, not singletons */}
           <div className="hidden sm:block relative">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setCreateMenuOpen(!createMenuOpen)}
               className="inline-flex items-center"
               disabled={typesLoading}
             >
               <PlusIcon className="h-4 w-4 mr-1" />
-              Create
+              {t('header.create')}
               <ChevronDownIcon className="h-3 w-3 ml-1" />
             </Button>
 
@@ -181,7 +183,7 @@ export function Header({
                 {documentTypes.length > 0 ? (
                   <div className="px-3 py-2">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                      Create New Document
+                      {t('header.createNewDocument')}
                     </div>
                     {documentTypes.map((docType) => (
                       <button
@@ -201,7 +203,7 @@ export function Header({
                   </div>
                 ) : (
                   <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                    No document types available for creation
+                    {t('header.noDocumentTypes')}
                   </div>
                 )}
               </div>
@@ -213,7 +215,7 @@ export function Header({
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link to="/media">
                 <PhotoIcon className="h-4 w-4 mr-1" />
-                Media
+                {t('nav.media')}
               </Link>
             </Button>
           )}
@@ -221,14 +223,14 @@ export function Header({
           {/* Settings dropdown - only show if user has access to any settings features */}
           {hasAnyPermission(SETTINGS_MENU_PERMISSIONS) && (
             <div className="hidden sm:block relative">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
                 className="inline-flex items-center"
               >
                 <Cog6ToothIcon className="h-4 w-4 mr-1" />
-                Settings
+                {t('nav.settings')}
                 <ChevronDownIcon className="h-3 w-3 ml-1" />
               </Button>
 
@@ -243,8 +245,8 @@ export function Header({
                   >
                     <Cog6ToothIcon className="h-4 w-4 mr-2 text-gray-400" />
                     <div className="flex-1 text-left">
-                      <div className="font-medium">Settings</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Studio configuration</div>
+                      <div className="font-medium">{t('nav.settings')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{t('header.studioConfiguration')}</div>
                     </div>
                   </Link>
                 )}
@@ -258,8 +260,8 @@ export function Header({
                   >
                     <UsersIcon className="h-4 w-4 mr-2 text-gray-400" />
                     <div className="flex-1 text-left">
-                      <div className="font-medium">Users</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Manage users & permissions</div>
+                      <div className="font-medium">{t('nav.users')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{t('header.manageUsersPermissions')}</div>
                     </div>
                   </Link>
                 )}
@@ -272,8 +274,8 @@ export function Header({
                 >
                   <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
                   <div className="flex-1 text-left">
-                    <div className="font-medium">Audit Logs</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">View all content changes</div>
+                    <div className="font-medium">{t('nav.auditLogs')}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('header.viewAllChanges')}</div>
                   </div>
                 </Link>
               </div>
@@ -288,7 +290,7 @@ export function Header({
               handleThemeChange(nextTheme);
             }}
             className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
-            title={`Theme: ${theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'}`}
+            title={`${t('theme.toggle')}: ${themeOptions.find(o => o.key === theme)?.label}`}
           >
             {theme === 'light' ? (
               <SunIcon className="h-5 w-5" />
@@ -351,12 +353,12 @@ export function Header({
                     ) : (
                       <>
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {user?.firstName && user?.lastName 
+                          {user?.firstName && user?.lastName
                             ? `${user.firstName} ${user.lastName}`
-                            : user?.username || 'Studio User'}
+                            : user?.username || t('header.user')}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {user?.email || 'No email'}
+                          {user?.email || t('header.noEmail')}
                         </p>
                       </>
                     )}
@@ -370,7 +372,7 @@ export function Header({
                       onClick={() => setUserMenuOpen(false)}
                     >
                       <UserCircleIcon className="h-4 w-4 mr-2 text-gray-400" />
-                      Preferences
+                      {t('header.preferences')}
                     </Link>
 
                     <button
@@ -381,11 +383,11 @@ export function Header({
                       }}
                     >
                       <KeyIcon className="h-4 w-4 mr-2 text-gray-400" />
-                      Change Password
+                      {t('header.changePassword')}
                     </button>
 
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                    
+
                     <button
                       className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                       onClick={async () => {
@@ -396,7 +398,7 @@ export function Header({
                       <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      Sign out
+                      {t('header.signOut')}
                     </button>
                   </div>
                 </div>

@@ -21,10 +21,12 @@ import { useStudioContext } from '@/contexts/StudioContext';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { DocumentHistoryPanel } from './DocumentHistoryPanel';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('DocumentSidebar');
 
 export function DocumentSidebar() {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const studioContext = useStudioContext();
   const {
@@ -395,7 +397,7 @@ export function DocumentSidebar() {
           {!isNewDocument && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                Created
+                {t('documentEditor.created')}
               </h4>
               <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                 <ClockIcon className="h-4 w-4 mr-2" />
@@ -414,7 +416,7 @@ export function DocumentSidebar() {
           {!isNewDocument && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                Last Updated
+                {t('documentEditor.lastUpdated')}
               </h4>
               <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                 <ClockIcon className="h-4 w-4 mr-2" />
@@ -432,16 +434,16 @@ export function DocumentSidebar() {
           {/* Document state info */}
           <div>
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Status
+              {t('documentEditor.status')}
             </h4>
             <div className="text-sm">
               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(documentState)}`}>
-                {documentState === 'published' ? 'Published' : 'Draft'}
+                {documentState === 'published' ? t('documentEditor.published') : t('documentEditor.draft')}
               </span>
             </div>
             {documentState === 'published' && document?.publishedAt && (
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Published {formatDate(document.publishedAt)}
+                {t('documentEditor.publishedOn', { date: formatDate(document.publishedAt) })}
               </div>
             )}
           </div>
@@ -471,7 +473,7 @@ export function DocumentSidebar() {
           {document?.tags && document.tags.length > 0 && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                Tags
+                {t('documentEditor.tags')}
               </h4>
               <div className="flex flex-wrap gap-1">
                 {document.tags.map((tag: string, index: number) => (
@@ -491,7 +493,7 @@ export function DocumentSidebar() {
           {!isNewDocument && (
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                Contributors
+                {t('documentEditor.contributors')}
               </h4>
               <div className="flex flex-wrap gap-1">
                 {contributors.length > 0 ? (
@@ -507,12 +509,12 @@ export function DocumentSidebar() {
                   ))
                 ) : (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Loading...
+                    {t('documentEditor.contributorsLoading')}
                   </span>
                 )}
                 {contributors.length > 5 && (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    +{contributors.length - 5} more
+                    {t('documentEditor.contributorsMore', { count: contributors.length - 5 })}
                   </span>
                 )}
               </div>
@@ -524,11 +526,13 @@ export function DocumentSidebar() {
         {!isNewDocument && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              References {relationships?.references?.length > 0 && `(${relationships.references.length})`}
+              {relationships?.references?.length > 0
+                ? t('documentEditor.referencesCount', { count: relationships.references.length })
+                : t('documentEditor.references')}
             </h4>
 
             {loadingRelationships ? (
-              <div className="text-xs text-gray-500 dark:text-gray-400">Loading...</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
             ) : relationships?.references?.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {relationships.references.slice(0, 8).map((ref: any, index: number) => (
@@ -544,12 +548,12 @@ export function DocumentSidebar() {
                 ))}
                 {relationships.references.length > 8 && (
                   <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
-                    +{relationships.references.length - 8}
+                    {t('documentEditor.referencesMore', { count: relationships.references.length - 8 })}
                   </span>
                 )}
               </div>
             ) : (
-              <div className="text-xs text-gray-500 dark:text-gray-400">No references</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{t('documentEditor.noReferences')}</div>
             )}
           </div>
         )}
@@ -557,7 +561,7 @@ export function DocumentSidebar() {
         {/* Schema info */}
         <div className="border-t border-gray-200 dark:border-gray-700 p-4">
           <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Schema
+            {t('documentEditor.schema')}
           </h4>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div className="font-medium">{schema?.title || schema?.name}</div>
@@ -565,7 +569,7 @@ export function DocumentSidebar() {
               <div className="text-xs mt-1">{schema.description}</div>
             )}
             <div className="text-xs mt-1">
-              {getSchemaFieldCount(schema)} fields
+              {t('documentEditor.fieldsCount', { count: getSchemaFieldCount(schema) })}
             </div>
           </div>
         </div>
@@ -585,18 +589,18 @@ export function DocumentSidebar() {
         {!isNewDocument && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-              Danger Zone
+              {t('documentEditor.dangerZone')}
             </h4>
             <button
               onClick={handleDeleteDocument}
               className="w-full flex items-center justify-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-sm font-medium text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
-              title="Delete this document permanently"
+              title={t('documentEditor.deleteDocument')}
             >
               <TrashIcon className="h-4 w-4 mr-2" />
-              Delete Document
+              {t('documentEditor.deleteDocument')}
             </button>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              This action cannot be undone.
+              {t('documentEditor.cannotBeUndone')}
             </p>
           </div>
         )}
@@ -618,12 +622,12 @@ export function DocumentSidebar() {
             {/* Mobile header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                Document Info
+                {t('documentEditor.documentInfo')}
               </h3>
               <button
                 onClick={() => onToggleMobileSidebar(false)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                title="Close"
+                title={t('common.close')}
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
@@ -639,7 +643,7 @@ export function DocumentSidebar() {
           <button
             onClick={() => toggleCollapsed(false)}
             className="w-full p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            title="Expand sidebar"
+            title={t('documentEditor.expandSidebar')}
           >
             <ChevronRightIcon className="h-5 w-5 mx-auto" />
           </button>
@@ -652,12 +656,12 @@ export function DocumentSidebar() {
           {/* Sidebar header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-              Document Info
+              {t('documentEditor.documentInfo')}
             </h3>
             <button
               onClick={() => toggleCollapsed(true)}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title="Collapse sidebar"
+              title={t('documentEditor.collapseSidebar')}
             >
               <ChevronDownIcon className="h-5 w-5" />
             </button>

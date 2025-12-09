@@ -1,4 +1,7 @@
 {
+  "app": {
+    "loadingStudio": "Chargement du Studio..."
+  },
   "actions": {
     "save": "Enregistrer",
     "cancel": "Annuler",

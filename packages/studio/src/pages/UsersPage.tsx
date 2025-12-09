@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS } from '@/constants/permissions';
@@ -9,10 +10,12 @@ import { WebhookManagement } from '@/components/users/WebhookManagement';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export function UsersPage() {
+  const { t } = useT('studio');
+
   // Declarative context sidebar configuration for users page
   const contextSidebar = useContextSidebar({
     page: 'users',
-    title: 'User Management',
+    title: t('users.title'),
     defaultVisible: false,
     defaultPosition: 'left'
   });
@@ -49,10 +52,10 @@ export function UsersPage() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Users & Access
+            {t('usersPage.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage users, permissions, API tokens, and webhooks
+            {t('usersPage.subtitle')}
           </p>
         </div>
 
@@ -61,10 +64,10 @@ export function UsersPage() {
             <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mr-3" />
             <div>
               <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                Access Denied
+                {t('usersPage.accessDenied')}
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                You don't have permission to access user management features. Contact your administrator for access.
+                {t('usersPage.accessDeniedMessage')}
               </p>
             </div>
           </div>
@@ -77,10 +80,10 @@ export function UsersPage() {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Users & Access
+          {t('usersPage.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Manage users, permissions, API tokens, and webhooks
+          {t('usersPage.subtitle')}
         </p>
       </div>
 
@@ -96,7 +99,7 @@ export function UsersPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                 }`}
               >
-                Users
+                {t('usersPage.tabs.users')}
               </button>
             )}
             {canReadTokens && (
@@ -108,7 +111,7 @@ export function UsersPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                 }`}
               >
-                API Tokens
+                {t('usersPage.tabs.tokens')}
               </button>
             )}
             {canReadWebhooks && (
@@ -120,7 +123,7 @@ export function UsersPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                 }`}
               >
-                Webhooks
+                {t('usersPage.tabs.webhooks')}
               </button>
             )}
           </nav>

@@ -4,14 +4,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  MagnifyingGlassIcon, 
+import {
+  MagnifyingGlassIcon,
   XMarkIcon,
   DocumentTextIcon,
   PhotoIcon,
   ClockIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 import { Modal } from '@/components/ui/Modal';
 import { useApiClient } from '@/hooks/useApiClient';
 
@@ -76,6 +77,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
+  const { t } = useT('studio');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -214,7 +216,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
             type="text"
             value={query}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search documents, media..."
+            placeholder={t('search.placeholder')}
             className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
             autoComplete="off"
           />
@@ -226,7 +228,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                 searchInputRef.current?.focus();
               }}
               className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title="Clear search"
+              title={t('search.clearSearch')}
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -234,7 +236,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
             <button
               onClick={handleClose}
               className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title="Close search"
+              title={t('search.closeSearch')}
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -247,7 +249,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
           {isLoading && (
             <div className="p-8 text-center">
               <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full mx-auto mb-3"></div>
-              <p className="text-gray-500 dark:text-gray-400">Searching...</p>
+              <p className="text-gray-500 dark:text-gray-400">{t('search.searching')}</p>
             </div>
           )}
 
@@ -257,15 +259,15 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center">
                   <ClockIcon className="w-4 h-4 text-gray-400 mr-2" />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Recent searches</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('search.recentSearches')}</span>
                 </div>
                 <button
                   onClick={clearRecentSearches}
                   className="flex items-center text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                  title="Clear search history"
+                  title={t('search.clearHistory')}
                 >
                   <TrashIcon className="w-3 h-3 mr-1" />
-                  Clear
+                  {t('search.clear')}
                 </button>
               </div>
               <div className="space-y-1">
@@ -286,7 +288,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
           {showResults && (
             <div className="p-4">
               <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Found {results.length} result{results.length !== 1 ? 's' : ''}
+                {t('search.foundResults', { count: results.length })}
               </div>
               <div className="space-y-2">
                 {results.map((result) => (
@@ -317,7 +319,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                       )}
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                          {result.type === 'document' ? 'Document' : 'Media'}
+                          {result.type === 'document' ? t('search.document') : t('search.media')}
                         </span>
                         {result.metadata?.schemaType && (
                           <span className="text-xs text-blue-600 dark:text-blue-400">
@@ -326,7 +328,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
                         )}
                         {result.metadata?.author && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            by {result.metadata.author}
+                            {t('search.by')} {result.metadata.author}
                           </span>
                         )}
                         {result.metadata?.size && (
@@ -351,8 +353,8 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
           {showEmptyState && (
             <div className="p-8 text-center">
               <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-900 dark:text-white font-medium mb-1">No results found</p>
-              <p className="text-gray-500 dark:text-gray-400">Try different search terms</p>
+              <p className="text-gray-900 dark:text-white font-medium mb-1">{t('search.noResults')}</p>
+              <p className="text-gray-500 dark:text-gray-400">{t('search.tryDifferent')}</p>
             </div>
           )}
 
@@ -360,7 +362,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
           {!query && !showRecentSearches && (
             <div className="p-8 text-center">
               <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">Type to search documents and media</p>
+              <p className="text-gray-500 dark:text-gray-400">{t('search.typeToSearch')}</p>
             </div>
           )}
         </div>
@@ -368,8 +370,8 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
         {/* Footer */}
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>Press Escape to close</span>
-            <span>Powered by Trokky</span>
+            <span>{t('search.pressEscape')}</span>
+            <span>{t('search.poweredBy')}</span>
           </div>
         </div>
       </div>

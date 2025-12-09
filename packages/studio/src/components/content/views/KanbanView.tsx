@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   PlusIcon,
   EllipsisHorizontalIcon,
   UserIcon,
@@ -9,6 +9,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { useT } from '@trokky/i18n';
 import type { Document } from '@/types';
 
 export interface KanbanColumn {
@@ -55,6 +56,7 @@ export function KanbanView({
   colorField,
   allowDragAndDrop = true
 }: KanbanViewProps) {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -190,7 +192,7 @@ export function KanbanView({
     return (
       <div className="p-8 text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 dark:text-gray-400">Loading documents...</p>
+        <p className="text-gray-600 dark:text-gray-400">{t('contentViews.loadingDocuments')}</p>
       </div>
     );
   }
@@ -314,7 +316,7 @@ export function KanbanView({
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                               >
-                                Edit
+                                {t('contentViews.edit')}
                               </button>
                               <button
                                 onClick={(e) => {
@@ -324,20 +326,20 @@ export function KanbanView({
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                               >
-                                Duplicate
+                                {t('contentViews.duplicate')}
                               </button>
                               <hr className="my-1 border-gray-200 dark:border-gray-600" />
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm('Are you sure you want to delete this document?')) {
+                                  if (confirm(t('contentViews.deleteConfirmShort'))) {
                                     onDocumentAction?.(docId, 'delete');
                                   }
                                   setActionsOpen(null);
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                               >
-                                Delete
+                                {t('contentViews.delete')}
                               </button>
                             </div>
                           </div>
@@ -381,15 +383,15 @@ export function KanbanView({
               
               {columnDocuments.length === 0 && (
                 <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-                  <p className="text-sm">No items in {column.title.toLowerCase()}</p>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <p className="text-sm">{t('contentViews.noItemsInColumn', { column: column.title.toLowerCase() })}</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="mt-2"
                     onClick={() => navigate(`/content/${schemaName}/new?${groupByField}=${column.id}`)}
                   >
                     <PlusIcon className="h-4 w-4 mr-1" />
-                    Add item
+                    {t('contentViews.addItem')}
                   </Button>
                 </div>
               )}

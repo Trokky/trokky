@@ -8,6 +8,7 @@ import {
   DocumentTextIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
@@ -97,6 +98,7 @@ export function ContentPage() {
 // Enhanced Content List Page Component
 function ContentListPage({ schemaName }: { schemaName: string }) {
   const navigate = useNavigate();
+  const { t } = useT('studio');
   const studioContext = useStudioContext();
   const structureItem = useStructureItem(schemaName);
   
@@ -224,11 +226,11 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       switch (action) {
         case 'delete':
           const confirmed = await studioContext?.utils?.showConfirm?.(
-            'Are you sure you want to delete this document? This action cannot be undone.',
+            t('content.confirmDelete'),
             {
-              title: 'Delete Document',
-              confirmText: 'Delete',
-              cancelText: 'Cancel',
+              title: t('content.deleteDocument'),
+              confirmText: t('common.delete'),
+              cancelText: t('common.cancel'),
               variant: 'danger'
             }
           );
@@ -368,21 +370,21 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   
   // Get view configurations
   const viewConfigs: ViewConfig[] = [
-    { type: 'list', title: 'List View', icon: Bars3Icon, enabled: true },
-    { type: 'grid', title: 'Grid View', icon: DocumentTextIcon, enabled: true },
-    { type: 'table', title: 'Table View', icon: DocumentDuplicateIcon, enabled: true }
+    { type: 'list', title: t('content.views.list'), icon: Bars3Icon, enabled: true },
+    { type: 'grid', title: t('content.views.grid'), icon: DocumentTextIcon, enabled: true },
+    { type: 'table', title: t('content.views.table'), icon: DocumentDuplicateIcon, enabled: true }
   ];
   
   const filterConfigs: FilterConfig[] = [
     {
       id: '_status',
-      label: 'Status',
+      label: t('content.filters.status'),
       field: '_status',
       type: 'select',
       options: [
-        { label: 'Draft', value: 'draft' },
-        { label: 'Published', value: 'published' },
-        { label: 'Archived', value: 'archived' }
+        { label: t('content.filters.draft'), value: 'draft' },
+        { label: t('content.filters.published'), value: 'published' },
+        { label: t('content.filters.archived'), value: 'archived' }
       ]
     }
   ];
@@ -393,20 +395,20 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   const titleField = documents && documents.length > 0 && documents[0].name ? 'name' : 'title';
 
   const sortConfigs: SortConfig[] = [
-    { field: titleField, direction: 'asc', label: 'Title' },
-    { field: '_createdAt', direction: 'desc', label: 'Created Date' },
-    { field: '_updatedAt', direction: 'desc', label: 'Updated Date' }
+    { field: titleField, direction: 'asc', label: t('content.sort.title') },
+    { field: '_createdAt', direction: 'desc', label: t('content.sort.createdDate') },
+    { field: '_updatedAt', direction: 'desc', label: t('content.sort.updatedDate') }
   ];
   
   const bulkActions = [
     {
       id: 'change-status',
-      label: 'Change Status',
+      label: t('content.bulkActions.changeStatus'),
       icon: ArrowPathIcon
     },
     {
       id: 'delete',
-      label: 'Delete',
+      label: t('content.bulkActions.delete'),
       icon: TrashIcon,
       variant: 'destructive' as const
     }
@@ -419,10 +421,10 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="text-red-500 mb-4">
-            <h3 className="text-lg font-medium">Error loading documents</h3>
+            <h3 className="text-lg font-medium">{t('content.error.loadingDocuments')}</h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-          <Button onClick={loadDocuments}>Try Again</Button>
+          <Button onClick={loadDocuments}>{t('content.tryAgain')}</Button>
         </div>
       </div>
     );
@@ -438,16 +440,16 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
               {structureItem?.item?.title || `${getSchemaDisplayName(schemaName)} Documents`}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              {structureItem?.item?.type === 'singleton' 
-                ? 'View existing documents' 
-                : 'Manage your documents'}
+              {structureItem?.item?.type === 'singleton'
+                ? t('content.viewExisting')
+                : t('content.manageDocuments')}
             </p>
           </div>
           {/* Create button - only for regular collections, not singletons */}
           {structureItem?.item?.type !== 'singleton' && (
             <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
               <PlusIcon className="h-4 w-4 mr-2" />
-              Create {getSchemaDisplayName(schemaName)}
+              {t('content.create', { type: getSchemaDisplayName(schemaName) })}
             </Button>
           )}
         </div>
@@ -460,7 +462,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
         onViewChange={handleViewChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder={`Search ${schemaName}...`}
+        searchPlaceholder={t('content.search', { type: schemaName })}
         availableFilters={filterConfigs}
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
@@ -497,11 +499,11 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
 
             case 'delete':
               const confirmed = await studioContext?.utils?.showConfirm?.(
-                `Are you sure you want to delete ${selectedItems.length} document${selectedItems.length === 1 ? '' : 's'}? This action cannot be undone.`,
+                t('content.confirmBulkDelete', { count: selectedItems.length }),
                 {
-                  title: 'Delete Documents',
-                  confirmText: 'Delete All',
-                  cancelText: 'Cancel',
+                  title: t('content.deleteDocument'),
+                  confirmText: t('content.deleteAll'),
+                  cancelText: t('common.cancel'),
                   variant: 'danger'
                 }
               );
@@ -623,6 +625,7 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { t } = useT('studio');
 
   useEffect(() => {
     checkSingletonDocument();
@@ -688,7 +691,7 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading singleton document...</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('content.loadingSingleton')}</p>
         </div>
       </div>
     );
@@ -700,12 +703,12 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="text-amber-500 mb-4">
             <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
-            <h3 className="text-lg font-medium">Document Not Found</h3>
+            <h3 className="text-lg font-medium">{t('content.error.documentNotFound')}</h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
           <div className="flex justify-center space-x-4">
-            <Button onClick={checkSingletonDocument}>Try Again</Button>
-            <Button variant="outline" onClick={onCancel}>Back to Content</Button>
+            <Button onClick={checkSingletonDocument}>{t('content.tryAgain')}</Button>
+            <Button variant="outline" onClick={onCancel}>{t('content.backToContent')}</Button>
           </div>
         </div>
       </div>
@@ -729,6 +732,7 @@ interface Collection {
 
 function ContentOverview() {
   const navigate = useNavigate();
+  const { t } = useT('studio');
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -768,15 +772,15 @@ function ContentOverview() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Content
+            {t('content.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage all your content types and documents
+            {t('content.subtitle')}
           </p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading content types...</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('content.loading')}</p>
         </div>
       </div>
     );
@@ -787,24 +791,24 @@ function ContentOverview() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Content
+            {t('content.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage all your content types and documents
+            {t('content.subtitle')}
           </p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <div className="text-red-500 mb-4">
             <DocumentTextIcon className="h-12 w-12 mx-auto mb-2" />
             <h3 className="text-lg font-medium">
-              Error loading content types
+              {t('content.error.loadingTypes')}
             </h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             {error}
           </p>
           <Button onClick={loadCollections}>
-            Try Again
+            {t('content.tryAgain')}
           </Button>
         </div>
       </div>
@@ -816,23 +820,23 @@ function ContentOverview() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Content
+            {t('content.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage all your content types and documents
+            {t('content.subtitle')}
           </p>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No content types found
+            {t('content.noTypes')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Content types will appear here once your backend is configured with schemas.
+            {t('content.noTypesDescription')}
           </p>
           <Button onClick={loadCollections}>
-            Refresh
+            {t('content.refresh')}
           </Button>
         </div>
       </div>
@@ -843,10 +847,10 @@ function ContentOverview() {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Content
+          {t('content.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Manage all your content types and documents
+          {t('content.subtitle')}
         </p>
       </div>
 
@@ -866,11 +870,11 @@ function ContentOverview() {
                 </div>
               </div>
               <div className="flex space-x-2">
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={() => navigate(`/content/${collection.name}`)}
                 >
-                  View Documents
+                  {t('content.viewDocuments')}
                 </Button>
               </div>
             </div>
@@ -884,6 +888,7 @@ function ContentOverview() {
 // Component to handle redirecting from /new routes
 function NoCreateRedirect({ schemaName }: { schemaName: string }) {
   const navigate = useNavigate();
+  const { t } = useT('studio');
 
   useEffect(() => {
     // Redirect immediately
@@ -895,7 +900,7 @@ function NoCreateRedirect({ schemaName }: { schemaName: string }) {
     <div className="p-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 dark:text-gray-400">Redirecting...</p>
+        <p className="text-gray-600 dark:text-gray-400">{t('content.redirecting')}</p>
       </div>
     </div>
   );
