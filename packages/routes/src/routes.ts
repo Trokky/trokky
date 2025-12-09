@@ -763,11 +763,16 @@ export class TrokkyRoutes {
         return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
       }
 
-      // Merge data (excluding system fields including audit fields)
+      // Merge data (excluding system fields including audit fields, but preserve _status)
       let mergedData
       if (existingDoc) {
-        const { _id, _collection, _createdAt, _updatedAt, _revision, _status, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
-        mergedData = { ...existingData, ...data }
+        const { _id, _collection, _createdAt, _updatedAt, _revision, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
+        // Preserve _status from existing document if not explicitly provided in update data
+        if (!('_status' in data) && existingDoc._status) {
+          mergedData = { ...existingData, ...data, _status: existingDoc._status }
+        } else {
+          mergedData = { ...existingData, ...data }
+        }
       } else {
         // Singleton doesn't exist yet - create with provided data
         mergedData = data
