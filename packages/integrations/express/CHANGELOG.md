@@ -1,5 +1,11 @@
 # @trokky/express
 
+## 2.0.1
+
+### Patch Changes
+
+- 685a359: Fix features config (autoThumbnail, autoSlug) not being passed to TrokkyCore
+
 ## 2.0.0
 
 ### Minor Changes
