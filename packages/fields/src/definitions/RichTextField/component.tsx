@@ -61,6 +61,7 @@ const TrashIcon = ({ className }: { className?: string }) => (
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { RichTextFieldDefinition } from './definition'
 import { createStudioLogger } from '../../utils/logger'
+import { useT } from '@trokky/i18n'
 import type { MediaFieldValue } from '@trokky/types'
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer'
 import {
@@ -347,10 +348,12 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     ...restProps
   } = props
 
+  const { t } = useT('fields')
+
   if (definition.type !== 'richtext') {
     return (
       <div className="text-red-500 text-sm">
-        Invalid field configuration: expected richtext field
+        {t('types.richtext.invalidConfig')}
       </div>
     )
   }
@@ -408,7 +411,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     if (!htmlContent || typeof htmlContent !== 'string') {
       return (
         <span className="text-gray-500 dark:text-gray-400 italic text-sm">
-          No content
+          {t('types.richtext.noContent')}
         </span>
       )
     }
@@ -460,18 +463,18 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             {/* Stats display in read-only mode */}
             {options.showStats && (
               <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span>{stats.words} words</span>
+                <span>{stats.words} {t('types.richtext.stats.words')}</span>
                 <span>
                   {stats.characters}
-                  {characterLimit ? ` / ${characterLimit}` : ''} characters
+                  {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
                 </span>
-                <span>{stats.readTime} min read</span>
+                <span>{stats.readTime} {t('types.richtext.stats.minRead')}</span>
               </div>
             )}
           </div>
         ) : (
           <span className="text-gray-500 dark:text-gray-400 italic text-sm">
-            No content
+            {t('types.richtext.noContent')}
           </span>
         )}
       </div>
@@ -1148,7 +1151,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   }, [editor?.state.doc, editor?.storage.characterCount])
 
   if (!editor) {
-    return <div>Loading editor...</div>
+    return <div>{t('types.richtext.loadingEditor')}</div>
   }
 
   return (
@@ -1169,14 +1172,14 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('bold')}
                     isDisabled={isDisabled}
                     icon={BoldIcon}
-                    title="Bold"
+                    title={t('types.richtext.toolbar.bold')}
                   />
                   <ToolbarButton
                     onClick={() => editor.chain().focus().toggleItalic().run()}
                     isActive={editor.isActive('italic')}
                     isDisabled={isDisabled}
                     icon={ItalicIcon}
-                    title="Italic"
+                    title={t('types.richtext.toolbar.italic')}
                   />
                   <ToolbarButton
                     onClick={() =>
@@ -1185,14 +1188,14 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('underline')}
                     isDisabled={isDisabled}
                     icon={UnderlineIcon}
-                    title="Underline"
+                    title={t('types.richtext.toolbar.underline')}
                   />
                   <ToolbarButton
                     onClick={() => editor.chain().focus().toggleStrike().run()}
                     isActive={editor.isActive('strike')}
                     isDisabled={isDisabled}
                     icon={StrikethroughIcon}
-                    title="Strikethrough"
+                    title={t('types.richtext.toolbar.strikethrough')}
                   />
 
                   <ToolbarSeparator />
@@ -1205,7 +1208,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('heading', { level: 1 })}
                     isDisabled={isDisabled}
                     icon={H1Icon}
-                    title="Heading 1"
+                    title={t('types.richtext.toolbar.heading1')}
                   />
                   <ToolbarButton
                     onClick={() =>
@@ -1214,7 +1217,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('heading', { level: 2 })}
                     isDisabled={isDisabled}
                     icon={H2Icon}
-                    title="Heading 2"
+                    title={t('types.richtext.toolbar.heading2')}
                   />
                   <ToolbarButton
                     onClick={() =>
@@ -1223,7 +1226,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('heading', { level: 3 })}
                     isDisabled={isDisabled}
                     icon={H3Icon}
-                    title="Heading 3"
+                    title={t('types.richtext.toolbar.heading3')}
                   />
 
                   <ToolbarSeparator />
@@ -1236,7 +1239,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('blockquote')}
                     isDisabled={isDisabled}
                     icon={ChatBubbleBottomCenterTextIcon}
-                    title="Quote"
+                    title={t('types.richtext.toolbar.quote')}
                   />
 
                   <ToolbarSeparator />
@@ -1247,7 +1250,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('link')}
                     isDisabled={isDisabled}
                     icon={LinkIcon}
-                    title="Add Link"
+                    title={t('types.richtext.toolbar.addLink')}
                   />
 
                   {/* Images */}
@@ -1265,7 +1268,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={false}
                     isDisabled={isDisabled}
                     icon={PhotoIcon}
-                    title="Insert Image"
+                    title={t('types.richtext.toolbar.insertImage')}
                   />
 
                   <ToolbarSeparator />
@@ -1278,7 +1281,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('bulletList')}
                     isDisabled={isDisabled}
                     icon={ListBulletIcon}
-                    title="Bullet List"
+                    title={t('types.richtext.toolbar.bulletList')}
                   />
                   <ToolbarButton
                     onClick={() =>
@@ -1287,7 +1290,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('orderedList')}
                     isDisabled={isDisabled}
                     icon={NumberedListIcon}
-                    title="Numbered List"
+                    title={t('types.richtext.toolbar.numberedList')}
                   />
 
                   <ToolbarSeparator />
@@ -1303,7 +1306,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     }
                     isDisabled={isDisabled}
                     icon={TableIcon}
-                    title="Insert Table"
+                    title={t('types.richtext.toolbar.insertTable')}
                   />
 
                   {/* Code Block */}
@@ -1314,7 +1317,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={editor.isActive('codeBlock')}
                     isDisabled={isDisabled}
                     icon={CodeIcon}
-                    title="Code Block"
+                    title={t('types.richtext.toolbar.codeBlock')}
                   />
 
                   <ToolbarSeparator />
@@ -1324,13 +1327,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().undo().run()}
                     isDisabled={isDisabled || !canUndo}
                     icon={ArrowUturnLeftIcon}
-                    title="Undo"
+                    title={t('types.richtext.toolbar.undo')}
                   />
                   <ToolbarButton
                     onClick={() => editor.chain().focus().redo().run()}
                     isDisabled={isDisabled || !canRedo}
                     icon={ArrowUturnRightIcon}
-                    title="Redo"
+                    title={t('types.richtext.toolbar.redo')}
                   />
                 </div>
 
@@ -1342,7 +1345,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     isActive={isSourceView}
                     isDisabled={isDisabled}
                     icon={SourceCodeIcon}
-                    title="View/Edit Source Code"
+                    title={t('types.richtext.toolbar.viewEditSource')}
                   />
 
                   {/* Fullscreen toggle (if enabled) */}
@@ -1352,7 +1355,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                       isActive={isFullscreen}
                       isDisabled={isDisabled}
                       icon={ArrowsPointingOutIcon}
-                      title="Fullscreen"
+                      title={t('types.richtext.toolbar.fullscreen')}
                     />
                   )}
                 </div>
@@ -1367,7 +1370,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 <div className="flex items-center gap-2">
                   <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Image Options:
+                    {t('types.richtext.imageToolbar.title')}
                   </span>
                 </div>
 
@@ -1375,7 +1378,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   {/* Variant Selector */}
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-gray-600 dark:text-gray-400">
-                      Variant:
+                      {t('types.richtext.imageToolbar.variant')}
                     </label>
                     <select
                       value={getCurrentVariant(selectedImageNode)}
@@ -1383,7 +1386,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                       className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isDisabled}
                     >
-                      <option value="original">Original</option>
+                      <option value="original">{t('types.richtext.imageToolbar.original')}</option>
                       {Object.entries(availableVariants).map(
                         ([variantName, variantData]: [string, any]) => (
                           <option key={variantName} value={variantName}>
@@ -1402,10 +1405,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={handleDeleteImage}
                     disabled={isDisabled}
                     className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Delete Image"
+                    title={t('types.richtext.imageToolbar.deleteTitle')}
                   >
                     <TrashIcon className="w-4 h-4" />
-                    Delete
+                    {t('types.richtext.imageToolbar.delete')}
                   </button>
                 </div>
               </div>
@@ -1419,7 +1422,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 <div className="flex items-center gap-2">
                   <TableIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Table Options:
+                    {t('types.richtext.tableToolbar.title')}
                   </span>
                 </div>
 
@@ -1430,10 +1433,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().addRowAfter().run()}
                     disabled={isDisabled || !editor.can().addRowAfter()}
                     className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Add Row After"
+                    title={t('types.richtext.tableToolbar.addRowAfter')}
                   >
                     <PlusRowIcon className="w-3 h-3" />
-                    Row
+                    {t('types.richtext.tableToolbar.row')}
                   </button>
 
                   {/* Remove Row */}
@@ -1442,10 +1445,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().deleteRow().run()}
                     disabled={isDisabled || !editor.can().deleteRow()}
                     className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Delete Row"
+                    title={t('types.richtext.tableToolbar.deleteRow')}
                   >
                     <MinusRowIcon className="w-3 h-3" />
-                    Row
+                    {t('types.richtext.tableToolbar.row')}
                   </button>
 
                   <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
@@ -1458,10 +1461,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     }
                     disabled={isDisabled || !editor.can().addColumnAfter()}
                     className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Add Column After"
+                    title={t('types.richtext.tableToolbar.addColumnAfter')}
                   >
                     <PlusColumnIcon className="w-3 h-3" />
-                    Col
+                    {t('types.richtext.tableToolbar.col')}
                   </button>
 
                   {/* Remove Column */}
@@ -1470,10 +1473,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().deleteColumn().run()}
                     disabled={isDisabled || !editor.can().deleteColumn()}
                     className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Delete Column"
+                    title={t('types.richtext.tableToolbar.deleteColumn')}
                   >
                     <MinusColumnIcon className="w-3 h-3" />
-                    Col
+                    {t('types.richtext.tableToolbar.col')}
                   </button>
 
                   <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
@@ -1486,10 +1489,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     }
                     disabled={isDisabled || !editor.can().toggleHeaderRow()}
                     className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Toggle Header Row"
+                    title={t('types.richtext.tableToolbar.toggleHeaderRow')}
                   >
                     <HeaderIcon className="w-3 h-3" />
-                    Header
+                    {t('types.richtext.tableToolbar.header')}
                   </button>
 
                   <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
@@ -1500,10 +1503,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().mergeCells().run()}
                     disabled={isDisabled || !editor.can().mergeCells()}
                     className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Merge Selected Cells"
+                    title={t('types.richtext.tableToolbar.mergeSelectedCells')}
                   >
                     <MergeCellsIcon className="w-3 h-3" />
-                    Merge
+                    {t('types.richtext.tableToolbar.merge')}
                   </button>
 
                   {/* Split Cell */}
@@ -1512,10 +1515,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().splitCell().run()}
                     disabled={isDisabled || !editor.can().splitCell()}
                     className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Split Cell"
+                    title={t('types.richtext.tableToolbar.splitCell')}
                   >
                     <SplitCellIcon className="w-3 h-3" />
-                    Split
+                    {t('types.richtext.tableToolbar.split')}
                   </button>
 
                   <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
@@ -1526,10 +1529,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={() => editor.chain().focus().deleteTable().run()}
                     disabled={isDisabled || !editor.can().deleteTable()}
                     className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Delete Table"
+                    title={t('types.richtext.tableToolbar.deleteTable')}
                   >
                     <TrashIcon className="w-3 h-3" />
-                    Table
+                    {t('types.richtext.tableToolbar.table')}
                   </button>
                 </div>
               </div>
@@ -1562,7 +1565,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   type="button"
                   onClick={() => setSanitizationWarning(null)}
                   className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
-                  title="Dismiss warning"
+                  title={t('types.richtext.sanitization.dismissWarning')}
                 >
                   <XMarkIcon className="w-4 h-4" />
                 </button>
@@ -1792,7 +1795,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                       value={sourceCode}
                       onChange={e => handleSourceChange(e.target.value)}
                       className="w-full h-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-none resize-none focus:outline-none focus:ring-0"
-                      placeholder="Edit HTML source code..."
+                      placeholder={t('types.richtext.source.placeholder')}
                       disabled={isDisabled || isReadonly}
                       spellCheck={false}
                     />
@@ -1812,16 +1815,16 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           {options.showStats && (
             <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <div className="flex items-center gap-4">
-                <span>{stats.words} words</span>
+                <span>{stats.words} {t('types.richtext.stats.words')}</span>
                 <span>
                   {stats.characters}
-                  {characterLimit ? ` / ${characterLimit}` : ''} characters
+                  {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
                 </span>
-                <span>{stats.readTime} min read</span>
+                <span>{stats.readTime} {t('types.richtext.stats.minRead')}</span>
               </div>
               {characterLimit && stats.characters > characterLimit && (
                 <div className="text-red-500 dark:text-red-400">
-                  Exceeds character limit
+                  {t('types.richtext.stats.exceedsLimit')}
                 </div>
               )}
             </div>
@@ -1834,19 +1837,19 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Add Link
+              {t('types.richtext.linkDialog.title')}
             </h3>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Link Text
+                  {t('types.richtext.linkDialog.linkText')}
                 </label>
                 <input
                   type="text"
                   value={linkText}
                   onChange={e => setLinkText(e.target.value)}
-                  placeholder="Enter link text"
+                  placeholder={t('types.richtext.linkDialog.linkTextPlaceholder')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400 bg-white dark:bg-gray-700"
                   style={{
                     WebkitBoxShadow: isDarkMode
@@ -1859,13 +1862,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  URL
+                  {t('types.richtext.linkDialog.url')}
                 </label>
                 <input
                   type="url"
                   value={linkUrl}
                   onChange={e => setLinkUrl(e.target.value)}
-                  placeholder="https://example.com"
+                  placeholder={t('types.richtext.linkDialog.urlPlaceholder')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400 bg-white dark:bg-gray-700"
                   style={{
                     WebkitBoxShadow: isDarkMode
@@ -1887,14 +1890,14 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
               >
-                Cancel
+                {t('types.richtext.linkDialog.cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleLinkSubmit}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               >
-                {linkUrl.trim() ? 'Add Link' : 'Remove Link'}
+                {linkUrl.trim() ? t('types.richtext.linkDialog.addLink') : t('types.richtext.linkDialog.removeLink')}
               </button>
             </div>
           </div>
@@ -1914,28 +1917,28 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('bold')}
                   isDisabled={isDisabled}
                   icon={BoldIcon}
-                  title="Bold"
+                  title={t('types.richtext.toolbar.bold')}
                 />
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleItalic().run()}
                   isActive={editor.isActive('italic')}
                   isDisabled={isDisabled}
                   icon={ItalicIcon}
-                  title="Italic"
+                  title={t('types.richtext.toolbar.italic')}
                 />
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleUnderline().run()}
                   isActive={editor.isActive('underline')}
                   isDisabled={isDisabled}
                   icon={UnderlineIcon}
-                  title="Underline"
+                  title={t('types.richtext.toolbar.underline')}
                 />
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleStrike().run()}
                   isActive={editor.isActive('strike')}
                   isDisabled={isDisabled}
                   icon={StrikethroughIcon}
-                  title="Strikethrough"
+                  title={t('types.richtext.toolbar.strikethrough')}
                 />
 
                 <ToolbarSeparator />
@@ -1948,7 +1951,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('heading', { level: 1 })}
                   isDisabled={isDisabled}
                   icon={H1Icon}
-                  title="Heading 1"
+                  title={t('types.richtext.toolbar.heading1')}
                 />
                 <ToolbarButton
                   onClick={() =>
@@ -1957,7 +1960,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('heading', { level: 2 })}
                   isDisabled={isDisabled}
                   icon={H2Icon}
-                  title="Heading 2"
+                  title={t('types.richtext.toolbar.heading2')}
                 />
                 <ToolbarButton
                   onClick={() =>
@@ -1966,7 +1969,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('heading', { level: 3 })}
                   isDisabled={isDisabled}
                   icon={H3Icon}
-                  title="Heading 3"
+                  title={t('types.richtext.toolbar.heading3')}
                 />
 
                 <ToolbarSeparator />
@@ -1979,7 +1982,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('blockquote')}
                   isDisabled={isDisabled}
                   icon={ChatBubbleBottomCenterTextIcon}
-                  title="Quote"
+                  title={t('types.richtext.toolbar.quote')}
                 />
 
                 <ToolbarSeparator />
@@ -1990,7 +1993,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('link')}
                   isDisabled={isDisabled}
                   icon={LinkIcon}
-                  title="Add Link"
+                  title={t('types.richtext.toolbar.addLink')}
                 />
 
                 {/* Images */}
@@ -2008,7 +2011,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={false}
                   isDisabled={isDisabled}
                   icon={PhotoIcon}
-                  title="Insert Image"
+                  title={t('types.richtext.toolbar.insertImage')}
                 />
 
                 <ToolbarSeparator />
@@ -2021,7 +2024,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('bulletList')}
                   isDisabled={isDisabled}
                   icon={ListBulletIcon}
-                  title="Bullet List"
+                  title={t('types.richtext.toolbar.bulletList')}
                 />
                 <ToolbarButton
                   onClick={() =>
@@ -2030,7 +2033,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('orderedList')}
                   isDisabled={isDisabled}
                   icon={NumberedListIcon}
-                  title="Numbered List"
+                  title={t('types.richtext.toolbar.numberedList')}
                 />
 
                 <ToolbarSeparator />
@@ -2046,7 +2049,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   }
                   isDisabled={isDisabled}
                   icon={TableIcon}
-                  title="Insert Table"
+                  title={t('types.richtext.toolbar.insertTable')}
                 />
 
                 {/* Code Block */}
@@ -2055,7 +2058,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   isActive={editor.isActive('codeBlock')}
                   isDisabled={isDisabled}
                   icon={CodeIcon}
-                  title="Code Block"
+                  title={t('types.richtext.toolbar.codeBlock')}
                 />
 
                 <ToolbarSeparator />
@@ -2065,13 +2068,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   onClick={() => editor.chain().focus().undo().run()}
                   isDisabled={isDisabled || !canUndo}
                   icon={ArrowUturnLeftIcon}
-                  title="Undo"
+                  title={t('types.richtext.toolbar.undo')}
                 />
                 <ToolbarButton
                   onClick={() => editor.chain().focus().redo().run()}
                   isDisabled={isDisabled || !canRedo}
                   icon={ArrowUturnRightIcon}
-                  title="Redo"
+                  title={t('types.richtext.toolbar.redo')}
                 />
               </div>
 
@@ -2081,7 +2084,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 isActive={false}
                 isDisabled={false}
                 icon={XMarkIcon}
-                title="Exit Fullscreen"
+                title={t('types.richtext.toolbar.exitFullscreen')}
               />
             </div>
           </div>
@@ -2093,7 +2096,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                 <div className="flex items-center gap-2">
                   <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Image Options:
+                    {t('types.richtext.imageToolbar.title')}
                   </span>
                 </div>
 
@@ -2101,7 +2104,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   {/* Variant Selector */}
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-gray-600 dark:text-gray-400">
-                      Variant:
+                      {t('types.richtext.imageToolbar.variant')}
                     </label>
                     <select
                       value={getCurrentVariant(selectedImageNode)}
@@ -2109,7 +2112,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                       className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isDisabled}
                     >
-                      <option value="original">Original</option>
+                      <option value="original">{t('types.richtext.imageToolbar.original')}</option>
                       {Object.entries(availableVariants).map(
                         ([variantName, variantData]: [string, any]) => (
                           <option key={variantName} value={variantName}>
@@ -2128,10 +2131,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                     onClick={handleDeleteImage}
                     disabled={isDisabled}
                     className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title="Delete Image"
+                    title={t('types.richtext.imageToolbar.deleteTitle')}
                   >
                     <TrashIcon className="w-4 h-4" />
-                    Delete
+                    {t('types.richtext.imageToolbar.delete')}
                   </button>
                 </div>
               </div>
@@ -2268,7 +2271,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                   value={sourceCode}
                   onChange={e => handleSourceChange(e.target.value)}
                   className="absolute inset-0 w-full h-full p-8 font-mono text-sm bg-gray-900 text-gray-100 border-none resize-none focus:outline-none focus:ring-0 overflow-y-auto"
-                  placeholder="Edit HTML source code..."
+                  placeholder={t('types.richtext.source.placeholder')}
                   disabled={isDisabled || isReadonly}
                   spellCheck={false}
                 />
@@ -2287,16 +2290,16 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4 flex-shrink-0">
               <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                 <div className="flex items-center gap-6">
-                  <span>{stats.words} words</span>
+                  <span>{stats.words} {t('types.richtext.stats.words')}</span>
                   <span>
                     {stats.characters}
-                    {characterLimit ? ` / ${characterLimit}` : ''} characters
+                    {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
                   </span>
-                  <span>{stats.readTime} min read</span>
+                  <span>{stats.readTime} {t('types.richtext.stats.minRead')}</span>
                 </div>
                 {characterLimit && stats.characters > characterLimit && (
                   <div className="text-red-500 dark:text-red-400">
-                    Exceeds character limit
+                    {t('types.richtext.stats.exceedsLimit')}
                   </div>
                 )}
               </div>

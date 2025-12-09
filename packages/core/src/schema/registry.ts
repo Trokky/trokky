@@ -65,6 +65,9 @@ export class SchemaRegistry {
       if (fieldName === sourceField) {
         newFields.slug = {
           type: 'slug',
+          // Use i18n: prefix to indicate this should be translated on the frontend
+          title: 'i18n:autoFields.slug.title',
+          description: 'i18n:autoFields.slug.description',
           source: sourceField,
           autoGenerate: true,
           unique: true,
@@ -136,8 +139,9 @@ export class SchemaRegistry {
       if (!thumbnailInserted && (fieldKey === 'title' || fieldKey === 'name' || fieldKey === 'slug')) {
         newFields[fieldName] = {
           type: 'media',
-          title: 'Featured Image',
-          description: 'Main image representing this content',
+          // Use i18n: prefix to indicate this should be translated on the frontend
+          title: 'i18n:autoFields._thumbnail.title',
+          description: 'i18n:autoFields._thumbnail.description',
           required: false,
           options: {
             // Enable upload/browse functionality
@@ -165,8 +169,9 @@ export class SchemaRegistry {
       const fieldsWithThumbnail: Record<string, any> = {
         [fieldName]: {
           type: 'media',
-          title: 'Featured Image', 
-          description: 'Main image representing this content',
+          // Use i18n: prefix to indicate this should be translated on the frontend
+          title: 'i18n:autoFields._thumbnail.title',
+          description: 'i18n:autoFields._thumbnail.description',
           required: false,
           options: {
             // Enable upload/browse functionality

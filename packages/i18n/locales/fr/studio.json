@@ -981,7 +981,12 @@
     "notConnected": "Non connecté",
     "linked": "Lié le {{date}}",
     "unlink": "Délier",
-    "comingSoon": "Bientôt disponible"
+    "comingSoon": "Bientôt disponible",
+    "google": {
+      "signIn": "Se connecter avec Google",
+      "linkAccount": "Lier le compte Google",
+      "initFailed": "Échec de l'initialisation de la connexion Google"
+    }
   },
   "mfa": {
     "title": "Authentification à deux facteurs",

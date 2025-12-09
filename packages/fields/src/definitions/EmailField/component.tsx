@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useT } from '@trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { EmailFieldDefinition } from './definition.js';
@@ -13,16 +14,17 @@ type EmailFieldComponentProps = FieldComponentProps;
 
 export function EmailFieldComponent(props: EmailFieldComponentProps) {
   const { definition, value, isReadonly, isDisabled } = props;
-  
+  const { t } = useT('fields');
+
   // Read-only mode: render as display text with email link
   if (isReadonly && !isDisabled) {
     const displayValue = (value as string) || '';
-    
+
     // Handle empty values
     if (!displayValue || displayValue.trim() === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No value
+          {t('noValue')}
         </div>
       );
     }
@@ -48,7 +50,7 @@ export function EmailFieldComponent(props: EmailFieldComponentProps) {
     ...emailDefinition,
     options: {
       inputType: 'email' as const,
-      placeholder: 'Enter email address',
+      placeholder: t('types.email.enterEmail'),
       autoComplete: 'email',
       spellCheck: false, // Disable spellcheck for emails
       ...emailDefinition.options

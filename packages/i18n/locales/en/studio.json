@@ -388,7 +388,12 @@
     "notConnected": "Not connected",
     "linked": "Linked {{date}}",
     "unlink": "Unlink",
-    "comingSoon": "Coming Soon"
+    "comingSoon": "Coming Soon",
+    "google": {
+      "signIn": "Sign in with Google",
+      "linkAccount": "Link Google Account",
+      "initFailed": "Failed to initialize Google login"
+    }
   },
   "mfa": {
     "title": "Two-Factor Authentication",

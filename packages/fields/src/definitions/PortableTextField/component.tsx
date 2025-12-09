@@ -1,13 +1,14 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, KeyboardEvent } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin';
-import type { 
+import type {
   PortableTextFieldDefinition,
   PortableTextContent,
   PortableTextBlock,
   PortableTextSpan,
   PortableTextMarkDef
 } from './definition';
-import { 
+import {
   validatePortableTextField,
   sanitizePortableTextValue,
   getPlainTextFromPortableText,
@@ -32,9 +33,10 @@ interface DragState {
 
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
-  
+  const { t } = useT('fields');
+
   if (definition.type !== 'portable') {
-    return <div className="text-red-500 text-sm">Invalid field configuration: expected portable field</div>;
+    return <div className="text-red-500 text-sm">{t('errors.invalidFieldConfig', { type: 'portable' })}</div>;
   }
   
   const portableDefinition = definition as PortableTextFieldDefinition;
@@ -79,7 +81,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   // Render portable text content for read-only view
   const renderPortableTextContent = (blocks: PortableTextBlock[]) => {
     if (!blocks || blocks.length === 0) {
-      return <span className="text-gray-500 dark:text-gray-400 italic text-sm">No content</span>;
+      return <span className="text-gray-500 dark:text-gray-400 italic text-sm">{t('types.portableText.noContent')}</span>;
     }
 
     return (
@@ -137,7 +139,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           const linkMark = block.markDefs?.find(mark => mark._type === 'link' && marks.includes(mark._key));
           const isLink = linkMark && linkMark.href;
           
-          const content = text || <em className="text-gray-400">Empty block</em>;
+          const content = text || <em className="text-gray-400">{t('types.portableText.emptyBlock')}</em>;
           
           return (
             <BlockElement 
@@ -178,24 +180,24 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                 {options.showBlockCount && (
                   <span>
-                    <span className="font-medium">Blocks:</span> {contentStats.blocks}
+                    <span className="font-medium">{t('types.portableText.blocks')}</span> {contentStats.blocks}
                   </span>
                 )}
                 {options.showCharacterCount && (
                   <span>
-                    <span className="font-medium">Characters:</span> {contentStats.characters}
+                    <span className="font-medium">{t('types.portableText.characters')}</span> {contentStats.characters}
                   </span>
                 )}
                 {options.showWordCount && (
                   <span>
-                    <span className="font-medium">Words:</span> {contentStats.words}
+                    <span className="font-medium">{t('types.portableText.words')}</span> {contentStats.words}
                   </span>
                 )}
               </div>
             )}
           </div>
         ) : (
-          <span className="text-gray-500 dark:text-gray-400 italic text-sm">No content</span>
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">{t('types.portableText.noContent')}</span>
         )}
       </div>
     );
@@ -419,10 +421,10 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     const previewText = blockText.length > 50 ? blockText.substring(0, 50) + '...' : blockText;
     
     // Show confirmation dialog
-    const message = previewText 
-      ? `Are you sure you want to delete this block?\n\n"${previewText}"`
-      : 'Are you sure you want to delete this empty block?';
-    
+    const message = previewText
+      ? t('types.portableText.deleteConfirmWithText', { text: previewText })
+      : t('types.portableText.deleteEmptyConfirm');
+
     if (confirm(message)) {
       const blocks = blocksToRender.filter(b => b._key !== blockKey);
       updateContent(blocks);
@@ -927,7 +929,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   disabled={isDisabled || isReadonly}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                 >
-                  <span>{getCurrentBlockStyle() === 'normal' ? 'Normal' : getCurrentBlockStyle().toUpperCase()}</span>
+                  <span>{getCurrentBlockStyle() === 'normal' ? t('types.portableText.normal') : getCurrentBlockStyle().toUpperCase()}</span>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -940,35 +942,35 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                       onClick={() => changeBlockStyle('normal')}
                       className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
-                      Normal
+                      {t('types.portableText.normal')}
                     </button>
                     <button
                       type="button"
                       onClick={() => changeBlockStyle('h1')}
                       className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-bold text-lg"
                     >
-                      Heading 1
+                      {t('types.portableText.heading1')}
                     </button>
                     <button
                       type="button"
                       onClick={() => changeBlockStyle('h2')}
                       className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-semibold"
                     >
-                      Heading 2
+                      {t('types.portableText.heading2')}
                     </button>
                     <button
                       type="button"
                       onClick={() => changeBlockStyle('h3')}
                       className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors font-medium"
                     >
-                      Heading 3
+                      {t('types.portableText.heading3')}
                     </button>
                     <button
                       type="button"
                       onClick={() => changeBlockStyle('blockquote')}
                       className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors italic"
                     >
-                      Quote
+                      {t('types.portableText.quote')}
                     </button>
                   </div>
                 )}
@@ -980,50 +982,50 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               <ToolbarButton
                 onClick={() => toggleMark('strong')}
                 isActive={isMarkActive('strong')}
-                title="Bold (⌘B)"
+                title={t('types.portableText.bold')}
               >
                 <span className="font-bold">B</span>
               </ToolbarButton>
-              
+
               <ToolbarButton
                 onClick={() => toggleMark('em')}
                 isActive={isMarkActive('em')}
-                title="Italic (⌘I)"
+                title={t('types.portableText.italic')}
               >
                 <span className="italic">I</span>
               </ToolbarButton>
-              
+
               <ToolbarButton
                 onClick={() => toggleMark('underline')}
                 isActive={isMarkActive('underline')}
-                title="Underline (⌘U)"
+                title={t('types.portableText.underline')}
               >
                 <span className="underline">U</span>
               </ToolbarButton>
-              
+
               <ToolbarButton
                 onClick={() => toggleMark('strike')}
                 isActive={isMarkActive('strike')}
-                title="Strikethrough"
+                title={t('types.portableText.strikethrough')}
               >
                 <span className="line-through">S</span>
               </ToolbarButton>
-              
+
               <ToolbarButton
                 onClick={() => toggleMark('code')}
                 isActive={isMarkActive('code')}
-                title="Code"
+                title={t('types.portableText.code')}
               >
                 <span className="font-mono text-xs">{'<>'}</span>
               </ToolbarButton>
-              
+
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-              
+
               {/* Link */}
               <ToolbarButton
                 onClick={() => setShowLinkDialog(true)}
                 isActive={false}
-                title="Add link"
+                title={t('types.portableText.addLink')}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -1039,7 +1041,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   onClick={() => setShowStats(!showStats)}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  {showStats ? 'Hide' : 'Show'} stats
+                  {showStats ? t('types.portableText.hideStats') : t('types.portableText.showStats')}
                 </button>
               )}
               
@@ -1049,7 +1051,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
                   className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                  title={isFullscreen ? t('types.portableText.exitFullscreen') : t('types.portableText.fullscreen')}
                 >
                   {isFullscreen ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1071,17 +1073,17 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
           <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
             {options.showBlockCount && (
               <span>
-                <span className="font-medium">Blocks:</span> {contentStats.blocks}
+                <span className="font-medium">{t('types.portableText.blocks')}</span> {contentStats.blocks}
               </span>
             )}
             {options.showCharacterCount && (
               <span>
-                <span className="font-medium">Characters:</span> {contentStats.characters}
+                <span className="font-medium">{t('types.portableText.characters')}</span> {contentStats.characters}
               </span>
             )}
             {options.showWordCount && (
               <span>
-                <span className="font-medium">Words:</span> {contentStats.words}
+                <span className="font-medium">{t('types.portableText.words')}</span> {contentStats.words}
               </span>
             )}
           </div>
@@ -1174,7 +1176,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                     onDragStart={(e) => handleDragStart(e, block._key)}
                     onDragEnd={handleDragEnd}
                     className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-grab active:cursor-grabbing rounded transition-colors"
-                    title="Drag to reorder (or use Alt+↑/↓)"
+                    title={t('types.portableText.dragToReorder')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
@@ -1190,7 +1192,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                         deleteBlock(block._key);
                       }}
                       className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                      title="Delete block"
+                      title={t('types.portableText.deleteBlock')}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1258,11 +1260,11 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                 spellCheck={options.spellCheck !== false}
                 data-placeholder={
                   !text ? (
-                    block.style === 'h1' ? 'Heading 1' : 
-                    block.style === 'h2' ? 'Heading 2' :
-                    block.style === 'h3' ? 'Heading 3' :
-                    block.style === 'blockquote' ? 'Quote...' :
-                    options.placeholder || 'Type something...'
+                    block.style === 'h1' ? t('types.portableText.heading1') :
+                    block.style === 'h2' ? t('types.portableText.heading2') :
+                    block.style === 'h3' ? t('types.portableText.heading3') :
+                    block.style === 'blockquote' ? t('types.portableText.quotePlaceholder') :
+                    options.placeholder || t('types.portableText.placeholder')
                   ) : undefined
                 }
                 style={{
@@ -1276,11 +1278,11 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               {!text && (
                 <div className="absolute inset-0 pointer-events-none text-gray-400 dark:text-gray-600 select-none">
                   <span className={blockClasses}>
-                    {block.style === 'h1' ? 'Heading 1' : 
-                     block.style === 'h2' ? 'Heading 2' :
-                     block.style === 'h3' ? 'Heading 3' :
-                     block.style === 'blockquote' ? 'Quote...' :
-                     options.placeholder || 'Type something...'}
+                    {block.style === 'h1' ? t('types.portableText.heading1') :
+                     block.style === 'h2' ? t('types.portableText.heading2') :
+                     block.style === 'h3' ? t('types.portableText.heading3') :
+                     block.style === 'blockquote' ? t('types.portableText.quotePlaceholder') :
+                     options.placeholder || t('types.portableText.placeholder')}
                   </span>
                 </div>
               )}
@@ -1303,7 +1305,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               }}
               className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm font-medium"
             >
-              + Add block
+              {t('types.portableText.addBlock')}
             </button>
           </div>
         )}
@@ -1312,7 +1314,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       {/* Validation feedback */}
       {hasError && (
         <div className="mt-2 text-sm text-red-600 dark:text-red-400">
-          Please check the content requirements
+          {t('types.portableText.checkRequirements')}
         </div>
       )}
       
@@ -1321,13 +1323,13 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
           {validation.maxBlocks && (
             <span className={contentStats.blocks > validation.maxBlocks ? 'text-red-500 font-medium' : ''}>
-              {contentStats.blocks}/{validation.maxBlocks} blocks
+              {t('types.portableText.blocksCount', { current: contentStats.blocks, max: validation.maxBlocks })}
             </span>
           )}
           {validation.maxBlocks && validation.maxLength && ' • '}
           {validation.maxLength && (
             <span className={contentStats.characters > validation.maxLength ? 'text-red-500 font-medium' : ''}>
-              {contentStats.characters}/{validation.maxLength} characters
+              {t('types.portableText.charactersCount', { current: contentStats.characters, max: validation.maxLength })}
             </span>
           )}
         </div>
@@ -1338,13 +1340,13 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Add Link
+              {t('types.portableText.linkDialog.title')}
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label htmlFor="link-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  URL
+                  {t('types.portableText.linkDialog.url')}
                 </label>
                 <input
                   id="link-url"
@@ -1356,22 +1358,22 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                   autoFocus
                 />
               </div>
-              
+
               <div>
                 <label htmlFor="link-text" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Text (optional)
+                  {t('types.portableText.linkDialog.textOptional')}
                 </label>
                 <input
                   id="link-text"
                   type="text"
                   value={linkText}
                   onChange={(e) => setLinkText(e.target.value)}
-                  placeholder="Link text"
+                  placeholder={t('types.portableText.linkDialog.textPlaceholder')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
@@ -1382,7 +1384,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                 }}
                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors"
               >
-                Cancel
+                {t('types.portableText.linkDialog.cancel')}
               </button>
               <button
                 type="button"
@@ -1390,7 +1392,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
                 disabled={!linkUrl}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
               >
-                Add Link
+                {t('types.portableText.linkDialog.add')}
               </button>
             </div>
           </div>

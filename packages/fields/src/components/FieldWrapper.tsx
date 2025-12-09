@@ -1,11 +1,12 @@
 /**
  * Field Wrapper Component
- * 
+ *
  * Provides consistent layout and styling for all field types.
  * Handles labels, descriptions, errors, and validation states.
  */
 
 import React, { type ReactNode } from 'react';
+import { useT } from '@trokky/i18n';
 import type { BaseFieldDefinition, ValidationState } from '../base/FieldDefinition.js';
 
 interface FieldWrapperProps {
@@ -17,6 +18,20 @@ interface FieldWrapperProps {
   children: ReactNode;
 }
 
+/**
+ * Helper to translate text that may have an i18n: prefix
+ * If the text starts with "i18n:", extract the key and translate it
+ * Otherwise return the text as-is
+ */
+function useTranslateText(text: string | undefined, t: (key: string) => string): string | undefined {
+  if (!text) return undefined;
+  if (text.startsWith('i18n:')) {
+    const key = text.substring(5); // Remove 'i18n:' prefix
+    return t(key);
+  }
+  return text;
+}
+
 export function FieldWrapper({
   fieldId,
   definition,
@@ -25,6 +40,12 @@ export function FieldWrapper({
   validationState,
   children
 }: FieldWrapperProps) {
+  const { t } = useT('fields');
+
+  // Translate title and description if they have i18n: prefix
+  const title = useTranslateText(definition.title, t);
+  const description = useTranslateText(definition.description, t);
+
   return (
     <div className="space-y-2">
       {/* Field label - conditionally rendered */}
@@ -34,12 +55,12 @@ export function FieldWrapper({
             htmlFor={fieldId}
             className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
-            {definition.title}
+            {title}
             {definition.required && <span className="text-red-500 ml-1">*</span>}
           </label>
-          {definition.description && (
+          {description && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {definition.description}
+              {description}
             </p>
           )}
         </div>
@@ -63,7 +84,7 @@ export function FieldWrapper({
       {/* Validation state indicator */}
       {validationState?.isValidating && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Validating...
+          {t('common.validating')}
         </p>
       )}
     </div>

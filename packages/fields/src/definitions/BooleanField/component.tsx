@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { BooleanFieldDefinition } from './definition.js';
 import { convertToBoolean } from './validation.js';
@@ -8,22 +9,23 @@ type BooleanFieldComponentProps = FieldComponentProps;
 
 export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
-  
+  const { t } = useT('fields');
+
   // Type guard for boolean field definition
   if (definition.type !== 'boolean') {
-    return <div className="text-red-500 text-sm">Invalid field configuration: expected boolean field</div>;
+    return <div className="text-red-500 text-sm">{t('errors.invalidFieldConfig', { type: 'boolean' })}</div>;
   }
-  
+
   const booleanDefinition = definition as BooleanFieldDefinition;
   const options = booleanDefinition.options || {};
-  
+
   const style = options.style || 'checkbox';
   const size = options.size || 'md';
   const color = options.color || 'blue';
   const labelPosition = options.labelPosition || 'right';
   const label = options.label || booleanDefinition.title;
-  const trueText = options.trueText || 'Yes';
-  const falseText = options.falseText || 'No';
+  const trueText = options.trueText || t('types.boolean.yes');
+  const falseText = options.falseText || t('types.boolean.no');
   
   // Check if we're in read-only mode
   const isViewMode = mode === 'preview' || isReadonly || isDisabled;
@@ -143,7 +145,7 @@ export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
             id={fieldId}
             role="switch"
             aria-checked={isChecked}
-            aria-label={label || booleanDefinition.title || 'Toggle'}
+            aria-label={label || booleanDefinition.title || t('types.boolean.toggle')}
             disabled={isDisabled || isReadonly}
             onClick={() => handleChange(!isChecked)}
             className={`

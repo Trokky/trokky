@@ -10,7 +10,9 @@
     "text": {
       "label": "Zone de texte",
       "placeholder": "Saisissez du texte...",
-      "description": "Champ de texte multiligne"
+      "description": "Champ de texte multiligne",
+      "words": "mots",
+      "lines": "lignes"
     },
     "number": {
       "label": "Nombre",
@@ -33,7 +35,11 @@
     "date": {
       "label": "Date",
       "placeholder": "Sélectionnez une date...",
-      "description": "Sélecteur de date"
+      "description": "Sélecteur de date",
+      "noDateSet": "Aucune date définie",
+      "clearDate": "Effacer la date",
+      "dateOnly": "Date",
+      "dateAndTime": "Date et heure"
     },
     "datetime": {
       "label": "Date et heure",
@@ -128,12 +134,121 @@
     "richtext": {
       "label": "Texte enrichi",
       "placeholder": "Commencez à écrire...",
-      "description": "Éditeur de texte enrichi"
+      "description": "Éditeur de texte enrichi",
+      "noContent": "Aucun contenu",
+      "loadingEditor": "Chargement de l'éditeur...",
+      "invalidConfig": "Configuration de champ invalide : champ richtext attendu",
+      "toolbar": {
+        "bold": "Gras",
+        "italic": "Italique",
+        "underline": "Souligné",
+        "strikethrough": "Barré",
+        "heading1": "Titre 1",
+        "heading2": "Titre 2",
+        "heading3": "Titre 3",
+        "quote": "Citation",
+        "addLink": "Ajouter un lien",
+        "insertImage": "Insérer une image",
+        "bulletList": "Liste à puces",
+        "numberedList": "Liste numérotée",
+        "insertTable": "Insérer un tableau",
+        "codeBlock": "Bloc de code",
+        "undo": "Annuler",
+        "redo": "Rétablir",
+        "viewEditSource": "Voir/Modifier le code source",
+        "fullscreen": "Plein écran",
+        "exitFullscreen": "Quitter le plein écran"
+      },
+      "stats": {
+        "words": "mots",
+        "characters": "caractères",
+        "minRead": "min de lecture",
+        "exceedsLimit": "Dépasse la limite de caractères"
+      },
+      "imageToolbar": {
+        "title": "Options d'image :",
+        "variant": "Variante :",
+        "original": "Original",
+        "delete": "Supprimer",
+        "deleteTitle": "Supprimer l'image"
+      },
+      "tableToolbar": {
+        "title": "Options de tableau :",
+        "row": "Ligne",
+        "col": "Col",
+        "header": "En-tête",
+        "merge": "Fusionner",
+        "split": "Diviser",
+        "table": "Tableau",
+        "addRowAfter": "Ajouter une ligne après",
+        "deleteRow": "Supprimer la ligne",
+        "addColumnAfter": "Ajouter une colonne après",
+        "deleteColumn": "Supprimer la colonne",
+        "toggleHeaderRow": "Activer/Désactiver la ligne d'en-tête",
+        "mergeSelectedCells": "Fusionner les cellules sélectionnées",
+        "splitCell": "Diviser la cellule",
+        "deleteTable": "Supprimer le tableau"
+      },
+      "linkDialog": {
+        "title": "Ajouter un lien",
+        "linkText": "Texte du lien",
+        "linkTextPlaceholder": "Saisissez le texte du lien",
+        "url": "URL",
+        "urlPlaceholder": "https://exemple.com",
+        "cancel": "Annuler",
+        "addLink": "Ajouter le lien",
+        "removeLink": "Supprimer le lien"
+      },
+      "source": {
+        "placeholder": "Modifier le code source HTML..."
+      },
+      "sanitization": {
+        "warning": "Le contenu a été nettoyé pour des raisons de sécurité : {{warnings}}",
+        "dismissWarning": "Ignorer l'avertissement"
+      }
     },
     "portableText": {
       "label": "Texte portable",
-      "placeholder": "Commencez à écrire...",
-      "description": "Éditeur de contenu en blocs"
+      "placeholder": "Tapez quelque chose...",
+      "description": "Éditeur de contenu en blocs",
+      "noContent": "Aucun contenu",
+      "emptyBlock": "Bloc vide",
+      "blocks": "Blocs :",
+      "characters": "Caractères :",
+      "words": "Mots :",
+      "blocksCount": "{{current}}/{{max}} blocs",
+      "charactersCount": "{{current}}/{{max}} caractères",
+      "normal": "Normal",
+      "heading1": "Titre 1",
+      "heading2": "Titre 2",
+      "heading3": "Titre 3",
+      "quote": "Citation",
+      "quotePlaceholder": "Citation...",
+      "bold": "Gras (⌘B)",
+      "italic": "Italique (⌘I)",
+      "underline": "Souligné (⌘U)",
+      "strikethrough": "Barré",
+      "code": "Code",
+      "addLink": "Ajouter un lien",
+      "hideStats": "Masquer les stats",
+      "showStats": "Afficher les stats",
+      "exitFullscreen": "Quitter le plein écran",
+      "fullscreen": "Plein écran",
+      "dragToReorder": "Glisser pour réorganiser (ou Alt+↑/↓)",
+      "deleteBlock": "Supprimer le bloc",
+      "addBlock": "+ Ajouter un bloc",
+      "checkRequirements": "Veuillez vérifier les exigences de contenu",
+      "linkDialog": {
+        "title": "Ajouter un lien",
+        "url": "URL",
+        "textOptional": "Texte (optionnel)",
+        "textPlaceholder": "Texte du lien",
+        "cancel": "Annuler",
+        "add": "Ajouter le lien"
+      },
+      "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce bloc ?",
+      "deleteConfirmWithText": "Êtes-vous sûr de vouloir supprimer ce bloc ?\n\n\"{{text}}\"",
+      "deleteEmptyConfirm": "Êtes-vous sûr de vouloir supprimer ce bloc vide ?"
     },
     "slug": {
       "label": "Slug",
@@ -156,7 +271,8 @@
     "email": {
       "label": "E-mail",
       "placeholder": "email@exemple.com",
-      "description": "Champ d'adresse e-mail"
+      "description": "Champ d'adresse e-mail",
+      "enterEmail": "Entrez une adresse e-mail"
     },
     "url": {
       "label": "URL",
@@ -166,7 +282,67 @@
     "color": {
       "label": "Couleur",
       "placeholder": "#000000",
-      "description": "Sélecteur de couleur"
+      "description": "Sélecteur de couleur",
+      "openPicker": "Ouvrir le sélecteur de couleur",
+      "pickFromScreen": "Choisir une couleur à l'écran",
+      "quickColors": "Couleurs rapides",
+      "selectColor": "Sélectionner {{color}}"
+    },
+    "geoCoordinate": {
+      "label": "Coordonnée géographique",
+      "description": "Champ de coordonnée géographique",
+      "manual": "Manuel",
+      "map": "Carte",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "useCurrentLocation": "Utiliser la position actuelle",
+      "altitude": "Altitude (mètres)",
+      "accuracy": "Précision (mètres)",
+      "interactiveMap": "Carte interactive",
+      "comingSoon": "(Bientôt disponible)"
+    },
+    "info": {
+      "label": "Info",
+      "description": "Champ d'affichage informatif",
+      "expand": "Développer",
+      "collapse": "Réduire"
+    },
+    "password": {
+      "label": "Mot de passe",
+      "description": "Champ de mot de passe",
+      "placeholder": "Saisissez un mot de passe",
+      "generatePassword": "Générer un mot de passe",
+      "showPassword": "Afficher le mot de passe",
+      "hidePassword": "Masquer le mot de passe",
+      "passwordStrength": "Force du mot de passe :",
+      "strength": {
+        "noPassword": "Aucun mot de passe",
+        "veryWeak": "Très faible",
+        "weak": "Faible",
+        "fair": "Moyen",
+        "good": "Bon",
+        "strong": "Fort"
+      }
+    },
+    "icon": {
+      "label": "Icône",
+      "description": "Sélecteur d'icônes",
+      "selectIcon": "Sélectionner une icône",
+      "searchIcons": "Rechercher des icônes...",
+      "style": "Style :",
+      "category": "Catégorie :",
+      "allCategories": "Toutes les catégories",
+      "iconCount": "{{count}} icônes",
+      "noIconsFound": "Aucune icône trouvée",
+      "tryDifferentSearch": "Essayez un autre terme de recherche ou une autre catégorie",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "pageOf": "Page {{page}} sur {{total}}",
+      "noLibrariesAvailable": "Aucune bibliothèque d'icônes disponible",
+      "noIconSelected": "Aucune icône sélectionnée",
+      "change": "Changer",
+      "select": "Sélectionner",
+      "clearIcon": "Effacer l'icône"
     },
     "media": {
       "label": "Média",
@@ -254,5 +430,27 @@
     "redo": "Retablir",
     "clear": "Effacer le formatage"
   },
-  "noValue": "Aucune valeur"
+  "noValue": "Aucune valeur",
+  "errors": {
+    "invalidFieldConfig": "Configuration de champ invalide : champ {{type}} attendu",
+    "definitionMissing": "Erreur : Définition de champ manquante"
+  },
+  "autoFields": {
+    "_thumbnail": {
+      "title": "Image à la une",
+      "description": "Image principale représentant ce contenu"
+    },
+    "slug": {
+      "title": "URL",
+      "description": "Identifiant compatible URL pour ce contenu"
+    }
+  },
+  "common": {
+    "validating": "Validation en cours..."
+  },
+  "modal": {
+    "close": "Fermer",
+    "done": "Terminé",
+    "noFieldsDefined": "Aucun champ défini"
+  }
 }

@@ -10,7 +10,9 @@
     "text": {
       "label": "Text Area",
       "placeholder": "Enter text...",
-      "description": "Multi-line text field"
+      "description": "Multi-line text field",
+      "words": "words",
+      "lines": "lines"
     },
     "number": {
       "label": "Number",
@@ -33,7 +35,11 @@
     "date": {
       "label": "Date",
       "placeholder": "Select date...",
-      "description": "Date picker field"
+      "description": "Date picker field",
+      "noDateSet": "No date set",
+      "clearDate": "Clear date",
+      "dateOnly": "Date",
+      "dateAndTime": "Date & Time"
     },
     "datetime": {
       "label": "Date & Time",
@@ -128,12 +134,121 @@
     "richtext": {
       "label": "Rich Text",
       "placeholder": "Start typing...",
-      "description": "Rich text editor field"
+      "description": "Rich text editor field",
+      "noContent": "No content",
+      "loadingEditor": "Loading editor...",
+      "invalidConfig": "Invalid field configuration: expected richtext field",
+      "toolbar": {
+        "bold": "Bold",
+        "italic": "Italic",
+        "underline": "Underline",
+        "strikethrough": "Strikethrough",
+        "heading1": "Heading 1",
+        "heading2": "Heading 2",
+        "heading3": "Heading 3",
+        "quote": "Quote",
+        "addLink": "Add Link",
+        "insertImage": "Insert Image",
+        "bulletList": "Bullet List",
+        "numberedList": "Numbered List",
+        "insertTable": "Insert Table",
+        "codeBlock": "Code Block",
+        "undo": "Undo",
+        "redo": "Redo",
+        "viewEditSource": "View/Edit Source Code",
+        "fullscreen": "Fullscreen",
+        "exitFullscreen": "Exit Fullscreen"
+      },
+      "stats": {
+        "words": "words",
+        "characters": "characters",
+        "minRead": "min read",
+        "exceedsLimit": "Exceeds character limit"
+      },
+      "imageToolbar": {
+        "title": "Image Options:",
+        "variant": "Variant:",
+        "original": "Original",
+        "delete": "Delete",
+        "deleteTitle": "Delete Image"
+      },
+      "tableToolbar": {
+        "title": "Table Options:",
+        "row": "Row",
+        "col": "Col",
+        "header": "Header",
+        "merge": "Merge",
+        "split": "Split",
+        "table": "Table",
+        "addRowAfter": "Add Row After",
+        "deleteRow": "Delete Row",
+        "addColumnAfter": "Add Column After",
+        "deleteColumn": "Delete Column",
+        "toggleHeaderRow": "Toggle Header Row",
+        "mergeSelectedCells": "Merge Selected Cells",
+        "splitCell": "Split Cell",
+        "deleteTable": "Delete Table"
+      },
+      "linkDialog": {
+        "title": "Add Link",
+        "linkText": "Link Text",
+        "linkTextPlaceholder": "Enter link text",
+        "url": "URL",
+        "urlPlaceholder": "https://example.com",
+        "cancel": "Cancel",
+        "addLink": "Add Link",
+        "removeLink": "Remove Link"
+      },
+      "source": {
+        "placeholder": "Edit HTML source code..."
+      },
+      "sanitization": {
+        "warning": "Content was sanitized for security: {{warnings}}",
+        "dismissWarning": "Dismiss warning"
+      }
     },
     "portableText": {
       "label": "Portable Text",
-      "placeholder": "Start typing...",
-      "description": "Block content editor"
+      "placeholder": "Type something...",
+      "description": "Block content editor",
+      "noContent": "No content",
+      "emptyBlock": "Empty block",
+      "blocks": "Blocks:",
+      "characters": "Characters:",
+      "words": "Words:",
+      "blocksCount": "{{current}}/{{max}} blocks",
+      "charactersCount": "{{current}}/{{max}} characters",
+      "normal": "Normal",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "quote": "Quote",
+      "quotePlaceholder": "Quote...",
+      "bold": "Bold (⌘B)",
+      "italic": "Italic (⌘I)",
+      "underline": "Underline (⌘U)",
+      "strikethrough": "Strikethrough",
+      "code": "Code",
+      "addLink": "Add link",
+      "hideStats": "Hide stats",
+      "showStats": "Show stats",
+      "exitFullscreen": "Exit fullscreen",
+      "fullscreen": "Fullscreen",
+      "dragToReorder": "Drag to reorder (or use Alt+↑/↓)",
+      "deleteBlock": "Delete block",
+      "addBlock": "+ Add block",
+      "checkRequirements": "Please check the content requirements",
+      "linkDialog": {
+        "title": "Add Link",
+        "url": "URL",
+        "textOptional": "Text (optional)",
+        "textPlaceholder": "Link text",
+        "cancel": "Cancel",
+        "add": "Add Link"
+      },
+      "deleteConfirm": "Are you sure you want to delete this block?",
+      "deleteConfirmWithText": "Are you sure you want to delete this block?\n\n\"{{text}}\"",
+      "deleteEmptyConfirm": "Are you sure you want to delete this empty block?"
     },
     "slug": {
       "label": "Slug",
@@ -156,7 +271,8 @@
     "email": {
       "label": "Email",
       "placeholder": "email@example.com",
-      "description": "Email address field"
+      "description": "Email address field",
+      "enterEmail": "Enter email address"
     },
     "url": {
       "label": "URL",
@@ -166,7 +282,67 @@
     "color": {
       "label": "Color",
       "placeholder": "#000000",
-      "description": "Color picker field"
+      "description": "Color picker field",
+      "openPicker": "Open color picker",
+      "pickFromScreen": "Pick color from screen",
+      "quickColors": "Quick Colors",
+      "selectColor": "Select {{color}}"
+    },
+    "geoCoordinate": {
+      "label": "Geo Coordinate",
+      "description": "Geographic coordinate field",
+      "manual": "Manual",
+      "map": "Map",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "useCurrentLocation": "Use current location",
+      "altitude": "Altitude (meters)",
+      "accuracy": "Accuracy (meters)",
+      "interactiveMap": "Interactive Map",
+      "comingSoon": "(Coming soon)"
+    },
+    "info": {
+      "label": "Info",
+      "description": "Informational display field",
+      "expand": "Expand",
+      "collapse": "Collapse"
+    },
+    "password": {
+      "label": "Password",
+      "description": "Password input field",
+      "placeholder": "Enter password",
+      "generatePassword": "Generate password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "passwordStrength": "Password strength:",
+      "strength": {
+        "noPassword": "No password",
+        "veryWeak": "Very Weak",
+        "weak": "Weak",
+        "fair": "Fair",
+        "good": "Good",
+        "strong": "Strong"
+      }
+    },
+    "icon": {
+      "label": "Icon",
+      "description": "Icon picker field",
+      "selectIcon": "Select Icon",
+      "searchIcons": "Search icons...",
+      "style": "Style:",
+      "category": "Category:",
+      "allCategories": "All categories",
+      "iconCount": "{{count}} icons",
+      "noIconsFound": "No icons found",
+      "tryDifferentSearch": "Try a different search term or category",
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {{page}} of {{total}}",
+      "noLibrariesAvailable": "No icon libraries available",
+      "noIconSelected": "No icon selected",
+      "change": "Change",
+      "select": "Select",
+      "clearIcon": "Clear icon"
     },
     "media": {
       "label": "Media",
@@ -254,5 +430,27 @@
     "redo": "Redo",
     "clear": "Clear Formatting"
   },
-  "noValue": "No value"
+  "noValue": "No value",
+  "errors": {
+    "invalidFieldConfig": "Invalid field configuration: expected {{type}} field",
+    "definitionMissing": "Error: Field definition is missing"
+  },
+  "autoFields": {
+    "_thumbnail": {
+      "title": "Featured Image",
+      "description": "Main image representing this content"
+    },
+    "slug": {
+      "title": "URL",
+      "description": "URL-friendly identifier for this content"
+    }
+  },
+  "common": {
+    "validating": "Validating..."
+  },
+  "modal": {
+    "close": "Close",
+    "done": "Done",
+    "noFieldsDefined": "No fields defined"
+  }
 }

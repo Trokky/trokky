@@ -21,25 +21,25 @@ This document tracks the progress of internationalizing (i18n) the Trokky CMS co
 - [x] ObjectField - Full i18n migration
 - [x] ReferenceField - Full i18n migration
 - [x] StringField - Full i18n migration
-- [ ] BooleanField
-- [ ] ColorField
-- [ ] DateField
-- [ ] EmailField
-- [ ] GeoCoordinateField
-- [ ] IconField
-- [ ] InfoField
-- [ ] PasswordField
-- [ ] PortableTextField
-- [ ] RichTextField
-- [ ] SlugField
-- [ ] TextareaField
-- [ ] URLField
+- [x] BooleanField - Full i18n migration
+- [x] ColorField - Full i18n migration
+- [x] DateField - Full i18n migration
+- [x] EmailField - Full i18n migration
+- [x] GeoCoordinateField - Full i18n migration
+- [x] IconField - Full i18n migration
+- [x] InfoField - Full i18n migration
+- [x] PasswordField - Full i18n migration
+- [x] PortableTextField - Full i18n migration
+- [x] RichTextField - Full i18n migration
+- [x] SlugField - Full i18n migration
+- [x] TextareaField - Full i18n migration
+- [x] URLField - Full i18n migration
 
 ### Field Modals & Helpers
 
-- [ ] ArrayModal
-- [ ] ObjectModal
-- [ ] FieldWrapper (if has hardcoded strings)
+- [x] ArrayModal - Full i18n migration
+- [x] ObjectModal - Full i18n migration
+- [x] FieldWrapper - Full i18n migration (auto-field translation support)
 
 ---
 
@@ -103,7 +103,7 @@ This document tracks the progress of internationalizing (i18n) the Trokky CMS co
 - [x] AppTokenManagement
 - [x] WebhookManagement
 - [x] ChangePasswordModal
-- [ ] GoogleLoginButton
+- [x] GoogleLoginButton - Full i18n migration
 - [x] OAuthProvidersList
 - [x] MFAVerification
 - [x] MFASettings
@@ -203,7 +203,7 @@ With locale keys:
 
 ## Progress Summary
 
-- **Fields Package**: 6/19 components migrated
+- **Fields Package**: 19/19 components migrated (COMPLETE)
 - **Studio Pages**: 14/15 pages migrated (only FieldsDemo remaining)
 - **Studio Components**: 46/~47 components migrated
   - Layout: MainSidebar, Header, StudioLayout, ContextSidebar

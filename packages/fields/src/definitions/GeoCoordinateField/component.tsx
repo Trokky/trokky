@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { GeoCoordinate, GeoCoordinateFieldDefinition } from './definition.js';
 
@@ -18,6 +19,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
     isReadonly
   } = props;
 
+  const { t } = useT('fields');
   const def = definition as GeoCoordinateFieldDefinition;
   const coord = value as GeoCoordinate | null;
   const options = def.options || {};
@@ -69,7 +71,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
             }`}
             disabled={isDisabled}
           >
-            Manual
+            {t('types.geoCoordinate.manual')}
           </button>
           <button
             type="button"
@@ -81,7 +83,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
             }`}
             disabled={isDisabled}
           >
-            Map
+            {t('types.geoCoordinate.map')}
           </button>
         </div>
       )}
@@ -92,7 +94,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           <div className="flex gap-2 items-end">
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-700">
-                Latitude
+                {t('types.geoCoordinate.latitude')}
               </label>
               <input
                 type="number"
@@ -111,7 +113,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
             </div>
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-700">
-                Longitude
+                {t('types.geoCoordinate.longitude')}
               </label>
               <input
                 type="number"
@@ -134,7 +136,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
                 onClick={handleGeolocation}
                 className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 whitespace-nowrap"
                 disabled={isDisabled || isReadonly}
-                title="Use current location"
+                title={t('types.geoCoordinate.useCurrentLocation')}
               >
                 GPS
               </button>
@@ -144,7 +146,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           {options.showAltitude && (
             <div>
               <label className="block text-xs font-medium text-gray-700">
-                Altitude (meters)
+                {t('types.geoCoordinate.altitude')}
               </label>
               <input
                 type="number"
@@ -164,7 +166,7 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           {options.showAccuracy && coord?.accuracy && (
             <div>
               <label className="block text-xs font-medium text-gray-700">
-                Accuracy (meters)
+                {t('types.geoCoordinate.accuracy')}
               </label>
               <input
                 type="number"
@@ -184,9 +186,9 @@ export function GeoCoordinateFieldComponent(props: GeoCoordinateFieldComponentPr
           style={{ height: options.mapHeight || 300 }}
         >
           <div className="text-center text-gray-500">
-            <div className="text-2xl mb-2">Map</div>
-            <div>Interactive Map</div>
-            <div className="text-sm">(Coming soon)</div>
+            <div className="text-2xl mb-2">{t('types.geoCoordinate.map')}</div>
+            <div>{t('types.geoCoordinate.interactiveMap')}</div>
+            <div className="text-sm">{t('types.geoCoordinate.comingSoon')}</div>
             {coord && (
               <div className="mt-2 text-xs">
                 {formatCoordinate(coord.lat)}, {formatCoordinate(coord.lng)}

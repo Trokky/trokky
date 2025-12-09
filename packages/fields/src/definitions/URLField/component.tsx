@@ -2,12 +2,14 @@ import React from 'react';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { URLFieldDefinition } from './definition.js';
+import { useT } from '@trokky/i18n';
 
 // URL field component props
 type URLFieldComponentProps = FieldComponentProps;
 
 export function URLFieldComponent(props: URLFieldComponentProps) {
   const { definition, value, isReadonly, isDisabled } = props;
+  const { t } = useT('fields');
   
   // Read-only mode: render as display text with clickable link
   if (isReadonly && !isDisabled) {
@@ -17,7 +19,7 @@ export function URLFieldComponent(props: URLFieldComponentProps) {
     if (!displayValue || displayValue.trim() === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No value
+          {t('noValue')}
         </div>
       );
     }
@@ -43,7 +45,7 @@ export function URLFieldComponent(props: URLFieldComponentProps) {
     ...urlDefinition,
     options: {
       inputType: 'url' as const,
-      placeholder: 'https://example.com',
+      placeholder: t('types.url.placeholder'),
       autoComplete: 'url',
       spellCheck: false, // Disable spellcheck for URLs
       ...urlDefinition.options

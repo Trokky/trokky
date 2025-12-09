@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
@@ -64,9 +65,10 @@ interface IconPickerModalProps {
   availableLibraries: string[];
   currentValue?: IconValue;
   options: IconFieldDefinition['options'];
+  t: (key: string, options?: Record<string, any>) => string;
 }
 
-function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, currentValue, options }: IconPickerModalProps) {
+function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, currentValue, options, t }: IconPickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLibrary, setSelectedLibrary] = useState<string>(
     currentValue?.library || availableLibraries[0] || 'fontawesome'
@@ -152,7 +154,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Select Icon
+            {t('types.icon.selectIcon')}
           </h2>
           <button
             onClick={onClose}
@@ -196,7 +198,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search icons..."
+              placeholder={t('types.icon.searchIcons')}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {searchQuery && (
@@ -214,7 +216,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
             {/* Style selector */}
             {styles.length > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Style:</span>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('types.icon.style')}</span>
                 <div className="flex gap-1">
                   {styles.map((style) => (
                     <button
@@ -235,13 +237,13 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
 
             {/* Category selector */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Category:</span>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('types.icon.category')}</span>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
-                <option value="">All categories</option>
+                <option value="">{t('types.icon.allCategories')}</option>
                 {categories.map((category) => (
                   <option key={category} value={category}>
                     {category}
@@ -252,7 +254,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
 
             {/* Results count */}
             <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-              {filteredIcons.length} icons
+              {t('types.icon.iconCount', { count: filteredIcons.length })}
             </span>
           </div>
         </div>
@@ -261,8 +263,8 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 bg-gray-50 dark:bg-gray-900/50">
           {paginatedIcons.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <p className="text-sm">No icons found</p>
-              <p className="text-xs mt-1">Try a different search term or category</p>
+              <p className="text-sm">{t('types.icon.noIconsFound')}</p>
+              <p className="text-xs mt-1">{t('types.icon.tryDifferentSearch')}</p>
             </div>
           ) : (
             <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
@@ -303,17 +305,17 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
               disabled={page === 0}
               className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              Previous
+              {t('types.icon.previous')}
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {page + 1} of {totalPages}
+              {t('types.icon.pageOf', { page: page + 1, total: totalPages })}
             </span>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
               className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              Next
+              {t('types.icon.next')}
             </button>
           </div>
         )}
@@ -326,6 +328,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
 // Main component
 export function IconFieldComponent(props: FieldComponentProps) {
   const { definition, value, onChange, hasError, isDisabled, isReadonly } = props;
+  const { t } = useT('fields');
   const iconDefinition = definition as IconFieldDefinition;
   const options = iconDefinition.options || {};
 
@@ -412,7 +415,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
     return (
       <div className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
         <span className="text-red-700 dark:text-red-400 text-sm">
-          No icon libraries available
+          {t('types.icon.noLibrariesAvailable')}
         </span>
       </div>
     );
@@ -423,7 +426,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
     if (!iconValue) {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No icon selected
+          {t('types.icon.noIconSelected')}
         </div>
       );
     }
@@ -491,7 +494,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
             </div>
           ) : (
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              No icon selected
+              {t('types.icon.noIconSelected')}
             </span>
           )}
         </div>
@@ -504,7 +507,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
             disabled={isDisabled}
             className="px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {iconValue ? 'Change' : 'Select'}
+            {iconValue ? t('types.icon.change') : t('types.icon.select')}
           </button>
 
           {iconValue && !isDisabled && (
@@ -512,7 +515,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
               type="button"
               onClick={handleClear}
               className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-              title="Clear icon"
+              title={t('types.icon.clearIcon')}
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
@@ -528,6 +531,7 @@ export function IconFieldComponent(props: FieldComponentProps) {
         availableLibraries={availableLibraries}
         currentValue={iconValue || undefined}
         options={options}
+        t={t}
       />
     </>
   );

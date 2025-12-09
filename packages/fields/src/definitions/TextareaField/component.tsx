@@ -4,6 +4,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { TextareaFieldDefinition } from './definition.js';
 
@@ -11,6 +12,7 @@ import type { TextareaFieldDefinition } from './definition.js';
 type TextareaFieldComponentProps = FieldComponentProps;
 
 export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
+  const { t } = useT('fields');
   const {
     fieldId,
     value,
@@ -38,7 +40,7 @@ export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
     if (!displayValue || displayValue.trim() === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2 min-h-[80px] flex items-start">
-          No value
+          {t('noValue')}
         </div>
       );
     }
@@ -121,12 +123,12 @@ export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
           <div className="flex gap-4">
             {validation.wordCount?.max && (
               <span className={wordCount > validation.wordCount.max ? 'text-red-500' : ''}>
-                {wordCount}/{validation.wordCount.max} words
+                {wordCount}/{validation.wordCount.max} {t('types.text.words')}
               </span>
             )}
             {validation.lineCount?.max && (
               <span className={lineCount > validation.lineCount.max ? 'text-red-500' : ''}>
-                {lineCount}/{validation.lineCount.max} lines
+                {lineCount}/{validation.lineCount.max} {t('types.text.lines')}
               </span>
             )}
           </div>

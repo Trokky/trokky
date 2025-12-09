@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '@trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { PasswordFieldDefinition } from './definition.js';
@@ -7,8 +8,18 @@ import { calculatePasswordStrength, generatePassword } from './validation.js';
 // Password field component props
 type PasswordFieldComponentProps = FieldComponentProps;
 
+// Map strength score to translation key
+const strengthKeyMap: Record<number, string> = {
+  0: 'veryWeak',
+  1: 'weak',
+  2: 'fair',
+  3: 'good',
+  4: 'strong'
+};
+
 export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
   const { definition, value, onChange, isReadonly, isDisabled } = props;
+  const { t } = useT('fields');
   const [showPassword, setShowPassword] = useState(false);
   
   // Ensure password-specific properties are set
@@ -26,7 +37,7 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
     if (!displayValue || displayValue.trim() === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No value
+          {t('noValue')}
         </div>
       );
     }
@@ -43,7 +54,7 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
     ...passwordDefinition,
     options: {
       inputType: showPassword ? 'text' : 'password',
-      placeholder: 'Enter password',
+      placeholder: t('types.password.placeholder'),
       autoComplete: disableAutocomplete ? 'new-password' : 'current-password',
       spellCheck: false, // Disable spellcheck for passwords
       ...passwordDefinition.options
@@ -73,7 +84,7 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
               type="button"
               onClick={handleGeneratePassword}
               className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 focus:outline-none"
-              title="Generate password"
+              title={t('types.password.generatePassword')}
               tabIndex={-1}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +99,7 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
-              title={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? t('types.password.hidePassword') : t('types.password.showPassword')}
               tabIndex={-1}
             >
               {showPassword ? (
@@ -110,12 +121,12 @@ export function PasswordFieldComponent(props: PasswordFieldComponentProps) {
       {passwordStrength && (
         <div className="space-y-1">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Password strength:</span>
-            <span 
+            <span className="text-gray-600 dark:text-gray-400">{t('types.password.passwordStrength')}</span>
+            <span
               className="font-medium"
               style={{ color: passwordStrength.color }}
             >
-              {passwordStrength.label}
+              {t(`types.password.strength.${strengthKeyMap[passwordStrength.score]}`)}
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
