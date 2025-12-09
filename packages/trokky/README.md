@@ -158,14 +158,15 @@ trokky docs update homepage --patch '{"title":"New Title"}'
 trokky docs delete homepage --confirm
 
 # Create a document
-trokky docs create posts ./post.json
-trokky docs create posts --data '{"title":"Hello World"}'
+trokky docs create posts '{"title":"Hello World"}'      # Inline JSON (auto-detected)
+trokky docs create posts ./post.json                    # From file
+trokky docs create posts --data '{"title":"Hello"}'     # Explicit flag
 echo '{"title":"From stdin"}' | trokky docs create posts
 
 # Update a document
-trokky docs update posts abc123 ./updated.json
-trokky docs update posts abc123 --data '{"title":"New Title"}'
-trokky docs update posts abc123 --patch '{"status":"published"}'  # Partial update
+trokky docs update posts abc123 '{"status":"published"}'  # Inline JSON (partial update)
+trokky docs update posts abc123 ./updated.json            # From file
+trokky docs update posts abc123 --patch '{"status":"published"}'  # Explicit partial
 
 # Update specific fields using dot-notation (deep merge)
 trokky docs update posts abc123 --set "title=New Title"
@@ -221,10 +222,11 @@ This is automatically suppressed with `--quiet` or `--ids-only` for clean piping
 - `--fields <paths>` - Comma-separated field paths to return (e.g., `title,meta.description,author.name`)
 
 **Create/Update Options:**
-- `[file]` - JSON file path
-- `--data <json>` - Inline JSON data
+- `[file]` - JSON file path or inline JSON (auto-detected)
+- `--data <json>` - Inline JSON data (explicit)
 - `--patch <json>` - Partial update (deep merges with existing document)
 - `--set <path=value>` - Set specific field paths (repeatable, deep merges with existing)
+- `--no-validate` - Skip client-side schema validation
 
 **Delete Options:**
 - `--confirm` - Skip confirmation prompt (for scripting)
@@ -250,6 +252,32 @@ The `--set` option also supports JSON values:
 ```bash
 trokky docs update posts abc123 --set "tags=[\"news\",\"featured\"]"
 trokky docs update posts abc123 --set "meta.views=100"
+```
+
+**Schema Validation:**
+
+The CLI validates data against your collection schema before sending to the API. This provides faster feedback and helpful error messages:
+
+```bash
+# Typo in field name - suggests correct field
+$ trokky docs update posts abc123 '{"titl":"Hello"}'
+Validation failed:
+  - Unknown field 'titl'
+    Did you mean 'title'?
+
+# Wrong type - shows expected type
+$ trokky docs update posts abc123 '{"count":"not a number"}'
+Validation failed:
+  - Field 'count' expects type 'number', got 'string'
+
+# Invalid enum value - shows valid options
+$ trokky docs update posts abc123 '{"category":"invalid"}'
+Validation failed:
+  - Invalid value 'invalid' for field 'category'
+    Valid values: a, b, c
+
+# Skip validation if needed
+$ trokky docs update posts abc123 '{"custom":"field"}' --no-validate
 ```
 
 **Piping Examples:**
