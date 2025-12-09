@@ -769,11 +769,11 @@ export function WebhookManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {webhook.events.length} event{webhook.events.length !== 1 ? 's' : ''}
+                        {t('webhooks.eventsCount', { count: webhook.events.length })}
                       </div>
                       <div className="text-xs text-gray-400 max-w-xs">
                         {webhook.events.slice(0, 3).join(', ')}
-                        {webhook.events.length > 3 && ` +${webhook.events.length - 3} more`}
+                        {webhook.events.length > 3 && ` ${t('webhooks.moreEvents', { count: webhook.events.length - 3 })}`}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

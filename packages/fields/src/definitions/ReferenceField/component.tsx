@@ -762,8 +762,8 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           
           {isMultiple && options.showCount && (
             <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
-              {currentReferences.length} reference{currentReferences.length !== 1 ? 's' : ''}
-              {validation.maxReferences && ` of ${validation.maxReferences} max`}
+              {t('types.reference.references', { count: currentReferences.length })}
+              {validation.maxReferences && ` ${t('types.reference.ofMax', { max: validation.maxReferences })}`}
             </p>
           )}
         </div>

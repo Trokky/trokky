@@ -330,7 +330,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           {arrayDefinition.title}
           {showCount && (
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-              ({arrayValue.length} {arrayValue.length !== 1 ? t('types.array.items') : t('types.array.item')})
+              ({t('types.array.itemCount', { count: arrayValue.length })})
             </span>
           )}
         </button>
@@ -938,7 +938,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>
-              {arrayValue.length} {arrayValue.length !== 1 ? t('types.array.items') : t('types.array.item')}
+              {t('types.array.itemCount', { count: arrayValue.length })}
             </span>
           </div>
         </div>

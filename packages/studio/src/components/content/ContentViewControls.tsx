@@ -241,7 +241,7 @@ export function ContentViewControls({
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {selectedItems > 0 ? (
                 <span>
-                  {t('contentView.selectedOfTotal', { selected: selectedItems, total: totalItems })}
+                  {t('contentView.selectedOfTotal', { selected: selectedItems, total: totalItems, count: selectedItems })}
                 </span>
               ) : (
                 <span>

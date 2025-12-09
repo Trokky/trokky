@@ -23,7 +23,7 @@ This document tracks the progress of internationalizing (i18n) the Trokky CMS co
 - [x] StringField - Full i18n migration
 - [x] BooleanField - Full i18n migration
 - [x] ColorField - Full i18n migration
-- [x] DateField - Full i18n migration
+- [x] DateField - Full i18n migration (Note: native browser date picker UI cannot be translated)
 - [x] EmailField - Full i18n migration
 - [x] GeoCoordinateField - Full i18n migration
 - [x] IconField - Full i18n migration
@@ -164,13 +164,13 @@ With locale keys:
 
 ### Components to Refactor for Proper Pluralization
 
-- [ ] ArrayField - item/items count
-- [ ] ObjectField - field/fields count
-- [ ] ReferenceField - reference count, available count
+- [x] ArrayField - item/items count (uses `itemCount` with proper pluralization)
+- [ ] ObjectField - field/fields count (already uses proper count keys)
+- [x] ReferenceField - reference count (uses `references` with proper pluralization)
 - [ ] MediaField - file count (if applicable)
-- [ ] StatsWidget - document/media/user counts
-- [ ] Pagination - item counts
-- [ ] Any component showing counts
+- [ ] StatsWidget - document/media/user counts (already uses proper count keys)
+- [ ] Pagination - item counts (already uses proper count keys)
+- [x] WebhookManagement - event count (uses `eventsCount` with proper pluralization)
 
 ---
 
@@ -215,6 +215,6 @@ With locale keys:
   - Context Sidebar: WidgetRenderer, RecentDocumentsWidget, ContentContext, StructureContextSidebar
   - UI: ConfirmDialog, ErrorBoundary, Toast, Button/Input/LoadingSpinner/Modal/Checkbox (no UI strings)
   - Other: SimpleSearchModal, PermissionsDebugPanel
-- **Pluralization**: Not yet refactored
+- **Pluralization**: Refactored (ArrayField, ReferenceField, WebhookManagement)
 
 Last Updated: 2025-12-08

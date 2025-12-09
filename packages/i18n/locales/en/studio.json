@@ -4,6 +4,8 @@
     "sort": "Sort",
     "clearAll": "Clear all",
     "selectedOfTotal": "{{selected}} of {{total}} selected",
+    "selectedOfTotal_one": "{{selected}} of {{total}} selected",
+    "selectedOfTotal_other": "{{selected}} of {{total}} selected",
     "itemsCount": "{{count}} items",
     "sortAsc": "{{label}} (A-Z)",
     "sortDesc": "{{label}} (Z-A)",
