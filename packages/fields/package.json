@@ -1,6 +1,6 @@
 {
   "name": "@trokky/fields",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Universal field system for Trokky CMS - works in browser, Node.js, and edge environments",
   "type": "module",
   "main": "dist/index.js",
