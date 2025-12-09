@@ -1095,6 +1095,15 @@ function getDefaultItemValue(itemDefinition: any): any {
       if (itemDefinition.name) {
         baseObject._type = itemDefinition.name;
       }
+      // Apply default values from nested fields
+      if (itemDefinition.fields) {
+        for (const [fieldName, fieldDef] of Object.entries(itemDefinition.fields)) {
+          const def = fieldDef as any;
+          if (def?.default !== undefined) {
+            baseObject[fieldName] = def.default;
+          }
+        }
+      }
       return baseObject;
     case 'reference':
       // Reference field expects { _type: 'reference' } for empty state
