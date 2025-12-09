@@ -342,7 +342,7 @@ export function Header({
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                   {/* Compact user info */}
                   <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
                     {userLoading ? (

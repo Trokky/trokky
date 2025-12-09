@@ -12,3 +12,4 @@ Refactor pluralization to use i18next built-in support
 - WebhookManagement: Use `eventsCount` with proper pluralization
 - ContentViewControls: Fix French pluralization for selected items count
 - Add `selectedOfTotal_one` and `selectedOfTotal_other` keys for French singular/plural
+- Header: Widen user dropdown menu to accommodate longer translations
