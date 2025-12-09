@@ -79,6 +79,69 @@ interface ExpressIntegrationConfig {
 3. **Test your routes**: Verify paths don't have unexpected prefixes
 4. **Check the debug output**: TrokkyExpress logs all registered routes
 
+## Using trokky.config.ts
+
+For a cleaner setup, use `TrokkyExpress.create()` with a configuration file:
+
+```typescript
+// trokky.config.ts
+import { defineConfig } from '@trokky/express'
+import { blogSchemas } from './schemas'
+
+export default defineConfig({
+  schemas: blogSchemas,
+  storage: {
+    adapter: 'filesystem',
+    contentDir: './content',
+  },
+  security: {
+    adminUser: {
+      username: 'admin',
+      password: 'demo123',
+    },
+  },
+  studio: {
+    enabled: true,
+    branding: {
+      title: 'My CMS',
+    },
+  },
+  i18n: {
+    defaultLocale: 'en',
+    supportedLocales: ['en', 'fr'],
+    detectBrowserLanguage: true,
+  },
+})
+```
+
+```typescript
+// server.ts
+import express from 'express'
+import { TrokkyExpress } from '@trokky/express'
+import config from './trokky.config'
+
+const app = express()
+const trokky = await TrokkyExpress.create(config)
+
+trokky.mount(app) // Auto-mounts API, Studio, and static routes
+
+app.listen(3000)
+```
+
+### i18n Configuration
+
+The `i18n` section configures internationalization for the Studio interface:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `defaultLocale` | `string` | `'en'` | Default language |
+| `supportedLocales` | `string[]` | `['en', 'fr']` | Supported languages |
+| `fallbackLocale` | `string` | `'en'` | Fallback when translation missing |
+| `detectBrowserLanguage` | `boolean` | `true` | Auto-detect browser language |
+| `debug` | `boolean` | `false` | Enable debug logging |
+
+See [@trokky/i18n](../../i18n/README.md) for more details on translations and hooks.
+
 ## API Reference
 
 ### TrokkyExpress.setupForMount()

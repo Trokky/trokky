@@ -4,6 +4,7 @@ import { Header } from './Header';
 import { MainSidebar } from './MainSidebar';
 import { ContextSidebar } from './ContextSidebar';
 import { ContextSidebarProvider, useContextSidebar } from '@/contexts/ContextSidebarContext';
+import { useT } from '@trokky/i18n';
 
 interface StudioLayoutProps {
   showSearch?: boolean;
@@ -16,6 +17,7 @@ function StudioLayoutInner({
   showMedia = true,
   showUserMenu = true
 }: StudioLayoutProps) {
+  const { t } = useT('studio');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const contextSidebar = useContextSidebar();
@@ -86,7 +88,7 @@ function StudioLayoutInner({
           <div className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out">
             <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Navigation
+                {t('sidebar.navigation')}
               </h2>
               <button
                 onClick={handleCloseMobileMenu}
@@ -114,16 +116,16 @@ function StudioLayoutInner({
             />
             <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Global Search
+                {t('layout.globalSearch')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Search functionality will be implemented here.
+                {t('layout.searchPlaceholder')}
               </p>
               <button
                 onClick={handleCloseSearch}
                 className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
               >
-                Close
+                {t('common.close')}
               </button>
             </div>
           </div>

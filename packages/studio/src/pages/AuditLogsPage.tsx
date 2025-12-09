@@ -24,6 +24,7 @@ import {
   ChevronRightIcon as ChevronRightSmallIcon
 } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
+import { useT } from '@trokky/i18n';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -62,10 +63,11 @@ interface User {
 const ITEMS_PER_PAGE = 25;
 
 export function AuditLogsPage() {
+  const { t } = useT('studio');
   // Context sidebar configuration
   useContextSidebar({
     page: 'audit-logs',
-    title: 'Audit Logs',
+    title: t('auditLogs.title'),
     defaultVisible: false,
     defaultPosition: 'left'
   });
@@ -290,17 +292,17 @@ export function AuditLogsPage() {
   const getOperationInfo = (operation: string) => {
     switch (operation) {
       case 'create':
-        return { icon: PlusIcon, text: 'Created', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' };
+        return { icon: PlusIcon, text: t('auditLogs.operations.create'), color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' };
       case 'update':
-        return { icon: PencilIcon, text: 'Updated', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' };
+        return { icon: PencilIcon, text: t('auditLogs.operations.update'), color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' };
       case 'delete':
-        return { icon: TrashIcon, text: 'Deleted', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30' };
+        return { icon: TrashIcon, text: t('auditLogs.operations.delete'), color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30' };
       case 'publish':
-        return { icon: EyeIcon, text: 'Published', color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-100 dark:bg-purple-900/30' };
+        return { icon: EyeIcon, text: t('auditLogs.operations.publish'), color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-100 dark:bg-purple-900/30' };
       case 'unpublish':
-        return { icon: EyeIcon, text: 'Unpublished', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30' };
+        return { icon: EyeIcon, text: t('auditLogs.operations.unpublish'), color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30' };
       case 'restore':
-        return { icon: ClockIcon, text: 'Restored', color: 'text-indigo-600 dark:text-indigo-400', bgColor: 'bg-indigo-100 dark:bg-indigo-900/30' };
+        return { icon: ClockIcon, text: t('auditLogs.operations.restore'), color: 'text-indigo-600 dark:text-indigo-400', bgColor: 'bg-indigo-100 dark:bg-indigo-900/30' };
       default:
         return { icon: PencilIcon, text: operation, color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700' };
     }
@@ -327,9 +329,8 @@ export function AuditLogsPage() {
   const getChangedFieldsSummary = (log: AuditLog) => {
     if (!log.changes?.fields || log.changes.fields.length === 0) return null;
     const fields = log.changes.fields;
-    if (fields.length === 1) return `Changed ${fields[0]}`;
-    if (fields.length <= 3) return `Changed ${fields.join(', ')}`;
-    return `Changed ${fields.length} fields`;
+    if (fields.length === 1) return t('auditLogs.changedField', { field: fields[0] });
+    return t('auditLogs.changedFields', { count: fields.length });
   };
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -343,10 +344,10 @@ export function AuditLogsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
               <ClockIcon className="h-7 w-7 mr-3 text-gray-500" />
-              Audit Logs
+              {t('auditLogs.title')}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Complete history of all content changes in the CMS
+              {t('auditLogs.subtitle')}
             </p>
           </div>
           <button
@@ -355,7 +356,7 @@ export function AuditLogsPage() {
             className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
           >
             <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('auditLogs.refresh')}
           </button>
         </div>
       </div>
@@ -369,7 +370,7 @@ export function AuditLogsPage() {
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by document title, ID, or collection..."
+                placeholder={t('auditLogs.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -380,7 +381,7 @@ export function AuditLogsPage() {
               onClick={handleSearch}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
             >
-              Search
+              {t('auditLogs.search')}
             </button>
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -391,7 +392,7 @@ export function AuditLogsPage() {
               }`}
             >
               <FunnelIcon className="h-4 w-4 mr-2" />
-              Filters
+              {t('auditLogs.filters')}
               {hasActiveFilters && (
                 <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary-600 text-white rounded-full">
                   {[selectedCollection, selectedUser, selectedOperation].filter(Boolean).length}
@@ -407,14 +408,14 @@ export function AuditLogsPage() {
                 {/* Collection filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Collection
+                    {t('auditLogs.collection')}
                   </label>
                   <select
                     value={selectedCollection}
                     onChange={(e) => { setSelectedCollection(e.target.value); setCurrentPage(1); }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">All collections</option>
+                    <option value="">{t('auditLogs.allCollections')}</option>
                     {collections.map(col => (
                       <option key={col} value={col}>{col}</option>
                     ))}
@@ -424,14 +425,14 @@ export function AuditLogsPage() {
                 {/* User filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    User
+                    {t('auditLogs.user')}
                   </label>
                   <select
                     value={selectedUser}
                     onChange={(e) => { setSelectedUser(e.target.value); setCurrentPage(1); }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">All users</option>
+                    <option value="">{t('auditLogs.allUsers')}</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>{user.username}</option>
                     ))}
@@ -441,19 +442,19 @@ export function AuditLogsPage() {
                 {/* Operation filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Operation
+                    {t('auditLogs.operation')}
                   </label>
                   <select
                     value={selectedOperation}
                     onChange={(e) => { setSelectedOperation(e.target.value); setCurrentPage(1); }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">All operations</option>
-                    <option value="create">Created</option>
-                    <option value="update">Updated</option>
-                    <option value="delete">Deleted</option>
-                    <option value="publish">Published</option>
-                    <option value="unpublish">Unpublished</option>
+                    <option value="">{t('auditLogs.allOperations')}</option>
+                    <option value="create">{t('auditLogs.operations.create')}</option>
+                    <option value="update">{t('auditLogs.operations.update')}</option>
+                    <option value="delete">{t('auditLogs.operations.delete')}</option>
+                    <option value="publish">{t('auditLogs.operations.publish')}</option>
+                    <option value="unpublish">{t('auditLogs.operations.unpublish')}</option>
                   </select>
                 </div>
               </div>
@@ -465,7 +466,7 @@ export function AuditLogsPage() {
                     className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   >
                     <XMarkIcon className="h-4 w-4 mr-1" />
-                    Clear all filters
+                    {t('auditLogs.clearFilters')}
                   </button>
                 </div>
               )}
@@ -477,9 +478,9 @@ export function AuditLogsPage() {
       {/* Results summary */}
       <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
         {totalCount > 0 ? (
-          <>Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount} entries</>
+          <>{t('auditLogs.showingResults', { start: ((currentPage - 1) * ITEMS_PER_PAGE) + 1, end: Math.min(currentPage * ITEMS_PER_PAGE, totalCount), total: totalCount })}</>
         ) : (
-          loading ? 'Loading...' : 'No entries found'
+          loading ? t('auditLogs.loading') : t('auditLogs.noResults')
         )}
       </div>
 
@@ -488,7 +489,7 @@ export function AuditLogsPage() {
         {loading && auditLogs.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
-            <span className="ml-3 text-gray-500 dark:text-gray-400">Loading audit logs...</span>
+            <span className="ml-3 text-gray-500 dark:text-gray-400">{t('auditLogs.loading')}</span>
           </div>
         ) : error ? (
           <div className="p-6 text-center">
@@ -497,19 +498,19 @@ export function AuditLogsPage() {
               onClick={() => loadAuditLogs()}
               className="mt-4 text-primary-600 dark:text-primary-400 hover:underline"
             >
-              Try again
+              {t('auditLogs.tryAgain')}
             </button>
           </div>
         ) : auditLogs.length === 0 ? (
           <div className="p-12 text-center">
             <ClockIcon className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">No audit logs found</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('auditLogs.noLogs')}</p>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
                 className="mt-4 text-primary-600 dark:text-primary-400 hover:underline"
               >
-                Clear filters
+                {t('auditLogs.clearFilters')}
               </button>
             )}
           </div>
@@ -570,7 +571,7 @@ export function AuditLogsPage() {
                         <button
                           onClick={() => toggleEntryExpansion(log.id)}
                           className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                          title={isExpanded ? 'Hide details' : 'Show details'}
+                          title={isExpanded ? t('auditLogs.hideDetails') : t('auditLogs.showDetails')}
                         >
                           {isExpanded ? (
                             <ChevronDownIcon className="h-5 w-5" />
@@ -596,19 +597,19 @@ export function AuditLogsPage() {
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-500 dark:text-gray-400">
                             <div>
-                              <span className="font-medium">Revision:</span> {log.revision}
+                              <span className="font-medium">{t('auditLogs.technical.revision')}</span> {log.revision}
                             </div>
                             <div>
-                              <span className="font-medium">Document ID:</span> {log.documentId}
+                              <span className="font-medium">{t('auditLogs.technical.documentId')}</span> {log.documentId}
                             </div>
                             {log.ipAddress && (
                               <div>
-                                <span className="font-medium">IP:</span> {log.ipAddress}
+                                <span className="font-medium">{t('auditLogs.technical.ip')}</span> {log.ipAddress}
                               </div>
                             )}
                             {log.actorType && (
                               <div>
-                                <span className="font-medium">Actor type:</span> {log.actorType}
+                                <span className="font-medium">{t('auditLogs.technical.actorType')}</span> {log.actorType}
                               </div>
                             )}
                           </div>
@@ -627,7 +628,7 @@ export function AuditLogsPage() {
       {totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Page {currentPage} of {totalPages}
+            {t('auditLogs.page', { current: currentPage, total: totalPages })}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -636,14 +637,14 @@ export function AuditLogsPage() {
               className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeftIcon className="h-4 w-4 mr-1" />
-              Previous
+              {t('auditLogs.previous')}
             </button>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
               className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              {t('auditLogs.next')}
               <ChevronRightIcon className="h-4 w-4 ml-1" />
             </button>
           </div>

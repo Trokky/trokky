@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useT } from '@trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { 
@@ -69,10 +70,11 @@ interface MediaTypeInfo {
 }
 
 export function MediaPage() {
+  const { t } = useT('studio');
   // Declarative context sidebar configuration for media page
   const contextSidebar = useContextSidebar({
     page: 'media',
-    title: 'Media Library',
+    title: t('media.title'),
     defaultVisible: false,
     defaultPosition: 'left'
   });
@@ -166,39 +168,39 @@ export function MediaPage() {
 
   // Media type definitions
   const mediaTypes: Record<MediaType, MediaTypeInfo> = {
-    all: { label: 'All Files', icon: DocumentIcon, count: mediaFiles.length },
-    images: { 
-      label: 'Images', 
-      icon: PhotoIcon, 
-      count: mediaFiles.filter(f => f.contentType.startsWith('image/')).length 
+    all: { label: t('media.types.all'), icon: DocumentIcon, count: mediaFiles.length },
+    images: {
+      label: t('media.types.images'),
+      icon: PhotoIcon,
+      count: mediaFiles.filter(f => f.contentType.startsWith('image/')).length
     },
-    videos: { 
-      label: 'Videos', 
-      icon: VideoCameraIcon, 
-      count: mediaFiles.filter(f => f.contentType.startsWith('video/')).length 
+    videos: {
+      label: t('media.types.videos'),
+      icon: VideoCameraIcon,
+      count: mediaFiles.filter(f => f.contentType.startsWith('video/')).length
     },
-    audio: { 
-      label: 'Audio', 
-      icon: SpeakerWaveIcon, 
-      count: mediaFiles.filter(f => f.contentType.startsWith('audio/')).length 
+    audio: {
+      label: t('media.types.audio'),
+      icon: SpeakerWaveIcon,
+      count: mediaFiles.filter(f => f.contentType.startsWith('audio/')).length
     },
-    documents: { 
-      label: 'Documents', 
-      icon: DocumentIcon, 
-      count: mediaFiles.filter(f => 
-        f.contentType.includes('pdf') || 
+    documents: {
+      label: t('media.types.documents'),
+      icon: DocumentIcon,
+      count: mediaFiles.filter(f =>
+        f.contentType.includes('pdf') ||
         f.contentType.includes('text/') ||
         f.contentType.includes('application/')
-      ).length 
+      ).length
     },
-    archives: { 
-      label: 'Archives', 
-      icon: ArchiveBoxIcon, 
-      count: mediaFiles.filter(f => 
-        f.contentType.includes('zip') || 
+    archives: {
+      label: t('media.types.archives'),
+      icon: ArchiveBoxIcon,
+      count: mediaFiles.filter(f =>
+        f.contentType.includes('zip') ||
         f.contentType.includes('rar') ||
         f.contentType.includes('tar')
-      ).length 
+      ).length
     }
   };
 
@@ -1018,10 +1020,10 @@ export function MediaPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Media Library
+          {t('media.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Upload and manage your media files
+          {t('media.subtitle')}
         </p>
       </div>
 
@@ -1041,15 +1043,15 @@ export function MediaPage() {
             <PhotoIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <div className="space-y-2">
               <p className="text-lg font-medium text-gray-900 dark:text-white">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="text-primary-600 hover:text-primary-500"
                   onClick={handleUploadClick}
                   disabled={isUploading}
                 >
-                  {isUploading ? 'Uploading...' : 'Click to upload'}
+                  {isUploading ? t('common.loading') : t('media.browseFiles')}
                 </Button>{' '}
-                or drag and drop files here
+                {t('media.or')} {t('media.dragAndDrop')}
               </p>
               <p className="text-gray-500 dark:text-gray-400">
                 PNG, JPG, GIF, MP4, PDF up to 100MB
@@ -1092,7 +1094,7 @@ export function MediaPage() {
         <div className="relative flex-1">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <Input
-            placeholder="Search media files..."
+            placeholder={t('media.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -1146,10 +1148,10 @@ export function MediaPage() {
                 checked={selectedIds.size === filteredFiles.length}
                 indeterminate={selectedIds.size > 0 && selectedIds.size < filteredFiles.length}
                 onChange={handleSelectAll}
-                aria-label="Select all files"
+                aria-label={t('common.selectAll')}
               />
               <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                {selectedIds.size} {selectedIds.size === 1 ? 'file' : 'files'} selected
+                {t('media.selected', { count: selectedIds.size })}
               </span>
             </div>
             <Button
@@ -1158,7 +1160,7 @@ export function MediaPage() {
               onClick={clearSelection}
               className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
             >
-              Clear selection
+              {t('media.clearFilters')}
             </Button>
           </div>
           <div className="flex items-center space-x-2">
@@ -1168,7 +1170,7 @@ export function MediaPage() {
               onClick={handleSelectAll}
               className="text-blue-600 dark:text-blue-400"
             >
-              {selectedIds.size === filteredFiles.length ? 'Deselect All' : 'Select All'}
+              {selectedIds.size === filteredFiles.length ? t('common.deselectAll') : t('common.selectAll')}
             </Button>
             <Button
               variant="danger"
@@ -1177,7 +1179,7 @@ export function MediaPage() {
               disabled={isDeleting}
             >
               <TrashIcon className="h-4 w-4 mr-2" />
-              {isDeleting ? 'Deleting...' : 'Delete Selected'}
+              {isDeleting ? t('common.loading') : t('media.deleteSelected')}
             </Button>
           </div>
         </div>
@@ -1190,7 +1192,7 @@ export function MediaPage() {
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-medium text-gray-900 dark:text-white uppercase tracking-wide">
                 <FunnelIcon className="h-3 w-3 inline mr-1" />
-                Filter by Type
+                {t('media.filters')}
               </h3>
               <button
                 onClick={() => setIsFilterSidebarOpen(false)}
@@ -1238,18 +1240,18 @@ export function MediaPage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
               <PhotoIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {searchQuery || selectedType !== 'all' ? 'No matching files' : 'No media files yet'}
+                {searchQuery || selectedType !== 'all' ? t('media.noResults') : t('media.noMedia')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                {searchQuery || selectedType !== 'all' 
-                  ? 'Try adjusting your search or filter criteria.' 
-                  : 'Upload your first media files to get started.'
+                {searchQuery || selectedType !== 'all'
+                  ? t('media.noResults')
+                  : t('media.subtitle')
                 }
               </p>
               {canUpload && apiClient.hasFeature('media') && (!searchQuery && selectedType === 'all') && (
                 <Button onClick={handleUploadClick}>
                   <PlusIcon className="h-4 w-4 mr-2" />
-                  Upload Files
+                  {t('media.uploadFiles')}
                 </Button>
               )}
             </div>
@@ -1267,7 +1269,7 @@ export function MediaPage() {
               {filteredFiles.length > itemsPerPage && (
                 <div className="mt-6 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredFiles.length)} of {filteredFiles.length} files
+                    {startIndex + 1}-{Math.min(endIndex, filteredFiles.length)} / {filteredFiles.length}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1277,7 +1279,7 @@ export function MediaPage() {
                       disabled={currentPage === 1}
                     >
                       <ChevronLeftIcon className="h-4 w-4 mr-1" />
-                      Previous
+                      {t('common.previous')}
                     </Button>
                     <span className="text-sm text-gray-600 dark:text-gray-300 px-3">
                       {currentPage} / {totalPages}
@@ -1288,7 +1290,7 @@ export function MediaPage() {
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
                     >
-                      Next
+                      {t('common.next')}
                       <ChevronRightIcon className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
@@ -1429,7 +1431,7 @@ export function MediaPage() {
                       className: "h-24 w-24 text-gray-400 mx-auto mb-4"
                     })}
                     <p className="text-gray-600 dark:text-gray-400 mb-4">
-                      Preview not available for this file type
+                      {t('media.preview')}
                     </p>
                     <Button
                       onClick={() => {
@@ -1442,7 +1444,7 @@ export function MediaPage() {
                       }}
                     >
                       <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      Download File
+                      {t('media.download')}
                     </Button>
                   </div>
                   )}
@@ -1548,12 +1550,12 @@ export function MediaPage() {
               {/* Metadata sidebar */}
               <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  File Details
+                  {t('media.details')}
                 </h3>
                 <dl className="space-y-4">
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Filename
+                      {t('media.filename')}
                     </dt>
                     <dd className="text-sm text-gray-900 dark:text-white">
                       {selectedFile.filename}
@@ -1561,7 +1563,7 @@ export function MediaPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Size
+                      {t('media.filesize')}
                     </dt>
                     <dd className="text-sm text-gray-900 dark:text-white">
                       {formatFileSize(selectedFile.size)}
@@ -1569,7 +1571,7 @@ export function MediaPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Type
+                      {t('media.mimeType')}
                     </dt>
                     <dd className="text-sm text-gray-900 dark:text-white">
                       {selectedFile.contentType}
@@ -1577,7 +1579,7 @@ export function MediaPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Uploaded
+                      {t('media.uploadedAt')}
                     </dt>
                     <dd className="text-sm text-gray-900 dark:text-white">
                       {new Date(selectedFile._createdAt).toLocaleString()}
@@ -1586,57 +1588,7 @@ export function MediaPage() {
                   {selectedFile.metadata?.width && selectedFile.metadata?.height && (
                     <div>
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Dimensions
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.width} × {selectedFile.metadata.height}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedFile.metadata?.title && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Title
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.title}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedFile.metadata?.alt && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Alt Text
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.alt}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedFile.metadata?.author && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Author
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.author}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedFile.metadata?.credit && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Credit
-                      </dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">
-                        {selectedFile.metadata.credit}
-                      </dd>
-                    </div>
-                  )}
-                  {selectedFile.metadata?.width && selectedFile.metadata?.height && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Dimensions
+                        {t('media.dimensions')}
                       </dt>
                       <dd className="text-sm text-gray-900 dark:text-white">
                         {selectedFile.metadata.width} × {selectedFile.metadata.height}px
@@ -1655,12 +1607,12 @@ export function MediaPage() {
         <Modal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          title="Edit Media"
+          title={t('media.editMetadata')}
         >
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Title
+                {t('common.title') || 'Title'}
               </label>
               <Input
                 value={editingFile.metadata?.title || ''}
@@ -1668,7 +1620,6 @@ export function MediaPage() {
                   ...editingFile,
                   metadata: { ...editingFile.metadata, title: e.target.value }
                 })}
-                placeholder="Enter a title for this media"
               />
             </div>
             <div>
@@ -1681,45 +1632,18 @@ export function MediaPage() {
                   ...editingFile,
                   metadata: { ...editingFile.metadata, alt: e.target.value }
                 })}
-                placeholder="Describe this media for accessibility"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Author
-              </label>
-              <Input
-                value={editingFile.metadata?.author || ''}
-                onChange={(e) => setEditingFile({
-                  ...editingFile,
-                  metadata: { ...editingFile.metadata, author: e.target.value }
-                })}
-                placeholder="Who created this media?"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Credit
-              </label>
-              <Input
-                value={editingFile.metadata?.credit || ''}
-                onChange={(e) => setEditingFile({
-                  ...editingFile,
-                  metadata: { ...editingFile.metadata, credit: e.target.value }
-                })}
-                placeholder="Photo credit or attribution"
               />
             </div>
             <div className="flex space-x-3 pt-4">
               <Button onClick={saveEdit} className="flex-1">
-                Save Changes
+                {t('common.save')}
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => setIsEditModalOpen(false)}
                 className="flex-1"
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           </div>
@@ -1731,21 +1655,17 @@ export function MediaPage() {
         <Modal
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
-          title="Delete Media"
+          title={t('media.delete')}
         >
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
               <ExclamationTriangleIcon className="h-6 w-6 text-red-600 mt-1" />
               <div>
                 <p className="text-gray-900 dark:text-white">
-                  Are you sure you want to delete this media file?
+                  {t('media.confirmDelete')}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   <strong>{editingFile.metadata?.title || editingFile.filename}</strong>
-                </p>
-                <p className="text-sm text-red-600 mt-2">
-                  This action cannot be undone. The file will be permanently removed
-                  and any content using this media may be affected.
                 </p>
               </div>
             </div>
@@ -1755,14 +1675,14 @@ export function MediaPage() {
                 onClick={confirmDelete}
                 className="flex-1"
               >
-                Delete Permanently
+                {t('common.delete')}
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => setIsDeleteModalOpen(false)}
                 className="flex-1"
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           </div>
@@ -1774,18 +1694,14 @@ export function MediaPage() {
         <Modal
           isOpen={isBulkDeleteModalOpen}
           onClose={() => setIsBulkDeleteModalOpen(false)}
-          title="Delete Selected Media"
+          title={t('media.deleteSelected')}
         >
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
               <ExclamationTriangleIcon className="h-6 w-6 text-red-600 mt-1" />
               <div>
                 <p className="text-gray-900 dark:text-white">
-                  Are you sure you want to delete {selectedIds.size} {selectedIds.size === 1 ? 'file' : 'files'}?
-                </p>
-                <p className="text-sm text-red-600 mt-2">
-                  This action cannot be undone. All selected files will be permanently removed
-                  and any content using these media files may be affected.
+                  {t('media.confirmBulkDelete', { count: selectedIds.size })}
                 </p>
               </div>
             </div>
@@ -1796,7 +1712,7 @@ export function MediaPage() {
                 className="flex-1"
                 disabled={isDeleting}
               >
-                {isDeleting ? 'Deleting...' : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'File' : 'Files'}`}
+                {isDeleting ? t('common.loading') : t('common.delete')}
               </Button>
               <Button
                 variant="secondary"
@@ -1804,7 +1720,7 @@ export function MediaPage() {
                 className="flex-1"
                 disabled={isDeleting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           </div>

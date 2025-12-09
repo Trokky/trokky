@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@trokky/i18n';
 
 interface SessionTimeoutWarningProps {
   show: boolean;
@@ -10,12 +11,13 @@ interface SessionTimeoutWarningProps {
   expiresAt: Date | null;
 }
 
-export function SessionTimeoutWarning({ 
-  show, 
-  onDismiss, 
-  onRefresh, 
-  expiresAt 
+export function SessionTimeoutWarning({
+  show,
+  onDismiss,
+  onRefresh,
+  expiresAt
 }: SessionTimeoutWarningProps) {
+  const { t } = useT('studio');
   const [timeLeft, setTimeLeft] = useState<string>('');
 
   useEffect(() => {
@@ -57,22 +59,21 @@ export function SessionTimeoutWarning({
           </div>
           <div className="ml-3 flex-1">
             <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              Session Expiring Soon
+              {t('sessionTimeout.title')}
             </h3>
             <div className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-              <p>Your session will expire in {timeLeft}.</p>
-              <p className="mt-1">Continue working to stay logged in.</p>
+              <p>{t('sessionTimeout.expireIn', { time: timeLeft })}</p>
             </div>
             <div className="mt-3 flex space-x-2">
               <Button
                 size="sm"
                 onClick={() => {
-                  console.log('🔘 Extend Session button clicked!');
+                  console.log('Extend Session button clicked!');
                   onRefresh();
                 }}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
-                Extend Session
+                {t('sessionTimeout.stayLoggedIn')}
               </Button>
               <Button
                 size="sm"
@@ -80,7 +81,7 @@ export function SessionTimeoutWarning({
                 onClick={onDismiss}
                 className="text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-800/20"
               >
-                Dismiss
+                {t('common.dismiss')}
               </Button>
             </div>
           </div>
@@ -90,7 +91,7 @@ export function SessionTimeoutWarning({
               className="inline-flex rounded-md text-amber-400 hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-amber-50"
               onClick={onDismiss}
             >
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t('common.close')}</span>
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>

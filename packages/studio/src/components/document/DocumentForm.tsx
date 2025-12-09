@@ -10,6 +10,7 @@ import { FieldRenderer } from '@trokky/fields';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('DocumentForm');
 
@@ -127,7 +128,8 @@ function evaluateConditional(
 
 export function DocumentForm() {
   logger.debug('Component initializing');
-  
+
+  const { t } = useT('studio');
   const { documentId } = useParams();
   const {
     schema,
@@ -138,7 +140,7 @@ export function DocumentForm() {
     isNewDocument,
     isReadOnly
   } = useDocumentEditor();
-  
+
   const studioContext = useStudioContext();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -285,14 +287,14 @@ export function DocumentForm() {
   }, [fieldErrors, onValidationChange]);
 
   if (!schema || !document) {
-    logger.debug('Waiting for schema or document to load', { 
-      hasSchema: !!schema, 
+    logger.debug('Waiting for schema or document to load', {
+      hasSchema: !!schema,
       hasDocument: !!document
     });
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">
-          Loading form...
+          {t('documentEditor.loadingForm')}
         </div>
       </div>
     );
@@ -414,7 +416,7 @@ export function DocumentForm() {
             {visibleFields.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-gray-400">
-                  No fields defined in schema
+                  {t('documentEditor.noFieldsDefined')}
                 </p>
               </div>
             )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronUpIcon, 
+import {
+  ChevronUpIcon,
   ChevronDownIcon,
   EllipsisHorizontalIcon,
   AdjustmentsHorizontalIcon
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
+import { useT } from '@trokky/i18n';
 import type { Document } from '@/types';
 
 export interface TableColumn {
@@ -57,13 +58,14 @@ export function TableView({
   onColumnVisibilityChange,
   density = 'comfortable'
 }: TableViewProps) {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const studioContext = useStudioContext();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
-  
+
   const allSelected = documents.length > 0 && selectedItems.length === documents.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < documents.length;
   const visibleColumns = columns.filter(col => col.visible !== false);
@@ -145,24 +147,24 @@ export function TableView({
       return (
         <span className={cn(
           "inline-flex px-2 py-1 text-xs font-medium rounded-md",
-          value 
+          value
             ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
             : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
         )}>
-          {value ? 'Yes' : 'No'}
+          {value ? t('contentViews.yes') : t('contentViews.no')}
         </span>
       );
     }
-    
+
     if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
       return new Date(value).toLocaleDateString();
     }
-    
+
     if (Array.isArray(value)) {
       return value.length > 0 ? (
         <span title={value.join(', ')}>{value.slice(0, 2).join(', ')}{value.length > 2 ? '...' : ''}</span>
       ) : (
-        <span className="text-gray-400">Empty</span>
+        <span className="text-gray-400">{t('contentViews.empty')}</span>
       );
     }
     
@@ -180,17 +182,17 @@ export function TableView({
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading documents...</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('contentViews.loadingDocuments')}</p>
         </div>
       </div>
     );
   }
-  
+
   if (documents.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="p-8 text-center">
-          <p className="text-gray-600 dark:text-gray-400">No documents found</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('contentViews.noDocumentsFound')}</p>
         </div>
       </div>
     );
@@ -201,9 +203,9 @@ export function TableView({
       {/* Table controls */}
       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
         <div className="text-sm text-gray-600 dark:text-gray-400">
-          {documents.length} items
+          {t('contentViews.itemsCount', { count: documents.length })}
         </div>
-        
+
         <div className="relative">
           <Button
             variant="ghost"
@@ -211,14 +213,14 @@ export function TableView({
             onClick={() => setColumnsMenuOpen(!columnsMenuOpen)}
           >
             <AdjustmentsHorizontalIcon className="h-4 w-4 mr-2" />
-            Columns
+            {t('contentViews.columns')}
           </Button>
-          
+
           {columnsMenuOpen && (
             <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
               <div className="p-3">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                  Show/Hide Columns
+                  {t('contentViews.showHideColumns')}
                 </h4>
                 <div className="space-y-2">
                   {columns.map((column) => (
@@ -312,7 +314,7 @@ export function TableView({
               
               {/* Actions column */}
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
-                Actions
+                {t('contentViews.actions')}
               </th>
             </tr>
           </thead>
@@ -394,7 +396,7 @@ export function TableView({
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                             >
-                              Edit
+                              {t('contentViews.edit')}
                             </button>
                             <button
                               onClick={() => {
@@ -403,7 +405,7 @@ export function TableView({
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                             >
-                              Copy ID
+                              {t('contentViews.copyId')}
                             </button>
                             <button
                               onClick={() => {
@@ -412,17 +414,17 @@ export function TableView({
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                             >
-                              Duplicate
+                              {t('contentViews.duplicate')}
                             </button>
                             <hr className="my-1 border-gray-200 dark:border-gray-600" />
                             <button
                               onClick={async () => {
                                 const confirmed = await studioContext?.utils?.showConfirm?.(
-                                  'Are you sure you want to delete this document? This action cannot be undone.',
+                                  t('contentViews.deleteConfirm'),
                                   {
-                                    title: 'Delete Document',
-                                    confirmText: 'Delete',
-                                    cancelText: 'Cancel',
+                                    title: t('contentViews.deleteTitle'),
+                                    confirmText: t('contentViews.confirmDelete'),
+                                    cancelText: t('common.cancel'),
                                     variant: 'danger'
                                   }
                                 );
@@ -433,7 +435,7 @@ export function TableView({
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                             >
-                              Delete
+                              {t('contentViews.delete')}
                             </button>
                           </div>
                         </div>

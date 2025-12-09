@@ -7,8 +7,10 @@ import { CheckCircleIcon, XCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/
 import { navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
+import { useT } from '@trokky/i18n';
 
 export function ResetPasswordPage() {
+  const { t } = useT('studio');
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -42,7 +44,7 @@ export function ResetPasswordPage() {
     const tokenFromUrl = urlParams.get('token');
 
     if (!tokenFromUrl) {
-      setError('No reset token provided');
+      setError(t('auth.resetPassword.noToken'));
       setIsVerifying(false);
       return;
     }
@@ -60,10 +62,10 @@ export function ResetPasswordPage() {
           setTokenValid(true);
           setExpiresIn(response.data.expiresIn);
         } else {
-          setError(response.data?.message || 'Invalid or expired reset token');
+          setError(response.data?.message || t('auth.resetPassword.tokenInvalid'));
         }
       } catch (error) {
-        setError('Failed to verify reset token');
+        setError(t('auth.resetPassword.tokenVerifyError'));
       } finally {
         setIsVerifying(false);
       }
@@ -78,18 +80,18 @@ export function ResetPasswordPage() {
 
     // Validation
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
+      setError(t('auth.resetPassword.passwordMinLength'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.resetPassword.passwordMismatch'));
       return;
     }
 
     // Validate CAPTCHA if required
     if (captcha.isRequired && !captcha.token) {
-      setError('Please complete the CAPTCHA verification');
+      setError(t('auth.resetPassword.captchaRequired'));
       return;
     }
 
@@ -105,21 +107,21 @@ export function ResetPasswordPage() {
       if (response.success) {
         setIsSuccess(true);
       } else {
-        setError(response.error?.message || 'Failed to reset password');
+        setError(response.error?.message || t('auth.resetPassword.resetError'));
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reset password');
+      setError(error instanceof Error ? error.message : t('auth.resetPassword.resetError'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const getPasswordStrength = (pwd: string): string => {
-    if (pwd.length < 8) return 'Too short';
-    if (pwd.length < 12) return 'Weak';
-    if (pwd.length < 16 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd)) return 'Good';
-    if (pwd.length >= 16 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd) && /[^A-Za-z0-9]/.test(pwd)) return 'Strong';
-    return 'Medium';
+    if (pwd.length < 8) return t('auth.resetPassword.strengthTooShort');
+    if (pwd.length < 12) return t('auth.resetPassword.strengthWeak');
+    if (pwd.length < 16 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd)) return t('auth.resetPassword.strengthGood');
+    if (pwd.length >= 16 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd) && /[^A-Za-z0-9]/.test(pwd)) return t('auth.resetPassword.strengthStrong');
+    return t('auth.resetPassword.strengthMedium');
   };
 
   const passwordStrength = password ? getPasswordStrength(password) : null;
@@ -134,7 +136,7 @@ export function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Verifying reset link...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('auth.resetPassword.verifying')}</p>
         </div>
       </div>
     );
@@ -151,16 +153,16 @@ export function ResetPasswordPage() {
                 <CheckCircleIcon className="h-16 w-16 text-green-500 dark:text-green-400" />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
-                Password Reset Successful
+                {t('auth.resetPassword.success')}
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-8">
-                Your password has been successfully reset. You can now sign in with your new password.
+                {t('auth.resetPassword.successMessage')}
               </p>
               <Button
                 onClick={() => navigateTo('/')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
-                Sign In
+                {t('auth.resetPassword.signIn')}
               </Button>
             </div>
           </div>
@@ -186,19 +188,19 @@ export function ResetPasswordPage() {
                 <XCircleIcon className="h-16 w-16 text-red-500 dark:text-red-400" />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
-                Invalid Reset Link
+                {t('auth.resetPassword.invalidLink')}
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-2">
-                {error || 'This password reset link is invalid or has expired.'}
+                {error || t('auth.resetPassword.invalidLinkMessage')}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-                Reset links expire after 1 hour. Please request a new one.
+                {t('auth.resetPassword.linkExpireNote')}
               </p>
               <Button
                 onClick={() => navigateTo('/forgot-password')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
-                Request New Link
+                {t('auth.resetPassword.requestNewLink')}
               </Button>
             </div>
           </div>
@@ -218,16 +220,16 @@ export function ResetPasswordPage() {
       <div className="w-full max-w-md">
         <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20 p-8 shadow-xl">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-            Reset Password
+            {t('auth.resetPassword.title')}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            Enter your new password below.
+            {t('auth.resetPassword.subtitle')}
           </p>
 
           {expiresIn && expiresIn < 10 && (
             <div className="mb-4 p-3 bg-yellow-50/80 dark:bg-yellow-900/20 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Link expires in {expiresIn} minute{expiresIn !== 1 ? 's' : ''}
+                {t('auth.resetPassword.linkExpiresIn', { minutes: expiresIn, count: expiresIn })}
               </p>
             </div>
           )}
@@ -247,7 +249,7 @@ export function ResetPasswordPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="New password"
+                  placeholder={t('auth.resetPassword.newPassword')}
                   required
                   disabled={isLoading}
                   autoComplete="new-password"
@@ -268,12 +270,12 @@ export function ResetPasswordPage() {
               </div>
               {password && (
                 <p className={`mt-2 text-xs ${
-                  passwordStrength === 'Strong' ? 'text-green-600 dark:text-green-400' :
-                  passwordStrength === 'Good' ? 'text-blue-600 dark:text-blue-400' :
-                  passwordStrength === 'Medium' ? 'text-yellow-600 dark:text-yellow-400' :
+                  passwordStrength === t('auth.resetPassword.strengthStrong') ? 'text-green-600 dark:text-green-400' :
+                  passwordStrength === t('auth.resetPassword.strengthGood') ? 'text-blue-600 dark:text-blue-400' :
+                  passwordStrength === t('auth.resetPassword.strengthMedium') ? 'text-yellow-600 dark:text-yellow-400' :
                   'text-red-600 dark:text-red-400'
                 }`}>
-                  Strength: {passwordStrength}
+                  {t('auth.resetPassword.strength')}: {passwordStrength}
                 </p>
               )}
             </div>
@@ -284,7 +286,7 @@ export function ResetPasswordPage() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
+                  placeholder={t('auth.resetPassword.confirmPassword')}
                   required
                   disabled={isLoading}
                   autoComplete="new-password"
@@ -304,22 +306,22 @@ export function ResetPasswordPage() {
               </div>
               {confirmPassword && confirmPassword !== password && (
                 <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-                  Passwords do not match
+                  {t('auth.resetPassword.passwordMismatch')}
                 </p>
               )}
             </div>
 
             <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>Password must:</p>
+              <p>{t('auth.resetPassword.requirements')}</p>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li className={password.length >= 8 ? 'text-green-600 dark:text-green-400' : ''}>
-                  Be at least 8 characters long
+                  {t('auth.resetPassword.requireLength')}
                 </li>
                 <li className={/[A-Z]/.test(password) ? 'text-green-600 dark:text-green-400' : ''}>
-                  Contain an uppercase letter (recommended)
+                  {t('auth.resetPassword.requireUppercase')}
                 </li>
                 <li className={/[0-9]/.test(password) ? 'text-green-600 dark:text-green-400' : ''}>
-                  Contain a number (recommended)
+                  {t('auth.resetPassword.requireNumber')}
                 </li>
               </ul>
             </div>
@@ -346,10 +348,10 @@ export function ResetPasswordPage() {
               {isLoading ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  Resetting Password...
+                  {t('auth.resetPassword.resetting')}
                 </>
               ) : (
-                'Reset Password'
+                t('auth.resetPassword.resetButton')
               )}
             </Button>
           </form>

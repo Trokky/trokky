@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { NumberFieldDefinition } from './definition.js';
@@ -8,6 +9,7 @@ import { formatNumber, parseFormattedNumber, cleanNumberString } from './validat
 type NumberFieldComponentProps = FieldComponentProps;
 
 export function NumberFieldComponent(props: NumberFieldComponentProps) {
+  const { t } = useT('fields');
   const { definition, value, onChange, isReadonly, isDisabled, hasError } = props;
   const [displayValue, setDisplayValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -28,7 +30,7 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
     if (value === null || value === undefined || value === '') {
       return (
         <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          No value
+          {t('types.number.noValue')}
         </div>
       );
     }
@@ -257,8 +259,8 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
             onClick={handleIncrement}
             className="w-5 h-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none flex items-center justify-center"
             tabIndex={-1}
-            aria-label="Increment value"
-            title="Increase value"
+            aria-label={t('types.number.increaseValue')}
+            title={t('types.number.increaseValue')}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -269,8 +271,8 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
             onClick={handleDecrement}
             className="w-5 h-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none flex items-center justify-center"
             tabIndex={-1}
-            aria-label="Decrement value"
-            title="Decrease value"
+            aria-label={t('types.number.decreaseValue')}
+            title={t('types.number.decreaseValue')}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

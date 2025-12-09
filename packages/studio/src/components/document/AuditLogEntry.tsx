@@ -1,10 +1,10 @@
 /**
  * AuditLogEntry - Individual audit log entry in document history
- * 
+ *
  * Shows details of a single document change including who, what, when
  */
 
-import { 
+import {
   UserIcon,
   ClockIcon,
   PencilIcon,
@@ -20,6 +20,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { ChangesDiff } from './ChangesDiff';
 import { createStudioLogger } from '@/utils/logger';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('AuditLogEntry');
 
@@ -51,13 +52,14 @@ interface AuditLogEntryProps {
   isLatest?: boolean;
 }
 
-export function AuditLogEntry({ 
-  auditLog, 
-  isExpanded, 
+export function AuditLogEntry({
+  auditLog,
+  isExpanded,
   onToggleExpansion,
-  isLatest = false 
+  isLatest = false
 }: AuditLogEntryProps) {
-  
+  const { t } = useT('studio');
+
   // Format timestamp for display
   const formatTimestamp = (timestamp: string) => {
     try {
@@ -86,37 +88,37 @@ export function AuditLogEntry({
       case 'create':
         return {
           icon: PlusIcon,
-          text: 'Created',
+          text: t('auditEntry.created'),
           color: 'text-green-600 dark:text-green-400'
         };
       case 'update':
         return {
           icon: PencilIcon,
-          text: 'Updated',
+          text: t('auditEntry.updated'),
           color: 'text-blue-600 dark:text-blue-400'
         };
       case 'delete':
         return {
           icon: TrashIcon,
-          text: 'Deleted',
+          text: t('auditEntry.deleted'),
           color: 'text-red-600 dark:text-red-400'
         };
       case 'publish':
         return {
           icon: EyeIcon,
-          text: 'Published',
+          text: t('auditEntry.published'),
           color: 'text-purple-600 dark:text-purple-400'
         };
       case 'unpublish':
         return {
           icon: EyeIcon,
-          text: 'Unpublished',
+          text: t('auditEntry.unpublished'),
           color: 'text-orange-600 dark:text-orange-400'
         };
       case 'restore':
         return {
           icon: ClockIcon,
-          text: 'Restored',
+          text: t('auditEntry.restored'),
           color: 'text-indigo-600 dark:text-indigo-400'
         };
       default:
@@ -156,11 +158,11 @@ export function AuditLogEntry({
 
     const fields = auditLog.changes.fields;
     if (fields.length === 1) {
-      return `Changed ${fields[0]}`;
+      return t('auditEntry.changedField', { field: fields[0] });
     } else if (fields.length <= 3) {
-      return `Changed ${fields.join(', ')}`;
+      return t('auditEntry.changedFieldsJoin', { fields: fields.join(', ') });
     } else {
-      return `Changed ${fields.length} fields`;
+      return t('auditEntry.changedFieldsCount', { count: fields.length });
     }
   };
 
@@ -205,13 +207,13 @@ export function AuditLogEntry({
                 <span className={`font-medium ${operationInfo.color}`}>
                   {operationInfo.text}
                 </span>
-                <span className="text-gray-400">by</span>
+                <span className="text-gray-400">{t('auditEntry.by')}</span>
                 <span className="text-gray-600 dark:text-gray-300 font-medium truncate">
                   {getActorDisplayName()}
                 </span>
                 {isLatest && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200">
-                    Latest
+                    {t('auditEntry.latest')}
                   </span>
                 )}
               </div>
@@ -229,7 +231,7 @@ export function AuditLogEntry({
             <button
               onClick={onToggleExpansion}
               className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title={isExpanded ? 'Hide details' : 'Show details'}
+              title={isExpanded ? t('auditEntry.hideDetails') : t('auditEntry.showDetails')}
             >
               {isExpanded ? (
                 <ChevronDownIcon className="h-3 w-3" />
@@ -254,19 +256,19 @@ export function AuditLogEntry({
           <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
             <div className="grid grid-cols-1 gap-2 text-xs text-gray-500 dark:text-gray-400">
               <div>
-                <span className="font-medium">Revision:</span> {auditLog.revision}
+                <span className="font-medium">{t('auditEntry.revision')}</span> {auditLog.revision}
               </div>
               {auditLog.ipAddress && (
                 <div>
-                  <span className="font-medium">IP Address:</span> {auditLog.ipAddress}
+                  <span className="font-medium">{t('auditEntry.ipAddress')}</span> {auditLog.ipAddress}
                 </div>
               )}
               {auditLog.userAgent && (
                 <div>
-                  <span className="font-medium">User Agent:</span>{' '}
+                  <span className="font-medium">{t('auditEntry.userAgent')}</span>{' '}
                   <span className="truncate" title={auditLog.userAgent}>
-                    {auditLog.userAgent.length > 50 
-                      ? `${auditLog.userAgent.substring(0, 50)}...` 
+                    {auditLog.userAgent.length > 50
+                      ? `${auditLog.userAgent.substring(0, 50)}...`
                       : auditLog.userAgent
                     }
                   </span>

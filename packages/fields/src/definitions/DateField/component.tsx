@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/index.js';
 import type { DateFieldDefinition, DateFieldValue } from './definition.js';
 import { DATE_FIELD_DEFAULTS } from './definition.js';
@@ -14,6 +15,7 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
   mode,
   ...props
 }) => {
+  const { t } = useT('fields');
   const fieldDef = definition as DateFieldDefinition;
   const options = { ...DATE_FIELD_DEFAULTS, ...fieldDef.options };
   const [showCalendar, setShowCalendar] = useState(false);
@@ -147,11 +149,11 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
               {formatDateForDisplay(selectedDate)}
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              ({options.includeTime ? 'Date & Time' : 'Date'})
+              ({options.includeTime ? t('types.date.dateAndTime') : t('types.date.dateOnly')})
             </span>
           </div>
         ) : (
-          <span className="text-gray-500 dark:text-gray-400 italic text-sm">No date set</span>
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">{t('types.date.noDateSet')}</span>
         )}
         {fieldDef.description && (
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -196,7 +198,7 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
             type="button"
             onClick={handleClear}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            aria-label="Clear date"
+            aria-label={t('types.date.clearDate')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

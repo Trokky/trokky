@@ -19,6 +19,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { WEBHOOK_PERMISSIONS } from '@/constants/permissions';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('WebhookManagement');
 
@@ -51,24 +52,25 @@ interface WebhookDelivery {
   error?: string;
 }
 
-const EVENT_TYPES = [
-  { value: 'document.*', label: 'All Document Events', group: 'Documents' },
-  { value: 'document.created', label: 'Document Created', group: 'Documents' },
-  { value: 'document.updated', label: 'Document Updated', group: 'Documents' },
-  { value: 'document.deleted', label: 'Document Deleted', group: 'Documents' },
-  { value: 'document.published', label: 'Document Published', group: 'Documents' },
-  { value: 'document.unpublished', label: 'Document Unpublished', group: 'Documents' },
-  { value: 'media.*', label: 'All Media Events', group: 'Media' },
-  { value: 'media.uploaded', label: 'Media Uploaded', group: 'Media' },
-  { value: 'media.updated', label: 'Media Updated', group: 'Media' },
-  { value: 'media.deleted', label: 'Media Deleted', group: 'Media' },
-  { value: 'user.*', label: 'All User Events', group: 'Users' },
-  { value: 'user.created', label: 'User Created', group: 'Users' },
-  { value: 'user.updated', label: 'User Updated', group: 'Users' },
-  { value: 'user.login', label: 'User Login', group: 'Users' },
-  { value: 'system.*', label: 'All System Events', group: 'System' },
-  { value: 'system.startup', label: 'System Startup', group: 'System' },
-  { value: 'system.error', label: 'System Error', group: 'System' }
+// Event type definitions with i18n keys
+const EVENT_TYPE_DEFS = [
+  { value: 'document.*', labelKey: 'webhooks.events.allDocuments', group: 'Documents' },
+  { value: 'document.created', labelKey: 'webhooks.events.documentCreated', group: 'Documents' },
+  { value: 'document.updated', labelKey: 'webhooks.events.documentUpdated', group: 'Documents' },
+  { value: 'document.deleted', labelKey: 'webhooks.events.documentDeleted', group: 'Documents' },
+  { value: 'document.published', labelKey: 'webhooks.events.documentPublished', group: 'Documents' },
+  { value: 'document.unpublished', labelKey: 'webhooks.events.documentUnpublished', group: 'Documents' },
+  { value: 'media.*', labelKey: 'webhooks.events.allMedia', group: 'Media' },
+  { value: 'media.uploaded', labelKey: 'webhooks.events.mediaUploaded', group: 'Media' },
+  { value: 'media.updated', labelKey: 'webhooks.events.mediaUpdated', group: 'Media' },
+  { value: 'media.deleted', labelKey: 'webhooks.events.mediaDeleted', group: 'Media' },
+  { value: 'user.*', labelKey: 'webhooks.events.allUsers', group: 'Users' },
+  { value: 'user.created', labelKey: 'webhooks.events.userCreated', group: 'Users' },
+  { value: 'user.updated', labelKey: 'webhooks.events.userUpdated', group: 'Users' },
+  { value: 'user.login', labelKey: 'webhooks.events.userLogin', group: 'Users' },
+  { value: 'system.*', labelKey: 'webhooks.events.allSystem', group: 'System' },
+  { value: 'system.startup', labelKey: 'webhooks.events.systemStartup', group: 'System' },
+  { value: 'system.error', labelKey: 'webhooks.events.systemError', group: 'System' }
 ];
 
 interface WebhookFormData {
@@ -94,6 +96,7 @@ interface WebhookModalProps {
 }
 
 function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
+  const { t } = useT('studio');
   const [formData, setFormData] = useState<WebhookFormData>({
     name: '',
     url: '',
@@ -199,6 +202,13 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
     setFormData(prev => ({ ...prev, secret }));
   };
 
+  // Convert event definitions to use translated labels
+  const EVENT_TYPES = EVENT_TYPE_DEFS.map(event => ({
+    value: event.value,
+    label: t(event.labelKey),
+    group: event.group
+  }));
+
   // Group events by category
   const groupedEvents = EVENT_TYPES.reduce((acc, event) => {
     if (!acc[event.group]) acc[event.group] = [];
@@ -210,19 +220,19 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={webhook ? 'Edit Webhook' : 'Create Webhook'}
+      title={webhook ? t('webhooks.modal.editTitle') : t('webhooks.modal.createTitle')}
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Webhook Name *
+            {t('webhooks.modal.name')} *
           </label>
           <Input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g., Content Sync, Slack Notifications"
+            placeholder={t('webhooks.modal.namePlaceholder')}
             required
             disabled={isLoading}
           />
@@ -230,13 +240,13 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Endpoint URL *
+            {t('webhooks.modal.url')} *
           </label>
           <Input
             type="url"
             value={formData.url}
             onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-            placeholder="https://api.example.com/webhooks/trokky"
+            placeholder={t('webhooks.modal.urlPlaceholder')}
             required
             disabled={isLoading}
           />
@@ -244,7 +254,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Events to Subscribe To
+            {t('webhooks.modal.events')}
           </label>
           <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 space-y-3 max-h-48 overflow-y-auto">
             {Object.entries(groupedEvents).map(([group, events]) => (
@@ -274,14 +284,14 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Secret Key
+            {t('webhooks.modal.secret')}
           </label>
           <div className="flex">
             <Input
               type="text"
               value={formData.secret}
               onChange={(e) => setFormData(prev => ({ ...prev, secret: e.target.value }))}
-              placeholder="Leave empty to auto-generate"
+              placeholder={t('webhooks.modal.secretPlaceholder')}
               disabled={isLoading}
               className="flex-1"
             />
@@ -292,17 +302,17 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
               className="ml-2 whitespace-nowrap"
               disabled={isLoading}
             >
-              Generate
+              {t('common.generate')}
             </Button>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Used to verify webhook authenticity via HMAC signatures
+            {t('webhooks.modal.secretDescription')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Custom Headers
+            {t('webhooks.modal.headers')}
           </label>
           {Object.entries(formData.headers).length > 0 && (
             <div className="mb-3 space-y-1">
@@ -324,14 +334,14 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
           )}
           <div className="flex gap-2">
             <Input
-              placeholder="Header name"
+              placeholder={t('webhooks.modal.headerNamePlaceholder')}
               value={headerKey}
               onChange={(e) => setHeaderKey(e.target.value)}
               disabled={isLoading}
               className="flex-1"
             />
             <Input
-              placeholder="Header value"
+              placeholder={t('webhooks.modal.headerValuePlaceholder')}
               value={headerValue}
               onChange={(e) => setHeaderValue(e.target.value)}
               disabled={isLoading}
@@ -343,7 +353,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
               variant="secondary"
               disabled={isLoading || !headerKey.trim() || !headerValue.trim()}
             >
-              Add
+              {t('common.add')}
             </Button>
           </div>
         </div>
@@ -351,7 +361,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Max Retries
+              {t('webhooks.modal.maxRetries')}
             </label>
             <Input
               type="number"
@@ -367,7 +377,7 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Backoff Strategy
+              {t('webhooks.modal.backoffStrategy')}
             </label>
             <select
               value={formData.retryPolicy.backoffType}
@@ -378,8 +388,8 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
             >
-              <option value="linear">Linear</option>
-              <option value="exponential">Exponential</option>
+              <option value="linear">{t('webhooks.modal.linear')}</option>
+              <option value="exponential">{t('webhooks.modal.exponential')}</option>
             </select>
           </div>
         </div>
@@ -394,26 +404,26 @@ function WebhookModal({ isOpen, onClose, onSave, webhook }: WebhookModalProps) {
             disabled={isLoading}
           />
           <label htmlFor="webhook-active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-            Active (webhook will receive events)
+            {t('webhooks.modal.active')}
           </label>
         </div>
-        
+
         {/* Form Actions */}
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
-            Cancel
+            {t('common.cancel')}
           </Button>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={isLoading || !formData.name || !formData.url || formData.events.length === 0}
           >
             {isLoading ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
-                {webhook ? 'Updating...' : 'Creating...'}
+                {webhook ? t('webhooks.modal.updating') : t('webhooks.modal.creating')}
               </>
             ) : (
-              webhook ? 'Update Webhook' : 'Create Webhook'
+              webhook ? t('webhooks.modal.update') : t('webhooks.modal.create')
             )}
           </Button>
         </div>
@@ -429,6 +439,7 @@ interface DeliveryModalProps {
 }
 
 function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
+  const { t } = useT('studio');
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -458,7 +469,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
     <Modal
       isOpen={isOpen && !!webhook}
       onClose={onClose}
-      title={`Delivery History: ${webhook?.name}`}
+      title={t('webhooks.deliveryModal.title', { name: webhook?.name })}
       size="xl"
     >
       <div className="space-y-4">
@@ -469,7 +480,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
         ) : deliveries.length === 0 ? (
           <div className="text-center py-8">
             <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">No deliveries yet</p>
+            <p className="text-gray-600 dark:text-gray-400">{t('webhooks.deliveryModal.noDeliveries')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -477,16 +488,16 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    {t('webhooks.deliveryModal.status')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Response
+                    {t('webhooks.deliveryModal.response')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Time
+                    {t('webhooks.deliveryModal.timestamp')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Attempt
+                    {t('webhooks.deliveryModal.attempt')}
                   </th>
                 </tr>
               </thead>
@@ -495,7 +506,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
                   <tr key={delivery.deliveryId}>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                        delivery.success 
+                        delivery.success
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                           : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                       }`}>
@@ -504,7 +515,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
                         ) : (
                           <XCircleIcon className="h-3 w-3 mr-1" />
                         )}
-                        {delivery.success ? 'Success' : 'Failed'}
+                        {delivery.success ? t('webhooks.deliveryModal.success') : t('webhooks.deliveryModal.failed')}
                       </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
@@ -542,6 +553,7 @@ function DeliveryModal({ webhook, isOpen, onClose }: DeliveryModalProps) {
 }
 
 export function WebhookManagement() {
+  const { t } = useT('studio');
   const { hasPermission } = usePermissions();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -603,7 +615,7 @@ export function WebhookManagement() {
   };
 
   const handleDeleteWebhook = async (webhook: WebhookConfig) => {
-    if (!confirm(`Are you sure you want to delete the webhook "${webhook.name}"? This action cannot be undone.`)) {
+    if (!confirm(t('webhooks.deleteConfirm', { name: webhook.name }))) {
       return;
     }
 
@@ -664,22 +676,22 @@ export function WebhookManagement() {
   };
 
   const getStatusText = (webhook: WebhookConfig) => {
-    return webhook.active ? 'Active' : 'Inactive';
+    return webhook.active ? t('webhooks.status.active') : t('webhooks.status.inactive');
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Webhooks</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('webhooks.title')}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Receive real-time notifications when events occur
+            {t('webhooks.subtitle')}
           </p>
         </div>
         {canCreateWebhook && (
           <Button onClick={() => setShowWebhookModal(true)}>
             <PlusIcon className="h-4 w-4 mr-2" />
-            Create Webhook
+            {t('webhooks.createWebhook')}
           </Button>
         )}
       </div>
@@ -687,7 +699,7 @@ export function WebhookManagement() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <Input
-            placeholder="Search webhooks..."
+            placeholder={t('webhooks.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -702,15 +714,15 @@ export function WebhookManagement() {
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <GlobeAltIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No webhooks configured
+            {t('webhooks.noWebhooksTitle')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Create your first webhook to receive real-time notifications when events occur.
+            {t('webhooks.noWebhooksDesc')}
           </p>
           {canCreateWebhook && (
             <Button onClick={() => setShowWebhookModal(true)}>
               <PlusIcon className="h-4 w-4 mr-2" />
-              Create Webhook
+              {t('webhooks.createWebhook')}
             </Button>
           )}
         </div>
@@ -721,19 +733,19 @@ export function WebhookManagement() {
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Webhook
+                    {t('webhooks.tableHeaders.webhook')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    {t('webhooks.tableHeaders.status')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Events
+                    {t('webhooks.tableHeaders.events')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Updated
+                    {t('webhooks.tableHeaders.lastUpdated')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('webhooks.tableHeaders.actions')}
                   </th>
                 </tr>
               </thead>
@@ -757,11 +769,11 @@ export function WebhookManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {webhook.events.length} event{webhook.events.length !== 1 ? 's' : ''}
+                        {t('webhooks.eventsCount', { count: webhook.events.length })}
                       </div>
                       <div className="text-xs text-gray-400 max-w-xs">
                         {webhook.events.slice(0, 3).join(', ')}
-                        {webhook.events.length > 3 && ` +${webhook.events.length - 3} more`}
+                        {webhook.events.length > 3 && ` ${t('webhooks.moreEvents', { count: webhook.events.length - 3 })}`}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -773,7 +785,7 @@ export function WebhookManagement() {
                         variant="ghost"
                         onClick={() => handleTestWebhook(webhook)}
                         disabled={testingWebhook === webhook.id || !webhook.active}
-                        title="Test webhook"
+                        title={t('webhooks.testWebhook')}
                       >
                         {testingWebhook === webhook.id ? (
                           <ArrowPathIcon className="h-4 w-4 animate-spin" />
@@ -785,7 +797,7 @@ export function WebhookManagement() {
                         size="sm"
                         variant="ghost"
                         onClick={() => openDeliveryModal(webhook)}
-                        title="View delivery history"
+                        title={t('webhooks.viewDeliveryHistory')}
                       >
                         <EyeIcon className="h-4 w-4" />
                       </Button>
@@ -794,7 +806,7 @@ export function WebhookManagement() {
                           size="sm"
                           variant="ghost"
                           onClick={() => openEditModal(webhook)}
-                          title="Edit webhook"
+                          title={t('webhooks.editWebhook')}
                         >
                           <PencilIcon className="h-4 w-4" />
                         </Button>
@@ -805,7 +817,7 @@ export function WebhookManagement() {
                           variant="ghost"
                           onClick={() => handleDeleteWebhook(webhook)}
                           className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title="Delete webhook"
+                          title={t('webhooks.deleteWebhook')}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>

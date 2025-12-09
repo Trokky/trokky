@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
+import { useT } from '@trokky/i18n'
 
 export type CaptchaProvider = 'turnstile' | 'hcaptcha' | 'recaptcha'
 
@@ -91,6 +92,7 @@ export function CaptchaWidget({
   onExpire,
   className = '',
 }: CaptchaWidgetProps) {
+  const { t } = useT('studio')
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | number | null>(null)
   const callbacksRef = useRef({ onVerify, onError, onExpire })
@@ -106,7 +108,7 @@ export function CaptchaWidget({
   useEffect(() => {
     // Check if provider is supported
     if (provider === 'hcaptcha') {
-      setScriptError('hCaptcha is not yet supported')
+      setScriptError(t('captcha.errors.hcaptchaNotSupported'))
       return
     }
 
@@ -114,7 +116,7 @@ export function CaptchaWidget({
     const scriptSelector = SCRIPT_SELECTORS[provider]
 
     if (!scriptUrl) {
-      setScriptError(`Provider "${provider}" is not supported`)
+      setScriptError(t('captcha.errors.providerNotSupported', { provider }))
       return
     }
 
@@ -139,7 +141,7 @@ export function CaptchaWidget({
           setIsScriptLoaded(true)
         }
       }
-      const handleError = () => setScriptError('Failed to load CAPTCHA script')
+      const handleError = () => setScriptError(t('captcha.errors.scriptLoadFailed'))
       existingScript.addEventListener('load', handleLoad)
       existingScript.addEventListener('error', handleError)
       return () => {
@@ -163,7 +165,7 @@ export function CaptchaWidget({
     }
 
     script.onerror = () => {
-      setScriptError('Failed to load CAPTCHA script')
+      setScriptError(t('captcha.errors.scriptLoadFailed'))
     }
 
     document.head.appendChild(script)
@@ -176,7 +178,7 @@ export function CaptchaWidget({
     }
 
     if (!window.turnstile) {
-      setScriptError('Turnstile not available')
+      setScriptError(t('captcha.errors.notAvailable', { provider: 'Turnstile' }))
       return
     }
 
@@ -200,7 +202,7 @@ export function CaptchaWidget({
         })
       } catch (error) {
         console.error('Failed to render Turnstile widget:', error)
-        setScriptError('Failed to render CAPTCHA widget')
+        setScriptError(t('captcha.errors.renderFailed'))
       }
     }, 100)
 
@@ -225,7 +227,7 @@ export function CaptchaWidget({
     }
 
     if (!window.grecaptcha) {
-      setScriptError('reCAPTCHA not available')
+      setScriptError(t('captcha.errors.notAvailable', { provider: 'reCAPTCHA' }))
       return
     }
 
@@ -254,7 +256,7 @@ export function CaptchaWidget({
         })
       } catch (error) {
         console.error('Failed to render reCAPTCHA widget:', error)
-        setScriptError('Failed to render CAPTCHA widget')
+        setScriptError(t('captcha.errors.renderFailed'))
       }
     }, 100)
 
@@ -287,7 +289,7 @@ export function CaptchaWidget({
       <div className={`captcha-widget captcha-loading ${className}`}>
         <div className="flex items-center justify-center py-4">
           <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-          <span className="ml-2 text-sm text-gray-500">Loading CAPTCHA...</span>
+          <span className="ml-2 text-sm text-gray-500">{t('captcha.loading')}</span>
         </div>
       </div>
     )

@@ -545,6 +545,20 @@ export interface FeaturesConfig {
   }
 }
 
+/** Internationalization (i18n) configuration */
+export interface I18nConfig {
+  /** Default locale for the CMS (default: 'en') */
+  defaultLocale?: string
+  /** Supported locales for content and UI (default: ['en', 'fr']) */
+  supportedLocales?: string[]
+  /** Fallback locale when translation is missing (default: 'en') */
+  fallbackLocale?: string
+  /** Detect browser language automatically (default: true) */
+  detectBrowserLanguage?: boolean
+  /** Enable debug logging for missing translations (default: false in production) */
+  debug?: boolean
+}
+
 export interface TrokkyConfig {
   /** Environment mode */
   env?: TrokkyEnvironment
@@ -591,6 +605,8 @@ export interface TrokkyConfig {
   }
   /** Features configuration */
   features?: FeaturesConfig
+  /** Internationalization (i18n) configuration */
+  i18n?: I18nConfig
   /** HTTP server settings */
   server?: ServerConfig
   /** Studio integration */
@@ -621,6 +637,8 @@ export interface TrokkyConfigWithDefaults extends TrokkyConfig {
   studio: Required<Omit<StudioConfig, 'apiUrl'>> & {
     apiUrl?: string
   }
+  /** i18n configuration with defaults applied */
+  i18n: Required<I18nConfig>
   // These remain optional as they're truly opt-in features
   mail?: MailConfig
   hooks?: HooksConfig
@@ -733,6 +751,15 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
         inactivityTimeout: 30 * 60 * 1000 // 30 minutes
       },
       ...config.studio
+    },
+
+    i18n: {
+      defaultLocale: 'en',
+      supportedLocales: ['en', 'fr'],
+      fallbackLocale: 'en',
+      detectBrowserLanguage: true,
+      debug: isDev,
+      ...config.i18n
     },
 
     // Pass through optional features (no defaults needed)

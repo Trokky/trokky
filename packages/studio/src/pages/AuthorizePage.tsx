@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { CheckCircleIcon, XCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 interface AuthorizationInfo {
   client: {
@@ -31,6 +32,7 @@ type AuthStatus = 'loading' | 'pending' | 'redirecting' | 'error';
  * External applications redirect here to request user authorization.
  */
 export function AuthorizePage() {
+  const { t } = useT('studio');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -51,7 +53,7 @@ export function AuthorizePage() {
   useEffect(() => {
     if (!clientId || !redirectUri || !responseType || !state || !codeChallenge) {
       setStatus('error');
-      setError('Missing required authorization parameters');
+      setError(t('auth.authorize.missingParams'));
       return;
     }
 
@@ -90,12 +92,12 @@ export function AuthorizePage() {
         setStatus('error');
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Invalid authorization request';
+          : response.error?.message || t('auth.authorize.invalidRequest');
         setError(errorMsg);
       }
     } catch (err: any) {
       setStatus('error');
-      const errorMsg = err?.message || 'Failed to validate authorization request';
+      const errorMsg = err?.message || t('auth.authorize.validateError');
       setError(errorMsg);
     }
   };
@@ -145,12 +147,12 @@ export function AuthorizePage() {
       } else {
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Authorization failed';
+          : response.error?.message || t('auth.authorize.authFailed');
         setError(errorMsg);
         setStatus('error');
       }
     } catch (err: any) {
-      const errorMsg = err?.message || 'Failed to authorize';
+      const errorMsg = err?.message || t('auth.authorize.authFailed');
       setError(errorMsg);
       setStatus('error');
     } finally {
@@ -178,12 +180,12 @@ export function AuthorizePage() {
       } else {
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Failed to deny authorization';
+          : response.error?.message || t('auth.authorize.denyFailed');
         setError(errorMsg);
         setStatus('error');
       }
     } catch (err: any) {
-      const errorMsg = err?.message || 'Failed to deny';
+      const errorMsg = err?.message || t('auth.authorize.denyFailed');
       setError(errorMsg);
       setStatus('error');
     } finally {
@@ -193,14 +195,14 @@ export function AuthorizePage() {
 
   const formatScope = (scope: string): string => {
     switch (scope) {
-      case 'openid': return 'Access your identity';
-      case 'profile': return 'Access your profile information';
-      case 'content:read': return 'Read content';
-      case 'content:write': return 'Create and update content';
-      case 'content:delete': return 'Delete content';
-      case 'media:read': return 'Read media files';
-      case 'media:write': return 'Upload media files';
-      case 'offline_access': return 'Stay logged in';
+      case 'openid': return t('auth.device.scopes.openid');
+      case 'profile': return t('auth.device.scopes.profile');
+      case 'content:read': return t('auth.device.scopes.contentRead');
+      case 'content:write': return t('auth.device.scopes.contentWrite');
+      case 'content:delete': return t('auth.device.scopes.contentDelete');
+      case 'media:read': return t('auth.device.scopes.mediaRead');
+      case 'media:write': return t('auth.device.scopes.mediaWrite');
+      case 'offline_access': return t('auth.device.scopes.offlineAccess');
       default: return scope;
     }
   };
@@ -212,7 +214,7 @@ export function AuthorizePage() {
           <div className="flex flex-col items-center justify-center py-12">
             <LoadingSpinner size="lg" />
             <p className="mt-4 text-gray-600 dark:text-gray-400">
-              Validating authorization request...
+              {t('auth.authorize.validating')}
             </p>
           </div>
         );
@@ -228,13 +230,13 @@ export function AuthorizePage() {
 
             <div className="text-center">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Authorize Application
+                {t('auth.authorize.authorizeApp')}
               </h2>
               <p className="mt-2 text-gray-600 dark:text-gray-400">
                 <span className="font-semibold text-blue-600 dark:text-blue-400">
                   {authInfo?.client.name}
                 </span>
-                {' '}wants to access your account
+                {' '}{t('auth.authorize.wantsAccess')}
               </p>
               {authInfo?.client.description && (
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
@@ -246,7 +248,7 @@ export function AuthorizePage() {
             {authInfo?.scopes && authInfo.scopes.length > 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  This will allow the application to:
+                  {t('auth.authorize.allowApplication')}
                 </p>
                 <ul className="space-y-2">
                   {authInfo.scopes.map((scope, i) => (
@@ -267,7 +269,7 @@ export function AuthorizePage() {
                   rel="noopener noreferrer"
                   className="text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  Visit application website
+                  {t('auth.authorize.visitWebsite')}
                 </a>
               </div>
             )}
@@ -279,7 +281,7 @@ export function AuthorizePage() {
                 onClick={handleDeny}
                 disabled={isSubmitting}
               >
-                Deny
+                {t('auth.authorize.deny')}
               </Button>
               <Button
                 variant="primary"
@@ -287,12 +289,12 @@ export function AuthorizePage() {
                 onClick={handleAuthorize}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? <LoadingSpinner size="sm" /> : 'Authorize'}
+                {isSubmitting ? <LoadingSpinner size="sm" /> : t('auth.authorize.authorize')}
               </Button>
             </div>
 
             <p className="text-xs text-center text-gray-500 dark:text-gray-500">
-              By authorizing, you allow this application to access your data according to the permissions listed above.
+              {t('auth.authorize.consentNote')}
             </p>
           </div>
         );
@@ -302,10 +304,10 @@ export function AuthorizePage() {
           <div className="flex flex-col items-center justify-center py-12 space-y-4">
             <LoadingSpinner size="lg" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Redirecting...
+              {t('auth.authorize.redirecting')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              You are being redirected back to the application.
+              {t('auth.authorize.redirectingMessage')}
             </p>
           </div>
         );
@@ -317,16 +319,16 @@ export function AuthorizePage() {
               <XCircleIcon className="w-10 h-10 text-red-600 dark:text-red-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Authorization Error
+              {t('auth.authorize.error')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              {error || 'An unexpected error occurred'}
+              {error || t('common.error')}
             </p>
             <Button
               variant="secondary"
               onClick={() => navigate('/')}
             >
-              Return to Studio
+              {t('auth.authorize.returnToStudio')}
             </Button>
           </div>
         );
@@ -338,7 +340,7 @@ export function AuthorizePage() {
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Trokky
+            {t('auth.authorize.pageTitle')}
           </h1>
         </div>
         {renderContent()}

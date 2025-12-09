@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useT } from '@trokky/i18n'
 import type { FieldComponentProps } from '../../base/index.js'
 import type { ColorFieldDefinition } from './definition.js'
 import { COLOR_FIELD_DEFAULTS } from './definition.js'
@@ -67,11 +68,13 @@ export function ColorFieldComponent({
   isDisabled,
   isReadonly,
 }: FieldComponentProps) {
+  const { t } = useT('fields')
+
   // Defensive coding - ensure definition exists
   if (!definition) {
     console.error('ColorFieldComponent: definition is undefined')
     return (
-      <div className="text-red-500">Error: Field definition is missing</div>
+      <div className="text-red-500">{t('errors.definitionMissing')}</div>
     )
   }
 
@@ -185,7 +188,7 @@ export function ColorFieldComponent({
             transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
           `}
           style={{ backgroundColor: currentColor }}
-          aria-label="Open color picker"
+          aria-label={t('types.color.openPicker')}
         >
           {/* Checkerboard for transparency */}
           {options.enableAlpha && (
@@ -236,7 +239,7 @@ export function ColorFieldComponent({
               className="p-2 border border-gray-300 dark:border-gray-600 rounded-md
               hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
               focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Pick color from screen"
+              aria-label={t('types.color.pickFromScreen')}
             >
               <svg
                 className="w-5 h-5"
@@ -276,7 +279,7 @@ export function ColorFieldComponent({
             {options.swatches && options.swatches.length > 0 && (
               <div className="space-y-2">
                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                  Quick Colors
+                  {t('types.color.quickColors')}
                 </div>
                 <div className="flex flex-wrap gap-2 max-w-sm">
                   {options.swatches.map((color: string) => (
@@ -293,7 +296,7 @@ export function ColorFieldComponent({
                         }
                       `}
                       style={{ backgroundColor: color }}
-                      aria-label={`Select ${color}`}
+                      aria-label={t('types.color.selectColor', { color })}
                     />
                   ))}
                 </div>

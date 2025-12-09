@@ -13,6 +13,7 @@ import { apiClient, ApiClientError } from '@/services/api-client';
 import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useT } from '@trokky/i18n';
 
 // Document editor context and components
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
@@ -76,6 +77,7 @@ export function DocumentEditor({
   onSave,
   onCancel
 }: DocumentEditorProps) {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const location = useLocation();
   // Use structure-driven context sidebar instead of manual configuration
@@ -559,7 +561,7 @@ export function DocumentEditor({
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">
-            Loading {isNewDocument ? 'schema' : 'document'}...
+            {isNewDocument ? t('documentEditor.loadingSchema') : t('documentEditor.loadingDocument')}
           </p>
         </div>
       </div>
@@ -571,10 +573,10 @@ export function DocumentEditor({
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 mb-4">
-            <h3 className="text-lg font-medium">Error</h3>
+            <h3 className="text-lg font-medium">{t('common.error')}</h3>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-          <Button onClick={handleCancel}>Back to Documents</Button>
+          <Button onClick={handleCancel}>{t('documentEditor.backToDocuments')}</Button>
         </div>
       </div>
     );
@@ -605,13 +607,14 @@ export function DocumentEditor({
  * Document preview mode (placeholder for now)
  */
 function DocumentPreview() {
+  const { t } = useT('studio');
   const { document } = useDocumentEditor();
 
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          Document Preview
+          {t('documentEditor.documentPreview')}
         </h3>
         <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
           {JSON.stringify(document, null, 2)}
@@ -625,16 +628,17 @@ function DocumentPreview() {
  * Standalone DocumentEditor for routing
  */
 export function DocumentEditorPage() {
+  const { t } = useT('studio');
   const { schemaName, documentId } = useParams();
 
   if (!schemaName) {
     logger.warn('DocumentEditorPage rendered without schema name');
-    return <div>Schema name is required</div>;
+    return <div>{t('documentEditor.schemaRequired')}</div>;
   }
 
   return (
-    <DocumentEditor 
-      schemaName={schemaName} 
+    <DocumentEditor
+      schemaName={schemaName}
       documentId={documentId}
     />
   );

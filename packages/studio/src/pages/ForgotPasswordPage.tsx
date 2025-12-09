@@ -8,8 +8,10 @@ import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/brandin
 import { getStudioPath, navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
+import { useT } from '@trokky/i18n';
 
 export function ForgotPasswordPage() {
+  const { t } = useT('studio');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function ForgotPasswordPage() {
 
     // Validate CAPTCHA if required
     if (captcha.isRequired && !captcha.token) {
-      setError('Please complete the CAPTCHA verification');
+      setError(t('auth.forgotPassword.captchaRequired'));
       setIsLoading(false);
       return;
     }
@@ -61,10 +63,10 @@ export function ForgotPasswordPage() {
       if (response.success) {
         setIsSubmitted(true);
       } else {
-        setError(response.error?.message || 'Failed to send reset email');
+        setError(response.error?.message || t('auth.forgotPassword.sendError'));
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to send reset email');
+      setError(error instanceof Error ? error.message : t('auth.forgotPassword.sendError'));
     } finally {
       setIsLoading(false);
     }
@@ -83,19 +85,17 @@ export function ForgotPasswordPage() {
                 <CheckCircleIcon className="h-16 w-16 text-green-500 dark:text-green-400" />
               </div>
               <h2 className="text-2xl font-semibold text-primary-600 dark:text-primary-400 mb-3">
-                Check your email
+                {t('auth.forgotPassword.checkEmail')}
               </h2>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                If an account exists for <strong>{email}</strong>, you will receive a password reset link shortly.
-              </p>
+              <p className="text-gray-600 dark:text-gray-300 mb-6" dangerouslySetInnerHTML={{ __html: t('auth.forgotPassword.emailSentMessage', { email }) }} />
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-                The link will expire in 1 hour.
+                {t('auth.forgotPassword.linkExpires')}
               </p>
               <Button
                 onClick={() => navigateTo('/')}
                 className="w-full h-12 bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 rounded-lg font-medium transition-colors"
               >
-                Back to Sign In
+                {t('auth.forgotPassword.backToSignIn')}
               </Button>
             </div>
           </div>
@@ -120,15 +120,15 @@ export function ForgotPasswordPage() {
               className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
-              Back to Sign In
+              {t('auth.forgotPassword.backToSignIn')}
             </a>
           </div>
 
           <h2 className="text-2xl font-semibold text-primary-600 dark:text-primary-400 mb-2">
-            Forgot password?
+            {t('auth.forgotPassword.title')}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-8">
-            Enter your email address and we'll send you a link to reset your password.
+            {t('auth.forgotPassword.subtitle')}
           </p>
 
           {error && (
@@ -176,10 +176,10 @@ export function ForgotPasswordPage() {
               {isLoading ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />
-                  Sending...
+                  {t('auth.forgotPassword.sending')}
                 </>
               ) : (
-                'Send Reset Link'
+                t('auth.forgotPassword.sendResetLink')
               )}
             </Button>
           </form>

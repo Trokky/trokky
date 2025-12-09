@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  CheckIcon, 
-  ExclamationTriangleIcon, 
-  InformationCircleIcon, 
-  XMarkIcon 
+import {
+  CheckIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 interface Toast {
   id: string;
@@ -19,6 +20,7 @@ interface ToastProps {
 }
 
 const ToastComponent: React.FC<ToastProps> = ({ toast, onRemove }) => {
+  const { t } = useT('studio');
   const { id, message, type, duration = 3000 } = toast; // Shorter duration for discrete toasts
 
   useEffect(() => {
@@ -75,7 +77,7 @@ const ToastComponent: React.FC<ToastProps> = ({ toast, onRemove }) => {
       <button
         onClick={() => onRemove(id)}
         className="ml-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors opacity-60 hover:opacity-100"
-        aria-label="Close notification"
+        aria-label={t('toast.closeNotification')}
       >
         <XMarkIcon className="w-3 h-3" />
       </button>
@@ -84,6 +86,7 @@ const ToastComponent: React.FC<ToastProps> = ({ toast, onRemove }) => {
 };
 
 export const ToastContainer: React.FC = () => {
+  const { t } = useT('studio');
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
@@ -121,10 +124,10 @@ export const ToastContainer: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       className="fixed bottom-4 right-4 z-50 space-y-2 max-w-xs w-full pointer-events-none"
       aria-live="polite"
-      aria-label="Notifications"
+      aria-label={t('toast.notifications')}
     >
       {toasts.map((toast) => (
         <div 

@@ -1,8 +1,10 @@
 import React from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition } from './definition.js';
 
 export function ArrayFieldPreview(props: FieldComponentProps) {
+  const { t } = useT('fields');
   const { value, definition } = props;
   const arrayDefinition = definition as ArrayFieldDefinition;
   const options = arrayDefinition.options || {};
@@ -16,7 +18,7 @@ export function ArrayFieldPreview(props: FieldComponentProps) {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
         </svg>
-        <span className="text-sm">Empty array</span>
+        <span className="text-sm">{t('types.array.empty')}</span>
       </div>
     );
   }
@@ -126,7 +128,7 @@ export function ArrayFieldPreview(props: FieldComponentProps) {
       {getLayoutIcon()}
       <div className="flex items-center space-x-1">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''}
+          {t('types.array.itemCount', { count: arrayValue.length })}
         </span>
         {itemsToShow.length > 0 && (
           <>

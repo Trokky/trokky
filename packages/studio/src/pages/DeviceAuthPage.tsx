@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { CheckCircleIcon, XCircleIcon, ComputerDesktopIcon } from '@heroicons/react/24/outline';
+import { useT } from '@trokky/i18n';
 
 interface DeviceCodeInfo {
   clientId: string;
@@ -16,6 +17,7 @@ interface DeviceCodeInfo {
 type AuthStatus = 'loading' | 'pending' | 'authorized' | 'denied' | 'expired' | 'error';
 
 export function DeviceAuthPage() {
+  const { t } = useT('studio');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const code = searchParams.get('code');
@@ -28,7 +30,7 @@ export function DeviceAuthPage() {
   useEffect(() => {
     if (!code) {
       setStatus('error');
-      setError('No device code provided');
+      setError(t('auth.device.noCode'));
       return;
     }
 
@@ -45,12 +47,12 @@ export function DeviceAuthPage() {
         setStatus('error');
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Failed to fetch device information';
+          : response.error?.message || t('auth.device.fetchError');
         setError(errorMsg);
       }
     } catch (err: any) {
       setStatus('error');
-      const errorMsg = err?.message || 'Failed to connect to the server';
+      const errorMsg = err?.message || t('auth.device.connectError');
       setError(errorMsg);
     }
   };
@@ -70,12 +72,12 @@ export function DeviceAuthPage() {
       } else {
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Authorization failed';
+          : response.error?.message || t('auth.device.authError');
         setError(errorMsg);
         setStatus('error');
       }
     } catch (err: any) {
-      const errorMsg = err?.message || 'Failed to authorize device';
+      const errorMsg = err?.message || t('auth.device.authError');
       setError(errorMsg);
       setStatus('error');
     } finally {
@@ -98,12 +100,12 @@ export function DeviceAuthPage() {
       } else {
         const errorMsg = typeof response.error === 'string'
           ? response.error
-          : response.error?.message || 'Failed to deny authorization';
+          : response.error?.message || t('auth.device.denyError');
         setError(errorMsg);
         setStatus('error');
       }
     } catch (err: any) {
-      const errorMsg = err?.message || 'Failed to deny device';
+      const errorMsg = err?.message || t('auth.device.denyError');
       setError(errorMsg);
       setStatus('error');
     } finally {
@@ -114,14 +116,14 @@ export function DeviceAuthPage() {
   const formatScopes = (scope: string): string[] => {
     return scope.split(' ').filter(Boolean).map(s => {
       switch (s) {
-        case 'openid': return 'Access your identity';
-        case 'profile': return 'Access your profile information';
-        case 'content:read': return 'Read content';
-        case 'content:write': return 'Create and update content';
-        case 'content:delete': return 'Delete content';
-        case 'media:read': return 'Read media files';
-        case 'media:write': return 'Upload media files';
-        case 'offline_access': return 'Stay logged in';
+        case 'openid': return t('auth.device.scopes.openid');
+        case 'profile': return t('auth.device.scopes.profile');
+        case 'content:read': return t('auth.device.scopes.contentRead');
+        case 'content:write': return t('auth.device.scopes.contentWrite');
+        case 'content:delete': return t('auth.device.scopes.contentDelete');
+        case 'media:read': return t('auth.device.scopes.mediaRead');
+        case 'media:write': return t('auth.device.scopes.mediaWrite');
+        case 'offline_access': return t('auth.device.scopes.offlineAccess');
         default: return s;
       }
     });
@@ -133,7 +135,7 @@ export function DeviceAuthPage() {
         return (
           <div className="flex flex-col items-center justify-center py-12">
             <LoadingSpinner size="lg" />
-            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading device information...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">{t('auth.device.loading')}</p>
           </div>
         );
 
@@ -148,19 +150,19 @@ export function DeviceAuthPage() {
 
             <div className="text-center">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Authorize Device
+                {t('auth.device.authorizeDevice')}
               </h2>
               <p className="mt-2 text-gray-600 dark:text-gray-400">
                 <span className="font-mono font-bold text-lg text-blue-600 dark:text-blue-400">
                   {deviceInfo?.clientName || deviceInfo?.clientId || 'Trokky CLI'}
                 </span>
-                {' '}is requesting access to your account
+                {' '}{t('auth.device.requestingAccess')}
               </p>
             </div>
 
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Device Code
+                {t('auth.device.deviceCode')}
               </p>
               <p className="font-mono text-2xl font-bold text-center text-gray-900 dark:text-white tracking-wider">
                 {code}
@@ -170,7 +172,7 @@ export function DeviceAuthPage() {
             {deviceInfo?.scopes && deviceInfo.scopes.length > 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  This will allow the application to:
+                  {t('auth.device.allowApplication')}
                 </p>
                 <ul className="space-y-2">
                   {formatScopes(deviceInfo.scopes.join(' ')).map((scope, i) => (
@@ -190,7 +192,7 @@ export function DeviceAuthPage() {
                 onClick={handleDeny}
                 disabled={isSubmitting}
               >
-                Deny
+                {t('auth.device.deny')}
               </Button>
               <Button
                 variant="primary"
@@ -198,7 +200,7 @@ export function DeviceAuthPage() {
                 onClick={handleAuthorize}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? <LoadingSpinner size="sm" /> : 'Authorize'}
+                {isSubmitting ? <LoadingSpinner size="sm" /> : t('auth.device.authorize')}
               </Button>
             </div>
           </div>
@@ -211,16 +213,16 @@ export function DeviceAuthPage() {
               <CheckCircleIcon className="w-10 h-10 text-green-600 dark:text-green-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Device Authorized
+              {t('auth.device.authorized')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              You can now close this window and return to the CLI.
+              {t('auth.device.authorizedMessage')}
             </p>
             <Button
               variant="secondary"
               onClick={() => window.close()}
             >
-              Close Window
+              {t('auth.device.closeWindow')}
             </Button>
           </div>
         );
@@ -232,16 +234,16 @@ export function DeviceAuthPage() {
               <XCircleIcon className="w-10 h-10 text-red-600 dark:text-red-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Authorization Denied
+              {t('auth.device.denied')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              The device was not authorized. You can close this window.
+              {t('auth.device.deniedMessage')}
             </p>
             <Button
               variant="secondary"
               onClick={() => window.close()}
             >
-              Close Window
+              {t('auth.device.closeWindow')}
             </Button>
           </div>
         );
@@ -253,10 +255,10 @@ export function DeviceAuthPage() {
               <XCircleIcon className="w-10 h-10 text-yellow-600 dark:text-yellow-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Code Expired
+              {t('auth.device.expired')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              The device code has expired. Please try again from the CLI.
+              {t('auth.device.expiredMessage')}
             </p>
           </div>
         );
@@ -268,16 +270,16 @@ export function DeviceAuthPage() {
               <XCircleIcon className="w-10 h-10 text-red-600 dark:text-red-400" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Error
+              {t('auth.device.error')}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              {error || 'An unexpected error occurred'}
+              {error || t('common.error')}
             </p>
             <Button
               variant="secondary"
               onClick={() => navigate('/')}
             >
-              Return to Studio
+              {t('auth.device.returnToStudio')}
             </Button>
           </div>
         );
@@ -289,7 +291,7 @@ export function DeviceAuthPage() {
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Trokky CLI Login
+            {t('auth.device.pageTitle')}
           </h1>
         </div>
         {renderContent()}

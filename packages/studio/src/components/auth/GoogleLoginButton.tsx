@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '@trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
@@ -25,6 +26,7 @@ export function GoogleLoginButton({
   disabled,
   className = '',
 }: GoogleLoginButtonProps) {
+  const { t } = useT('studio');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleClick = async () => {
@@ -46,11 +48,11 @@ export function GoogleLoginButton({
         // Redirect to Google
         window.location.href = response.data.authUrl;
       } else {
-        const errorMessage = response.error?.message || 'Failed to initialize Google login';
+        const errorMessage = response.error?.message || t('oauth.google.initFailed');
         onError?.(errorMessage);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize Google login';
+      const errorMessage = error instanceof Error ? error.message : t('oauth.google.initFailed');
       onError?.(errorMessage);
     } finally {
       setIsLoading(false);
@@ -71,7 +73,7 @@ export function GoogleLoginButton({
         <GoogleIcon className="w-5 h-5" />
       )}
       <span className="text-gray-700 dark:text-gray-300">
-        {mode === 'link' ? 'Link Google Account' : 'Sign in with Google'}
+        {mode === 'link' ? t('oauth.google.linkAccount') : t('oauth.google.signIn')}
       </span>
     </Button>
   );

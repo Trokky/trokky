@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('ChangePasswordModal');
 
@@ -16,6 +17,7 @@ interface ChangePasswordModalProps {
 }
 
 export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProps) {
+  const { t } = useT('studio');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,31 +43,31 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
 
     // Client-side validation
     if (!currentPassword) {
-      setError('Current password is required');
+      setError(t('changePassword.errors.currentRequired'));
       setFieldError('currentPassword');
       return;
     }
 
     if (!newPassword) {
-      setError('New password is required');
+      setError(t('changePassword.errors.newRequired'));
       setFieldError('newPassword');
       return;
     }
 
     if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
+      setError(t('changePassword.errors.tooShort'));
       setFieldError('newPassword');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('changePassword.errors.mismatch'));
       setFieldError('confirmPassword');
       return;
     }
 
     if (currentPassword === newPassword) {
-      setError('New password must be different from current password');
+      setError(t('changePassword.errors.sameAsCurrent'));
       setFieldError('newPassword');
       return;
     }
@@ -89,11 +91,11 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
           handleClose();
         }, 2000);
       } else {
-        throw new Error(response.error?.message || 'Failed to change password');
+        throw new Error(response.error?.message || t('changePassword.errors.failed'));
       }
     } catch (err: any) {
       logger.error('Failed to change password', err);
-      setError(err.message || 'Failed to change password');
+      setError(err.message || t('changePassword.errors.failed'));
       setFieldError(err.field || null);
     } finally {
       setLoading(false);
@@ -107,7 +109,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Change Password
+            {t('changePassword.title')}
           </h2>
           <button
             onClick={handleClose}
@@ -127,7 +129,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-sm text-green-800 dark:text-green-200">
-                Password changed successfully!
+                {t('changePassword.success')}
               </p>
             </div>
           </div>
@@ -142,7 +144,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
             <div className="space-y-4">
               <div>
                 <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Current Password
+                  {t('changePassword.currentPassword')}
                 </label>
                 <input
                   type="password"
@@ -161,7 +163,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
 
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  New Password
+                  {t('changePassword.newPassword')}
                 </label>
                 <input
                   type="password"
@@ -177,13 +179,13 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                   autoComplete="new-password"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  At least 8 characters
+                  {t('changePassword.errors.tooShort')}
                 </p>
               </div>
 
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Confirm New Password
+                  {t('changePassword.confirmPassword')}
                 </label>
                 <input
                   type="password"
@@ -208,14 +210,14 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                 disabled={loading}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={loading}
               >
-                {loading ? 'Changing...' : 'Change Password'}
+                {loading ? t('changePassword.submitting') : t('changePassword.submit')}
               </button>
             </div>
           </form>

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
 import { fieldRegistry } from '../../registry/index.js';
@@ -52,12 +53,13 @@ function generateItemKey(): string {
 }
 
 // Array field component
-export function ArrayFieldComponent(props: FieldComponentProps) { 
+export function ArrayFieldComponent(props: FieldComponentProps) {
+  const { t } = useT('fields');
   const {
-    fieldId, 
-    value, 
-    onChange, 
-    definition, 
+    fieldId,
+    value,
+    onChange,
+    definition,
     hasError,
     isDisabled = false,
     isReadonly = false,
@@ -103,7 +105,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     sortable = true,
     insertAppend = true,
     showCount = true,
-    addButtonText = 'Add item',
+    addButtonText,
     disableAdd = false,
     disableRemove = false,
     tagField = {},
@@ -328,7 +330,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           {arrayDefinition.title}
           {showCount && (
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-              ({arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''})
+              ({t('types.array.itemCount', { count: arrayValue.length })})
             </span>
           )}
         </button>
@@ -341,7 +343,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
         >
           <PlusIcon className="h-3 w-3 mr-1" />
-          {addButtonText}
+          {addButtonText || t('types.array.addItem')}
         </button>
       )}
     </div>
@@ -384,7 +386,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     if (!itemDefinition) {
       return (
         <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
-          <span className="text-red-700 dark:text-red-400 text-sm">Array field missing 'of' definition</span>
+          <span className="text-red-700 dark:text-red-400 text-sm">{t('types.array.missingDefinition')}</span>
         </div>
       );
     }
@@ -414,9 +416,9 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     if (!fieldPlugin) {
       return (
         <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
-          <span className="text-red-700 dark:text-red-400 text-sm">Unknown field type: {adjustedItemDefinition.type}</span>
+          <span className="text-red-700 dark:text-red-400 text-sm">{t('types.array.unknownType', { type: adjustedItemDefinition.type })}</span>
           <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-            Available types: {fieldRegistry.getTypes().join(', ')}
+            {t('types.array.availableTypes', { types: fieldRegistry.getTypes().join(', ') })}
           </div>
         </div>
       );
@@ -629,7 +631,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               type="button"
               onClick={() => operations.remove(index)}
               className="flex-shrink-0 p-2 mr-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Remove item"
+              title={t('types.array.removeItem')}
             >
               <TrashIcon className="h-4 w-4" />
             </button>
@@ -661,7 +663,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                   type="button"
                   onClick={() => {
                     if (tagField.confirmDelete) {
-                      if (window.confirm(`Remove tag "${tag}"?`)) {
+                      if (window.confirm(t('types.array.removeTag', { tag }))) {
                         operations.remove(index);
                       }
                     } else {
@@ -698,7 +700,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                   }
                 }}
                 onKeyDown={handleTagKeyPress}
-                placeholder={tagField.placeholder || 'Add tag...'}
+                placeholder={tagField.placeholder || t('types.array.addTag')}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
 
@@ -729,7 +731,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               {/* Show hint when allowCustom is false */}
               {!allowCustom && suggestions.length > 0 && newItemInput && filteredSuggestions.length === 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  No matching options
+                  {t('types.array.noMatchingOptions')}
                 </div>
               )}
             </div>
@@ -740,14 +742,14 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               disabled={!newItemInput.trim() || (!allowCustom && suggestions.length > 0 && !suggestions.includes(newItemInput.trim()))}
               className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
-              Add
+              {t('types.array.add')}
             </button>
           </div>
 
           {/* Available suggestions hint */}
           {suggestions.length > 0 && arrayValue.length === 0 && !newItemInput && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {allowCustom ? 'Type to search or add custom tags' : 'Select from available options'}
+              {allowCustom ? t('types.array.typeToSearch') : t('types.array.selectFromOptions')}
             </p>
           )}
         </div>
@@ -766,7 +768,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     if (options.length === 0) {
       return (
         <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-          <p className="text-sm">No options configured for select layout</p>
+          <p className="text-sm">{t('types.array.noOptionsConfigured')}</p>
         </div>
       );
     }
@@ -826,7 +828,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
             ))}
           </select>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Hold Ctrl/Cmd to select multiple
+            {t('types.array.holdCtrlToSelect')}
           </p>
         </div>
       );
@@ -879,7 +881,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     if (arrayValue.length === 0) {
       return (
         <div className="text-center py-8 text-gray-500">
-          <p className="text-sm">No items added yet</p>
+          <p className="text-sm">{t('types.array.empty')}</p>
           {!isDisabled && !isReadonly && !disableAdd && (
             <button
               type="button"
@@ -887,7 +889,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
               className="mt-2 inline-flex items-center px-3 py-3 sm:py-2 text-base sm:text-sm text-blue-600 hover:text-blue-800 min-h-[44px]"
             >
               <PlusIcon className="h-4 w-4 mr-1" />
-              Add first item
+              {t('types.array.addFirstItem')}
             </button>
           )}
         </div>
@@ -936,7 +938,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>
-              {arrayValue.length} item{arrayValue.length !== 1 ? 's' : ''}
+              {t('types.array.itemCount', { count: arrayValue.length })}
             </span>
           </div>
         </div>
@@ -966,7 +968,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                     className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
                   >
                     <PlusIcon className="h-3 w-3 mr-1" />
-                    {addButtonText}
+                    {addButtonText || t('types.array.addItem')}
                   </button>
                 </div>
               )}
@@ -984,7 +986,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                     className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
                   >
                     <PlusIcon className="h-3 w-3 mr-1" />
-                    {addButtonText}
+                    {addButtonText || t('types.array.addItem')}
                   </button>
                 )}
                 {/* Spacer when no add button */}
@@ -995,17 +997,17 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
                       <span>
-                        {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
+                        {t('types.array.range', { min: arrayDefinition.validation.minItems, max: arrayDefinition.validation.maxItems })}
                       </span>
                     )}
                     {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
                       <span>
-                        Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
+                        {t('types.array.minimum', { count: arrayDefinition.validation.minItems })}
                       </span>
                     )}
                     {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
                       <span>
-                        Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
+                        {t('types.array.maximum', { count: arrayDefinition.validation.maxItems })}
                       </span>
                     )}
                   </div>
@@ -1036,17 +1038,17 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
           <div className="text-xs text-gray-500 dark:text-gray-400">
             {arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
               <span>
-                {arrayDefinition.validation.minItems} - {arrayDefinition.validation.maxItems} items
+                {t('types.array.range', { min: arrayDefinition.validation.minItems, max: arrayDefinition.validation.maxItems })}
               </span>
             )}
             {arrayDefinition.validation.minItems && !arrayDefinition.validation.maxItems && (
               <span>
-                Minimum {arrayDefinition.validation.minItems} item{arrayDefinition.validation.minItems !== 1 ? 's' : ''}
+                {t('types.array.minimum', { count: arrayDefinition.validation.minItems })}
               </span>
             )}
             {!arrayDefinition.validation.minItems && arrayDefinition.validation.maxItems && (
               <span>
-                Maximum {arrayDefinition.validation.maxItems} item{arrayDefinition.validation.maxItems !== 1 ? 's' : ''}
+                {t('types.array.maximum', { count: arrayDefinition.validation.maxItems })}
               </span>
             )}
           </div>
@@ -1062,7 +1064,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
             className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none"
           >
             <PlusIcon className="h-3 w-3 mr-1" />
-            {addButtonText}
+            {addButtonText || t('types.array.addItem')}
           </button>
         )}
       </div>

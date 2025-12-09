@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { 
+import {
   ClockIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
@@ -14,6 +14,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { AuditLogEntry } from './AuditLogEntry';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('DocumentHistoryPanel');
 
@@ -44,11 +45,12 @@ interface DocumentHistoryPanelProps {
   isVisible?: boolean;
 }
 
-export function DocumentHistoryPanel({ 
-  documentId, 
-  collection, 
-  isVisible = true 
+export function DocumentHistoryPanel({
+  documentId,
+  collection,
+  isVisible = true
 }: DocumentHistoryPanelProps) {
+  const { t } = useT('studio');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,15 +121,15 @@ export function DocumentHistoryPanel({
         });
       } else {
         logger.warn('Failed to load audit logs', response);
-        setError('Failed to load document history');
+        setError(t('documentHistory.loadError'));
       }
     } catch (err: any) {
       logger.error('Error loading audit logs', err);
 
       if (err.response?.status === 501) {
-        setError('Document history is not available');
+        setError(t('documentHistory.notAvailable'));
       } else {
-        setError('Failed to load document history');
+        setError(t('documentHistory.loadError'));
       }
     } finally {
       setLoading(false);
@@ -159,14 +161,14 @@ export function DocumentHistoryPanel({
         <div className="flex items-center">
           <ClockIcon className="h-4 w-4 mr-1.5 text-gray-500 dark:text-gray-400" />
           <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-            Document History
+            {t('documentHistory.title')}
           </h3>
         </div>
         <button
           onClick={handleRefresh}
           disabled={loading}
           className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
-          title="Refresh history"
+          title={t('documentHistory.refreshHistory')}
         >
           <ArrowPathIcon className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -178,7 +180,7 @@ export function DocumentHistoryPanel({
           <div className="flex items-center py-4">
             <LoadingSpinner />
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-              Loading...
+              {t('documentHistory.loading')}
             </span>
           </div>
         )}
@@ -195,7 +197,7 @@ export function DocumentHistoryPanel({
           <div className="text-center py-4">
             <ClockIcon className="h-6 w-6 mx-auto text-gray-300 dark:text-gray-600 mb-1" />
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              No history yet
+              {t('documentHistory.noHistory')}
             </div>
           </div>
         )}
@@ -215,7 +217,7 @@ export function DocumentHistoryPanel({
             {auditLogs.length > 10 && (
               <div className="text-center pt-1">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  +{auditLogs.length - 10} more changes
+                  {t('documentHistory.moreChanges', { count: auditLogs.length - 10 })}
                 </div>
               </div>
             )}

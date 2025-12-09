@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { getBasePath } from '@/utils/navigation';
+import { useT } from '@trokky/i18n';
 
 interface OAuthCallbackPageProps {
   onLoginSuccess: () => void;
@@ -16,6 +17,7 @@ type CallbackStatus = 'processing' | 'success' | 'error';
  * Processes the authorization code and completes login or account linking.
  */
 export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
+  const { t } = useT('studio');
   const [status, setStatus] = useState<CallbackStatus>('processing');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
       if (token) {
         hasProcessedRef.current = true;
         setStatus('success');
-        setSuccessMessage('Login successful! Redirecting...');
+        setSuccessMessage(t('auth.oauth.loginSuccess'));
         // Trigger auth check to update state
         setTimeout(() => {
           onLoginSuccess();
@@ -124,7 +126,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
             sessionStorage.setItem('oauth_mfa_token', response.data.mfaToken);
             sessionStorage.setItem('oauth_mfa_methods', JSON.stringify(response.data.methods || []));
             setStatus('success');
-            setSuccessMessage('MFA verification required. Redirecting...');
+            setSuccessMessage(t('auth.oauth.mfaRequired'));
             setTimeout(() => {
               window.location.href = getBasePath() + '/?mfa=verify';
             }, 500);
@@ -138,7 +140,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
             sessionStorage.setItem('oauth_mfa_allowed_methods', JSON.stringify(response.data.allowedMethods || []));
             sessionStorage.setItem('oauth_mfa_message', response.data.message || 'MFA setup required');
             setStatus('success');
-            setSuccessMessage('MFA setup required. Redirecting...');
+            setSuccessMessage(t('auth.oauth.mfaSetupRequired'));
             setTimeout(() => {
               window.location.href = getBasePath() + '/?mfa=setup';
             }, 500);
@@ -160,7 +162,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
 
             // Notify parent of successful login
             setStatus('success');
-            setSuccessMessage('Login successful! Redirecting...');
+            setSuccessMessage(t('auth.oauth.loginSuccess'));
 
             // Let the auth state update handle navigation
             // Don't use window.location.href as it interrupts the async checkAuth
@@ -168,14 +170,14 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
               onLoginSuccess();
             }, 500);
           } else {
-            throw new Error('Invalid response from server');
+            throw new Error(t('auth.oauth.invalidResponse'));
           }
         } else {
           // Link mode: Show success and redirect to preferences
           setStatus('success');
           setSuccessMessage(
             response.data.message ||
-              `Google account linked successfully (${response.data.provider?.email})`
+              `${t('auth.oauth.accountLinked')} (${response.data.provider?.email})`
           );
 
           // Redirect to user preferences after a short delay
@@ -211,10 +213,10 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
             <>
               <LoadingSpinner size="lg" className="mx-auto mb-4" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                Processing...
+                {t('auth.oauth.processing')}
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Completing authentication with Google
+                {t('auth.oauth.completingAuth')}
               </p>
             </>
           )}
@@ -237,7 +239,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
                 </svg>
               </div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                Success!
+                {t('auth.oauth.success')}
               </h2>
               <p className="text-gray-600 dark:text-gray-400">{successMessage}</p>
             </>
@@ -261,14 +263,14 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
                 </svg>
               </div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                Authentication Failed
+                {t('auth.oauth.failed')}
               </h2>
               <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
               <button
                 onClick={handleRetry}
                 className="px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"
               >
-                Return to Login
+                {t('auth.oauth.returnToLogin')}
               </button>
             </>
           )}

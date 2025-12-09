@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { InfoFieldDefinition, InfoVariant } from './definition.js';
 import { INFO_FIELD_DEFAULTS, VARIANT_CONFIGS } from './definition.js';
@@ -105,6 +106,7 @@ function getHeroIcon(iconName: string) {
 
 export function InfoFieldComponent(props: InfoFieldComponentProps) {
   const { definition } = props;
+  const { t } = useT('fields');
 
   // Type-safe access to info field specific properties
   const infoDefinition = definition as InfoFieldDefinition;
@@ -145,7 +147,7 @@ export function InfoFieldComponent(props: InfoFieldComponentProps) {
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={`flex-shrink-0 ${variantConfig.iconColor} hover:opacity-70 transition-all mt-0.5`}
-            aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+            aria-label={isCollapsed ? t('types.info.expand') : t('types.info.collapse')}
           >
             <svg
               className={`w-5 h-5 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}

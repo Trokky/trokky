@@ -16,19 +16,21 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { TOKEN_PERMISSIONS } from '@/constants/permissions';
+import { useT } from '@trokky/i18n';
 import type { AppToken, Permission } from '@/types';
 
 const logger = createStudioLogger('AppTokenManagement');
 
-const PERMISSIONS: { value: Permission; label: string; group: string }[] = [
-  { value: 'content:read', label: 'View Content', group: 'Content' },
-  { value: 'content:write', label: 'Edit Content', group: 'Content' },
-  { value: 'content:delete', label: 'Delete Content', group: 'Content' },
-  { value: 'content:publish', label: 'Publish Content', group: 'Content' },
-  { value: 'media:read', label: 'View Media', group: 'Media' },
-  { value: 'media:upload', label: 'Upload Media', group: 'Media' },
-  { value: 'media:edit', label: 'Edit Media', group: 'Media' },
-  { value: 'media:delete', label: 'Delete Media', group: 'Media' }
+// Permission definitions with i18n keys
+const PERMISSION_DEFS: { value: Permission; labelKey: string; group: string }[] = [
+  { value: 'content:read', labelKey: 'appTokens.permissions.viewContent', group: 'Content' },
+  { value: 'content:write', labelKey: 'appTokens.permissions.editContent', group: 'Content' },
+  { value: 'content:delete', labelKey: 'appTokens.permissions.deleteContent', group: 'Content' },
+  { value: 'content:publish', labelKey: 'appTokens.permissions.publishContent', group: 'Content' },
+  { value: 'media:read', labelKey: 'appTokens.permissions.viewMedia', group: 'Media' },
+  { value: 'media:upload', labelKey: 'appTokens.permissions.uploadMedia', group: 'Media' },
+  { value: 'media:edit', labelKey: 'appTokens.permissions.editMedia', group: 'Media' },
+  { value: 'media:delete', labelKey: 'appTokens.permissions.deleteMedia', group: 'Media' }
 ];
 
 interface TokenFormData {
@@ -45,6 +47,7 @@ interface TokenModalProps {
 }
 
 function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
+  const { t } = useT('studio');
   const [formData, setFormData] = useState<TokenFormData>({
     name: '',
     description: '',
@@ -111,6 +114,13 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
     }));
   };
 
+  // Convert permission definitions to use translated labels
+  const PERMISSIONS = PERMISSION_DEFS.map(perm => ({
+    value: perm.value,
+    label: t(perm.labelKey),
+    group: perm.group
+  }));
+
   // Group permissions by category
   const groupedPermissions = PERMISSIONS.reduce((acc, perm) => {
     if (!acc[perm.group]) acc[perm.group] = [];
@@ -122,19 +132,19 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create API Token"
+      title={t('appTokens.modal.title')}
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Token Name *
+              {t('appTokens.modal.tokenName')} *
             </label>
             <Input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g., Production API, Mobile App"
+              placeholder={t('appTokens.modal.tokenNamePlaceholder')}
               required
               disabled={isLoading}
             />
@@ -142,12 +152,12 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Description
+              {t('appTokens.modal.description')}
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="What will this token be used for?"
+              placeholder={t('appTokens.modal.descriptionPlaceholder')}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
               disabled={isLoading}
@@ -156,7 +166,7 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Expiration
+              {t('appTokens.modal.expiration')}
             </label>
             <select
               value={expiryType}
@@ -164,11 +174,11 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               disabled={isLoading}
             >
-              <option value="30days">30 days</option>
-              <option value="90days">90 days (recommended)</option>
-              <option value="1year">1 year</option>
-              <option value="never">Never expires</option>
-              <option value="custom">Custom date</option>
+              <option value="30days">{t('appTokens.modal.expiration30days')}</option>
+              <option value="90days">{t('appTokens.modal.expiration90days')}</option>
+              <option value="1year">{t('appTokens.modal.expiration1year')}</option>
+              <option value="never">{t('appTokens.modal.expirationNever')}</option>
+              <option value="custom">{t('appTokens.modal.expirationCustom')}</option>
             </select>
             {expiryType === 'custom' && (
               <Input
@@ -185,7 +195,7 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Permissions
+              {t('appTokens.modal.permissions')}
             </label>
             <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 space-y-3 max-h-48 overflow-y-auto">
               {Object.entries(groupedPermissions).map(([group, permissions]) => (
@@ -212,20 +222,20 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
               ))}
             </div>
           </div>
-        
+
         {/* Form Actions */}
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
-            Cancel
+            {t('appTokens.modal.cancel')}
           </Button>
           <Button type="submit" onClick={handleSubmit} disabled={isLoading || !formData.name}>
             {isLoading ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
-                Creating...
+                {t('appTokens.modal.creating')}
               </>
             ) : (
-              'Create Token'
+              t('appTokens.modal.createToken')
             )}
           </Button>
         </div>
@@ -241,6 +251,7 @@ interface TokenDisplayModalProps {
 }
 
 function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
+  const { t } = useT('studio');
   const [copied, setCopied] = useState(false);
 
   const copyToken = async () => {
@@ -255,20 +266,19 @@ function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
     <Modal
       isOpen={isOpen && !!token}
       onClose={onClose}
-      title="API Token Created"
+      title={t('appTokens.tokenCreated.title')}
       size="md"
     >
       <div>
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-4 mb-4">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              <strong>Important:</strong> This is the only time you'll see this token. 
-              Copy it now and store it securely.
+              <strong>{t('common.note')}</strong> {t('appTokens.tokenCreated.warning')}
             </p>
           </div>
 
           <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Your API Token
+              {t('appTokens.tokenCreated.yourToken')}
             </label>
             <div className="flex">
               <input
@@ -282,15 +292,15 @@ function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
                 className="rounded-l-none"
                 variant={copied ? 'secondary' : 'primary'}
               >
-                {copied ? 'Copied!' : <DocumentDuplicateIcon className="h-4 w-4" />}
+                {copied ? t('appTokens.tokenCreated.copied') : <DocumentDuplicateIcon className="h-4 w-4" />}
               </Button>
             </div>
           </div>
-        
+
         {/* Actions */}
         <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button onClick={onClose}>
-            Close
+            {t('appTokens.tokenCreated.close')}
           </Button>
         </div>
       </div>
@@ -299,6 +309,7 @@ function TokenDisplayModal({ token, isOpen, onClose }: TokenDisplayModalProps) {
 }
 
 export function AppTokenManagement() {
+  const { t } = useT('studio');
   const { hasPermission } = usePermissions();
   const [tokens, setTokens] = useState<AppToken[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -345,7 +356,7 @@ export function AppTokenManagement() {
   };
 
   const handleDeleteToken = async (token: AppToken) => {
-    if (!confirm(`Are you sure you want to delete the token "${token.name}"? This action cannot be undone.`)) {
+    if (!confirm(t('appTokens.deleteConfirm', { name: token.name }))) {
       return;
     }
 
@@ -394,24 +405,24 @@ export function AppTokenManagement() {
   };
 
   const getStatusText = (token: AppToken) => {
-    if (!token.isActive) return 'Inactive';
-    if (token.expiresAt && new Date(token.expiresAt) < new Date()) return 'Expired';
-    return 'Active';
+    if (!token.isActive) return t('appTokens.status.inactive');
+    if (token.expiresAt && new Date(token.expiresAt) < new Date()) return t('appTokens.status.expired');
+    return t('appTokens.status.active');
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">API Tokens</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('appTokens.title')}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create and manage API tokens for external applications
+            {t('appTokens.subtitle')}
           </p>
         </div>
         {canCreateToken && (
           <Button onClick={() => setShowTokenModal(true)}>
             <PlusIcon className="h-4 w-4 mr-2" />
-            Create Token
+            {t('appTokens.createToken')}
           </Button>
         )}
       </div>
@@ -419,7 +430,7 @@ export function AppTokenManagement() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <Input
-            placeholder="Search tokens..."
+            placeholder={t('appTokens.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -434,15 +445,15 @@ export function AppTokenManagement() {
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
           <KeyIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No API tokens yet
+            {t('appTokens.noTokensTitle')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Create your first API token to enable external access to your content.
+            {t('appTokens.noTokensDesc')}
           </p>
           {canCreateToken && (
             <Button onClick={() => setShowTokenModal(true)}>
               <PlusIcon className="h-4 w-4 mr-2" />
-              Create Token
+              {t('appTokens.createToken')}
             </Button>
           )}
         </div>
@@ -453,19 +464,19 @@ export function AppTokenManagement() {
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Token
+                    {t('appTokens.tableHeaders.token')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    {t('appTokens.tableHeaders.status')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Used
+                    {t('appTokens.tableHeaders.lastUsed')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Expires
+                    {t('appTokens.tableHeaders.expires')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('appTokens.tableHeaders.actions')}
                   </th>
                 </tr>
               </thead>
@@ -503,7 +514,7 @@ export function AppTokenManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleDateString() : 'Never'}
+                      {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleDateString() : t('appTokens.never')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {token.expiresAt ? (
@@ -512,7 +523,7 @@ export function AppTokenManagement() {
                           {new Date(token.expiresAt).toLocaleDateString()}
                         </div>
                       ) : (
-                        'Never'
+                        t('appTokens.never')
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

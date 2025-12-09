@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronUpIcon, 
+import {
+  ChevronUpIcon,
   ChevronDownIcon,
-  EllipsisHorizontalIcon 
+  EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
+import { useT } from '@trokky/i18n';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -47,6 +48,7 @@ export function ListView({
   onSort,
   onDocumentAction
 }: ListViewProps) {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const studioContext = useStudioContext();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function ListView({
   const listRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
-  
+
   const allSelected = documents.length > 0 && selectedItems.length === documents.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < documents.length;
   
@@ -106,49 +108,49 @@ export function ListView({
     if (value === null || value === undefined) {
       return <span className="text-gray-400">—</span>;
     }
-    
+
     if (typeof value === 'boolean') {
       return (
         <span className={cn(
           "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
-          value 
+          value
             ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
             : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
         )}>
-          {value ? 'Yes' : 'No'}
+          {value ? t('contentViews.yes') : t('contentViews.no')}
         </span>
       );
     }
-    
+
     if (value instanceof Date || (typeof value === 'string' && !isNaN(Date.parse(value)))) {
       return new Date(value).toLocaleDateString();
     }
-    
+
     if (Array.isArray(value)) {
-      return value.length > 0 ? value.join(', ') : <span className="text-gray-400">Empty</span>;
+      return value.length > 0 ? value.join(', ') : <span className="text-gray-400">{t('contentViews.empty')}</span>;
     }
     
     return String(value);
   };
   
   const getDocumentId = (doc: Document) => doc.id || doc._id;
-  
+
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading documents...</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('contentViews.loadingDocuments')}</p>
         </div>
       </div>
     );
   }
-  
+
   if (documents.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="p-8 text-center">
-          <p className="text-gray-600 dark:text-gray-400">No documents found</p>
+          <p className="text-gray-600 dark:text-gray-400">{t('contentViews.noDocumentsFound')}</p>
         </div>
       </div>
     );
@@ -213,7 +215,7 @@ export function ListView({
               
               {/* Actions column */}
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
-                Actions
+                {t('contentViews.actions')}
               </th>
             </tr>
           </thead>
@@ -333,7 +335,7 @@ export function ListView({
               }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              Edit
+              {t('contentViews.edit')}
             </button>
             <button
               onClick={() => {
@@ -343,7 +345,7 @@ export function ListView({
               }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              Copy ID
+              {t('contentViews.copyId')}
             </button>
             <button
               onClick={() => {
@@ -353,17 +355,17 @@ export function ListView({
               }}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              Duplicate
+              {t('contentViews.duplicate')}
             </button>
             <hr className="my-1 border-gray-200 dark:border-gray-600" />
             <button
               onClick={async () => {
                 const confirmed = await studioContext?.utils?.showConfirm?.(
-                  'Are you sure you want to delete this document? This action cannot be undone.',
+                  t('contentViews.deleteConfirm'),
                   {
-                    title: 'Delete Document',
-                    confirmText: 'Delete',
-                    cancelText: 'Cancel',
+                    title: t('contentViews.deleteTitle'),
+                    confirmText: t('contentViews.confirmDelete'),
+                    cancelText: t('common.cancel'),
                     variant: 'danger'
                   }
                 );
@@ -375,7 +377,7 @@ export function ListView({
               }}
               className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             >
-              Delete
+              {t('contentViews.delete')}
             </button>
           </div>
         </div>,

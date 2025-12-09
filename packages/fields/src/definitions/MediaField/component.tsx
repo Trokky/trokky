@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { useT } from '@trokky/i18n'
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { MediaFieldDefinition } from './definition'
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/types'
@@ -107,8 +108,12 @@ function getMediaTypeFromMime(mimeType: string | undefined | null): MediaType {
   return 'archive'
 }
 
-// Get human-readable media type label
-function getMediaTypeLabel(mediaType: MediaType): string {
+// Get human-readable media type label - now uses translation function passed as parameter
+function getMediaTypeLabel(mediaType: MediaType, t?: (key: string) => string): string {
+  if (t) {
+    return t(`types.media.mediaTypes.${mediaType}`) || mediaType
+  }
+  // Fallback for non-translated context
   const labels: Record<MediaType, string> = {
     image: 'Image',
     video: 'Video',
@@ -160,6 +165,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     ...restProps
   } = props
 
+  const { t } = useT('fields')
   const mediaDefinition = definition as MediaFieldDefinition
   const options = {
     ...MEDIA_FIELD_DEFAULTS.options,
@@ -542,7 +548,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     // Get the appropriate icon based on media type restriction
     const mediaType = validation.restrictToMediaType || 'image'
     const IconComponent = MEDIA_TYPE_ICONS[mediaType] || PhotoIcon
-    const typeLabel = getMediaTypeLabel(mediaType)
+    const typeLabel = getMediaTypeLabel(mediaType, t)
 
     return (
       <div
@@ -569,10 +575,10 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           {/* Text content */}
           <div className="flex-1 text-left min-w-0">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {options.placeholder || `Select ${typeLabel.toLowerCase()}`}
+              {options.placeholder || t('types.media.selectMedia')}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Click to upload or browse
+              {t('types.media.clickToUploadOrBrowse')}
             </p>
           </div>
 
@@ -585,12 +591,21 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
   const renderUploadDialog = () => {
     if (!showUploadDialog) return null
 
+    // Get translated title based on media type restriction
+    const getDialogTitle = () => {
+      if (validation.restrictToMediaType) {
+        const key = `types.media.add${validation.restrictToMediaType.charAt(0).toUpperCase() + validation.restrictToMediaType.slice(1)}`
+        return t(key)
+      }
+      return t('types.media.addMedia')
+    }
+
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUploadDialog(false)}>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {validation.restrictToMediaType ? `Add ${validation.restrictToMediaType}` : 'Add media'}
+              {getDialogTitle()}
             </h3>
             <button
               type="button"
@@ -622,7 +637,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                 <CloudArrowUpIcon className="mx-auto h-12 w-12 text-blue-500 animate-pulse" />
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Uploading...
+                    {t('types.media.uploading')}
                   </p>
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <div
@@ -639,17 +654,17 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                     {options.enableDragDrop
-                      ? 'Drop files here or click to upload'
-                      : 'Click to upload'}
+                      ? t('types.media.dropFilesOrClick')
+                      : t('types.media.clickToUpload')}
                   </h3>
                   <p className="text-xs text-gray-500">
                     {validation.maxFileSize
-                      ? `Max size: ${formatFileSize(validation.maxFileSize)}`
-                      : 'Select a file to upload'}
+                      ? t('types.media.maxSize', { size: formatFileSize(validation.maxFileSize) })
+                      : t('types.media.selectFileToUpload')}
                   </p>
                   {validation.allowedExtensions && (
                     <p className="text-xs text-gray-500">
-                      Allowed: {validation.allowedExtensions.join(', ')}
+                      {t('types.media.allowed', { types: validation.allowedExtensions.join(', ') })}
                     </p>
                   )}
                 </div>
@@ -666,7 +681,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                         }}
                       >
                         <PlusIcon className="w-4 h-4 mr-1" />
-                        Upload
+                        {t('types.media.upload')}
                       </button>
                     )}
 
@@ -680,7 +695,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                         }}
                       >
                         <FolderIcon className="w-4 h-4 mr-1" />
-                        Browse
+                        {t('types.media.browse')}
                       </button>
                     )}
                   </div>
@@ -695,7 +710,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               onClick={() => setShowUploadDialog(false)}
               className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
             >
-              Cancel
+              {t('types.media.cancel')}
             </button>
           </div>
         </div>
@@ -719,7 +734,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium text-red-900 dark:text-red-300 truncate">
-                  {value?.title || 'Media Asset'}
+                  {value?.title || t('types.media.mediaTypes.media')}
                 </h4>
                 <p className="text-xs text-red-600 dark:text-red-400">
                   {assetLoadError}
@@ -736,7 +751,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                   type="button"
                   className="p-1 text-red-400 hover:text-red-600"
                   onClick={handleRemove}
-                  title="Remove broken media reference"
+                  title={t('types.media.removeBrokenReference')}
                 >
                   <XMarkIcon className="w-4 h-4" />
                 </button>
@@ -803,15 +818,15 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
           <div className="min-w-0 flex-1">
             <h4
               className="text-sm font-medium text-gray-900 dark:text-white truncate"
-              title={value?.title || asset?.title || asset?.filename || 'Media Asset'}
+              title={value?.title || asset?.title || asset?.filename || t('types.media.mediaTypes.media')}
             >
               {truncateText(
-                value?.title || asset?.title || asset?.filename || 'Media Asset',
+                value?.title || asset?.title || asset?.filename || t('types.media.mediaTypes.media'),
                 40
               )}
             </h4>
             <p className="text-xs text-gray-500 truncate" title={asset?.filename}>
-              {getMediaTypeLabel(mediaType)} • {truncateText(asset?.filename || 'Unknown', 30)} • {asset ? formatFileSize(asset.size) : 'Unknown'}
+              {getMediaTypeLabel(mediaType, t)} • {truncateText(asset?.filename || 'Unknown', 30)} • {asset ? formatFileSize(asset.size) : t('types.media.unknownSize')}
             </p>
           </div>
 
@@ -823,17 +838,17 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                   type="button"
                   className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors text-xs"
                   onClick={() => setShowUploadDialog(true)}
-                  title="Change media"
+                  title={t('types.media.changeMedia')}
                 >
-                  Change
+                  {t('types.media.change')}
                 </button>
                 <button
                   type="button"
                   className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
                   onClick={handleRemove}
-                  title="Remove media"
+                  title={t('types.media.removeMedia')}
                 >
-                  Remove
+                  {t('types.media.remove')}
                 </button>
               </>
             )}
@@ -849,7 +864,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               onClick={() => setIsMetadataExpanded(!isMetadataExpanded)}
               className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-3"
             >
-              <span>Media Details</span>
+              <span>{t('types.media.mediaDetails')}</span>
               {isMetadataExpanded ? (
                 <ChevronDownIcon className="h-4 w-4" />
               ) : (
@@ -862,7 +877,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Alt text{' '}
+                    {t('types.media.altText')}{' '}
                     {options.requireAlt && <span className="text-red-500">*</span>}
                   </label>
               <input
@@ -872,14 +887,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                   handleInstanceMetadataChange('alt', e.target.value)
                 }
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Describe this image for accessibility"
+                placeholder={t('types.media.altTextPlaceholder')}
                 disabled={isDisabled || isReadonly}
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Caption{' '}
+                {t('types.media.caption')}{' '}
                 {options.requireCaption && (
                   <span className="text-red-500">*</span>
                 )}
@@ -891,14 +906,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                   handleInstanceMetadataChange('caption', e.target.value)
                 }
                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Add a caption"
+                placeholder={t('types.media.captionPlaceholder')}
                 disabled={isDisabled || isReadonly}
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Title override
+                {t('types.media.titleOverride')}
               </label>
               <input
                 type="text"
@@ -912,9 +927,9 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
                     ? truncateText(asset.title, 40)
                     : asset?.filename
                       ? truncateText(asset.filename, 40)
-                      : 'Override the asset title for this usage'
+                      : t('types.media.titleOverridePlaceholder')
                 }
-                title={asset?.title || asset?.filename || 'Asset title'}
+                title={asset?.title || asset?.filename || t('types.media.titleOverride')}
                 disabled={isDisabled || isReadonly}
               />
                 </div>

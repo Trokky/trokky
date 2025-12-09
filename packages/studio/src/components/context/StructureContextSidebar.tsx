@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useT } from '@trokky/i18n';
 import { useStructureItem } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { useApiClient } from '@/hooks/useApiClient';
@@ -106,7 +107,7 @@ export function StructureContextSidebar({ schemaName }: StructureContextSidebarP
       </h3>
 
       {contextSidebar.widgets?.map((widget: ContextWidget, index: number) => (
-        <ContextWidget key={index} widget={widget} data={data} loading={loading} />
+        <ContextWidgetComponent key={index} widget={widget} data={data} loading={loading} />
       ))}
     </div>
   );
@@ -118,49 +119,51 @@ interface ContextWidgetProps {
   loading: boolean;
 }
 
-function ContextWidget({ widget, data, loading }: ContextWidgetProps) {
+function ContextWidgetComponent({ widget, data, loading }: ContextWidgetProps) {
+  const { t } = useT('studio');
+
   switch (widget.type) {
     case 'quickFilters':
       return <QuickFiltersWidget widget={widget} />;
-    
+
     case 'contentStats':
-      return <ContentStatsWidget widget={widget} data={data} loading={loading} />;
-    
+      return <ContentStatsWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'categoryBreakdown':
-      return <CategoryBreakdownWidget widget={widget} data={data} loading={loading} />;
-    
+      return <CategoryBreakdownWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'recentlyEdited':
-      return <RecentlyEditedWidget widget={widget} data={data} loading={loading} />;
-    
+      return <RecentlyEditedWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'publishingStats':
       return <PublishingStatsWidget widget={widget} data={data} loading={loading} />;
-    
+
     case 'topPerforming':
-      return <TopPerformingWidget widget={widget} data={data} loading={loading} />;
-    
+      return <TopPerformingWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'draftProgress':
-      return <DraftProgressWidget widget={widget} data={data} loading={loading} />;
-    
+      return <DraftProgressWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'authorStats':
-      return <AuthorStatsWidget widget={widget} data={data} loading={loading} />;
-    
+      return <AuthorStatsWidget widget={widget} data={data} loading={loading} t={t} />;
+
     case 'quickStats':
       return <QuickStatsWidget widget={widget} data={data} loading={loading} />;
-    
+
     case 'recentActivity':
-      return <RecentActivityWidget widget={widget} data={data} loading={loading} />;
+      return <RecentActivityWidget widget={widget} data={data} loading={loading} t={t} />;
 
     case 'topAuthors':
-      return <TopAuthorsWidget widget={widget} data={data} loading={loading} />;
+      return <TopAuthorsWidget widget={widget} data={data} loading={loading} t={t} />;
 
     case 'quickActions':
       return <QuickActionsWidget widget={widget} />;
 
     case 'recentDocuments':
-      return <RecentDocumentsWidget widget={widget} data={data} loading={loading} />;
+      return <RecentDocumentsWidget widget={widget} data={data} loading={loading} t={t} />;
 
     default:
-      return <UnknownWidget widget={widget} />;
+      return <UnknownWidget widget={widget} t={t} />;
   }
 }
 
@@ -202,7 +205,7 @@ function QuickFiltersWidget({ widget }: { widget: ContextWidget }) {
 }
 
 // Content Stats Widget
-function ContentStatsWidget({ widget, loading }: ContextWidgetProps) {
+function ContentStatsWidget({ widget, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
   if (loading) {
     return (
       <div>
@@ -234,7 +237,7 @@ function ContentStatsWidget({ widget, loading }: ContextWidgetProps) {
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {/* Calculate based on data */}
-              {stat.aggregate === 'sum' ? 'Calculating...' : 'N/A'}
+              {stat.aggregate === 'sum' ? t('contextSidebar.widgets.stats.calculating') : t('contextSidebar.widgets.stats.notAvailable')}
             </div>
           </div>
         ))}
@@ -244,7 +247,7 @@ function ContentStatsWidget({ widget, loading }: ContextWidgetProps) {
 }
 
 // Category Breakdown Widget
-function CategoryBreakdownWidget({ widget, data, loading }: ContextWidgetProps) {
+function CategoryBreakdownWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
   if (loading) {
     return (
       <div>
@@ -261,7 +264,7 @@ function CategoryBreakdownWidget({ widget, data, loading }: ContextWidgetProps) 
   }
 
   const categories = data.documents?.reduce((acc: any, doc: any) => {
-    const category = doc.category || 'Uncategorized';
+    const category = doc.category || t('contextSidebar.widgets.category.uncategorized');
     acc[category] = (acc[category] || 0) + 1;
     return acc;
   }, {}) || {};
@@ -293,7 +296,7 @@ function CategoryBreakdownWidget({ widget, data, loading }: ContextWidgetProps) 
 }
 
 // Recently Edited Widget
-function RecentlyEditedWidget({ widget, data, loading }: ContextWidgetProps) {
+function RecentlyEditedWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
   if (loading) {
     return (
       <div>
@@ -325,11 +328,11 @@ function RecentlyEditedWidget({ widget, data, loading }: ContextWidgetProps) {
             className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
           >
             <div className="text-sm text-gray-900 dark:text-white truncate">
-              {doc.title || 'Untitled'}
+              {doc.title || t('contextSidebar.widgets.recentlyEdited.untitled')}
             </div>
             {widget.showAuthor && doc.author && (
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                by {typeof doc.author === 'object' && doc.author.name ? doc.author.name : 'Author'}
+                {t('contextSidebar.widgets.recentlyEdited.by')} {typeof doc.author === 'object' && doc.author.name ? doc.author.name : t('contextSidebar.widgets.recentlyEdited.author')}
               </div>
             )}
             {widget.showTime && (
@@ -371,16 +374,16 @@ function PublishingStatsWidget({ widget, data, loading }: ContextWidgetProps) {
 }
 
 // Other widget types with simplified implementations
-function TopPerformingWidget({ widget, data, loading }: ContextWidgetProps) {
-  return <ContentStatsWidget widget={widget} data={data} loading={loading} />;
+function TopPerformingWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
+  return <ContentStatsWidget widget={widget} data={data} loading={loading} t={t} />;
 }
 
-function DraftProgressWidget({ widget, data, loading }: ContextWidgetProps) {
-  return <ContentStatsWidget widget={widget} data={data} loading={loading} />;
+function DraftProgressWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
+  return <ContentStatsWidget widget={widget} data={data} loading={loading} t={t} />;
 }
 
-function AuthorStatsWidget({ widget, data, loading }: ContextWidgetProps) {
-  return <ContentStatsWidget widget={widget} data={data} loading={loading} />;
+function AuthorStatsWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
+  return <ContentStatsWidget widget={widget} data={data} loading={loading} t={t} />;
 }
 
 function QuickStatsWidget({ widget, loading }: ContextWidgetProps) {
@@ -426,12 +429,12 @@ function QuickStatsWidget({ widget, loading }: ContextWidgetProps) {
   );
 }
 
-function RecentActivityWidget({ widget, data, loading }: ContextWidgetProps) {
-  return <RecentlyEditedWidget widget={widget} data={data} loading={loading} />;
+function RecentActivityWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
+  return <RecentlyEditedWidget widget={widget} data={data} loading={loading} t={t} />;
 }
 
-function TopAuthorsWidget({ widget, data, loading }: ContextWidgetProps) {
-  return <RecentlyEditedWidget widget={widget} data={data} loading={loading} />;
+function TopAuthorsWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
+  return <RecentlyEditedWidget widget={widget} data={data} loading={loading} t={t} />;
 }
 
 function QuickActionsWidget({ widget }: { widget: ContextWidget }) {
@@ -466,7 +469,7 @@ function QuickActionsWidget({ widget }: { widget: ContextWidget }) {
 }
 
 // Recent Documents Widget
-function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
+function RecentDocumentsWidget({ widget, data, loading, t }: ContextWidgetProps & { t: (key: string) => string }) {
   const navigate = useNavigate();
   const client = useApiClient();
 
@@ -537,15 +540,15 @@ function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
                 </div>
                 );
               })()}
-              
+
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-gray-900 dark:text-white truncate font-medium">
-                  {doc.title || 'Untitled'}
+                  {doc.title || t('contextSidebar.widgets.recentDocuments.untitled')}
                 </div>
                 {widget.showAuthor && doc.author && (
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    by {typeof doc.author === 'object' && doc.author.name ? doc.author.name : 'Author'}
+                    {t('contextSidebar.widgets.recentDocuments.by')} {typeof doc.author === 'object' && doc.author.name ? doc.author.name : t('contextSidebar.widgets.recentlyEdited.author')}
                   </div>
                 )}
                 {widget.showTime && (
@@ -557,10 +560,10 @@ function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
             </div>
           </div>
         ))}
-        
+
         {recentDocs.length === 0 && !loading && (
           <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-            No recent documents
+            {t('contextSidebar.widgets.recentDocuments.noDocuments')}
           </div>
         )}
       </div>
@@ -568,11 +571,11 @@ function RecentDocumentsWidget({ widget, data, loading }: ContextWidgetProps) {
   );
 }
 
-function UnknownWidget({ widget }: { widget: ContextWidget }) {
+function UnknownWidget({ widget, t }: { widget: ContextWidget; t: (key: string, options?: any) => string }) {
   return (
     <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
       <div className="text-sm text-yellow-800 dark:text-yellow-200">
-        Unknown widget type: {widget.type}
+        {t('contextSidebar.widgets.unknownType', { type: widget.type })}
       </div>
     </div>
   );
@@ -580,23 +583,24 @@ function UnknownWidget({ widget }: { widget: ContextWidget }) {
 
 // Fallback to default schema context
 function DefaultSchemaContext({ schemaName }: { schemaName?: string }) {
+  const { t } = useT('studio');
   const { item: structureItem } = useStructureItem(schemaName || '');
   const [stats, setStats] = useState<any>(null);
-  
+
   useEffect(() => {
     if (schemaName) {
       loadSchemaStats();
     }
   }, [schemaName]);
-  
+
   const loadSchemaStats = async () => {
     if (!schemaName) return;
-    
+
     try {
       if (!apiClient.isInitialized) {
         await apiClient.initialize();
       }
-      
+
       const response = await apiClient.getCollectionStats(schemaName);
       if (response.success) {
         setStats(response.data);
@@ -605,13 +609,13 @@ function DefaultSchemaContext({ schemaName }: { schemaName?: string }) {
       // Stats are optional, don't show error
     }
   };
-  
+
   return (
     <>
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
         {structureItem?.title || schemaName}
       </h3>
-      
+
       {/* Schema stats */}
       {stats && (
         <div className="mb-6">
@@ -621,7 +625,7 @@ function DefaultSchemaContext({ schemaName }: { schemaName?: string }) {
                 {stats.total || 0}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                Total
+                {t('contextSidebar.widgets.stats.total')}
               </div>
             </div>
             <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -629,7 +633,7 @@ function DefaultSchemaContext({ schemaName }: { schemaName?: string }) {
                 {stats.published || 0}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                Published
+                {t('contextSidebar.widgets.stats.published')}
               </div>
             </div>
           </div>

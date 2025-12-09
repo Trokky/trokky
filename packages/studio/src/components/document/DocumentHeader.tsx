@@ -15,8 +15,10 @@ import {
 import { Button } from '@/components/ui/Button';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { DocumentStates, type DocumentState } from './DocumentStates';
+import { useT } from '@trokky/i18n';
 
 export function DocumentHeader() {
+  const { t } = useT('studio');
   const {
     schema,
     document,
@@ -39,7 +41,10 @@ export function DocumentHeader() {
   const handleStateChange = async (newState: DocumentState) => {
     if (DocumentStates.requiresConfirmation(documentState, newState)) {
       const confirmed = confirm(
-        `Are you sure you want to change from ${DocumentStates.getStateName(documentState)} to ${DocumentStates.getStateName(newState)}?`
+        t('documentEditor.confirmStateChange', {
+          from: DocumentStates.getStateName(documentState),
+          to: DocumentStates.getStateName(newState)
+        })
       );
       if (!confirmed) return;
     }
@@ -49,14 +54,15 @@ export function DocumentHeader() {
   };
 
   const documentTitle = useMemo(() => {
-    if (!document) return `New ${schema?.title || schema?.name || 'Document'}`;
-    
+    const schemaTitle = schema?.title || schema?.name || 'Document';
+    if (!document) return t('documentEditor.newDocument', { type: schemaTitle });
+
     // First, try to get the first field value (prioritize user input)
     if (schema?.fields) {
-      const fields = Array.isArray(schema.fields) 
-        ? schema.fields 
+      const fields = Array.isArray(schema.fields)
+        ? schema.fields
         : Object.entries(schema.fields).map(([name, field]) => ({ name, ...field }));
-      
+
       const firstField = fields[0];
       if (firstField && document[firstField.name]) {
         const value = document[firstField.name];
@@ -68,7 +74,7 @@ export function DocumentHeader() {
         }
       }
     }
-    
+
     // Then try common title fields (but skip if they're default values)
     if (document.title && !document.title.startsWith('New ')) {
       return document.title;
@@ -79,9 +85,9 @@ export function DocumentHeader() {
     if (document.slug) {
       return document.slug;
     }
-    
-    return `New ${schema?.title || schema?.name || 'Document'}`;
-  }, [document, schema]);
+
+    return t('documentEditor.newDocument', { type: schemaTitle });
+  }, [document, schema, t]);
 
   const isSingletonDocument = schema?.singleton === true;
   // Show cancel button only when there are unsaved changes (for discarding changes)
@@ -101,11 +107,11 @@ export function DocumentHeader() {
               <button
                 onClick={onCancel}
                 className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                title={`Back to ${schema?.title || schema?.name} collection`}
+                title={t('documentEditor.backTo', { type: schema?.title || schema?.name })}
               >
                 <ChevronLeftIcon className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Back to {schema?.title || schema?.name}</span>
-                <span className="sm:hidden">Back</span>
+                <span className="hidden sm:inline">{t('documentEditor.backTo', { type: schema?.title || schema?.name })}</span>
+                <span className="sm:hidden">{t('common.back')}</span>
               </button>
             )}
             
@@ -156,7 +162,7 @@ export function DocumentHeader() {
                 }`}
               >
                 <PencilIcon className="h-4 w-4 mr-1.5" />
-                Edit
+                {t('documentEditor.edit')}
               </button>
               <button
                 onClick={() => onModeChange('preview')}
@@ -167,7 +173,7 @@ export function DocumentHeader() {
                 }`}
               >
                 <EyeIcon className="h-4 w-4 mr-1.5" />
-                Preview
+                {t('documentEditor.preview')}
               </button>
             </div>
 
@@ -179,18 +185,18 @@ export function DocumentHeader() {
                   onClick={onCancel}
                 >
                   <XMarkIcon className="h-4 w-4 mr-1.5" />
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               )}
-              
+
               <Button
                 onClick={onSave}
                 loading={saving}
                 disabled={isReadOnly || saving || !hasUnsavedChanges || hasValidationErrors}
-                title={isReadOnly ? "You don't have permission to edit this document" : undefined}
+                title={isReadOnly ? t('documentEditor.readOnlyMode') : undefined}
               >
                 <CloudArrowUpIcon className="h-4 w-4 mr-1.5" />
-                {isReadOnly ? 'Read Only' : (isNewDocument ? 'Create' : 'Save')}
+                {isReadOnly ? t('documentEditor.readOnly') : (isNewDocument ? t('common.create') : t('common.save'))}
               </Button>
             </div>
           </div>
@@ -209,17 +215,17 @@ export function DocumentHeader() {
               <div className="flex items-center space-x-2 mt-0.5">
                 {isReadOnly && (
                   <span className="text-xs text-blue-600 dark:text-blue-400">
-                    • Read only mode
+                    • {t('documentEditor.readOnlyMode')}
                   </span>
                 )}
                 {hasUnsavedChanges && (
                   <span className="text-xs text-amber-600 dark:text-amber-400">
-                    • Unsaved changes
+                    • {t('documentEditor.unsavedChanges')}
                   </span>
                 )}
                 {hasValidationErrors && (
                   <span className="text-xs text-red-600 dark:text-red-400">
-                    • Validation errors
+                    • {t('documentEditor.validationErrors')}
                   </span>
                 )}
               </div>
@@ -229,7 +235,7 @@ export function DocumentHeader() {
           <button
             onClick={() => onToggleMobileSidebar(true)}
             className="md:hidden flex-shrink-0 ml-2 p-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
-            title="Document Info"
+            title={t('documentEditor.documentInfo')}
           >
             <InformationCircleIcon className="h-6 w-6" />
           </button>

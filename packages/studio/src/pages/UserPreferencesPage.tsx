@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon, LanguageIcon } from '@heroicons/react/24/outline';
+import { useT, useLocale, SUPPORTED_LOCALES, LOCALE_NAMES, type SupportedLocale } from '@trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,15 +23,17 @@ interface UserPreferences {
 
 export function UserPreferencesPage() {
   const { user } = useAuth();
+  const { t } = useT('studio');
+  const { locale, setLocale, locales, getLocaleName } = useLocale();
   const contextSidebar = useContextSidebar({
     page: 'user-preferences',
-    title: 'User Preferences'
+    title: t('preferences.title')
   });
   const studioContext = useStudioContext();
   const showToast = studioContext?.utils?.showToast || ((msg: string, type: string) => console.log(`Toast: ${type} - ${msg}`));
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',
-    language: 'en',
+    language: locale,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     emailNotifications: true,
     pushNotifications: false
@@ -42,10 +45,10 @@ export function UserPreferencesPage() {
   useEffect(() => {
     contextSidebar.configure({
       page: 'user-preferences',
-      title: 'User Preferences',
+      title: t('preferences.title'),
       defaultVisible: false  // Hide context sidebar for user preferences
     });
-  }, [contextSidebar.configure]);
+  }, [contextSidebar.configure, t]);
 
   useEffect(() => {
     if (user) {
@@ -59,7 +62,7 @@ export function UserPreferencesPage() {
   const handleSavePreferences = async () => {
     setIsLoading(true);
     setMessage(null);
-    
+
     try {
       // Apply theme immediately
       if (preferences.theme) {
@@ -71,15 +74,20 @@ export function UserPreferencesPage() {
         }
         localStorage.setItem('trokky_theme', preferences.theme);
       }
-      
-      setMessage({ type: 'success', text: 'Preferences updated successfully' });
-      
+
+      // Apply language immediately
+      if (preferences.language && preferences.language !== locale) {
+        setLocale(preferences.language);
+      }
+
+      setMessage({ type: 'success', text: t('language.current') + ': ' + getLocaleName(locale as SupportedLocale) });
+
       // TODO: When user preferences API is available, update server
       // const response = await apiClient.put(`/api/users/${user?.id}`, { preferences });
-      
+
     } catch (error) {
       logger.error('Failed to update preferences', error);
-      setMessage({ type: 'error', text: 'Failed to update preferences' });
+      setMessage({ type: 'error', text: t('preferences.saveError') });
     } finally {
       setIsLoading(false);
       // Clear message after 3 seconds
@@ -92,9 +100,9 @@ export function UserPreferencesPage() {
       <div className="max-w-2xl space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Preferences</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('preferences.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Customize your Studio experience
+            {t('preferences.subtitle')}
           </p>
         </div>
 
@@ -113,39 +121,43 @@ export function UserPreferencesPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-3 mb-6">
             <PaintBrushIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Appearance</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('preferences.appearance')}</h2>
           </div>
-          
+
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Theme
+                {t('preferences.theme')}
               </label>
               <select
                 value={preferences.theme}
                 onChange={(e) => setPreferences(prev => ({ ...prev, theme: e.target.value as 'light' | 'dark' | 'system' }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="system">System Default</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="system">{t('preferences.themeSystem')}</option>
+                <option value="light">{t('preferences.themeLight')}</option>
+                <option value="dark">{t('preferences.themeDark')}</option>
               </select>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Language
+                {t('language.title')}
               </label>
               <select
                 value={preferences.language}
                 onChange={(e) => setPreferences(prev => ({ ...prev, language: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
+                {locales.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {getLocaleName(loc)}
+                  </option>
+                ))}
               </select>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {t('language.current')}: {getLocaleName(locale as SupportedLocale)}
+              </p>
             </div>
           </div>
         </div>
@@ -154,14 +166,14 @@ export function UserPreferencesPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center space-x-3 mb-6">
             <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Notifications</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('preferences.notifications')}</h2>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white">Email Notifications</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Receive notifications via email</p>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('preferences.emailNotifications')}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('preferences.emailNotificationsDescription')}</p>
               </div>
               <input
                 type="checkbox"
@@ -173,8 +185,8 @@ export function UserPreferencesPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white">Push Notifications</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Receive browser push notifications</p>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('preferences.pushNotifications')}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('preferences.pushNotificationsDescription')}</p>
               </div>
               <input
                 type="checkbox"
@@ -191,9 +203,9 @@ export function UserPreferencesPage() {
           <div className="flex items-center space-x-3 mb-6">
             <LinkIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Connected Accounts</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('preferences.connectedAccounts')}</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Link external accounts for easier sign-in
+                {t('preferences.connectedAccountsDescription')}
               </p>
             </div>
           </div>
@@ -206,9 +218,9 @@ export function UserPreferencesPage() {
           <div className="flex items-center space-x-3 mb-6">
             <ShieldCheckIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Security</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('preferences.security')}</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Manage two-factor authentication and security settings
+                {t('preferences.securityDescription')}
               </p>
             </div>
           </div>
@@ -220,7 +232,7 @@ export function UserPreferencesPage() {
         <div className="flex justify-end">
           <Button onClick={handleSavePreferences} disabled={isLoading}>
             {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-            Save Preferences
+            {t('preferences.savePreferences')}
           </Button>
         </div>
       </div>

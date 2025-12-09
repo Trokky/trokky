@@ -7,6 +7,7 @@ import { apiClient } from '@/services/api-client';
 import { fieldRegistry } from '@trokky/fields';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { StructureContextSidebar } from '@/components/context/StructureContextSidebar';
+import { useT } from '@trokky/i18n';
 
 interface ContextSidebarProps {
   defaultWidth?: number;
@@ -21,6 +22,7 @@ export function ContextSidebar({
   maxWidth = 500,
   position = 'left'
 }: ContextSidebarProps) {
+  const { t } = useT('studio');
   const location = useLocation();
   const contextAPI = useContextSidebar();
   const [isResizing, setIsResizing] = useState(false);
@@ -95,7 +97,7 @@ export function ContextSidebar({
           <button
             onClick={toggleCollapsed}
             className="w-8 h-8 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 flex items-center justify-center"
-            title="Expand context sidebar"
+            title={t('layout.expandContext')}
           >
             {position === 'left' ? (
               <ChevronRightIcon className="h-4 w-4" />
@@ -140,7 +142,7 @@ export function ContextSidebar({
         <button
           onClick={toggleCollapsed}
           className="p-1 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-          title="Collapse context sidebar"
+          title={t('layout.collapseContext')}
         >
           {position === 'left' ? (
             <ChevronLeftIcon className="h-4 w-4" />
@@ -162,7 +164,7 @@ export function ContextSidebar({
           position === 'left' ? 'right-0' : 'left-0'
         )}
         onMouseDown={handleMouseDown}
-        title="Drag to resize sidebar"
+        title={t('layout.resizeSidebar')}
       />
     </div>
   );
@@ -170,27 +172,28 @@ export function ContextSidebar({
 
 // Context components for different pages
 function DashboardContext() {
+  const { t } = useT('studio');
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Quick Actions
+        {t('contextSidebar.quickActions')}
       </h3>
       <div className="space-y-2">
         <button className="w-full text-left p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-          <div className="font-medium text-gray-900 dark:text-white">Create Content</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Start with a new document</div>
+          <div className="font-medium text-gray-900 dark:text-white">{t('contextSidebar.createContent')}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('contextSidebar.createContentDesc')}</div>
         </button>
         <button className="w-full text-left p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-          <div className="font-medium text-gray-900 dark:text-white">Upload Media</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Add images and files</div>
+          <div className="font-medium text-gray-900 dark:text-white">{t('contextSidebar.uploadMedia')}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{t('contextSidebar.uploadMediaDesc')}</div>
         </button>
       </div>
-      
+
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 mt-6">
-        Recent Activity
+        {t('contextSidebar.recentActivity')}
       </h3>
       <div className="text-sm text-gray-500 dark:text-gray-400">
-        No recent activity
+        {t('contextSidebar.noRecentActivity')}
       </div>
     </div>
   );
@@ -213,12 +216,13 @@ function ContentContext() {
 }
 
 function ContentOverviewContext() {
+  const { t } = useT('studio');
   const { documentTypes } = useDocumentTypes();
-  
+
   return (
     <>
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Content Types
+        {t('contextSidebar.contentTypes')}
       </h3>
       <div className="space-y-2">
         {documentTypes.map((type) => (
@@ -246,10 +250,10 @@ function ContentOverviewContext() {
             </div>
           </div>
         ))}
-        
+
         {documentTypes.length === 0 && (
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            No content types available
+            {t('contextSidebar.noContentTypes')}
           </div>
         )}
       </div>
@@ -259,14 +263,15 @@ function ContentOverviewContext() {
 
 
 function MediaContext() {
+  const { t } = useT('studio');
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Media Library
+        {t('contextSidebar.mediaLibrary')}
       </h3>
       <div className="space-y-2">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          Upload and manage your media files
+          {t('contextSidebar.mediaLibraryDesc')}
         </div>
       </div>
     </div>
@@ -274,6 +279,7 @@ function MediaContext() {
 }
 
 function UsersContext() {
+  const { t } = useT('studio');
   const navigate = useNavigate();
   const [userStats, setUserStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -344,9 +350,9 @@ function UsersContext() {
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        User Overview
+        {t('contextSidebar.userOverview')}
       </h3>
-      
+
       {userStats && (
         <div className="space-y-4">
           {/* User Statistics */}
@@ -356,7 +362,7 @@ function UsersContext() {
                 {userStats.total}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                Total Users
+                {t('contextSidebar.totalUsers')}
               </div>
             </div>
             <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -364,7 +370,7 @@ function UsersContext() {
                 {userStats.active}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
-                Active
+                {t('contextSidebar.active')}
               </div>
             </div>
           </div>
@@ -372,7 +378,7 @@ function UsersContext() {
           {/* Role Distribution */}
           <div>
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-              Roles
+              {t('contextSidebar.roles')}
             </h4>
             <div className="space-y-1">
               {Object.entries(userStats.roles).map(([role, count]: [string, any]) => (
@@ -391,20 +397,20 @@ function UsersContext() {
           {/* Recent Activity */}
           <div>
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-              Recent Activity
+              {t('contextSidebar.recentActivity')}
             </h4>
             <div className="space-y-1 text-sm">
               <div className="text-gray-600 dark:text-gray-400">
-                {userStats.recentLogins} user{userStats.recentLogins !== 1 ? 's' : ''} logged in this week
+                {t('contextSidebar.usersLoggedInWeek', { count: userStats.recentLogins })}
               </div>
               {userStats.neverLoggedIn > 0 && (
                 <div className="text-amber-600 dark:text-amber-400">
-                  {userStats.neverLoggedIn} user{userStats.neverLoggedIn !== 1 ? 's' : ''} never logged in
+                  {t('contextSidebar.usersNeverLoggedIn', { count: userStats.neverLoggedIn })}
                 </div>
               )}
               {userStats.inactive > 0 && (
                 <div className="text-red-600 dark:text-red-400">
-                  {userStats.inactive} inactive user{userStats.inactive !== 1 ? 's' : ''}
+                  {t('contextSidebar.inactiveUsers', { count: userStats.inactive })}
                 </div>
               )}
             </div>
@@ -413,20 +419,20 @@ function UsersContext() {
           {/* Quick Actions */}
           <div>
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-              Quick Actions
+              {t('contextSidebar.quickActions')}
             </h4>
             <div className="space-y-2">
-              <button 
+              <button
                 onClick={handleAddUser}
                 className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm"
               >
-                Add New User
+                {t('contextSidebar.addNewUser')}
               </button>
-              <button 
+              <button
                 onClick={handleManageTokens}
                 className="w-full text-left p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-sm"
               >
-                Manage API Tokens
+                {t('contextSidebar.manageApiTokens')}
               </button>
             </div>
           </div>
@@ -437,14 +443,15 @@ function UsersContext() {
 }
 
 function SettingsContext() {
+  const { t } = useT('studio');
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Studio Settings
+        {t('contextSidebar.studioSettings')}
       </h3>
       <div className="space-y-2">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          Configure your studio
+          {t('contextSidebar.configureStudio')}
         </div>
       </div>
     </div>
@@ -452,15 +459,16 @@ function SettingsContext() {
 }
 
 function FieldsDemoContext() {
+  const { t } = useT('studio');
   const registryStats = fieldRegistry.getStats();
   const availableTypes = fieldRegistry.getTypes();
-  
+
   return (
     <div className="p-4">
       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-        Fields Registry
+        {t('contextSidebar.fieldsRegistry')}
       </h3>
-      
+
       {/* Registry Status */}
       <div className="mb-6">
         <div className="grid grid-cols-2 gap-3">
@@ -469,28 +477,28 @@ function FieldsDemoContext() {
               {registryStats.total || 0}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              Total Fields
+              {t('contextSidebar.totalFields')}
             </div>
           </div>
           <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className={`text-sm font-medium ${
-              registryStats.initialized 
+              registryStats.initialized
                 ? 'text-green-600 dark:text-green-400'
                 : 'text-red-600 dark:text-red-400'
             }`}>
-              {registryStats.initialized ? 'Yes' : 'No'}
+              {registryStats.initialized ? t('contextSidebar.yes') : t('contextSidebar.no')}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              Initialized
+              {t('contextSidebar.initialized')}
             </div>
           </div>
         </div>
       </div>
-      
+
       {/* Available Field Types */}
       <div className="mb-6">
         <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Available Types
+          {t('contextSidebar.availableTypes')}
         </h4>
         <div className="space-y-2">
           {availableTypes.map((type) => (
@@ -506,17 +514,17 @@ function FieldsDemoContext() {
           ))}
         </div>
       </div>
-      
+
       {/* Help */}
       <div>
         <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-          Documentation
+          {t('contextSidebar.documentation')}
         </h4>
         <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-          <div>• Select fields from the sidebar to test different types</div>
-          <div>• Use the Edit/Preview tabs to see both modes</div>
-          <div>• Click example "Use" buttons to try different values</div>
-          <div>• Toggle "Show Errors" to test validation</div>
+          <div>• {t('contextSidebar.docSelectFields')}</div>
+          <div>• {t('contextSidebar.docEditPreview')}</div>
+          <div>• {t('contextSidebar.docUseExamples')}</div>
+          <div>• {t('contextSidebar.docShowErrors')}</div>
         </div>
       </div>
     </div>
@@ -524,10 +532,11 @@ function FieldsDemoContext() {
 }
 
 function DefaultContext() {
+  const { t } = useT('studio');
   return (
     <div className="p-4">
       <div className="text-sm text-gray-500 dark:text-gray-400">
-        Context information will appear here based on the current page.
+        {t('contextSidebar.defaultContextInfo')}
       </div>
     </div>
   );

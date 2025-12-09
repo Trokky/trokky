@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useT } from '@trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { 
+import type {
   ReferenceFieldDefinition,
   ReferenceValue,
   ReferenceSearchResult,
@@ -56,10 +57,11 @@ type ReferenceFieldComponentProps = FieldComponentProps & {
 };
 
 export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
+  const { t } = useT('fields');
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext, isArrayItem, excludeIds = [] } = props;
-  
+
   if (definition.type !== 'reference') {
-    return <div className="text-red-500 text-sm">Invalid field configuration: expected reference field</div>;
+    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
   }
   
   const referenceDefinition = definition as ReferenceFieldDefinition;
@@ -598,7 +600,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               <button
                 type="button"
                 className="p-1 text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-dark-text-secondary"
-                title="Drag to reorder"
+                title={t('types.reference.dragToReorder')}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
@@ -610,7 +612,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
               type="button"
               onClick={() => operations.removeReference(ref._ref)}
               className="p-1 text-gray-400 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-              title="Remove reference"
+              title={t('types.reference.removeReference')}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -636,7 +638,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder={options.searchPlaceholder || 'Filter documents...'}
+              placeholder={options.searchPlaceholder || t('types.reference.filterDocuments')}
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400"
@@ -654,7 +656,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 }}
                 className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="">All types</option>
+                <option value="">{t('types.reference.allTypes')}</option>
                 {targetTypes.map(type => (
                   <option key={type.type} value={type.type}>
                     {type.displayName}
@@ -669,7 +671,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           {isLoading || isLoadingTypes ? (
             <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
               <div className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></div>
-              {isLoadingTypes ? 'Loading document types...' : 'Searching...'}
+              {isLoadingTypes ? t('types.reference.loadingTypes') : t('types.reference.searching')}
             </div>
           ) : searchResults.length > 0 ? (
             searchResults.map(result => (
@@ -717,10 +719,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                No results found for "{searchQuery}"
+                {t('types.reference.noResultsFor', { query: searchQuery })}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                Try a different search term
+                {t('types.reference.tryDifferentTerm')}
               </p>
             </div>
           ) : (
@@ -729,10 +731,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                No documents available
+                {t('types.reference.noDocumentsAvailable')}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                Create documents first to reference them here
+                {t('types.reference.createDocumentsFirst')}
               </p>
             </div>
           )}
@@ -744,7 +746,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
             onClick={() => setIsSearchOpen(false)}
             className="w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-dark-text-primary transition-colors"
           >
-            Close
+            {t('types.reference.close')}
           </button>
         </div>
       </div>
@@ -760,8 +762,8 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           
           {isMultiple && options.showCount && (
             <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
-              {currentReferences.length} reference{currentReferences.length !== 1 ? 's' : ''}
-              {validation.maxReferences && ` of ${validation.maxReferences} max`}
+              {t('types.reference.references', { count: currentReferences.length })}
+              {validation.maxReferences && ` ${t('types.reference.ofMax', { max: validation.maxReferences })}`}
             </p>
           )}
         </div>
@@ -792,17 +794,17 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  <span>{options.placeholder || 'Select reference...'}</span>
+                  <span>{options.placeholder || t('types.reference.placeholder')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {isUniversalReference && (
                     <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                      Any type
+                      {t('types.reference.anyType')}
                     </span>
                   )}
                   {availableCount !== null && availableCount > 0 && (
                     <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {availableCount} available
+                      {t('types.reference.available', { count: availableCount })}
                     </span>
                   )}
                 </div>
@@ -822,7 +824,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
             onClick={operations.clear}
             className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
           >
-            Clear
+            {t('types.reference.clear')}
           </button>
         </div>
       )}

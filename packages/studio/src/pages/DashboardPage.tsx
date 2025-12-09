@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  DocumentTextIcon, 
-  PhotoIcon, 
+import { useT } from '@trokky/i18n';
+import {
+  DocumentTextIcon,
+  PhotoIcon,
   UsersIcon,
   CogIcon,
   ArrowRightIcon
@@ -12,10 +13,12 @@ import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { StatsWidget, DashboardContextSidebar } from '@/components/dashboard';
 
 export function DashboardPage() {
+  const { t } = useT('studio');
+
   // Manual context sidebar configuration for dashboard (not structure-driven)
   const contextSidebar = useContextSidebar({
     page: 'dashboard',
-    title: 'Recent Activity',
+    title: t('dashboard.recentActivity'),
     defaultPosition: 'right',
     defaultVisible: true,
     defaultWidth: 320
@@ -32,10 +35,10 @@ export function DashboardPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Welcome to Trokky Studio
+            {t('dashboard.welcome')}
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
-            Content management made simple
+            {t('dashboard.subtitle')}
           </p>
         </div>
 
@@ -43,8 +46,8 @@ export function DashboardPage() {
         <div className="space-y-8">
           {/* Main Actions Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link 
-              to="/content" 
+            <Link
+              to="/content"
               className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
@@ -52,15 +55,15 @@ export function DashboardPage() {
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 group-hover:text-primary-600 transition-colors" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Content
+                {t('dashboard.cards.content.title')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Create and manage your content
+                {t('dashboard.cards.content.description')}
               </p>
             </Link>
 
-            <Link 
-              to="/media" 
+            <Link
+              to="/media"
               className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
@@ -68,15 +71,15 @@ export function DashboardPage() {
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 group-hover:text-green-600 transition-colors" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Media
+                {t('dashboard.cards.media.title')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Upload and organize media files
+                {t('dashboard.cards.media.description')}
               </p>
             </Link>
 
-            <Link 
-              to="/users" 
+            <Link
+              to="/users"
               className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
@@ -84,10 +87,10 @@ export function DashboardPage() {
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Users
+                {t('dashboard.cards.users.title')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Manage users and permissions
+                {t('dashboard.cards.users.description')}
               </p>
             </Link>
           </div>
@@ -99,19 +102,19 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Quick Start
+                {t('dashboard.quickStart')}
               </h2>
               <div className="space-y-3">
                 <Button className="w-full justify-start" asChild>
                   <Link to="/content">
                     <DocumentTextIcon className="h-4 w-4 mr-2" />
-                    Create Your First Document
+                    {t('dashboard.createFirstDocument')}
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link to="/media">
                     <PhotoIcon className="h-4 w-4 mr-2" />
-                    Upload Media
+                    {t('dashboard.uploadMedia')}
                   </Link>
                 </Button>
               </div>
@@ -119,19 +122,19 @@ export function DashboardPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Settings
+                {t('settings.title')}
               </h2>
               <div className="space-y-3">
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link to="/settings">
                     <CogIcon className="h-4 w-4 mr-2" />
-                    Studio Settings
+                    {t('dashboard.studioSettings')}
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link to="/user/preferences">
                     <CogIcon className="h-4 w-4 mr-2" />
-                    User Preferences
+                    {t('dashboard.userPreferences')}
                   </Link>
                 </Button>
               </div>

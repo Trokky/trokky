@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -17,6 +18,22 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import '@/utils/debug'; // Load debug utilities
 
+/**
+ * Get i18n configuration from window.TROKKY_CONFIG or use defaults
+ */
+function getI18nConfig(): I18nConfig {
+  const windowConfig = (window as any).TROKKY_CONFIG;
+  const i18nConfig = windowConfig?.i18n;
+
+  return {
+    defaultLocale: i18nConfig?.defaultLocale || 'en',
+    supportedLocales: i18nConfig?.supportedLocales || ['en', 'fr'],
+    fallbackLocale: i18nConfig?.fallbackLocale || 'en',
+    detectBrowserLanguage: i18nConfig?.detectBrowserLanguage ?? true,
+    debug: i18nConfig?.debug ?? import.meta.env.DEV,
+  };
+}
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +45,7 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
+  const { t } = useT('common');
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const logger = createStudioLogger('AppContent');
   const lastStateRef = useRef<{ isAuthenticated?: boolean; isLoading?: boolean }>({});
@@ -68,7 +86,7 @@ function AppContent() {
         <div className="text-center">
           <LoadingSpinner size="lg" />
           <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
-            Loading Studio...
+            {t('app.loadingStudio')}
           </h2>
         </div>
       </div>
@@ -116,6 +134,9 @@ function AppContent() {
 
 export function App() {
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
+
+  // Get i18n config from window.TROKKY_CONFIG (memoized to prevent re-initialization)
+  const i18nConfig = useMemo(() => getI18nConfig(), []);
 
   useEffect(() => {
     // Initialize API client synchronously - config is already available
@@ -166,14 +187,16 @@ export function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <StudioContextProvider branding={branding}>
-          <div className="App">
-            <AppContent />
-          </div>
-        </StudioContextProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <TrokkyI18nProvider config={i18nConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <StudioContextProvider branding={branding}>
+            <div className="App">
+              <AppContent />
+            </div>
+          </StudioContextProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </TrokkyI18nProvider>
   );
 }

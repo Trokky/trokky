@@ -6,8 +6,8 @@
  */
 
 import React from 'react';
+import { useT } from '@trokky/i18n';
 import type { ObjectFieldDefinition, NestedFieldDefinition } from './definition.js';
-import { fieldRegistry } from '../../registry/FieldRegistry.js';
 
 interface ObjectModalProps {
   /** Whether the modal is open */
@@ -44,6 +44,8 @@ export function ObjectModal({
   visibleFields,
   renderField,
 }: ObjectModalProps) {
+  const { t } = useT('fields');
+
   if (!isOpen) return null;
 
   return (
@@ -60,7 +62,7 @@ export function ObjectModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {definition.title || 'Edit Object'}
+              {definition.title || t('types.object.label')}
             </h2>
             {definition.description && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -72,7 +74,7 @@ export function ObjectModal({
             type="button"
             onClick={onClose}
             className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            title="Close"
+            title={t('modal.close')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -92,7 +94,7 @@ export function ObjectModal({
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-gray-400">
-                  No fields defined
+                  {t('modal.noFieldsDefined')}
                 </p>
               </div>
             )}
@@ -106,7 +108,7 @@ export function ObjectModal({
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            Done
+            {t('modal.done')}
           </button>
         </div>
       </div>

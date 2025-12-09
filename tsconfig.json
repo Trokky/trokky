@@ -25,6 +25,7 @@
       "@trokky/studio": ["./packages/studio/src"],
       "@trokky/client": ["./packages/client/src"],
       "@trokky/mail": ["./packages/mail/src"],
+      "@trokky/i18n": ["./packages/i18n/src"],
       "@trokky/express": ["./packages/integrations/express/src"],
       "@trokky/nextjs": ["./packages/integrations/nextjs/src"],
       "@trokky/cloudflare": ["./packages/integrations/cloudflare-workers/src"],

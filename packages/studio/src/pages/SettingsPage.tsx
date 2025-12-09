@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react';
+import { useT } from '@trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { SETTINGS_PERMISSIONS } from '@/constants/permissions';
@@ -12,9 +12,10 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 const logger = createStudioLogger('SettingsPage');
 
 export function SettingsPage() {
+  const { t } = useT('studio');
   const contextSidebar = useContextSidebar({
     page: 'settings',
-    title: 'Studio Settings'
+    title: t('settings.title')
   });
   const { hasPermission } = usePermissions();
   const { branding } = useStudioBranding();
@@ -45,10 +46,10 @@ export function SettingsPage() {
   useEffect(() => {
     contextSidebar.configure({
       page: 'settings',
-      title: 'Settings',
+      title: t('settings.title'),
       defaultVisible: false  // Hide context sidebar for settings
     });
-  }, [contextSidebar.configure]);
+  }, [contextSidebar.configure, t]);
 
   // Load settings from API on mount
   useEffect(() => {
@@ -62,10 +63,10 @@ export function SettingsPage() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Studio Settings
+            {t('settings.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Configure your Studio settings and preferences
+            {t('settings.subtitle')}
           </p>
         </div>
 
@@ -74,10 +75,10 @@ export function SettingsPage() {
             <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mr-3" />
             <div>
               <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                Access Denied
+                {t('settings.accessDenied')}
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                You don't have permission to access Studio settings. Contact your administrator for access.
+                {t('settings.accessDeniedMessage')}
               </p>
             </div>
           </div>
@@ -139,7 +140,7 @@ export function SettingsPage() {
       setMfaEnforcedRoles([]);
       setMfaAllowedMethods(['totp', 'email']);
 
-      showToast('Failed to load settings. Using defaults.', 'error');
+      showToast(t('settings.loadError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -195,14 +196,14 @@ export function SettingsPage() {
         }));
         
         logger.info('Settings saved successfully', { settings: settingsData });
-        showToast('Settings saved successfully!', 'success');
+        showToast(t('settings.saveSuccess'), 'success');
       } else {
         throw new Error(response.error?.message || 'Failed to save settings');
       }
     } catch (error) {
       logger.error('Failed to save settings', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save settings';
-      showToast(`Failed to save settings: ${errorMessage}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(t('settings.saveError', { error: errorMessage }), 'error');
     } finally {
       setSaving(false);
     }
@@ -213,16 +214,16 @@ export function SettingsPage() {
       <div className="p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Settings
+            {t('settings.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Configure your Trokky Studio and content management
+            {t('settings.subtitle')}
           </p>
         </div>
         <div className="max-w-4xl">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-center py-8">
-              <div className="text-gray-500 dark:text-gray-400">Loading settings...</div>
+              <div className="text-gray-500 dark:text-gray-400">{t('settings.loading')}</div>
             </div>
           </div>
         </div>
@@ -234,23 +235,23 @@ export function SettingsPage() {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Settings
+          {t('settings.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Configure your Trokky Studio and content management
+          {t('settings.subtitle')}
         </p>
       </div>
 
       <div className="max-w-4xl">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-            General Settings
+            {t('settings.generalSettings')}
           </h2>
           
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Studio Title
+                {t('settings.studioTitle')}
               </label>
               <input
                 type="text"
@@ -261,13 +262,13 @@ export function SettingsPage() {
                 placeholder="Trokky Studio"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                The title displayed in the Studio interface
+                {t('settings.studioTitleDescription')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Organization Name
+                {t('settings.organizationName')}
               </label>
               <input
                 type="text"
@@ -278,13 +279,13 @@ export function SettingsPage() {
                 placeholder="Your Organization Name"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Organization or company name displayed on the login page
+                {t('settings.organizationNameDescription')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Primary Brand Color
+                {t('settings.primaryColor')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -304,13 +305,13 @@ export function SettingsPage() {
                 />
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Primary color for buttons, links, and accents
+                {t('settings.primaryColorDescription')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Secondary Brand Color
+                {t('settings.secondaryColor')}
               </label>
               <div className="flex gap-2">
                 <input
@@ -330,13 +331,13 @@ export function SettingsPage() {
                 />
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Secondary color for subtle elements and backgrounds
+                {t('settings.secondaryColorDescription')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Logo URL
+                {t('settings.logoUrl')}
               </label>
               <input
                 type="url"
@@ -347,11 +348,11 @@ export function SettingsPage() {
                 placeholder="https://yoursite.com/logo.png"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                URL to your organization logo (displayed on login page)
+                {t('settings.logoUrlDescription')}
               </p>
               {logo && (
                 <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Preview:</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{t('settings.logoPreview')}</p>
                   <img src={logo} alt="Logo preview" className="h-16 w-auto object-contain" />
                 </div>
               )}
@@ -359,7 +360,7 @@ export function SettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Public Website URL
+                {t('settings.publicUrl')}
               </label>
               <input
                 type="url"
@@ -370,27 +371,27 @@ export function SettingsPage() {
                 placeholder="https://yourwebsite.com"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                The public URL where your content will be displayed. Used for "View Live" links.
+                {t('settings.publicUrlDescription')}
               </p>
             </div>
 
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Default Theme
+                {t('settings.defaultTheme')}
               </label>
-              <select 
+              <select
                 value={theme}
                 onChange={(e) => setTheme(e.target.value as 'system' | 'light' | 'dark')}
                 disabled={!canWriteSettings}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="system">{t('theme.system')}</option>
+                <option value="light">{t('theme.light')}</option>
+                <option value="dark">{t('theme.dark')}</option>
               </select>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Choose the default theme for new users
+                {t('settings.defaultThemeDescription')}
               </p>
             </div>
 
@@ -400,14 +401,14 @@ export function SettingsPage() {
         {/* Security Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mt-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-            Security Settings
+            {t('settings.securitySettings')}
           </h2>
 
           <div className="space-y-6">
             {/* MFA Enforcement */}
             <div>
               <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                Multi-Factor Authentication (MFA) Enforcement
+                {t('settings.mfa.title')}
               </h3>
 
               {/* Require for all users */}
@@ -421,14 +422,14 @@ export function SettingsPage() {
                   className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
                 />
                 <label htmlFor="mfaRequired" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                  Require MFA for all users
+                  {t('settings.mfa.requireAll')}
                 </label>
               </div>
 
               {/* Role-based enforcement */}
               <div className="mb-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  Or require MFA for specific roles:
+                  {t('settings.mfa.requireRoles')}
                 </p>
                 <div className="space-y-2 ml-4">
                   {['admin', 'editor', 'author', 'viewer'].map((role) => (
@@ -455,7 +456,7 @@ export function SettingsPage() {
                 </div>
                 {mfaRequired && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 ml-4">
-                    Role-based selection is disabled when MFA is required for all users.
+                    {t('settings.mfa.roleDisabledNote')}
                   </p>
                 )}
               </div>
@@ -464,10 +465,10 @@ export function SettingsPage() {
             {/* Allowed MFA Methods */}
             <div>
               <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                Allowed MFA Methods
+                {t('settings.mfa.allowedMethods')}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Select which MFA methods users can choose from:
+                {t('settings.mfa.allowedMethodsDescription')}
               </p>
               <div className="space-y-2 ml-4">
                 <div className="flex items-center">
@@ -489,7 +490,7 @@ export function SettingsPage() {
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
                   />
                   <label htmlFor="mfa-method-totp" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                    Authenticator App (TOTP) - Recommended
+                    {t('settings.mfa.totp')}
                   </label>
                 </div>
                 <div className="flex items-center">
@@ -511,20 +512,19 @@ export function SettingsPage() {
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50"
                   />
                   <label htmlFor="mfa-method-email" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                    Email OTP - Send one-time code to email
+                    {t('settings.mfa.email')}
                   </label>
                 </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 ml-4">
-                At least one method must be enabled.
+                {t('settings.mfa.atLeastOne')}
               </p>
             </div>
 
             {/* Info box */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Note:</strong> When MFA is enforced, users without MFA set up will be prompted to configure it on their next login.
-                They will receive a 15-minute setup window to complete the configuration.
+                <strong>{t('common.note')}</strong> {t('settings.mfa.enforcementNote')}
               </p>
             </div>
           </div>
@@ -537,11 +537,11 @@ export function SettingsPage() {
             disabled={saving || !canWriteSettings}
             className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? t('settings.saving') : t('settings.saveChanges')}
           </button>
           {!canWriteSettings && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              You have read-only access to settings. Contact your administrator to make changes.
+              {t('settings.readOnlyMessage')}
             </p>
           )}
         </div>

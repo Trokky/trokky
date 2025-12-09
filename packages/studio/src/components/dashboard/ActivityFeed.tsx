@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
+import {
   ClockIcon,
   UserIcon,
   DocumentTextIcon,
@@ -23,6 +23,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useT } from '@trokky/i18n';
 
 const logger = createStudioLogger('ActivityFeed');
 
@@ -120,6 +121,7 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProps) {
+  const { t } = useT('studio');
   const [documentGroups, setDocumentGroups] = useState<DocumentGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,7 +245,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
 
     } catch (err: any) {
       logger.error('Error loading recent activity', err);
-      setError('Failed to load recent activity');
+      setError(t('dashboard.activity.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -269,37 +271,44 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
       case 'create':
         return {
           icon: PlusIcon,
-          text: 'created',
+          text: t('dashboard.activity.operations.created'),
           color: 'text-green-600 dark:text-green-400',
           bgColor: 'bg-green-100 dark:bg-green-900/20'
         };
       case 'update':
         return {
           icon: PencilIcon,
-          text: 'updated',
+          text: t('dashboard.activity.operations.updated'),
           color: 'text-blue-600 dark:text-blue-400',
           bgColor: 'bg-blue-100 dark:bg-blue-900/20'
         };
       case 'delete':
         return {
           icon: TrashIcon,
-          text: 'deleted',
+          text: t('dashboard.activity.operations.deleted'),
           color: 'text-red-600 dark:text-red-400',
           bgColor: 'bg-red-100 dark:bg-red-900/20'
         };
       case 'publish':
         return {
           icon: EyeIcon,
-          text: 'published',
+          text: t('dashboard.activity.operations.published'),
           color: 'text-purple-600 dark:text-purple-400',
           bgColor: 'bg-purple-100 dark:bg-purple-900/20'
         };
       case 'unpublish':
         return {
           icon: EyeIcon,
-          text: 'unpublished',
+          text: t('dashboard.activity.operations.unpublished'),
           color: 'text-orange-600 dark:text-orange-400',
           bgColor: 'bg-orange-100 dark:bg-orange-900/20'
+        };
+      case 'restore':
+        return {
+          icon: ArrowPathIcon,
+          text: t('dashboard.activity.operations.restored'),
+          color: 'text-teal-600 dark:text-teal-400',
+          bgColor: 'bg-teal-100 dark:bg-teal-900/20'
         };
       default:
         return {
@@ -317,7 +326,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
       const date = new Date(timestamp);
       return formatDistanceToNow(date, { addSuffix: true });
     } catch (error) {
-      return 'Unknown time';
+      return t('dashboard.activity.unknownTime');
     }
   };
 
@@ -329,11 +338,11 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
 
     const fields = activity.changes.fields;
     if (fields.length === 1) {
-      return `Changed ${fields[0]}`;
+      return t('dashboard.activity.changedField', { field: fields[0] });
     } else if (fields.length <= 2) {
-      return `Changed ${fields.join(', ')}`;
+      return t('dashboard.activity.changedFields', { fields: fields.join(', ') });
     } else {
-      return `Changed ${fields.length} fields`;
+      return t('dashboard.activity.changedFieldsCount', { count: fields.length });
     }
   };
 
@@ -346,14 +355,14 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
             <div className="flex items-center">
               <ClockIcon className="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Recent Activity
+                {t('dashboard.activity.title')}
               </h2>
             </div>
             <button
               onClick={handleRefresh}
               disabled={loading}
               className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-              title="Refresh activity"
+              title={t('dashboard.activity.refresh')}
             >
               <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -367,7 +376,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
           <div className="flex items-center justify-center py-8">
             <LoadingSpinner />
             <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-              Loading recent activity...
+              {t('dashboard.activity.loading')}
             </span>
           </div>
         )}
@@ -382,7 +391,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
               onClick={handleRefresh}
               className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
             >
-              Try again
+              {t('dashboard.activity.tryAgain')}
             </button>
           </div>
         )}
@@ -391,10 +400,10 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
           <div className="text-center py-8">
             <ClockIcon className="h-8 w-8 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              No recent activity
+              {t('dashboard.activity.noActivity')}
             </div>
             <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              Activity will appear here as content is created and edited
+              {t('dashboard.activity.noActivityDescription')}
             </div>
           </div>
         )}
@@ -431,7 +440,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
                           <span className={operationInfo.color}>
                             {operationInfo.text}
                           </span>
-                          <span> by {latestActivity.actorUsername || latestActivity.actorId} • {formatTimestamp(latestActivity.timestamp)}</span>
+                          <span> {t('dashboard.activity.by')} {latestActivity.actorUsername || latestActivity.actorId} • {formatTimestamp(latestActivity.timestamp)}</span>
                         </div>
                       </div>
                       
@@ -467,7 +476,7 @@ export function ActivityFeed({ limit = 20, showHeader = true }: ActivityFeedProp
                                 {changedFields && (
                                   <span className="text-gray-500 dark:text-gray-500"> ({changedFields})</span>
                                 )}
-                                <span className="text-gray-500 dark:text-gray-500"> by {activity.actorUsername || activity.actorId}</span>
+                                <span className="text-gray-500 dark:text-gray-500"> {t('dashboard.activity.by')} {activity.actorUsername || activity.actorId}</span>
                                 <div className="text-gray-400 dark:text-gray-600 mt-0.5">
                                   {formatTimestamp(activity.timestamp)}
                                 </div>
