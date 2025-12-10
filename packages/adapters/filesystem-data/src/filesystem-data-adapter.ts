@@ -141,6 +141,8 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         
         // Document exists, this is an update
         isUpdate = true
+        // Use _status from data if explicitly provided, otherwise preserve existing status
+        const status = (data as any)._status ?? existingDoc.metadata.status
         documentFile = {
           id,
           collection,
@@ -149,7 +151,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             createdAt: existingDoc.metadata.createdAt,
             updatedAt: new Date(),
             revision: existingDoc.metadata.revision + 1,
-            status: existingDoc.metadata.status,
+            status,
             // Preserve original creator, update current user
             createdBy: existingDoc.metadata.createdBy,
             createdByType: existingDoc.metadata.createdByType,
