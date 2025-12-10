@@ -322,22 +322,75 @@ import { TrokkyClient } from '@trokky/trokky'
 
 const client = new TrokkyClient({
   baseUrl: 'https://your-site.com/api',
-  token: 'your-token'
+  apiToken: 'your-token'
 })
 
-// Get documents
-const articles = await client.getDocuments('article')
+// Query documents with fluent API
+const articles = await client.from('article').published().limit(10).fetch()
+
+// Get single document
+const article = await client.from('article').id('article-123').fetchOne()
+
+// Filter and sort
+const featured = await client
+  .from('article')
+  .published()
+  .filter({ featured: true })
+  .order('_createdAt', 'desc')
+  .limit(5)
+  .fetch()
 
 // Create document
-const newArticle = await client.createDocument('article', {
+const newArticle = await client.from('article').create({
   title: 'My Article',
   content: 'Article content...'
 })
+
+// Update document (full replace)
+const updated = await client.from('article').id('article-123').update({
+  title: 'Updated Title',
+  content: 'New content...'
+})
+
+// Patch document (partial update)
+const patched = await client.from('article').id('article-123').patch({
+  status: 'published'
+})
+
+// Delete document
+await client.from('article').id('article-123').delete()
+
+// Expand references
+const withAuthor = await client
+  .from('article')
+  .expand('author', 'category')
+  .fetch()
 
 // Upload media
 const file = new File([buffer], 'image.jpg')
 const media = await client.uploadFile(file)
 ```
+
+### Fluent Query Builder Methods
+
+| Method | Description |
+|--------|-------------|
+| `from(collection)` | Start query builder for a collection |
+| `id(documentId)` | Target specific document by ID |
+| `published()` | Filter by `_status: 'published'` |
+| `draft()` | Filter by `_status: 'draft'` |
+| `filter(conditions)` | Add filter conditions (chainable) |
+| `limit(n)` | Limit number of results |
+| `offset(n)` | Skip first n results (pagination) |
+| `order(field, direction)` | Sort by field ('asc' or 'desc') |
+| `expand(...refs)` | Expand reference fields |
+| `fetch()` | Execute query, return array |
+| `fetchOne()` | Execute query, return single document or null |
+| `count()` | Count matching documents |
+| `create(data)` | Create new document |
+| `update(data)` | Full document replace (requires `id()`) |
+| `patch(data)` | Partial update (requires `id()`) |
+| `delete()` | Delete document (requires `id()`) |
 
 ## Features
 
