@@ -25,6 +25,10 @@
     "./field-system": {
       "types": "./dist/field-system.d.ts",
       "import": "./dist/field-system.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "import": "./dist/auth.js"
     }
   },
   "files": [

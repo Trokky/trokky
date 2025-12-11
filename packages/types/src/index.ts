@@ -63,3 +63,46 @@ export type {
   BaseFieldPlugin,
   BaseRegisteredFieldPlugin
 } from './field-system.js';
+
+// Authentication and authorization types
+export type {
+  // OAuth
+  OAuthProviderType,
+  OAuthProvider,
+  // MFA
+  MFAMethodType,
+  MFAMethod,
+  TrustedDevice,
+  MFAConfig,
+  // Roles and Permissions
+  UserRole,
+  Permission,
+  UserPreferences,
+  // User types
+  User,
+  CreateUserData,
+  UpdateUserData,
+  UserListOptions,
+  LoginCredentials,
+  UserSession,
+  // App Token types
+  AppToken,
+  CreateAppTokenData,
+  UpdateAppTokenData,
+  AppTokenListOptions,
+  // Auth context
+  AuthenticatedUser,
+  AuthenticatedAppToken,
+  AuthContext,
+  // JWT payloads
+  UserTokenPayload,
+  AppTokenPayload,
+  MFAPendingTokenPayload,
+  MFASetupTokenPayload,
+  TokenPayload,
+  // Auth results
+  AuthenticationSuccessResult,
+  AuthenticationMFARequiredResult,
+  AuthenticationMFASetupRequiredResult,
+  AuthenticationResult
+} from './auth.js';
