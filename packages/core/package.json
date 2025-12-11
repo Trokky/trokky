@@ -1,6 +1,6 @@
 {
   "name": "@trokky/core",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "description": "Core CMS engine for Trokky v2",
   "type": "module",
   "main": "dist/index.js",
