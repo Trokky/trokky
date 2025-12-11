@@ -15,8 +15,16 @@
       "import": "./dist/media.js"
     },
     "./fields": {
-      "types": "./dist/fields.d.ts", 
+      "types": "./dist/fields.d.ts",
       "import": "./dist/fields.js"
+    },
+    "./slug": {
+      "types": "./dist/slug.d.ts",
+      "import": "./dist/slug.js"
+    },
+    "./field-system": {
+      "types": "./dist/field-system.d.ts",
+      "import": "./dist/field-system.js"
     }
   },
   "files": [
