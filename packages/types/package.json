@@ -29,6 +29,26 @@
     "./auth": {
       "types": "./dist/auth.d.ts",
       "import": "./dist/auth.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    },
+    "./api-requests": {
+      "types": "./dist/api-requests.d.ts",
+      "import": "./dist/api-requests.js"
+    },
+    "./oauth2": {
+      "types": "./dist/oauth2.d.ts",
+      "import": "./dist/oauth2.js"
+    },
+    "./mail": {
+      "types": "./dist/mail.d.ts",
+      "import": "./dist/mail.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n.d.ts",
+      "import": "./dist/i18n.js"
     }
   },
   "files": [

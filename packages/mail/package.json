@@ -22,7 +22,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "*"
+    "@trokky/core": "*",
+    "@trokky/types": "*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
