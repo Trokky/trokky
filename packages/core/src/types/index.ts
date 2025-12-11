@@ -165,6 +165,7 @@ export interface FieldDefinition {
   readOnly?: boolean // Read-only field
   preserveCase?: boolean // Preserve case in slugs
   allowedChars?: string // Additional allowed characters
+  allowSlashes?: boolean // Allow slashes in slugs (for hierarchical paths)
   prefix?: string // Slug prefix
   suffix?: string // Slug suffix
 }

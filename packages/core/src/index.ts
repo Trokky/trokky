@@ -168,6 +168,7 @@ export type {
   DocumentData,
   DocumentWithContent,
   ContentSchema,
+  FieldDefinition as SchemaFieldDefinition,
   ListOptions,
   ValidationResult,
   MediaFile,
