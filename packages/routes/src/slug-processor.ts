@@ -1,35 +1,11 @@
 import type { TrokkyCore, ContentSchema, SchemaFieldDefinition } from '@trokky/core'
+import type { SlugifyOptions, SlugFieldConfig } from '@trokky/types'
 import { createLogger } from '@trokky/core'
 
+// Re-export types for consumers of this module
+export type { SlugifyOptions, SlugFieldConfig } from '@trokky/types'
+
 const logger = createLogger('routes', 'SlugProcessor')
-
-/**
- * Options for the slugify function
- */
-export interface SlugifyOptions {
-  preserveCase?: boolean
-  allowedChars?: string
-  allowSlashes?: boolean
-  prefix?: string
-  suffix?: string
-}
-
-/**
- * Configuration for slug field from schema
- */
-export interface SlugFieldConfig {
-  fieldName: string
-  source?: string | string[]
-  autoGenerate?: boolean
-  unique?: boolean
-  maxLength?: number
-  minLength?: number
-  preserveCase?: boolean
-  allowedChars?: string
-  allowSlashes?: boolean
-  prefix?: string
-  suffix?: string
-}
 
 /**
  * Type-safe helper to get a number option from field or options

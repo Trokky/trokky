@@ -26,6 +26,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@trokky/types": "*",
     "i18next": "^24.2.2",
     "react-i18next": "^15.4.1",
     "i18next-browser-languagedetector": "^8.0.4"

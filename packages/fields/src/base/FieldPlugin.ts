@@ -1,20 +1,23 @@
 /**
  * Field plugin system interfaces
  * Based on proven legacy architecture from Trokky v1
+ *
+ * Base types are centralized in @trokky/types. This file adds React-specific
+ * interfaces that require React dependencies.
  */
 
 import type { ComponentType } from 'react'
 import type {
   BaseFieldDefinition,
   ValidationResult,
+  ValidationState,
   DocumentContext,
-} from './FieldDefinition'
+  FieldCategory,
+  FieldPluginSource
+} from '@trokky/types'
 
-// Field plugin source types
-export type FieldPluginSource = 'builtin' | 'external' | 'custom'
-
-// Import ValidationState from FieldDefinition to avoid duplication
-import type { ValidationState } from './FieldDefinition'
+// Re-export FieldPluginSource for backwards compatibility
+export type { FieldPluginSource } from '@trokky/types'
 
 // Studio context interface for field access to Studio capabilities
 export interface StudioContext {
@@ -127,7 +130,7 @@ export interface FieldPlugin<
   type: string
   displayName: string
   description: string
-  category: import('./FieldDefinition.js').FieldCategory
+  category: FieldCategory
 
   // React component for Studio rendering
   component: ComponentType<FieldComponentProps>

@@ -1,51 +1,40 @@
 import type { FieldPlugin, BaseFieldDefinition, ValidationResult } from '../../base/index.js';
+import type { SlugifyOptions, SlugFieldValue } from '@trokky/types';
 import { SlugFieldComponent } from './component.js';
 import { SlugFieldPreview } from './preview.js';
 
+// Re-export types from @trokky/types for consumers
+export type { SlugifyOptions, SlugFieldValue } from '@trokky/types';
+
 export interface SlugFieldDefinition extends BaseFieldDefinition {
   type: 'slug';
-  
+
   // Auto-generation configuration
   source?: string | string[];         // Field(s) to generate slug from (e.g., 'title', ['title', 'subtitle'])
   autoGenerate?: boolean;             // Default: true
-  
+
   // Validation options
   maxLength?: number;                 // Default: 200
   minLength?: number;                 // Default: 1
   unique?: boolean;                   // Default: true (requires uniqueness within collection)
   allowEmpty?: boolean;               // Default: false
   pattern?: RegExp;                   // Custom validation pattern
-  
+
   // UI options
   placeholder?: string;               // Placeholder text for the input field
-  
+
   // Behavior options
   readOnly?: boolean;                 // Default: false (allow manual override)
   preserveCase?: boolean;             // Default: false (convert to lowercase)
   allowedChars?: string;              // Additional allowed characters beyond a-z0-9-
   allowSlashes?: boolean;             // Default: true (allow / for hierarchical paths)
-  
+
   // Prefix/suffix options
   prefix?: string;                    // Prefix to add to generated slugs
   suffix?: string;                    // Suffix to add to generated slugs
-  
+
   // Custom slugify function
   slugify?: (input: string, options?: SlugifyOptions) => string;
-}
-
-export interface SlugifyOptions {
-  preserveCase?: boolean;
-  allowedChars?: string;
-  allowSlashes?: boolean;
-  prefix?: string;
-  suffix?: string;
-}
-
-export interface SlugFieldValue {
-  value: string;
-  generated: boolean;     // Whether this slug was auto-generated
-  source?: string;        // Which field it was generated from
-  lastUpdated: Date;
 }
 
 // Unicode-aware slugify algorithm based on legacy Trokky implementation

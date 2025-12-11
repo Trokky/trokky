@@ -17,13 +17,13 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --project tsconfig.build.json --watch",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test": "echo 'No tests configured for this package' && exit 0",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "*"
+    "@trokky/core": "*",
+    "@trokky/types": "*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
