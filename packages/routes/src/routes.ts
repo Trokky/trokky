@@ -34,6 +34,7 @@ import type {
   TestWebhookRequest
 } from './types.js'
 import { TrokkyCore, SecurityValidator, InvalidInputError, createLogger, MediaFile, expandDocumentReferences, parseExpandParam } from '@trokky/core'
+import { processSlugFields } from './slug-processor.js'
 
 export class TrokkyRoutes {
   private core: TrokkyCore
@@ -653,11 +654,14 @@ export class TrokkyRoutes {
       SecurityValidator.validateDocumentData(data)
 
       this.logger.debug('Creating document', { collection, data, id })
-      
+
       // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
       await this.validateSingletonCreation(collection, id)
-      
-      const document = await this.core.saveDocument(collection, { ...data, id }, auditContext)
+
+      // Process slug fields - auto-generate slugs from source fields if not provided
+      const processedData = await processSlugFields(this.core, collection, data as Record<string, any>)
+
+      const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext)
       return this.successResponse({ document }, 201)
     } catch (error) {
       this.logger.error('Failed to create document', { 
@@ -778,7 +782,11 @@ export class TrokkyRoutes {
         mergedData = data
       }
 
-      const document = await this.core.saveDocument(collection, { ...mergedData, id }, auditContext)
+      // Process slug fields - auto-generate slugs from source fields if not provided
+      // Pass the document ID to exclude it from uniqueness checks during updates
+      const processedData = await processSlugFields(this.core, collection, mergedData as Record<string, any>, id)
+
+      const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext)
       return this.successResponse({ document })
     } catch (error) {
       return this.errorResponse(error)
