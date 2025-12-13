@@ -1,6 +1,6 @@
 {
   "name": "@trokky/routes",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Framework-agnostic HTTP route handlers for Trokky v2",
   "type": "module",
   "main": "dist/index.js",

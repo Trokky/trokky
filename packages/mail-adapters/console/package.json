@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mail-adapter-console",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Console mail adapter for Trokky - logs emails instead of sending",
   "type": "module",
   "main": "./dist/index.js",
