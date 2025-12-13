@@ -390,7 +390,41 @@ await generateTypesFromSchema(schema, {
 
 ### Reference Expansion
 
-Expand reference fields to include full document data instead of just reference IDs. This is done server-side for optimal performance.
+Expand reference fields to include full document data instead of just reference IDs. References are resolved and the full document replaces the reference object.
+
+#### Before Expansion (Reference)
+
+```json
+{
+  "_id": "homepage",
+  "documentation": {
+    "featuredDocument": {
+      "_ref": "doc-legal-legalText-abc123",
+      "_type": "document"
+    }
+  }
+}
+```
+
+#### After Expansion (Resolved Document)
+
+```json
+{
+  "_id": "homepage",
+  "documentation": {
+    "featuredDocument": {
+      "_id": "doc-legal-legalText-abc123",
+      "_collection": "document",
+      "title": "Terms of Service",
+      "slug": "terms-of-service",
+      "content": "...",
+      "_status": "published"
+    }
+  }
+}
+```
+
+#### Basic Expansion
 
 ```typescript
 // Direct API - expand specific fields
@@ -404,20 +438,16 @@ const post = await client.getDocument<PostDocument>('post', 'post-id', {
 })
 ```
 
-#### Query Builder with Expansion
+#### Fluent Query Builder
 
 ```typescript
-import { createQueryBuilder } from '@trokky/client'
-
-const query = createQueryBuilder<PostDocument>(client)
-
-// Query with reference expansion
-const posts = await query
-  .collection('post')
-  .filter({ published: true })
+// Query collection with reference expansion
+const posts = await client
+  .from('post')
+  .published()
   .expand('author')           // Single reference field
-  .expand('categories', true) // Array reference field (pass true)
-  .sort('createdAt', 'desc')
+  .expand('categories[]')     // Array reference field (use [] suffix)
+  .sort({ _createdAt: 'desc' })
   .limit(10)
   .fetch()
 ```
@@ -426,11 +456,39 @@ const posts = await query
 
 ```typescript
 // Fetch singleton with expanded references
-const homepage = await query
-  .singleton<HomepageDocument>('homepage')
-  .expand('featuredPosts', true)  // Array of references
-  .expand('heroImage')            // Single reference
+const homepage = await client
+  .singleton('homepage')
+  .expand('hero.backgroundImage')           // Nested single reference
+  .expand('documentation.featuredDocument') // Nested single reference
+  .expand('sections.relatedArticles[]')     // Nested array reference
   .fetch()
+```
+
+#### Nested Field Paths
+
+The `expand()` method supports dot notation for nested fields:
+
+```typescript
+// Top-level field
+.expand('author')
+
+// Nested field (one level deep)
+.expand('content.featuredImage')
+
+// Deeply nested field
+.expand('sections.hero.backgroundImage')
+
+// Multiple nested expansions
+const homepage = await client
+  .singleton('homepage')
+  .expand('hero.backgroundImage')
+  .expand('documentation.featuredDocument')
+  .expand('footer.socialLinks[]')
+  .fetch()
+
+// Access the expanded data directly
+console.log(homepage.documentation.featuredDocument.title)
+// Output: "Terms of Service"
 ```
 
 #### Expand Parameter Formats
@@ -439,8 +497,228 @@ const homepage = await query
 |--------|-------------|
 | `author` | Expand single reference field |
 | `categories[]` | Expand array reference field |
+| `content.author` | Expand nested single reference |
+| `sections.items[]` | Expand nested array reference |
+| `a.b.c` | Expand deeply nested reference |
 | `author,tags[]` | Expand multiple fields |
 | `*` | Expand all reference fields |
+
+### Frontend Integration Examples
+
+#### Next.js App Router
+
+```typescript
+// app/lib/trokky.ts
+import { TrokkyClient } from '@trokky/client'
+
+export const trokky = new TrokkyClient({
+  baseUrl: process.env.TROKKY_API_URL || 'http://localhost:3000/api'
+})
+
+// app/lib/queries.ts
+export async function getHomepage() {
+  return trokky
+    .singleton('homepage')
+    .expand('documentation.featuredDocument')
+    .expand('hero.backgroundImage')
+    .fetch()
+}
+
+export async function getPosts() {
+  return trokky
+    .from('post')
+    .published()
+    .expand('author')
+    .expand('category')
+    .newest()
+    .limit(10)
+    .fetch()
+}
+
+// app/page.tsx
+import { getHomepage } from './lib/queries'
+
+export default async function HomePage() {
+  const homepage = await getHomepage()
+
+  return (
+    <div>
+      <h1>{homepage.hero.title}</h1>
+
+      {/* Access expanded nested reference directly */}
+      {homepage.documentation.featuredDocument && (
+        <div className="featured">
+          <h2>{homepage.documentation.featuredDocument.title}</h2>
+          <p>{homepage.documentation.featuredDocument.description}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+#### React with React Query
+
+```typescript
+// hooks/useTrokky.ts
+import { useQuery } from '@tanstack/react-query'
+import { TrokkyClient } from '@trokky/client'
+
+const client = new TrokkyClient({
+  baseUrl: 'http://localhost:3000/api'
+})
+
+export function useHomepage() {
+  return useQuery({
+    queryKey: ['homepage'],
+    queryFn: () =>
+      client
+        .singleton('homepage')
+        .expand('documentation.featuredDocument')
+        .expand('hero.backgroundImage')
+        .fetch()
+  })
+}
+
+export function usePosts() {
+  return useQuery({
+    queryKey: ['posts'],
+    queryFn: () =>
+      client
+        .from('post')
+        .published()
+        .expand('author')
+        .newest()
+        .limit(10)
+        .fetch()
+  })
+}
+
+// components/HomePage.tsx
+import { useHomepage } from '../hooks/useTrokky'
+
+export function HomePage() {
+  const { data: homepage, isLoading, error } = useHomepage()
+
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error loading page</div>
+  if (!homepage) return null
+
+  const featuredDoc = homepage.documentation?.featuredDocument
+
+  return (
+    <main>
+      <h1>{homepage.hero?.title}</h1>
+
+      {featuredDoc && (
+        <article>
+          <h2>{featuredDoc.title}</h2>
+          <p>{featuredDoc.excerpt}</p>
+          <a href={`/docs/${featuredDoc.slug}`}>Read more</a>
+        </article>
+      )}
+    </main>
+  )
+}
+```
+
+#### Vue 3 Composition API
+
+```typescript
+// composables/useTrokky.ts
+import { ref, onMounted } from 'vue'
+import { TrokkyClient } from '@trokky/client'
+
+const client = new TrokkyClient({
+  baseUrl: 'http://localhost:3000/api'
+})
+
+export function useHomepage() {
+  const homepage = ref(null)
+  const loading = ref(true)
+  const error = ref(null)
+
+  onMounted(async () => {
+    try {
+      homepage.value = await client
+        .singleton('homepage')
+        .expand('documentation.featuredDocument')
+        .expand('hero.backgroundImage')
+        .fetch()
+    } catch (e) {
+      error.value = e
+    } finally {
+      loading.value = false
+    }
+  })
+
+  return { homepage, loading, error }
+}
+
+// components/HomePage.vue
+<script setup lang="ts">
+import { useHomepage } from '../composables/useTrokky'
+
+const { homepage, loading, error } = useHomepage()
+</script>
+
+<template>
+  <div v-if="loading">Loading...</div>
+  <div v-else-if="error">Error: {{ error.message }}</div>
+  <main v-else-if="homepage">
+    <h1>{{ homepage.hero?.title }}</h1>
+
+    <article v-if="homepage.documentation?.featuredDocument">
+      <h2>{{ homepage.documentation.featuredDocument.title }}</h2>
+      <p>{{ homepage.documentation.featuredDocument.excerpt }}</p>
+    </article>
+  </main>
+</template>
+```
+
+#### TypeScript Types with Expansion
+
+When using TypeScript, you can define types that reflect expanded references:
+
+```typescript
+// types/cms.ts
+import type { BaseDocument } from '@trokky/client'
+
+interface DocumentReference {
+  _ref: string
+  _type: string
+}
+
+interface LegalDocument extends BaseDocument {
+  title: string
+  slug: string
+  content: string
+  category: string
+}
+
+// Before expansion: reference object
+interface HomepageRaw extends BaseDocument {
+  documentation: {
+    featuredDocument: DocumentReference
+  }
+}
+
+// After expansion: full document
+interface HomepageExpanded extends BaseDocument {
+  documentation: {
+    featuredDocument: LegalDocument
+  }
+}
+
+// Usage with explicit expanded type
+const homepage = await client
+  .singleton<HomepageExpanded>('homepage')
+  .expand('documentation.featuredDocument')
+  .fetch()
+
+// TypeScript knows featuredDocument has title, slug, etc.
+console.log(homepage.documentation.featuredDocument.title)
+```
 
 ### Custom HTTP Client
 
