@@ -421,7 +421,7 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
     const doc = documents[0]
 
     for (const expandConfig of this._expand) {
-      const fieldValue = (doc as any)[expandConfig.field]
+      const fieldValue = this.getNestedValue(doc, expandConfig.field)
       if (fieldValue) {
         // If it's an array, check first item
         if (expandConfig.isArray && Array.isArray(fieldValue) && fieldValue.length > 0) {
@@ -448,7 +448,7 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
 
     for (const doc of documents) {
       for (const expandConfig of this._expand) {
-        const fieldValue = (doc as any)[expandConfig.field]
+        const fieldValue = this.getNestedValue(doc, expandConfig.field)
 
         if (!fieldValue) continue
 
@@ -498,15 +498,15 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
 
     // Replace references with resolved documents
     return documents.map(doc => {
-      const expanded = { ...doc } as any
+      const expanded = JSON.parse(JSON.stringify(doc)) as any
 
       for (const expandConfig of this._expand) {
-        const fieldValue = expanded[expandConfig.field]
+        const fieldValue = this.getNestedValue(expanded, expandConfig.field)
 
         if (!fieldValue) continue
 
         if (expandConfig.isArray && Array.isArray(fieldValue)) {
-          expanded[expandConfig.field] = fieldValue.map((ref: any) => {
+          const expandedArray = fieldValue.map((ref: any) => {
             if (this.isReference(ref)) {
               const type = ref._type || this.inferTypeFromRef(ref._ref)
               const resolved = resolvedRefs.get(`${type}:${ref._ref}`)
@@ -514,11 +514,12 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
             }
             return ref
           })
+          this.setNestedValue(expanded, expandConfig.field, expandedArray)
         } else if (this.isReference(fieldValue)) {
           const type = fieldValue._type || this.inferTypeFromRef(fieldValue._ref)
           const resolved = resolvedRefs.get(`${type}:${fieldValue._ref}`)
           if (resolved) {
-            expanded[expandConfig.field] = resolved
+            this.setNestedValue(expanded, expandConfig.field, resolved)
           }
         }
       }
@@ -535,6 +536,28 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
   }
 
   /**
+   * Get a nested value from an object using dot notation path
+   * @param obj The object to traverse
+   * @param path Dot-separated path (e.g., 'documentation.featuredDocument')
+   */
+  private getNestedValue(obj: any, path: string): any {
+    return path.split('.').reduce((current, key) => current?.[key], obj)
+  }
+
+  /**
+   * Set a nested value in an object using dot notation path
+   * @param obj The object to modify
+   * @param path Dot-separated path (e.g., 'documentation.featuredDocument')
+   * @param value The value to set
+   */
+  private setNestedValue(obj: any, path: string, value: any): void {
+    const keys = path.split('.')
+    const lastKey = keys.pop()!
+    const target = keys.reduce((current, key) => (current[key] ??= {}), obj)
+    target[lastKey] = value
+  }
+
+  /**
    * Infer type from reference ID (e.g., 'category-abc123' -> 'category')
    */
   private inferTypeFromRef(ref: string): string {
@@ -544,18 +567,54 @@ export class QueryBuilder<T extends BaseDocument = BaseDocument> {
   }
 
   /**
+   * Extract document from API response
+   */
+  private extractDocument(result: any): any {
+    if (!result) return null
+
+    // Handle direct document (has _id at top level)
+    if (result._id) {
+      return result
+    }
+
+    // Handle { data: { ... } } wrapper
+    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+      return this.extractDocument(result.data)
+    }
+
+    // Handle { data: [...] } wrapper (take first item)
+    if (result.data && Array.isArray(result.data)) {
+      return result.data[0] || null
+    }
+
+    // Handle { [collectionName]: { _id: "...", ... } } wrapper (e.g., { document: { _id: "..." } })
+    // This occurs when the API returns the document wrapped in a property named after the collection
+    const keys = Object.keys(result)
+    if (keys.length === 1) {
+      const wrappedValue = result[keys[0]]
+      if (wrappedValue && typeof wrappedValue === 'object' && wrappedValue._id) {
+        return wrappedValue
+      }
+    }
+
+    // Fallback: return as-is
+    return result
+  }
+
+  /**
    * Fetch a single referenced document
    */
   private async fetchReference(type: string, id: string): Promise<any> {
     try {
       const result = await this.http.get<any>(`/collections/${type}/${id}`)
-      return result
+      return this.extractDocument(result)
     } catch (error) {
       // Try without type prefix in ID
       if (id.startsWith(`${type}-`)) {
         const cleanId = id.replace(`${type}-`, '')
         try {
-          return await this.http.get<any>(`/collections/${type}/${cleanId}`)
+          const result = await this.http.get<any>(`/collections/${type}/${cleanId}`)
+          return this.extractDocument(result)
         } catch {
           return null
         }
@@ -673,7 +732,7 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
    */
   private hasExpandedReferences(doc: T): boolean {
     for (const expandConfig of this._expand) {
-      const fieldValue = (doc as any)[expandConfig.field]
+      const fieldValue = this.getNestedValue(doc, expandConfig.field)
       if (fieldValue) {
         // If it's an array, check first item
         if (expandConfig.isArray && Array.isArray(fieldValue) && fieldValue.length > 0) {
@@ -695,10 +754,10 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
    * Expand references in a single document
    */
   private async expandReferences(doc: T): Promise<T> {
-    const expanded = { ...doc } as any
+    const expanded = JSON.parse(JSON.stringify(doc)) as any
 
     for (const expandConfig of this._expand) {
-      const fieldValue = expanded[expandConfig.field]
+      const fieldValue = this.getNestedValue(expanded, expandConfig.field)
 
       if (!fieldValue) continue
 
@@ -712,12 +771,12 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
             return ref
           })
         )
-        expanded[expandConfig.field] = expandedArray
+        this.setNestedValue(expanded, expandConfig.field, expandedArray)
       } else if (this.isReference(fieldValue)) {
         const type = fieldValue._type || this.inferTypeFromRef(fieldValue._ref)
         const resolved = await this.fetchReference(type, fieldValue._ref)
         if (resolved) {
-          expanded[expandConfig.field] = resolved
+          this.setNestedValue(expanded, expandConfig.field, resolved)
         }
       }
     }
@@ -729,15 +788,72 @@ export class SingletonBuilder<T extends BaseDocument = BaseDocument> {
     return value && typeof value === 'object' && '_ref' in value
   }
 
+  /**
+   * Get a nested value from an object using dot notation path
+   * @param obj The object to traverse
+   * @param path Dot-separated path (e.g., 'documentation.featuredDocument')
+   */
+  private getNestedValue(obj: any, path: string): any {
+    return path.split('.').reduce((current, key) => current?.[key], obj)
+  }
+
+  /**
+   * Set a nested value in an object using dot notation path
+   * @param obj The object to modify
+   * @param path Dot-separated path (e.g., 'documentation.featuredDocument')
+   * @param value The value to set
+   */
+  private setNestedValue(obj: any, path: string, value: any): void {
+    const keys = path.split('.')
+    const lastKey = keys.pop()!
+    const target = keys.reduce((current, key) => (current[key] ??= {}), obj)
+    target[lastKey] = value
+  }
+
   private inferTypeFromRef(ref: string): string {
     const match = ref.match(/^([a-z-]+)-/)
     return match ? match[1] : 'document'
   }
 
+  /**
+   * Extract document from API response
+   */
+  private extractDocument(result: any): any {
+    if (!result) return null
+
+    // Handle direct document (has _id at top level)
+    if (result._id) {
+      return result
+    }
+
+    // Handle { data: { ... } } wrapper
+    if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+      return this.extractDocument(result.data)
+    }
+
+    // Handle { data: [...] } wrapper (take first item)
+    if (result.data && Array.isArray(result.data)) {
+      return result.data[0] || null
+    }
+
+    // Handle { [collectionName]: { _id: "...", ... } } wrapper (e.g., { document: { _id: "..." } })
+    // This occurs when the API returns the document wrapped in a property named after the collection
+    const keys = Object.keys(result)
+    if (keys.length === 1) {
+      const wrappedValue = result[keys[0]]
+      if (wrappedValue && typeof wrappedValue === 'object' && wrappedValue._id) {
+        return wrappedValue
+      }
+    }
+
+    // Fallback: return as-is
+    return result
+  }
+
   private async fetchReference(type: string, id: string): Promise<any> {
     try {
       const result = await this.http.get<any>(`/collections/${type}/${id}`)
-      return result
+      return this.extractDocument(result)
     } catch {
       return null
     }
