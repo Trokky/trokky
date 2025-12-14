@@ -37,8 +37,8 @@
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^0.7.0",
-    "@trokky/core": "*",
-    "@trokky/types": "*",
+    "@trokky/core": "^2.0.0",
+    "@trokky/types": "^0.1.0",
     "archiver": "^6.0.1",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",

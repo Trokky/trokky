@@ -25,7 +25,7 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
-    "@trokky/core": "*",
+    "@trokky/core": "^2.0.0",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {

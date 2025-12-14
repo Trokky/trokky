@@ -28,7 +28,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@trokky/core": "*",
+    "@trokky/core": "^2.0.0",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
@@ -37,7 +37,7 @@
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
-    "@trokky/core": "*"
+    "@trokky/core": "^2.0.0"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

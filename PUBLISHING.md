@@ -347,6 +347,105 @@ Skip pre-commit hooks when committing (as per project guidelines):
 git commit --no-verify -m "Your commit message"
 ```
 
+## Internal Dependency Version Management
+
+### Why Version Constraints Matter
+
+Internal dependencies between Trokky packages must use proper semver constraints, not wildcards (`*`). Using wildcards can cause version mismatch issues where a package expects features from a newer version but npm resolves to an older version.
+
+**Problem Example:**
+```
+@trokky/routes@2.0.4 imports expandDocumentReferences from @trokky/core
+But user's project has @trokky/core@0.1.22 installed (which doesn't have this export)
+Result: Runtime error - expandDocumentReferences is not exported
+```
+
+This happens because `"@trokky/core": "*"` allows any version, including old ones.
+
+### Required Version Constraints
+
+Always use caret (`^`) version constraints for internal dependencies:
+
+| Package | Minimum Version | Constraint |
+|---------|-----------------|------------|
+| @trokky/core | 2.0.0 | `"^2.0.0"` |
+| @trokky/types | 0.1.0 | `"^0.1.0"` |
+| @trokky/routes | 2.0.0 | `"^2.0.0"` |
+| @trokky/mail | 0.1.0 | `"^0.1.0"` |
+| @trokky/i18n | 0.2.0 | `"^0.2.0"` |
+| @trokky/fields | 0.4.0 | `"^0.4.0"` |
+| @trokky/studio | 0.4.0 | `"^0.4.0"` |
+| @trokky/adapter-filesystem-data | 2.0.0 | `"^2.0.0"` |
+| @trokky/adapter-filesystem-media | 2.0.0 | `"^2.0.0"` |
+
+### Correct package.json Example
+
+```json
+{
+  "dependencies": {
+    "@trokky/core": "^2.0.0",
+    "@trokky/types": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@trokky/core": "^2.0.0"
+  }
+}
+```
+
+### Never Use Wildcards
+
+```json
+// BAD - allows any version including incompatible old versions
+{
+  "dependencies": {
+    "@trokky/core": "*",
+    "@trokky/types": "*"
+  }
+}
+
+// GOOD - ensures compatible versions are installed
+{
+  "dependencies": {
+    "@trokky/core": "^2.0.0",
+    "@trokky/types": "^0.1.0"
+  }
+}
+```
+
+### When Adding New Exports
+
+When you add a new export to a package (like a new function or type):
+
+1. **Update the package version** - Create a changeset to bump the version
+2. **Update dependent packages** - Any package that uses the new export must:
+   - Update its dependency constraint to require the new minimum version
+   - Be included in the changeset
+
+**Example:** Adding `expandDocumentReferences` to `@trokky/core`
+
+```markdown
+---
+"@trokky/core": minor
+"@trokky/routes": patch
+---
+
+Add server-side reference expansion support
+
+- Add expandDocumentReferences utility in @trokky/core
+- Update @trokky/routes to use the new utility
+- Update @trokky/routes dependency to require @trokky/core ^2.0.0
+```
+
+### Checking for Wildcard Dependencies
+
+Run this command to find any remaining wildcard dependencies:
+
+```bash
+grep -rh '"@trokky/[^"]*": "\*"' packages/*/package.json packages/*/*/package.json
+```
+
+If any results appear, update them to use proper version constraints.
+
 ## Common Issues and Solutions
 
 ### Issue: Changeset not consumed after version-packages
@@ -397,6 +496,23 @@ npm run build
 **Cause**: Package B wasn't published yet or version mismatch.
 
 **Solution**: Publish dependencies first, following the dependency order listed above.
+
+### Issue: "X is not exported from @trokky/package" error
+
+**Cause**: Version mismatch - the installed version doesn't have the expected export. This often happens when packages use wildcard (`*`) dependencies.
+
+**Example Error:**
+```
+Error: expandDocumentReferences is not exported from @trokky/core
+```
+
+**Solution**:
+1. Check which version is installed: `npm list @trokky/core`
+2. Check which version exports the feature: `npm view @trokky/core versions`
+3. Update the dependency constraint in package.json to require the correct minimum version
+4. Run `npm update @trokky/core` or delete `node_modules` and reinstall
+
+**Prevention**: Always use proper semver constraints (e.g., `"^2.0.0"`) instead of wildcards (`"*"`). See the "Internal Dependency Version Management" section above.
 
 ## Environment Setup
 
