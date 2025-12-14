@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-postgres-data",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "PostgreSQL-based data storage adapter for Trokky CMS (documents, users, tokens)",
   "type": "module",
   "main": "dist/index.js",
