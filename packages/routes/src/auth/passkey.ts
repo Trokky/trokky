@@ -110,6 +110,13 @@ export async function getPasskeyStatus(
   _request: HttpRequest
 ): Promise<HttpResponse> {
   const isConfigured = core.isPasskeyConfigured()
+  const passkeyConfig = core.getPasskeyConfig()
+
+  logger.debug('Passkey status check', {
+    isConfigured,
+    hasConfig: !!passkeyConfig,
+    config: passkeyConfig ? { rpId: passkeyConfig.rpId, enabled: passkeyConfig.enabled } : null,
+  })
 
   return {
     status: 200,

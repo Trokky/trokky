@@ -5,7 +5,7 @@
  * both directly in TrokkyExpress.setup() and via trokky.config.ts files.
  */
 
-import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter } from '@trokky/core'
+import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter, PasskeyConfig } from '@trokky/core'
 import type { MailAdapter, TemplateRenderer } from '@trokky/mail'
 import type { Request, Response, NextFunction, Express } from 'express'
 
@@ -181,6 +181,8 @@ export interface SecurityConfig {
     /** Salt rounds for password hashing (default: 12) */
     saltRounds?: number
   }
+  /** Passkey/WebAuthn configuration for passwordless authentication */
+  passkey?: PasskeyConfig
 }
 
 // =============================================================================
@@ -625,9 +627,10 @@ export interface TrokkyConfigWithDefaults extends TrokkyConfig {
   media: Required<Omit<MediaConfig, 'mediaUrlGenerator'>> & {
     mediaUrlGenerator?: MediaConfig['mediaUrlGenerator']
   }
-  security: Required<Omit<SecurityConfig, 'jwtSecret' | 'adminUser'>> & {
+  security: Required<Omit<SecurityConfig, 'jwtSecret' | 'adminUser' | 'passkey'>> & {
     jwtSecret?: string
     adminUser?: SecurityConfig['adminUser']
+    passkey?: SecurityConfig['passkey']
   }
   server: Required<Omit<ServerConfig, 'port' | 'lifecycle' | 'trustProxy'>> & {
     port?: number
@@ -703,7 +706,8 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
         saltRounds: 12,
         ...config.security?.cryptoOptions
       },
-      adminUser: config.security?.adminUser
+      adminUser: config.security?.adminUser,
+      passkey: config.security?.passkey
     },
     
     server: {

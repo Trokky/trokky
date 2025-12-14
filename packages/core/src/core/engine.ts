@@ -2543,6 +2543,14 @@ export class TrokkyCore {
    */
   public isPasskeyConfigured(): boolean {
     const config = this.config.security?.passkey
+    // Debug logging
+    this.logger.debug('isPasskeyConfigured check', {
+      hasSecurityConfig: !!this.config.security,
+      hasPasskeyConfig: !!config,
+      passkeyEnabled: config?.enabled,
+      passkeyRpId: config?.rpId,
+      passkeyOrigin: config?.origin,
+    })
     return !!(config?.enabled && config?.rpId && config?.origin)
   }
 

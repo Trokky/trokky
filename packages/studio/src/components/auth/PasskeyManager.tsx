@@ -34,10 +34,27 @@ export function PasskeyManager({ className = '' }: PasskeyManagerProps) {
   const { t } = useT('studio');
   const [credentials, setCredentials] = useState<PasskeyCredential[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const checkPasskeyStatus = useCallback(async () => {
+    try {
+      const response = await apiClient.get<{ enabled: boolean }>('/auth/passkey/status');
+      if (response.success && response.data) {
+        setIsConfigured(response.data.enabled);
+        return response.data.enabled;
+      }
+      setIsConfigured(false);
+      return false;
+    } catch (err) {
+      logger.warn('Failed to check passkey status', { error: err });
+      setIsConfigured(false);
+      return false;
+    }
+  }, []);
 
   const loadCredentials = useCallback(async () => {
     setIsLoading(true);
@@ -66,8 +83,16 @@ export function PasskeyManager({ className = '' }: PasskeyManagerProps) {
   }, [t]);
 
   useEffect(() => {
-    loadCredentials();
-  }, [loadCredentials]);
+    const init = async () => {
+      const enabled = await checkPasskeyStatus();
+      if (enabled) {
+        await loadCredentials();
+      } else {
+        setIsLoading(false);
+      }
+    };
+    init();
+  }, [checkPasskeyStatus, loadCredentials]);
 
   const handleRename = async (credentialId: string) => {
     if (!editingName.trim()) {
@@ -153,6 +178,26 @@ export function PasskeyManager({ className = '' }: PasskeyManagerProps) {
     return (
       <div className={`flex items-center justify-center py-8 ${className}`}>
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // Show message when passkeys aren't configured on the server
+  if (isConfigured === false) {
+    return (
+      <div className={`space-y-4 ${className}`}>
+        <div className="text-center py-6">
+          <KeyIcon className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
+          <p className="text-gray-600 dark:text-gray-400 mb-2">
+            {t('passkey.manager.notConfigured', 'Passkey authentication is not enabled')}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            {t(
+              'passkey.manager.notConfiguredDescription',
+              'Passkey authentication needs to be configured by an administrator in the server settings.'
+            )}
+          </p>
+        </div>
       </div>
     );
   }

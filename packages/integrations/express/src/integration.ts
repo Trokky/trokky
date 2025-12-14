@@ -418,6 +418,7 @@ export class TrokkyExpress {
         security: {
           validateInput: fullConfig.security.validation?.input,
           rateLimitEnabled: fullConfig.security.rateLimit?.enabled,
+          passkey: fullConfig.security.passkey,
         },
         // OAuth configuration (auto-enabled when credentials are set)
         oauth: fullConfig.oauth,

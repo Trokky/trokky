@@ -888,8 +888,8 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                     <PasskeyLoginButton
                       onSuccess={(data) => {
                         // Store tokens and redirect
-                        storageService.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-                        storageService.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
+                        storageService.set(STORAGE_KEYS.AUTH_TOKEN, data.token);
+                        storageService.set(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
                         onLoginSuccess(data.token, data.user);
                       }}
                       onMFARequired={(data) => {
