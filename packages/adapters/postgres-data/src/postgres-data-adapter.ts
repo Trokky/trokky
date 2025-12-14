@@ -49,6 +49,20 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   private readonly MAX_LIST_LIMIT = 1000
 
   constructor(config: PostgresDataAdapterConfig = {}) {
+    // Security: Validate schema and table prefix to prevent SQL injection
+    const schemaPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+    const prefixPattern = /^[a-zA-Z0-9_]*$/
+
+    const schema = config.schema || 'public'
+    const tablePrefix = config.tablePrefix || 'trokky_'
+
+    if (!schemaPattern.test(schema)) {
+      throw new Error(`Invalid PostgreSQL schema name: "${schema}". Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`)
+    }
+    if (!prefixPattern.test(tablePrefix)) {
+      throw new Error(`Invalid table prefix: "${tablePrefix}". Table prefixes must contain only alphanumeric characters and underscores.`)
+    }
+
     this.config = {
       connection: config.connection || process.env.DATABASE_URL || 'postgresql://localhost:5432/trokky',
       pool: {
@@ -57,8 +71,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         connectionTimeoutMillis: 2000,
         ...config.pool
       },
-      schema: config.schema || 'public',
-      tablePrefix: config.tablePrefix || 'trokky_',
+      schema,
+      tablePrefix,
       autoMigrate: config.autoMigrate ?? true,
       enableQueryLogging: config.enableQueryLogging ?? false,
       ssl: config.ssl ?? false,
@@ -810,6 +824,35 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     return this.mapRowToUser(row)
   }
 
+  async getUserByPasskeyCredentialId(credentialId: string): Promise<User | null> {
+    if (!credentialId || typeof credentialId !== 'string') {
+      return null
+    }
+
+    // Security: Validate credential ID format (base64url)
+    // Base64url uses A-Z, a-z, 0-9, -, and _ characters
+    if (!/^[A-Za-z0-9_-]+$/.test(credentialId)) {
+      this.logger.warn('Invalid passkey credential ID format', {
+        credentialIdPrefix: credentialId.substring(0, 8)
+      })
+      return null
+    }
+
+    // Query using JSONB containment operator to find user with matching passkey credential ID
+    const result = await this.query(
+      `SELECT * FROM ${this.tableName('users')}
+       WHERE passkeys @> $1::jsonb`,
+      [JSON.stringify([{ id: credentialId }])]
+    )
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row: UserRow = result.rows[0]
+    return this.mapRowToUser(row)
+  }
+
   private mapRowToUser(row: UserRow): User {
     return {
       id: row.id,
@@ -1115,7 +1158,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
-          WHERE table_name = '${this.config.tablePrefix}users'
+          WHERE table_schema = '${this.config.schema}'
+          AND table_name = '${this.config.tablePrefix}users'
           AND column_name = 'oauth_providers'
         ) THEN
           ALTER TABLE ${this.tableName('users')}
@@ -1130,7 +1174,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
-          WHERE table_name = '${this.config.tablePrefix}users'
+          WHERE table_schema = '${this.config.schema}'
+          AND table_name = '${this.config.tablePrefix}users'
           AND column_name = 'mfa'
         ) THEN
           ALTER TABLE ${this.tableName('users')}
@@ -1145,7 +1190,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
-          WHERE table_name = '${this.config.tablePrefix}users'
+          WHERE table_schema = '${this.config.schema}'
+          AND table_name = '${this.config.tablePrefix}users'
           AND column_name = 'passkeys'
         ) THEN
           ALTER TABLE ${this.tableName('users')}
@@ -1168,6 +1214,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_oauth_providers_idx
       ON ${this.tableName('users')} USING GIN (oauth_providers)
+    `)
+
+    // GIN index for efficient passkey credential lookups
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}users_passkeys_idx
+      ON ${this.tableName('users')} USING GIN (passkeys)
     `)
 
     this.logger.info('Creating app tokens table...')
