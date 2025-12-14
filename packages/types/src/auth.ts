@@ -5,6 +5,8 @@
  * These types define users, roles, permissions, tokens, and auth contexts.
  */
 
+import type { PasskeyCredential } from './passkey.js'
+
 // ============================================================================
 // OAuth Provider Types
 // ============================================================================
@@ -187,6 +189,8 @@ export interface User {
   oauthProviders?: OAuthProvider[]
   /** Multi-factor authentication configuration */
   mfa?: MFAConfig
+  /** Registered passkey credentials for passwordless authentication */
+  passkeys?: PasskeyCredential[]
   /** Last login timestamp */
   lastLoginAt?: string
   /** Account creation timestamp */
