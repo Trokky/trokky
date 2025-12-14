@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mail-adapter-smtp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "SMTP mail adapter for Trokky CMS using Nodemailer",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,8 +22,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "^2.0.0",
-    "@trokky/mail": "^0.1.0",
+    "@trokky/core": "^2.0.5",
+    "@trokky/mail": "^0.1.5",
     "nodemailer": "^6.10.1"
   },
   "devDependencies": {

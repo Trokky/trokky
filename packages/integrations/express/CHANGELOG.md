@@ -1,5 +1,29 @@
 # @trokky/express
 
+## 2.0.5
+
+### Patch Changes
+
+- 84a8782: Fix internal dependency version constraints
+
+  Replace wildcard (\*) dependencies with proper semver constraints to prevent version mismatch issues when installing packages. This ensures that packages requiring features from specific versions (like expandDocumentReferences in @trokky/core@2.0.0) will correctly resolve to compatible versions.
+  - @trokky/core: ^2.0.0
+  - @trokky/types: ^0.1.0
+  - @trokky/routes: ^2.0.0
+  - @trokky/mail: ^0.1.0
+  - @trokky/i18n: ^0.2.0
+  - @trokky/fields: ^0.4.0
+  - @trokky/studio: ^0.4.0
+  - @trokky/adapter-filesystem-data: ^2.0.0
+  - @trokky/adapter-filesystem-media: ^2.0.0
+
+- Updated dependencies [84a8782]
+  - @trokky/routes@2.0.5
+  - @trokky/mail@0.1.5
+  - @trokky/adapter-filesystem-data@2.0.2
+  - @trokky/adapter-filesystem-media@2.0.1
+  - @trokky/core@2.0.5
+
 ## 2.0.1
 
 ### Patch Changes

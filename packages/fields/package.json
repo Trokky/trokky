@@ -1,6 +1,6 @@
 {
   "name": "@trokky/fields",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Universal field system for Trokky CMS - works in browser, Node.js, and edge environments",
   "type": "module",
   "main": "dist/index.js",
@@ -41,7 +41,7 @@
     "@tiptap/pm": "^2.10.6",
     "@tiptap/react": "^2.10.6",
     "@tiptap/starter-kit": "^2.10.6",
-    "@trokky/i18n": "^0.2.0",
+    "@trokky/i18n": "^0.2.2",
     "@trokky/types": "^0.1.0",
     "lowlight": "^3.1.0"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-filesystem-media",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Filesystem-based media storage adapter for Trokky CMS (files, variants, media)",
   "type": "module",
   "main": "dist/index.js",
@@ -28,7 +28,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@trokky/core": "^2.0.0",
+    "@trokky/core": "^2.0.5",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
@@ -37,7 +37,7 @@
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
-    "@trokky/core": "^2.0.0"
+    "@trokky/core": "^2.0.5"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

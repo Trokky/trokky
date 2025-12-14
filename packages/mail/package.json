@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mail",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Mail layer for Trokky CMS with adapter pattern and templating",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "^2.0.0",
+    "@trokky/core": "^2.0.5",
     "@trokky/types": "^0.1.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-filesystem-data",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Filesystem-based data storage adapter for Trokky CMS (documents, users, tokens)",
   "type": "module",
   "main": "dist/index.js",
@@ -28,7 +28,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@trokky/core": "^2.0.0",
+    "@trokky/core": "^2.0.5",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
@@ -37,7 +37,7 @@
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
-    "@trokky/core": "^2.0.0"
+    "@trokky/core": "^2.0.5"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
