@@ -1,5 +1,17 @@
 # @trokky/express
 
+## 0.1.24
+
+### Patch Changes
+
+- 9e60ba7: Fix ESM import issues by adding explicit .js extensions to relative imports
+
+  Node.js ESM requires explicit .js extensions for relative imports. This fix ensures proper module resolution when using these packages in ESM environments.
+
+- Updated dependencies [9e60ba7]
+  - @trokky/adapter-filesystem-media@0.1.8
+  - @trokky/adapter-filesystem-data@0.1.10
+
 ## 2.0.5
 
 ### Patch Changes
