@@ -26,8 +26,8 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
-    "@trokky/core": "*",
-    "@trokky/types": "*"
+    "@trokky/core": "^2.0.0",
+    "@trokky/types": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
