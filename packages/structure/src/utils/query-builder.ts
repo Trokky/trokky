@@ -10,9 +10,9 @@ import type {
   QueryComplexity,
   DocumentListItem,
   OrderClause
-} from '../types'
-import { QueryError, ErrorCodes, ErrorRecovery } from '../errors'
-import { CacheKeyUtils } from './hash'
+} from '../types/index.js'
+import { QueryError, ErrorCodes, ErrorRecovery } from '../errors/index.js'
+import { CacheKeyUtils } from './hash.js'
 
 export interface QueryBuilderOptions {
   /** Enable query optimization */

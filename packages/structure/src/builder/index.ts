@@ -2,8 +2,8 @@
  * Builder Module Exports
  */
 
-export { StructureBuilder } from './StructureBuilder'
-export { NavigationTreeBuilder } from './navigation-tree-builder'
+export { StructureBuilder } from './StructureBuilder.js'
+export { NavigationTreeBuilder } from './navigation-tree-builder.js'
 
 export type {
   StructureBuilderOptions,
@@ -15,6 +15,6 @@ export type {
   PermissionSummary,
   BadgeInfo,
   GenerationOptions
-} from './StructureBuilder'
+} from './StructureBuilder.js'
 
-export type { CountService } from './navigation-tree-builder'
+export type { CountService } from './navigation-tree-builder.js'

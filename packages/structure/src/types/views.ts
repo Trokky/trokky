@@ -3,7 +3,7 @@
  * Configurations for different view types in the Studio
  */
 
-import type { PermissionConfig } from './permissions'
+import type { PermissionConfig } from './permissions.js'
 
 /**
  * Base view configuration

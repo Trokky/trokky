@@ -26,7 +26,7 @@ import {
   AuditLog,
   AUDIT_OPERATIONS
 } from '@trokky/core'
-import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types'
+import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types.js'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
   private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }

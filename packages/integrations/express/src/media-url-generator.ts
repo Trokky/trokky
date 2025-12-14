@@ -5,7 +5,7 @@
  * Supports both API-based serving (with permissions) and static serving (direct).
  */
 
-import type { MediaConfig } from './config'
+import type { MediaConfig } from './config.js'
 
 export interface MediaUrlGeneratorOptions {
   /** Media serving configuration */

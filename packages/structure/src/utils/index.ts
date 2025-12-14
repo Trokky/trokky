@@ -2,20 +2,20 @@
  * Utils Module Exports
  */
 
-export { PermissionChecker } from './permission-checker'
-export { QueryBuilder } from './query-builder'
-export { StructureMerger } from './structure-merger'
+export { PermissionChecker } from './permission-checker.js'
+export { QueryBuilder } from './query-builder.js'
+export { StructureMerger } from './structure-merger.js'
 
 export type {
   PermissionCheckerOptions
-} from './permission-checker'
+} from './permission-checker.js'
 
 export type {
   QueryBuilderOptions
-} from './query-builder'
+} from './query-builder.js'
 
 export type {
   MergeOptions,
   MergeResult,
   MergeConflict
-} from './structure-merger'
+} from './structure-merger.js'

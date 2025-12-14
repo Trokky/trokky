@@ -3,9 +3,9 @@
  * Defines the main interfaces for Trokky Structure system
  */
 
-import type { QueryFilter, OrderClause } from './filters'
-import type { ViewConfig } from './views'
-import type { PermissionConfig } from './permissions'
+import type { QueryFilter, OrderClause } from './filters.js'
+import type { ViewConfig } from './views.js'
+import type { PermissionConfig } from './permissions.js'
 
 /**
  * Main structure configuration that defines Studio navigation and organization

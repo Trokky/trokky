@@ -23,7 +23,7 @@ export type {
   CustomFieldConfig,
   ValidationConfig,
   ValidationRule
-} from './structure'
+} from './structure.js'
 
 // Filter types
 export type {
@@ -33,9 +33,9 @@ export type {
   ResolvedQuery,
   QueryBuilderOptions,
   QueryComplexity
-} from './filters'
+} from './filters.js'
 
-export { QueryOperators } from './filters'
+export { QueryOperators } from './filters.js'
 
 // View types
 export type {
@@ -50,7 +50,7 @@ export type {
   KanbanColumnConfig,
   ViewPlugin,
   BulkActionPlugin
-} from './views'
+} from './views.js'
 
 // Permission types
 export type {
@@ -63,6 +63,6 @@ export type {
   PermissionSummary,
   PermissionValidatorConfig,
   PermissionInheritance
-} from './permissions'
+} from './permissions.js'
 
-export { PermissionPatterns } from './permissions'
+export { PermissionPatterns } from './permissions.js'

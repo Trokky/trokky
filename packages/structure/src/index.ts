@@ -4,13 +4,13 @@
  */
 
 // Types
-export type * from './types'
+export type * from './types/index.js'
 
 // Validation schemas
-export * from './validation/schemas'
+export * from './validation/schemas.js'
 
 // Builder classes
-export { StructureBuilder, NavigationTreeBuilder } from './builder'
+export { StructureBuilder, NavigationTreeBuilder } from './builder/index.js'
 export type {
   StructureBuilderOptions,
   ValidationResult,
@@ -20,20 +20,20 @@ export type {
   NavigationItem,
   GenerationOptions,
   CountService
-} from './builder'
+} from './builder/index.js'
 
 // Utilities
-export { PermissionChecker, QueryBuilder, StructureMerger } from './utils'
-export { FastHasher, StableHasher, CacheKeyUtils } from './utils/hash'
+export { PermissionChecker, QueryBuilder, StructureMerger } from './utils/index.js'
+export { FastHasher, StableHasher, CacheKeyUtils } from './utils/hash.js'
 export type {
   PermissionCheckerOptions,
   MergeOptions,
   MergeResult,
   MergeConflict
-} from './utils'
+} from './utils/index.js'
 
 // Errors
-export * from './errors'
+export * from './errors/index.js'
 
 // Main exports for convenience
-export { TrokkyStructureSchema } from './validation/schemas'
+export { TrokkyStructureSchema } from './validation/schemas.js'

@@ -14,15 +14,15 @@ import type {
   CustomViewItem,
   BadgeConfig,
   QueryFilter
-} from '../types'
+} from '../types/index.js'
 import type {
   NavigationTree,
   NavigationItem,
   PermissionSummary,
   BadgeInfo
-} from './StructureBuilder'
-import { PermissionChecker } from '../utils/permission-checker'
-import { NavigationError, ErrorCodes, ErrorRecovery } from '../errors'
+} from './StructureBuilder.js'
+import { PermissionChecker } from '../utils/permission-checker.js'
+import { NavigationError, ErrorCodes, ErrorRecovery } from '../errors/index.js'
 
 export interface CountService {
   getCount(schemaType: string, filter?: QueryFilter): Promise<number>

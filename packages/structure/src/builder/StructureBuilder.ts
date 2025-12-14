@@ -14,13 +14,13 @@ import type {
   PermissionContext,
   PermissionResult,
   QueryContext
-} from '../types'
-import { TrokkyStructureSchema } from '../validation/schemas'
-import { PermissionChecker } from '../utils/permission-checker'
-import { QueryBuilder } from '../utils/query-builder'
-import { NavigationTreeBuilder, CountService } from './navigation-tree-builder'
-import { StructureMerger } from '../utils/structure-merger'
-import { CacheKeyUtils } from '../utils/hash'
+} from '../types/index.js'
+import { TrokkyStructureSchema } from '../validation/schemas.js'
+import { PermissionChecker } from '../utils/permission-checker.js'
+import { QueryBuilder } from '../utils/query-builder.js'
+import { NavigationTreeBuilder, CountService } from './navigation-tree-builder.js'
+import { StructureMerger } from '../utils/structure-merger.js'
+import { CacheKeyUtils } from '../utils/hash.js'
 
 /**
  * Structure builder options
