@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-postgres-data",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "PostgreSQL-based data storage adapter for Trokky CMS (documents, users, tokens)",
   "type": "module",
   "main": "dist/index.js",
@@ -30,7 +30,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@trokky/core": "^2.0.0",
+    "@trokky/core": "^2.0.5",
     "pg": "^8.11.3"
   },
   "devDependencies": {
@@ -42,7 +42,7 @@
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
-    "@trokky/core": "^2.0.0"
+    "@trokky/core": "^2.0.5"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
