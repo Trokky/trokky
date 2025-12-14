@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 0.1.26
+
+### Patch Changes
+
+- d0dc137: Test version bump to verify changeset workflow
+
 ## 0.4.3
 
 ### Patch Changes
