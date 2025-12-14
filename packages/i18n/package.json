@@ -1,6 +1,6 @@
 {
   "name": "@trokky/i18n",
-  "version": "0.2.2",
+  "version": "0.1.0",
   "description": "Internationalization support for Trokky CMS",
   "type": "module",
   "main": "dist/index.js",

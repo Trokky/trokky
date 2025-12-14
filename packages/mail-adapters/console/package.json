@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mail-adapter-console",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Console mail adapter for Trokky - logs emails instead of sending",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,8 +22,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/mail": "^0.1.5",
-    "@trokky/core": "^2.0.5"
+    "@trokky/mail": "^0.1.0",
+    "@trokky/core": "^0.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
