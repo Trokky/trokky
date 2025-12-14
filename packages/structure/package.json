@@ -1,6 +1,6 @@
 {
   "name": "@trokky/structure",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Configuration-driven content organization and Studio navigation system for Trokky CMS",
   "keywords": [
     "cms",
