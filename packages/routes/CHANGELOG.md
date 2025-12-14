@@ -1,5 +1,33 @@
 # @trokky/routes
 
+## 0.1.25
+
+### Patch Changes
+
+- 42013df: feat: add passkey/WebAuthn passwordless authentication support
+  - Added PasskeyCredential type and PasskeyConfig configuration in @trokky/types
+  - Implemented passkey service methods in TrokkyCore (registration, authentication, credential management)
+  - Created passkey API routes for registration, authentication, and credential management
+  - Added PasskeyLoginButton component for passwordless login on the login page
+  - Added PasskeyRegistration component for registering new passkeys
+  - Added PasskeyManager component for managing existing passkeys in user preferences
+  - Updated LoginPage to show passkey login option when enabled
+  - Updated UserPreferencesPage with passkey management section
+  - Added passkey configuration to demo example
+
+- 94d6f8b: fix: passkey authentication support
+  - fix(express): pass passkey config from security section to TrokkyCore
+  - fix(core): export PasskeyConfig type for external use
+  - fix(express): add passkey property to SecurityConfig interface and defaults
+  - fix(adapter-postgres-data): add passkeys column support (schema, migrations, CRUD operations)
+  - fix(studio): use correct storageService.set() method in passkey login handler
+  - fix(routes): change passkey status debug log from info to debug level
+
+- Updated dependencies [42013df]
+- Updated dependencies [94d6f8b]
+  - @trokky/types@0.1.2
+  - @trokky/core@0.1.25
+
 ## 2.0.5
 
 ### Patch Changes

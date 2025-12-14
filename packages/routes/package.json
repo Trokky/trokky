@@ -1,6 +1,6 @@
 {
   "name": "@trokky/routes",
-  "version": "0.1.22",
+  "version": "0.1.25",
   "description": "Framework-agnostic HTTP route handlers for Trokky v2",
   "type": "module",
   "main": "dist/index.js",
@@ -27,8 +27,8 @@
   "license": "MIT",
   "dependencies": {
     "@simplewebauthn/server": "^13.2.2",
-    "@trokky/core": "^0.1.0",
-    "@trokky/types": "^0.1.0"
+    "@trokky/core": "^0.1.25",
+    "@trokky/types": "^0.1.2"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

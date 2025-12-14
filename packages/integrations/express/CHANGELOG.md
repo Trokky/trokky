@@ -1,5 +1,22 @@
 # @trokky/express
 
+## 0.1.25
+
+### Patch Changes
+
+- 94d6f8b: fix: passkey authentication support
+  - fix(express): pass passkey config from security section to TrokkyCore
+  - fix(core): export PasskeyConfig type for external use
+  - fix(express): add passkey property to SecurityConfig interface and defaults
+  - fix(adapter-postgres-data): add passkeys column support (schema, migrations, CRUD operations)
+  - fix(studio): use correct storageService.set() method in passkey login handler
+  - fix(routes): change passkey status debug log from info to debug level
+
+- Updated dependencies [42013df]
+- Updated dependencies [94d6f8b]
+  - @trokky/core@0.1.25
+  - @trokky/routes@0.1.25
+
 ## 0.1.24
 
 ### Patch Changes
