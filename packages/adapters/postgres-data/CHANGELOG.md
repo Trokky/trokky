@@ -1,5 +1,17 @@
 # @trokky/adapter-postgres-data
 
+## 0.1.10
+
+### Patch Changes
+
+- Version sync with npm registry (skipping 0.1.7-0.1.9 which were previously published)
+- Includes all fixes from 0.1.6 that failed to publish:
+  - Add `getUserByPasskeyCredentialId` method for passkey authentication lookup
+  - Add GIN index on `passkeys` column for efficient JSONB containment queries
+  - Fix migrations to include `table_schema` in column existence checks
+  - Add constructor validation for schema and table prefix (SQL injection prevention)
+  - Add credential ID format validation (base64url) for security
+
 ## 0.1.6
 
 ### Patch Changes
