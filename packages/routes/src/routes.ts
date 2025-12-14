@@ -115,6 +115,16 @@ export class TrokkyRoutes {
     this.addRoute('DELETE', `${basePath}/auth/oauth/google/unlink`, this.unlinkGoogleAccount.bind(this))
     this.addRoute('GET', `${basePath}/auth/oauth/status`, this.getOAuthStatus.bind(this))
 
+    // Passkey/WebAuthn routes
+    this.addRoute('GET', `${basePath}/auth/passkey/status`, this.getPasskeyStatus.bind(this))
+    this.addRoute('POST', `${basePath}/auth/passkey/register/options`, this.getPasskeyRegistrationOptions.bind(this))
+    this.addRoute('POST', `${basePath}/auth/passkey/register/verify`, this.verifyPasskeyRegistration.bind(this))
+    this.addRoute('POST', `${basePath}/auth/passkey/login/options`, this.getPasskeyLoginOptions.bind(this))
+    this.addRoute('POST', `${basePath}/auth/passkey/login/verify`, this.verifyPasskeyLogin.bind(this))
+    this.addRoute('GET', `${basePath}/auth/passkey/credentials`, this.listPasskeyCredentials.bind(this))
+    this.addRoute('PATCH', `${basePath}/auth/passkey/credentials/:credentialId`, this.updatePasskeyCredential.bind(this))
+    this.addRoute('DELETE', `${basePath}/auth/passkey/credentials/:credentialId`, this.deletePasskeyCredential.bind(this))
+
     // CAPTCHA routes
     this.addRoute('GET', `${basePath}/auth/captcha/status`, this.getCaptchaStatus.bind(this))
 
@@ -3768,6 +3778,87 @@ export class TrokkyRoutes {
    */
   private async getOAuthStatus(request: HttpRequest): Promise<HttpResponse> {
     const { getOAuthStatus: handler } = await import('./auth/oauth.js')
+    return handler(this.core, request)
+  }
+
+  // ==========================================================================
+  // Passkey/WebAuthn Routes
+  // ==========================================================================
+
+  /**
+   * Get passkey status
+   * GET /auth/passkey/status
+   */
+  private async getPasskeyStatus(request: HttpRequest): Promise<HttpResponse> {
+    const { getPasskeyStatus: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Get passkey registration options
+   * POST /auth/passkey/register/options
+   */
+  private async getPasskeyRegistrationOptions(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { getPasskeyRegistrationOptions: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Verify passkey registration
+   * POST /auth/passkey/register/verify
+   */
+  private async verifyPasskeyRegistration(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { verifyPasskeyRegistration: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Get passkey login options
+   * POST /auth/passkey/login/options
+   */
+  private async getPasskeyLoginOptions(request: HttpRequest): Promise<HttpResponse> {
+    const { getPasskeyAuthenticationOptions: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Verify passkey login
+   * POST /auth/passkey/login/verify
+   */
+  private async verifyPasskeyLogin(request: HttpRequest): Promise<HttpResponse> {
+    const { verifyPasskeyAuthentication: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * List passkey credentials
+   * GET /auth/passkey/credentials
+   */
+  private async listPasskeyCredentials(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { listPasskeyCredentials: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Update passkey credential
+   * PATCH /auth/passkey/credentials/:credentialId
+   */
+  private async updatePasskeyCredential(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { updatePasskeyCredential: handler } = await import('./auth/passkey.js')
+    return handler(this.core, request)
+  }
+
+  /**
+   * Delete passkey credential
+   * DELETE /auth/passkey/credentials/:credentialId
+   */
+  private async deletePasskeyCredential(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const { deletePasskeyCredential: handler } = await import('./auth/passkey.js')
     return handler(this.core, request)
   }
 

@@ -29,7 +29,7 @@
   ],
   "dependencies": {
     "@trokky/core": "^0.1.0",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.3.2"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

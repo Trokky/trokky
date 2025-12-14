@@ -26,6 +26,7 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
+    "@simplewebauthn/server": "^13.2.2",
     "@trokky/core": "^0.1.0",
     "@trokky/types": "^0.1.0"
   },

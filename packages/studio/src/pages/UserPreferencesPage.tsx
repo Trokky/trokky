@@ -9,6 +9,7 @@ import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { OAuthProvidersList } from '@/components/auth/OAuthProvidersList';
 import { MFASettings } from '@/components/settings/MFASettings';
+import { PasskeyManager } from '@/components/auth/PasskeyManager';
 
 const logger = createStudioLogger('UserPreferences');
 
@@ -226,6 +227,17 @@ export function UserPreferencesPage() {
           </div>
 
           <MFASettings showToast={showToast} />
+
+          {/* Passkeys Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {t('preferences.passkeys', 'Passkeys')}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t('preferences.passkeysDescription', 'Sign in securely without a password using your fingerprint, face, or security key.')}
+            </p>
+            <PasskeyManager />
+          </div>
         </div>
 
         {/* Save Button */}

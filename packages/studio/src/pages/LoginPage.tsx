@@ -10,6 +10,7 @@ import { getStudioPath } from '@/utils/navigation';
 import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/branding';
 import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
+import { PasskeyLoginButton } from '@/components/auth/PasskeyLoginButton';
 import { MFAVerification } from '@/components/auth/MFAVerification';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
@@ -62,6 +63,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
   const [branding, setBranding] = useState<BrandingConfig | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [googleOAuthEnabled, setGoogleOAuthEnabled] = useState(false);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
   const [mfaState, setMfaState] = useState<MFAState>({
     required: false,
     setupRequired: false,
@@ -247,7 +249,26 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
       }
     };
 
+    // Check Passkey status
+    const checkPasskeyStatus = async () => {
+      try {
+        // Also check browser support for WebAuthn
+        if (!window.PublicKeyCredential) {
+          console.debug('WebAuthn not supported in this browser');
+          return;
+        }
+        const response = await apiClient.get<{ enabled: boolean }>('/auth/passkey/status');
+        if (response.success && response.data?.enabled) {
+          setPasskeyEnabled(true);
+        }
+      } catch (error) {
+        // Passkey not configured or error - just don't show the button
+        console.debug('Passkey status check failed:', error);
+      }
+    };
+
     checkOAuthStatus();
+    checkPasskeyStatus();
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -848,8 +869,8 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
               )}
             </Button>
 
-            {/* OAuth Login Options */}
-            {googleOAuthEnabled && (
+            {/* Alternative Login Options */}
+            {(passkeyEnabled || googleOAuthEnabled) && (
               <>
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
@@ -862,11 +883,45 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
                   </div>
                 </div>
 
-                <GoogleLoginButton
-                  mode="login"
-                  onError={(err) => setError(err)}
-                  disabled={isLoading}
-                />
+                <div className="space-y-3">
+                  {passkeyEnabled && (
+                    <PasskeyLoginButton
+                      onSuccess={(data) => {
+                        // Store tokens and redirect
+                        storageService.set(STORAGE_KEYS.AUTH_TOKEN, data.token);
+                        storageService.set(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
+                        onLoginSuccess(data.token, data.user);
+                      }}
+                      onMFARequired={(data) => {
+                        setMfaState({
+                          required: true,
+                          setupRequired: false,
+                          mfaToken: data.mfaToken,
+                          methods: data.methods as MFAMethod[],
+                        });
+                      }}
+                      onMFASetupRequired={(data) => {
+                        setMfaState({
+                          required: false,
+                          setupRequired: true,
+                          setupToken: data.setupToken,
+                          allowedMethods: data.allowedMethods as MFAMethod[],
+                          message: data.message,
+                        });
+                      }}
+                      onError={(err) => setError(err)}
+                      disabled={isLoading}
+                    />
+                  )}
+
+                  {googleOAuthEnabled && (
+                    <GoogleLoginButton
+                      mode="login"
+                      onError={(err) => setError(err)}
+                      disabled={isLoading}
+                    />
+                  )}
+                </div>
               </>
             )}
               </form>

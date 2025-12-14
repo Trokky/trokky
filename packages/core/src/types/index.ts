@@ -28,6 +28,7 @@ import type {
   AuthenticationMFARequiredResult,
   AuthenticationMFASetupRequiredResult
 } from './user.js'
+import type { PasskeyConfig } from '@trokky/types'
 
 // Audit actor types
 export const AUDIT_ACTOR_TYPES = {
@@ -377,6 +378,8 @@ export interface TrokkyConfig {
       refreshTokenTtl?: string
       rememberMeTtl?: string
     }
+    /** Passkey/WebAuthn configuration for passwordless authentication */
+    passkey?: PasskeyConfig
   }
   // OAuth configuration (auto-enabled when credentials are set)
   oauth?: {
@@ -451,6 +454,24 @@ export type {
   MediaType,
   MediaAsset,
   MediaBrowserConfig
+} from '@trokky/types';
+
+// Re-export passkey types from @trokky/types
+export type {
+  PasskeyConfig,
+  PasskeyCredential,
+  PasskeyAuthenticatorSelection,
+  PasskeyCredentialDescriptor,
+  PasskeyRegistrationOptions,
+  PasskeyRegistrationOptionsRequest,
+  PasskeyRegistrationVerifyRequest,
+  PasskeyAuthenticationOptions,
+  PasskeyAuthenticationOptionsRequest,
+  PasskeyAuthenticationVerifyRequest,
+  PasskeyUpdateRequest,
+  PasskeyCredentialListResponse,
+  PasskeySession,
+  AuthenticatorTransportType
 } from '@trokky/types';
 
 // Split storage adapter types

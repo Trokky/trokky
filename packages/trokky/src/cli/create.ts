@@ -574,6 +574,16 @@ function getMailConfig() {
     // ],
   },`
 
+  // Passkey/WebAuthn config (inside security section)
+  const passkeyConfig = `
+    // Passkey/WebAuthn configuration (only enabled if RP ID is set)
+    passkey: process.env.PASSKEY_RP_ID ? {
+      enabled: true,
+      rpId: process.env.PASSKEY_RP_ID,
+      rpName: process.env.PASSKEY_RP_NAME || '${config.name}',
+      origin: process.env.PASSKEY_ORIGIN || \`http://\${process.env.PASSKEY_RP_ID}:3000\`,
+    } : undefined,`
+
   let studioConfig = ''
   if (config.studio === 'embedded') {
     studioConfig = `
@@ -629,7 +639,7 @@ ${mediaProcessingConfig}
       password: process.env.ADMIN_PASSWORD || 'admin123',
       firstName: 'Admin',
       lastName: 'User',
-    },
+    },${passkeyConfig}
   },${oauth2Config}${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}
 }
 `
@@ -737,6 +747,15 @@ function generateEnvExample(config: ProjectConfig): string {
       'RECAPTCHA_SECRET_KEY=your-secret-key'
     )
   }
+
+  // Passkey/WebAuthn (always included as optional feature)
+  lines.push(
+    '',
+    '# Passkey/WebAuthn (optional - enables passwordless authentication)',
+    '# PASSKEY_RP_ID=localhost                    # Domain name (localhost for dev, your-domain.com for prod)',
+    '# PASSKEY_RP_NAME=My CMS                     # Human-readable name shown in passkey prompts',
+    '# PASSKEY_ORIGIN=http://localhost:3000       # Full origin URL (must match your site)'
+  )
 
   return lines.join('\n')
 }

@@ -223,7 +223,9 @@ export type {
   AuditContext,
   AuditActorType,
   AuditLog,
-  AuditOperation
+  AuditOperation,
+  // Passkey types
+  PasskeyConfig
 } from './types/index.js'
 
 export { ROLE_PERMISSIONS, AUDIT_ACTOR_TYPES, AUDIT_OPERATIONS } from './types/index.js'

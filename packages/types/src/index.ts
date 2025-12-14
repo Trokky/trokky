@@ -239,3 +239,21 @@ export {
   SUPPORTED_LOCALES,
   LOCALE_NAMES
 } from './i18n.js';
+
+// Passkey/WebAuthn types
+export type {
+  AuthenticatorTransportType,
+  PasskeyCredential,
+  PasskeyAuthenticatorSelection,
+  PasskeyConfig,
+  PasskeyCredentialDescriptor,
+  PasskeyRegistrationOptions,
+  PasskeyRegistrationOptionsRequest,
+  PasskeyRegistrationVerifyRequest,
+  PasskeyAuthenticationOptions,
+  PasskeyAuthenticationOptionsRequest,
+  PasskeyAuthenticationVerifyRequest,
+  PasskeyUpdateRequest,
+  PasskeyCredentialListResponse,
+  PasskeySession
+} from './passkey.js';

@@ -11,6 +11,7 @@ This is the definitive API documentation for Trokky CMS. All endpoints are avail
 - [Authentication Endpoints](#authentication-endpoints)
 - [OAuth2 Authorization Server](#oauth2-authorization-server)
 - [Multi-Factor Authentication (MFA)](#multi-factor-authentication-mfa)
+- [Passkey/WebAuthn Authentication](#passkeywebauthn-authentication)
 - [CAPTCHA Protection](#captcha-protection)
 - [App Tokens](#app-tokens)
 - [Webhooks](#webhooks)
@@ -688,6 +689,314 @@ Authorization: Bearer {token}
 POST /api/admin/users/:userId/mfa/reset
 Authorization: Bearer {admin_token}
 ```
+
+---
+
+## Passkey/WebAuthn Authentication
+
+Passkeys provide passwordless authentication using WebAuthn. Users can register passkeys (biometric, security keys, etc.) and use them to log in without a password.
+
+### Get Passkey Status
+```http
+GET /api/auth/passkey/status
+```
+
+Returns whether passkey authentication is enabled on the server.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "enabled": true
+  }
+}
+```
+
+---
+
+### Registration (Add Passkey)
+
+Requires authentication. Users must be logged in to register a new passkey.
+
+#### Get Registration Options
+```http
+POST /api/auth/passkey/register/options
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body (optional):**
+```json
+{
+  "friendlyName": "My MacBook Pro"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "challenge": "base64url-encoded-challenge",
+    "rp": {
+      "name": "My CMS",
+      "id": "example.com"
+    },
+    "user": {
+      "id": "base64url-encoded-user-id",
+      "name": "johndoe",
+      "displayName": "John Doe"
+    },
+    "pubKeyCredParams": [...],
+    "timeout": 60000,
+    "attestation": "none",
+    "excludeCredentials": [...],
+    "authenticatorSelection": {
+      "residentKey": "preferred",
+      "userVerification": "preferred"
+    },
+    "sessionId": "session-id-for-verification"
+  }
+}
+```
+
+#### Verify Registration
+```http
+POST /api/auth/passkey/register/verify
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "sessionId": "session-id-from-options",
+  "credential": {
+    "id": "credential-id",
+    "rawId": "base64url-encoded-raw-id",
+    "response": {
+      "clientDataJSON": "base64url-encoded-client-data",
+      "attestationObject": "base64url-encoded-attestation"
+    },
+    "type": "public-key",
+    "clientExtensionResults": {}
+  },
+  "friendlyName": "My MacBook Pro"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "credential": {
+      "id": "credential-id",
+      "deviceType": "multiDevice",
+      "backedUp": true,
+      "transports": ["internal", "hybrid"],
+      "createdAt": "2024-01-20T15:00:00Z",
+      "friendlyName": "My MacBook Pro"
+    }
+  }
+}
+```
+
+---
+
+### Authentication (Login with Passkey)
+
+Public endpoints. No authentication required.
+
+#### Get Authentication Options
+```http
+POST /api/auth/passkey/login/options
+Content-Type: application/json
+```
+
+**Request Body (optional):**
+```json
+{
+  "username": "johndoe"
+}
+```
+
+If username is provided, returns `allowCredentials` with the user's registered passkeys. If omitted, allows discoverable credentials (resident keys).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "challenge": "base64url-encoded-challenge",
+    "rpId": "example.com",
+    "timeout": 60000,
+    "userVerification": "preferred",
+    "allowCredentials": [
+      {
+        "id": "credential-id",
+        "type": "public-key",
+        "transports": ["internal", "hybrid"]
+      }
+    ],
+    "sessionId": "session-id-for-verification"
+  }
+}
+```
+
+#### Verify Authentication
+```http
+POST /api/auth/passkey/login/verify
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "sessionId": "session-id-from-options",
+  "credential": {
+    "id": "credential-id",
+    "rawId": "base64url-encoded-raw-id",
+    "response": {
+      "clientDataJSON": "base64url-encoded-client-data",
+      "authenticatorData": "base64url-encoded-authenticator-data",
+      "signature": "base64url-encoded-signature",
+      "userHandle": "base64url-encoded-user-handle"
+    },
+    "type": "public-key",
+    "clientExtensionResults": {}
+  },
+  "deviceId": "optional-device-id-for-trusted-devices"
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "user_abc123",
+      "username": "johndoe",
+      "email": "john@example.com",
+      "role": "editor"
+    },
+    "expiresAt": "2024-01-16T10:30:00Z"
+  }
+}
+```
+
+**Response (MFA required):**
+```json
+{
+  "success": true,
+  "data": {
+    "requiresMFA": true,
+    "mfaToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "methods": [
+      { "type": "totp", "enabled": true }
+    ],
+    "expiresIn": 300
+  }
+}
+```
+
+---
+
+### Credential Management
+
+Requires authentication.
+
+#### List Passkey Credentials
+```http
+GET /api/auth/passkey/credentials
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "credentials": [
+      {
+        "id": "credential-id-1",
+        "deviceType": "multiDevice",
+        "backedUp": true,
+        "transports": ["internal", "hybrid"],
+        "createdAt": "2024-01-15T10:00:00Z",
+        "lastUsedAt": "2024-01-20T14:30:00Z",
+        "friendlyName": "My MacBook Pro"
+      },
+      {
+        "id": "credential-id-2",
+        "deviceType": "singleDevice",
+        "backedUp": false,
+        "transports": ["usb"],
+        "createdAt": "2024-01-10T08:00:00Z",
+        "lastUsedAt": "2024-01-18T09:15:00Z",
+        "friendlyName": "YubiKey"
+      }
+    ]
+  }
+}
+```
+
+#### Update Passkey Credential
+```http
+PATCH /api/auth/passkey/credentials/:credentialId
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "friendlyName": "Work MacBook"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Passkey updated successfully"
+  }
+}
+```
+
+#### Delete Passkey Credential
+```http
+DELETE /api/auth/passkey/credentials/:credentialId
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Passkey deleted successfully"
+  }
+}
+```
+
+---
+
+### Passkey Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `PASSKEY_NOT_CONFIGURED` | 400 | Passkey authentication is not enabled |
+| `INVALID_SESSION` | 400 | Session expired or invalid |
+| `SESSION_MISMATCH` | 403 | Session does not match authenticated user |
+| `VERIFICATION_FAILED` | 400/401 | Passkey verification failed |
+| `CREDENTIAL_NOT_FOUND` | 401/404 | Passkey credential not found |
+| `AUTHENTICATION_FAILED` | 401 | Authentication failed |
 
 ---
 

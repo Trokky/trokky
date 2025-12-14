@@ -638,7 +638,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
             preferences = COALESCE($11, preferences),
             oauth_providers = COALESCE($12, oauth_providers),
             mfa = COALESCE($13, mfa),
-            updated_at = $14
+            passkeys = COALESCE($14, passkeys),
+            updated_at = $15
           WHERE id = $1
           RETURNING *
         `, [
@@ -655,6 +656,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           JSON.stringify(updateData.preferences || {}),
           (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
           updateData.mfa ? JSON.stringify(updateData.mfa) : null,
+          (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,
           now
         ])
 
@@ -668,8 +670,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
         const result = await this.query(`
           INSERT INTO ${this.tableName('users')}
-          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, passkeys, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
           RETURNING *
         `, [
           id,
@@ -685,6 +687,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           JSON.stringify(createData.preferences || {}),
           JSON.stringify([]), // oauth_providers starts empty
           JSON.stringify({}), // mfa starts empty
+          JSON.stringify([]), // passkeys starts empty
           now
         ])
 
@@ -822,6 +825,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       preferences: row.preferences as any,
       oauthProviders: row.oauth_providers as any[],
       mfa: row.mfa as any,
+      passkeys: row.passkeys as any[],
       lastLoginAt: row.last_login_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -1099,6 +1103,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         preferences JSONB DEFAULT '{}',
         oauth_providers JSONB DEFAULT '[]',
         mfa JSONB DEFAULT '{}',
+        passkeys JSONB DEFAULT '[]',
         created_at VARCHAR(50) NOT NULL,
         updated_at VARCHAR(50) NOT NULL
       )
@@ -1130,6 +1135,21 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         ) THEN
           ALTER TABLE ${this.tableName('users')}
           ADD COLUMN mfa JSONB DEFAULT '{}';
+        END IF;
+      END $$
+    `)
+
+    // Migration: Add passkeys column if it doesn't exist (for existing databases)
+    await this.directQuery(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${this.config.tablePrefix}users'
+          AND column_name = 'passkeys'
+        ) THEN
+          ALTER TABLE ${this.tableName('users')}
+          ADD COLUMN passkeys JSONB DEFAULT '[]';
         END IF;
       END $$
     `)

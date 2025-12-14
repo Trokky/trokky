@@ -59,3 +59,18 @@ export {
   handleAuthorizationDecision,
   getServerMetadata,
 } from './oauth2-server.js'
+
+export {
+  // Status
+  getPasskeyStatus,
+  // Registration
+  getPasskeyRegistrationOptions,
+  verifyPasskeyRegistration,
+  // Authentication
+  getPasskeyAuthenticationOptions,
+  verifyPasskeyAuthentication,
+  // Management
+  listPasskeyCredentials,
+  updatePasskeyCredential,
+  deletePasskeyCredential,
+} from './passkey.js'

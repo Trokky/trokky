@@ -83,6 +83,7 @@ export interface UserRow {
   preferences: any // JSONB data
   oauth_providers?: any // JSONB array of OAuth providers
   mfa?: any // JSONB - MFA configuration
+  passkeys?: any // JSONB array of passkey credentials
   created_at: string // ISO string
   updated_at: string // ISO string
 }
