@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 0.1.29
+
+### Patch Changes
+
+- c0c937c: Add @trokky/i18n dependency for internationalization support
+
 ## 0.1.28
 
 ### Patch Changes
