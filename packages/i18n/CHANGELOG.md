@@ -1,5 +1,14 @@
 # @trokky/i18n
 
+## 0.1.1
+
+### Patch Changes
+
+- b013212: Add i18n translations for passkey authentication feature
+  - Add English translations for passkey manager, registration, and login
+  - Add French translations for passkey manager, registration, and login
+  - Includes translations for error messages, UI labels, and descriptions
+
 ## 0.2.2
 
 ### Patch Changes
