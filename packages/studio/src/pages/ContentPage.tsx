@@ -17,6 +17,7 @@ import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { ContentContext } from '@/components/context/ContentContext';
 import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
+import { usePermissions } from '@/hooks/usePermissions';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
@@ -101,7 +102,14 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   const { t } = useT('studio');
   const studioContext = useStudioContext();
   const structureItem = useStructureItem(schemaName);
-  
+  const permissions = usePermissions();
+
+  // Check if user has publish permission for this schema
+  const hasPublishPermission = permissions.hasSchemaPermission(schemaName, 'publish');
+
+  // Function to check if user can delete a specific document
+  const canDeleteDocument = (document: Document) => permissions.canDeleteDocument(schemaName, document);
+
   // State management
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -342,6 +350,30 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
 
   // Handle bulk status change
   const handleBulkStatusChange = async (newStatus: string) => {
+    // Check if user has publish permission when changing to/from published
+    const currentStatuses = selectedItems.map(id => {
+      const doc = documents.find(d => d._id === id);
+      return doc?._status;
+    });
+
+    const isPublishing = newStatus === 'published' && currentStatuses.some(s => s !== 'published');
+    const isUnpublishing = newStatus !== 'published' && currentStatuses.some(s => s === 'published');
+
+    if ((isPublishing || isUnpublishing) && !hasPublishPermission) {
+      const action = isPublishing ? t('publish') : t('unpublish');
+      studioContext?.utils?.showToast?.(
+        t('content.noPublishPermission', { action }) || `You don't have permission to ${action} documents`,
+        'error'
+      );
+      logger.warn('User lacks publish permission for bulk status change', {
+        newStatus,
+        isPublishing,
+        isUnpublishing,
+        hasPublishPermission
+      });
+      return;
+    }
+
     try {
       setBulkActionLoading(true);
 
@@ -401,11 +433,12 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   ];
   
   const bulkActions = [
-    {
+    // Only show Change Status if user has publish permission
+    ...(hasPublishPermission ? [{
       id: 'change-status',
       label: t('content.bulkActions.changeStatus'),
       icon: ArrowPathIcon
-    },
+    }] : []),
     {
       id: 'delete',
       label: t('content.bulkActions.delete'),
@@ -414,7 +447,28 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     }
   ];
   
-  const columns = getDefaultColumns();
+  // Get default columns and override status render to use translations
+  const columns = getDefaultColumns().map(col => {
+    if (col.key === '_status') {
+      return {
+        ...col,
+        render: (value: any) => {
+          const status = value || 'draft';
+          const isPublished = status === 'published';
+          return (
+            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+              isPublished
+                ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
+                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100"
+            }`}>
+              {isPublished ? t('documentEditor.published') : t('documentEditor.draft')}
+            </span>
+          );
+        }
+      };
+    }
+    return col;
+  });
   
   if (error) {
     return (
@@ -540,6 +594,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
               sortDirection={currentSort?.direction}
               onSort={handleSort}
               onDocumentAction={handleDocumentAction}
+              canDelete={canDeleteDocument}
             />
           )}
           
@@ -551,6 +606,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
               selectedItems={selectedItems}
               onItemSelect={handleItemSelect}
               onDocumentAction={handleDocumentAction}
+              canDelete={canDeleteDocument}
               cardSize={(gridSettings?.cardSize as any) || 'medium'}
               columnsPerRow={gridSettings?.columnsPerRow || undefined}
             />
@@ -577,6 +633,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
               sortDirection={currentSort?.direction}
               onSort={handleSort}
               onDocumentAction={handleDocumentAction}
+              canDelete={canDeleteDocument}
               onColumnVisibilityChange={handleColumnVisibilityChange}
               density={(tableSettings?.density as any) || 'comfortable'}
             />

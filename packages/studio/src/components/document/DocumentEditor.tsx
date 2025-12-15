@@ -116,6 +116,12 @@ export function DocumentEditor({
     return permissions.hasSchemaPermission(schemaName, 'delete');
   }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
 
+  // Check if user has publish permission for this schema
+  const hasPublishPermission = useMemo(() => {
+    if (!permissions) return false;
+    return permissions.hasSchemaPermission(schemaName, 'publish');
+  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
+
   logger.debug('Initializing document editor', { 
     schemaName, 
     documentId, 
@@ -311,6 +317,21 @@ export function DocumentEditor({
       return;
     }
 
+    // Check for publish permission when publishing or unpublishing
+    const isPublishing = newState === 'published' && documentState !== 'published';
+    const isUnpublishing = newState !== 'published' && documentState === 'published';
+
+    if ((isPublishing || isUnpublishing) && !hasPublishPermission) {
+      const action = isPublishing ? t('publish') : t('unpublish');
+      showToast(t('documentEditor.noPublishPermission', { action }), 'error');
+      logger.warn('User lacks publish permission for state change', {
+        from: documentState,
+        to: newState,
+        hasPublishPermission
+      });
+      return;
+    }
+
     try {
       // Apply state change to document using _status as single source of truth
       const updatedDocument = {
@@ -335,17 +356,17 @@ export function DocumentEditor({
       setDocumentState(newState);
       setHasUnsavedChanges(true);
 
-      logger.info('Document state changed', { 
-        schema: schemaName, 
-        documentId, 
-        oldState: documentState, 
-        newState 
+      logger.info('Document state changed', {
+        schema: schemaName,
+        documentId,
+        oldState: documentState,
+        newState
       });
     } catch (err) {
       logger.error('Failed to change document state', err);
       alert('Failed to change document state');
     }
-  }, [documentState, document, schemaName, documentId]);
+  }, [documentState, document, schemaName, documentId, hasPublishPermission, showToast, t]);
 
   const handleSave = useCallback(async () => {
     if (!document || !schema) return;
@@ -524,6 +545,7 @@ export function DocumentEditor({
     hasUnsavedChanges,
     hasValidationErrors,
     isReadOnly: !hasWritePermission, // Set read-only when user lacks write permission
+    hasPublishPermission, // User has permission to publish/unpublish
     isMobileSidebarOpen,
     onToggleMobileSidebar: setIsMobileSidebarOpen,
     loading,
@@ -543,7 +565,8 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
-    hasWritePermission, // Add this dependency
+    hasWritePermission,
+    hasPublishPermission,
     isMobileSidebarOpen,
     loading,
     saving,

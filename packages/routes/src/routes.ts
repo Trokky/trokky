@@ -739,7 +739,7 @@ export class TrokkyRoutes {
       await this.validateAuthentication(request)
       const { collection, id } = request.params
       await this.validateSchemaAccess(request, collection, 'write')
-      
+
       // Get current user for audit context
       const currentUser = await this.getCurrentUser(request)
       const auditContext: any | undefined = currentUser ? {
@@ -749,17 +749,17 @@ export class TrokkyRoutes {
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
       } : undefined
-      
+
       // SECURITY: Validate request body structure before type assertion
       if (!request.body || typeof request.body !== 'object') {
         throw new InvalidInputError('Request body is required', 'body')
       }
-      
+
       const body = request.body as Record<string, unknown>
       if (!('data' in body) || !body.data || typeof body.data !== 'object') {
         throw new InvalidInputError('Document data is required', 'data')
       }
-      
+
       const { data } = body as unknown as UpdateDocumentRequest
 
       // Validate inputs
@@ -775,6 +775,18 @@ export class TrokkyRoutes {
       const existingDoc = await this.core.getDocument(collection, id)
       if (!existingDoc && !isSingleton) {
         return this.errorResponse(new Error(`Document ${collection}/${id} not found`), 404)
+      }
+
+      // SECURITY: Check publish permission if status is being changed to/from 'published'
+      // This enforces the content:publish permission for publishing/unpublishing actions
+      const newStatus = (data as Record<string, unknown>)._status as string | undefined
+      const currentStatus = existingDoc?._status as string | undefined
+
+      const isPublishing = newStatus === 'published' && currentStatus !== 'published'
+      const isUnpublishing = newStatus !== 'published' && currentStatus === 'published' && newStatus !== undefined
+
+      if (isPublishing || isUnpublishing) {
+        await this.validateSchemaAccess(request, collection, 'publish')
       }
 
       // Merge data (excluding system fields including audit fields, but preserve _status)
@@ -805,17 +817,49 @@ export class TrokkyRoutes {
 
   private async deleteDocument(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and schema delete permissions
+      // SECURITY: Validate authentication
       await this.validateAuthentication(request)
       const { collection, id } = request.params
-      await this.validateSchemaAccess(request, collection, 'delete')
 
       // Validate inputs
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentId(id)
 
-      // Get audit context from current user
+      // Get current user for ownership check
       const currentUser = await this.getCurrentUser(request)
+
+      // Check if user has general delete permission
+      let hasDeletePermission = false
+      try {
+        await this.validateSchemaAccess(request, collection, 'delete')
+        hasDeletePermission = true
+      } catch {
+        // User doesn't have general delete permission, check ownership
+        hasDeletePermission = false
+      }
+
+      // If no delete permission, check if user owns the document
+      if (!hasDeletePermission) {
+        if (!currentUser) {
+          throw new InvalidInputError('Insufficient permissions to delete this document', 'permissions')
+        }
+
+        // Fetch the document to check ownership
+        const document = await this.core.getDocument(collection, id)
+        if (!document) {
+          throw new InvalidInputError('Document not found', 'id')
+        }
+
+        // Check if user is the document creator
+        const isOwner = document._createdBy === currentUser.id ||
+                       document._createdBy === currentUser.username
+
+        if (!isOwner) {
+          throw new InvalidInputError('Insufficient permissions to delete this document. You can only delete documents you created.', 'permissions')
+        }
+      }
+
+      // Get audit context from current user
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
@@ -1956,7 +2000,7 @@ export class TrokkyRoutes {
     }
   }
 
-  private async validateSchemaAccess(request: HttpRequest, schemaName: string, action: 'read' | 'write' | 'delete'): Promise<void> {
+  private async validateSchemaAccess(request: HttpRequest, schemaName: string, action: 'read' | 'write' | 'delete' | 'publish'): Promise<void> {
     const auth = this.config.authentication
     if (!auth?.enabled) {
       return // Authentication disabled, allow access
@@ -1965,7 +2009,7 @@ export class TrokkyRoutes {
     // Extract token from Authorization header
     const authHeader = request.headers['authorization'] || request.headers['Authorization']
     const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
-    
+
     if (!authHeaderStr || !authHeaderStr.startsWith('Bearer ')) {
       throw new InvalidInputError('Missing or invalid authorization header', 'authorization')
     }
@@ -1983,13 +2027,13 @@ export class TrokkyRoutes {
     const schemaWildcard = `${schemaName}:*`
     const contentWildcard = 'content:*'
     const globalPermission = `content:${action}` // Global content permissions
-    
-    const hasAccess = session.role === 'admin' || 
+
+    const hasAccess = session.role === 'admin' ||
                      session.permissions.includes(permission) ||
                      session.permissions.includes(schemaWildcard) ||
                      session.permissions.includes(contentWildcard) ||
                      session.permissions.includes(globalPermission) // Add global content permission check
-    
+
     if (!hasAccess) {
       throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
     }

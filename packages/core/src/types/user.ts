@@ -71,6 +71,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'media:read', 'media:upload',
     'studio:access'
   ],
+  writer: [
+    // Writer can create and edit content, but cannot publish or delete
+    // Content must be reviewed and published by an editor or admin
+    'content:read', 'content:write',
+    'media:read', 'media:upload',
+    'studio:access'
+  ],
   viewer: [
     'content:read',
     'media:read',

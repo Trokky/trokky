@@ -664,10 +664,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           updateData.firstName,
           updateData.lastName,
           updateData.role,
-          JSON.stringify(updateData.permissions || []),
+          // Only pass permissions if explicitly provided (including empty array), otherwise null to preserve existing
+          updateData.permissions !== undefined ? JSON.stringify(updateData.permissions) : null,
           updateData.isActive,
           updateData.profileImage,
-          JSON.stringify(updateData.preferences || {}),
+          // Only pass preferences if explicitly provided, otherwise null to preserve existing
+          updateData.preferences !== undefined ? JSON.stringify(updateData.preferences) : null,
           (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
           updateData.mfa ? JSON.stringify(updateData.mfa) : null,
           (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,

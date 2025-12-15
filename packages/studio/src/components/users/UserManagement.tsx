@@ -27,7 +27,7 @@ import { useT } from '@trokky/i18n';
 const logger = createStudioLogger('UserManagement');
 
 // Define available roles (labels are loaded from translations)
-const USER_ROLE_VALUES: UserRole[] = ['admin', 'editor', 'author', 'viewer'];
+const USER_ROLE_VALUES: UserRole[] = ['admin', 'editor', 'writer', 'author', 'viewer'];
 
 // Permission definitions with i18n keys
 const PERMISSION_DEFS: { value: Permission; labelKey: string; group: string }[] = [
@@ -733,6 +733,7 @@ export function UserManagement() {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
       case 'editor': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'writer': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400';
       case 'author': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
       case 'viewer': return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';

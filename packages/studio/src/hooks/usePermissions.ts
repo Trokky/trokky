@@ -5,23 +5,33 @@
 import { useCurrentUser } from './useCurrentUser'
 import type { Permission } from '@/types'
 
+// Action types for schema-level permission checks
+export type SchemaAction = 'read' | 'write' | 'delete' | 'publish'
+
 interface UsePermissionsReturn {
   hasPermission: (permission: Permission) => boolean
   hasAnyPermission: (permissions: Permission[]) => boolean
   hasAllPermissions: (permissions: Permission[]) => boolean
   hasSchemaPermission: (
     schemaName: string,
-    action: 'read' | 'write' | 'delete'
+    action: SchemaAction
   ) => boolean
   hasAnySchemaPermission: (
     schemaName: string,
-    actions: ('read' | 'write' | 'delete')[]
+    actions: SchemaAction[]
   ) => boolean
+  /** Check if user can delete a specific document (has delete permission OR owns the document) */
+  canDeleteDocument: (schemaName: string, document: { _createdBy?: string } | null) => boolean
+  /** Check if user can publish content (has content:publish or content:* permission) */
+  canPublish: boolean
   userPermissions: Permission[]
   isAdmin: boolean
   isEditor: boolean
   isAuthor: boolean
+  isWriter: boolean
   isViewer: boolean
+  /** Current user ID for ownership checks */
+  userId: string | null
 }
 
 export function usePermissions(): UsePermissionsReturn {
@@ -61,7 +71,7 @@ export function usePermissions(): UsePermissionsReturn {
 
   const hasSchemaPermission = (
     schemaName: string,
-    action: 'read' | 'write' | 'delete'
+    action: SchemaAction
   ): boolean => {
     if (!user) return false
 
@@ -85,7 +95,7 @@ export function usePermissions(): UsePermissionsReturn {
     if (isContentSchema) {
       // Check for content:* wildcard
       if (userPermissions.includes('content:*' as Permission)) return true
-      // Check for specific content action (e.g., "content:write")
+      // Check for specific content action (e.g., "content:write", "content:publish")
       if (userPermissions.includes(`content:${action}` as Permission))
         return true
     }
@@ -98,7 +108,7 @@ export function usePermissions(): UsePermissionsReturn {
 
   const hasAnySchemaPermission = (
     schemaName: string,
-    actions: ('read' | 'write' | 'delete')[]
+    actions: SchemaAction[]
   ): boolean => {
     if (!user) return false
 
@@ -109,16 +119,53 @@ export function usePermissions(): UsePermissionsReturn {
     return actions.some(action => hasSchemaPermission(schemaName, action))
   }
 
+  // Check if user can publish any content
+  const canPublish = (): boolean => {
+    if (!user) return false
+    if (user.role === 'admin') return true
+
+    // Check for content:* or content:publish permission
+    return (
+      userPermissions.includes('content:*' as Permission) ||
+      userPermissions.includes('content:publish' as Permission)
+    )
+  }
+
+  // Check if user can delete a specific document (has delete permission OR owns the document)
+  const canDeleteDocument = (
+    schemaName: string,
+    document: { _createdBy?: string } | null
+  ): boolean => {
+    if (!user) return false
+
+    // User has general delete permission for this schema
+    if (hasSchemaPermission(schemaName, 'delete')) return true
+
+    // Check if user owns the document (created it)
+    if (document?._createdBy) {
+      const isOwner =
+        document._createdBy === user.id ||
+        document._createdBy === user.username
+      if (isOwner) return true
+    }
+
+    return false
+  }
+
   return {
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
     hasSchemaPermission,
     hasAnySchemaPermission,
+    canDeleteDocument,
+    canPublish: canPublish(),
     userPermissions,
     isAdmin: user?.role === 'admin',
     isEditor: user?.role === 'editor',
     isAuthor: user?.role === 'author',
+    isWriter: user?.role === 'writer',
     isViewer: user?.role === 'viewer',
+    userId: user?.id || null,
   }
 }

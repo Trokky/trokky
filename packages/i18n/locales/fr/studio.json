@@ -198,6 +198,8 @@
       "adminDesc": "Accès complet à toutes les fonctionnalités",
       "editor": "Éditeur",
       "editorDesc": "Créer, modifier et publier du contenu",
+      "writer": "Rédacteur",
+      "writerDesc": "Créer et modifier du contenu, sans publication",
       "author": "Auteur",
       "authorDesc": "Créer et modifier son propre contenu",
       "viewer": "Lecteur",

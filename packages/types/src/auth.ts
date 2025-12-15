@@ -101,8 +101,14 @@ export interface MFAConfig {
 
 /**
  * System user roles
+ * - admin: Full access to all features
+ * - editor: Can create, edit, delete, and publish content
+ * - author: Can create, edit, and publish own content
+ * - writer: Can create and edit content, but cannot publish (requires editor review)
+ * - viewer: Read-only access to content
+ * - api: For API tokens (permissions come from token itself)
  */
-export type UserRole = 'admin' | 'editor' | 'author' | 'viewer' | 'api'
+export type UserRole = 'admin' | 'editor' | 'author' | 'writer' | 'viewer' | 'api'
 
 /**
  * Granular permissions with resource-based scoping

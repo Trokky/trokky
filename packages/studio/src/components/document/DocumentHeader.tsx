@@ -28,6 +28,7 @@ export function DocumentHeader() {
     hasUnsavedChanges,
     hasValidationErrors,
     isReadOnly,
+    hasPublishPermission,
     saving,
     onStateChange,
     onModeChange,
@@ -119,34 +120,42 @@ export function DocumentHeader() {
               {schema?.title || schema?.name} {isNewDocument ? '(New)' : ''}
             </span>
 
-            {/* Document State Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowStateMenu(!showStateMenu)}
-                className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium border ${getStateButtonClasses(documentState)}`}
-              >
-                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getStateIndicatorClasses(documentState)}`}></span>
-                {DocumentStates.getStateName(documentState)}
-                <ChevronDownIcon className="ml-1 h-4 w-4" />
-              </button>
+            {/* Document State - Dropdown if can publish, Badge if not */}
+            {hasPublishPermission ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowStateMenu(!showStateMenu)}
+                  className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium border ${getStateButtonClasses(documentState)}`}
+                >
+                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getStateIndicatorClasses(documentState)}`}></span>
+                  {documentState === 'published' ? t('documentEditor.published') : t('documentEditor.draft')}
+                  <ChevronDownIcon className="ml-1 h-4 w-4" />
+                </button>
 
-              {showStateMenu && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                  <div className="py-1">
-                    {availableTransitions.map((state) => (
-                      <button
-                        key={state}
-                        onClick={() => handleStateChange(state)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      >
-                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getStateIndicatorClasses(state)}`}></span>
-                        {DocumentStates.getStateName(state)}
-                      </button>
-                    ))}
+                {showStateMenu && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                    <div className="py-1">
+                      {availableTransitions.map((state) => (
+                        <button
+                          key={state}
+                          onClick={() => handleStateChange(state)}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getStateIndicatorClasses(state)}`}></span>
+                          {state === 'published' ? t('documentEditor.published') : t('documentEditor.draft')}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              /* Non-interactive badge when user cannot publish */
+              <span className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium border ${getStateButtonClasses(documentState)}`}>
+                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${getStateIndicatorClasses(documentState)}`}></span>
+                {documentState === 'published' ? t('documentEditor.published') : t('documentEditor.draft')}
+              </span>
+            )}
           </div>
 
           {/* Right side - Mode switching and actions */}
