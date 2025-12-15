@@ -1,4 +1,7 @@
-# Trokky Features Configuration
+---
+title: Features Configuration
+description: Optional features that enhance Trokky content management
+---
 
 Trokky provides optional features that enhance content management. These features can be configured in your `trokky.config.ts` file under the `features` key.
 
@@ -127,3 +130,80 @@ features: {
 | `enabled` | `boolean` | varies | Enable or disable auto-slug generation |
 | `sourceFields` | `string[]` | `['title', 'name']` | Fields to use as source for slug generation |
 | `unique` | `boolean` | `true` | Ensure generated slugs are unique across documents |
+
+### Behavior
+
+1. **Source field detection**: The system looks for the first available source field in order
+
+2. **Slug generation**: Converts the source value to a URL-friendly format:
+   - Converts to lowercase
+   - Replaces spaces with hyphens
+   - Removes special characters
+   - Truncates to max length
+
+3. **Uniqueness**: If `unique: true`, appends a number suffix for duplicates (`my-post`, `my-post-1`, `my-post-2`)
+
+### Examples
+
+#### Basic usage
+
+```typescript
+features: {
+  autoSlug: {
+    enabled: true,
+    sourceFields: ['title']
+  }
+}
+```
+
+#### Multiple source fields
+
+```typescript
+features: {
+  autoSlug: {
+    enabled: true,
+    sourceFields: ['title', 'name', 'heading']  // Falls back through list
+  }
+}
+```
+
+#### Disable uniqueness check
+
+```typescript
+features: {
+  autoSlug: {
+    enabled: true,
+    unique: false  // Allow duplicate slugs (useful for multi-tenant)
+  }
+}
+```
+
+## Combining Features
+
+Features can be combined:
+
+```typescript
+features: {
+  autoThumbnail: {
+    enabled: true,
+    skipSchemas: ['settings']
+  },
+  autoSlug: {
+    enabled: true,
+    sourceFields: ['title']
+  }
+}
+```
+
+## Disabling All Features
+
+To disable all optional features:
+
+```typescript
+features: {
+  autoThumbnail: { enabled: false },
+  autoSlug: { enabled: false }
+}
+```
+
+Or simply omit the `features` key to use defaults.
