@@ -992,6 +992,8 @@
     "connectedAccountsDescription": "Link external accounts for easier sign-in",
     "security": "Security",
     "securityDescription": "Manage two-factor authentication and security settings",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Sign in securely without a password using your fingerprint, face, or security key.",
     "savePreferences": "Save Preferences",
     "saveSuccess": "Preferences saved successfully",
     "saveError": "Failed to update preferences"

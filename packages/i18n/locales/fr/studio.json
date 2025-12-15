@@ -596,6 +596,8 @@
     "connectedAccountsDescription": "Liez des comptes externes pour une connexion plus facile",
     "security": "Sécurité",
     "securityDescription": "Gérer l'authentification à deux facteurs et les paramètres de sécurité",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Connectez-vous en toute sécurité sans mot de passe en utilisant votre empreinte digitale, votre visage ou une clé de sécurité.",
     "savePreferences": "Enregistrer les préférences",
     "saveSuccess": "Préférences enregistrées avec succès",
     "saveError": "Échec de la mise à jour des préférences"
