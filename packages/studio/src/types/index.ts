@@ -230,14 +230,20 @@ export interface QueryOptions {
 }
 
 // User Management Types
-export type UserRole = 'admin' | 'editor' | 'author' | 'viewer';
+// - admin: Full access to all features
+// - editor: Can create, edit, delete, and publish content
+// - author: Can create, edit, and publish own content
+// - writer: Can create and edit content, but cannot publish (requires editor review)
+// - viewer: Read-only access to content
+export type UserRole = 'admin' | 'editor' | 'author' | 'writer' | 'viewer';
 
-export type Permission = 
+export type Permission =
   // Content permissions
   | 'content:read'
   | 'content:write'
   | 'content:delete'
   | 'content:publish'
+  | 'content:*' // Wildcard for all content operations
   // Media permissions
   | 'media:read'
   | 'media:upload'
@@ -266,7 +272,7 @@ export type Permission =
 // Default permissions for each role
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
-    'content:*', // 🆕 Full content access to all schemas
+    'content:*', // Full content access to all schemas
     'media:read', 'media:upload', 'media:edit', 'media:delete',
     'users:read', 'users:write', 'users:delete', 'users:invite',
     'settings:read', 'settings:write',
@@ -275,7 +281,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'webhooks:read', 'webhooks:write', 'webhooks:delete', 'webhooks:test'
   ],
   editor: [
-    'content:*', // 🆕 Full content access to all schemas  
+    'content:*', // Full content access to all schemas
     'media:read', 'media:upload', 'media:edit', 'media:delete',
     'studio:access',
     'webhooks:read', 'webhooks:test'
@@ -285,8 +291,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'media:read', 'media:upload',
     'studio:access'
   ],
+  writer: [
+    // Writer can create and edit content, but cannot publish or delete
+    // Content must be reviewed and published by an editor or admin
+    'content:read', 'content:write',
+    'media:read', 'media:upload',
+    'studio:access'
+  ],
   viewer: [
-    'content:read', // 🆕 Can view all content across all schemas
+    'content:read', // Can view all content across all schemas
     'media:read',
     'studio:access'
   ]

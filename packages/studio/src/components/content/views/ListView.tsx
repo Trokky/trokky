@@ -33,6 +33,8 @@ export interface ListViewProps {
   sortDirection?: 'asc' | 'desc';
   onSort?: (field: string, direction: 'asc' | 'desc') => void;
   onDocumentAction?: (documentId: string, action: string) => void;
+  /** Function to check if user can delete a specific document */
+  canDelete?: (document: Document) => boolean;
 }
 
 export function ListView({
@@ -46,7 +48,8 @@ export function ListView({
   sortField,
   sortDirection,
   onSort,
-  onDocumentAction
+  onDocumentAction,
+  canDelete
 }: ListViewProps) {
   const { t } = useT('studio');
   const navigate = useNavigate();
@@ -357,28 +360,38 @@ export function ListView({
             >
               {t('contentViews.duplicate')}
             </button>
-            <hr className="my-1 border-gray-200 dark:border-gray-600" />
-            <button
-              onClick={async () => {
-                const confirmed = await studioContext?.utils?.showConfirm?.(
-                  t('contentViews.deleteConfirm'),
-                  {
-                    title: t('contentViews.deleteTitle'),
-                    confirmText: t('contentViews.confirmDelete'),
-                    cancelText: t('common.cancel'),
-                    variant: 'danger'
-                  }
-                );
-                if (confirmed) {
-                  onDocumentAction?.(actionsOpen, 'delete');
-                }
-                setActionsOpen(null);
-                setDropdownPosition(null);
-              }}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              {t('contentViews.delete')}
-            </button>
+            {/* Only show delete if user can delete this document */}
+            {(() => {
+              const doc = documents.find(d => (d._id || d.id) === actionsOpen);
+              const showDelete = !canDelete || (doc && canDelete(doc));
+              if (!showDelete) return null;
+              return (
+                <>
+                  <hr className="my-1 border-gray-200 dark:border-gray-600" />
+                  <button
+                    onClick={async () => {
+                      const confirmed = await studioContext?.utils?.showConfirm?.(
+                        t('contentViews.deleteConfirm'),
+                        {
+                          title: t('contentViews.deleteTitle'),
+                          confirmText: t('contentViews.confirmDelete'),
+                          cancelText: t('common.cancel'),
+                          variant: 'danger'
+                        }
+                      );
+                      if (confirmed) {
+                        onDocumentAction?.(actionsOpen, 'delete');
+                      }
+                      setActionsOpen(null);
+                      setDropdownPosition(null);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  >
+                    {t('contentViews.delete')}
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </div>,
         document.body

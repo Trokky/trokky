@@ -152,8 +152,12 @@ class AdapterRegistry {
 const globalRegistry = new AdapterRegistry()
 
 // Attach to global scope for cross-package access
+// IMPORTANT: Only set if not already defined to avoid overwriting
+// registrations from other copies of @trokky/core (e.g., when using npm link)
 if (typeof globalThis !== 'undefined') {
-  ;(globalThis as any).__TROKKY_ADAPTER_REGISTRY__ = globalRegistry
+  if (!(globalThis as any).__TROKKY_ADAPTER_REGISTRY__) {
+    ;(globalThis as any).__TROKKY_ADAPTER_REGISTRY__ = globalRegistry
+  }
 }
 
 /**

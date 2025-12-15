@@ -198,6 +198,8 @@
       "adminDesc": "Full access to all features",
       "editor": "Editor",
       "editorDesc": "Create, edit, and publish content",
+      "writer": "Writer",
+      "writerDesc": "Create and edit content, cannot publish",
       "author": "Author",
       "authorDesc": "Create and edit own content",
       "viewer": "Viewer",

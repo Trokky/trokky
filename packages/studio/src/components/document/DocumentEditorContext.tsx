@@ -19,6 +19,7 @@ export interface DocumentEditorContextType {
   hasUnsavedChanges: boolean;
   hasValidationErrors: boolean;
   isReadOnly: boolean; // User doesn't have write permission
+  hasPublishPermission: boolean; // User has permission to publish/unpublish
 
   // Mobile sidebar state
   isMobileSidebarOpen: boolean;

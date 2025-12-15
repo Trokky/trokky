@@ -18,6 +18,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { DocumentHistoryPanel } from './DocumentHistoryPanel';
@@ -37,6 +38,11 @@ export function DocumentSidebar() {
     isMobileSidebarOpen,
     onToggleMobileSidebar
   } = useDocumentEditor();
+
+  const { canDeleteDocument } = usePermissions();
+
+  // Check if user can delete this document (has delete permission OR owns it)
+  const canDelete = schema?.name ? canDeleteDocument(schema.name, document) : false;
 
   // DocumentSidebar is always shown - contains useful document info for all document types
 
@@ -345,8 +351,15 @@ export function DocumentSidebar() {
   const handleDeleteDocument = async () => {
     if (!document || !schema || isNewDocument) return;
 
+    const documentId = document._id || document.id;
+    if (!documentId) {
+      logger.error('Cannot delete document: no ID found');
+      studioContext?.utils?.showToast?.('Cannot delete document: no ID found', 'error');
+      return;
+    }
+
     const documentTitle = document.title || document.name || 'this document';
-    
+
     // Confirm deletion
     const confirmed = await studioContext?.utils?.showConfirm?.(
       `Are you sure you want to delete "${documentTitle}"? This action cannot be undone.`,
@@ -361,21 +374,21 @@ export function DocumentSidebar() {
     if (!confirmed) return;
 
     try {
-      logger.info('Deleting document', { 
-        schema: schema.name, 
-        documentId: document.id,
-        title: documentTitle 
+      logger.info('Deleting document', {
+        schema: schema.name,
+        documentId,
+        title: documentTitle
       });
 
-      const response = await apiClient.deleteDocument(schema.name, document.id);
-      
+      const response = await apiClient.deleteDocument(schema.name, documentId);
+
       if (response.success) {
         studioContext?.utils?.showToast?.('Document deleted', 'success');
-        logger.info('Document deleted successfully', { 
-          schema: schema.name, 
-          documentId: document.id 
+        logger.info('Document deleted successfully', {
+          schema: schema.name,
+          documentId
         });
-        
+
         // Navigate back to collection list
         navigate(`/content/${schema.name}`);
       } else {
@@ -585,8 +598,8 @@ export function DocumentSidebar() {
           </div>
         )}
 
-        {/* Danger zone - Delete document */}
-        {!isNewDocument && (
+        {/* Danger zone - Delete document (only shown if user can delete) */}
+        {!isNewDocument && canDelete && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
             <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               {t('documentEditor.dangerZone')}
