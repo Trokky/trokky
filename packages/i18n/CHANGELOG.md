@@ -1,5 +1,13 @@
 # @trokky/i18n
 
+## 0.1.2
+
+### Patch Changes
+
+- a48cd17: Add missing passkey translations for preferences page
+  - Add `preferences.passkeys` translation (EN/FR)
+  - Add `preferences.passkeysDescription` translation (EN/FR)
+
 ## 0.1.1
 
 ### Patch Changes
