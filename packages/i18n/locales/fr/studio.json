@@ -1077,6 +1077,41 @@
       "passwordRequired": "Le mot de passe est requis"
     }
   },
+  "passkey": {
+    "signIn": "Se connecter avec Passkey",
+    "optionsFailed": "Échec du démarrage de l'authentification par passkey",
+    "cancelled": "L'authentification a été annulée",
+    "notSupported": "Les passkeys ne sont pas prises en charge dans ce navigateur",
+    "authFailed": "Échec de l'authentification par passkey",
+    "verifyFailed": "Échec de la vérification du passkey",
+    "unexpectedResponse": "Réponse inattendue du serveur",
+    "manager": {
+      "title": "Passkeys",
+      "description": "Connectez-vous en toute sécurité sans mot de passe en utilisant votre empreinte digitale, votre visage ou une clé de sécurité.",
+      "loadFailed": "Échec du chargement des passkeys",
+      "renameFailed": "Échec du renommage du passkey",
+      "deleteFailed": "Échec de la suppression du passkey",
+      "notConfigured": "L'authentification par passkey n'est pas activée",
+      "notConfiguredDescription": "L'authentification par passkey doit être configurée par un administrateur dans les paramètres du serveur.",
+      "noPasskeys": "Vous n'avez pas encore configuré de passkey.",
+      "unnamed": "Passkey",
+      "added": "Ajouté le",
+      "lastUsed": "Dernière utilisation",
+      "synced": "Synchronisé sur tous les appareils",
+      "deviceOnly": "Cet appareil uniquement"
+    },
+    "register": {
+      "addPasskey": "Ajouter un Passkey",
+      "optionsFailed": "Échec du démarrage de l'enregistrement du passkey",
+      "cancelled": "L'enregistrement a été annulé",
+      "alreadyRegistered": "Ce passkey est déjà enregistré",
+      "notSupported": "Les passkeys ne sont pas prises en charge dans ce navigateur",
+      "failed": "Échec de l'enregistrement du passkey",
+      "verifyFailed": "Échec de la vérification de l'enregistrement du passkey",
+      "namePlaceholder": "ex. : MacBook Pro Touch ID",
+      "continue": "Continuer"
+    }
+  },
   "captcha": {
     "loading": "Chargement du CAPTCHA...",
     "errors": {

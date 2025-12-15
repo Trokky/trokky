@@ -484,6 +484,41 @@
       "passwordRequired": "Password is required"
     }
   },
+  "passkey": {
+    "signIn": "Sign in with Passkey",
+    "optionsFailed": "Failed to start passkey authentication",
+    "cancelled": "Authentication was cancelled",
+    "notSupported": "Passkeys are not supported in this browser",
+    "authFailed": "Passkey authentication failed",
+    "verifyFailed": "Passkey verification failed",
+    "unexpectedResponse": "Unexpected response from server",
+    "manager": {
+      "title": "Passkeys",
+      "description": "Sign in securely without a password using your fingerprint, face, or security key.",
+      "loadFailed": "Failed to load passkeys",
+      "renameFailed": "Failed to rename passkey",
+      "deleteFailed": "Failed to delete passkey",
+      "notConfigured": "Passkey authentication is not enabled",
+      "notConfiguredDescription": "Passkey authentication needs to be configured by an administrator in the server settings.",
+      "noPasskeys": "You haven't set up any passkeys yet.",
+      "unnamed": "Passkey",
+      "added": "Added",
+      "lastUsed": "Last used",
+      "synced": "Synced across devices",
+      "deviceOnly": "This device only"
+    },
+    "register": {
+      "addPasskey": "Add Passkey",
+      "optionsFailed": "Failed to start passkey registration",
+      "cancelled": "Registration was cancelled",
+      "alreadyRegistered": "This passkey is already registered",
+      "notSupported": "Passkeys are not supported in this browser",
+      "failed": "Passkey registration failed",
+      "verifyFailed": "Passkey registration verification failed",
+      "namePlaceholder": "e.g., MacBook Pro Touch ID",
+      "continue": "Continue"
+    }
+  },
   "captcha": {
     "loading": "Loading CAPTCHA...",
     "errors": {
