@@ -27,6 +27,7 @@ export type MailProvider = 'none' | 'resend' | 'console'
 export type AuthMode = 'basic' | 'oauth' | 'none'
 export type StudioMode = 'embedded' | 'separate' | 'none'
 export type CaptchaProvider = 'none' | 'turnstile' | 'recaptcha'
+export type I18nMode = 'none' | 'en' | 'fr' | 'en-fr'
 
 export interface ProjectConfig {
   name: string
@@ -37,6 +38,7 @@ export interface ProjectConfig {
   auth: AuthMode
   studio: StudioMode
   captcha: CaptchaProvider
+  i18n: I18nMode
   includeExamples: boolean
 }
 
@@ -54,6 +56,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       auth: 'basic',
       studio: 'embedded',
       captcha: 'none',
+      i18n: 'none',
       includeExamples: false,
     },
   },
@@ -66,6 +69,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       auth: 'oauth',
       studio: 'embedded',
       captcha: 'turnstile',
+      i18n: 'en-fr',
       includeExamples: true,
     },
   },
@@ -78,6 +82,7 @@ const TEMPLATES: Record<Template, { description: string; defaults: Partial<Proje
       auth: 'basic',
       studio: 'none',
       captcha: 'none',
+      i18n: 'none',
       includeExamples: false,
     },
   },
@@ -194,6 +199,19 @@ async function promptForConfig(projectName: string): Promise<ProjectConfig | nul
   })
   if (typeof captcha === 'symbol') return null
 
+  // i18n configuration
+  const i18n = await select({
+    message: 'Internationalization (i18n):',
+    initialValue: templateDefaults.i18n,
+    options: [
+      { value: 'none', label: 'None', hint: 'No i18n - English only' },
+      { value: 'en', label: 'English', hint: 'English as default language' },
+      { value: 'fr', label: 'French', hint: 'French as default language' },
+      { value: 'en-fr', label: 'English + French', hint: 'Both languages, English default' },
+    ],
+  })
+  if (typeof i18n === 'symbol') return null
+
   // Include examples
   const includeExamples = await confirm({
     message: 'Include example schemas?',
@@ -210,6 +228,7 @@ async function promptForConfig(projectName: string): Promise<ProjectConfig | nul
     auth: auth as AuthMode,
     studio: studio as StudioMode,
     captcha: captcha as CaptchaProvider,
+    i18n: i18n as I18nMode,
     includeExamples,
   }
 }
@@ -258,6 +277,11 @@ function generatePackageJson(config: ProjectConfig): string {
   // Studio
   if (config.studio === 'embedded' || config.studio === 'separate') {
     deps['@trokky/studio'] = '^0.1.14'
+  }
+
+  // i18n
+  if (config.i18n !== 'none') {
+    deps['@trokky/i18n'] = '^0.1.2'
   }
 
   // Media processing (Sharp for image variants)
@@ -606,6 +630,23 @@ function getMailConfig() {
   },`
   }
 
+  // i18n config
+  let i18nConfig = ''
+  if (config.i18n !== 'none') {
+    const defaultLocale = config.i18n === 'fr' ? 'fr' : 'en'
+    const supportedLocales = config.i18n === 'en-fr' ? "['en', 'fr']" : `['${config.i18n}']`
+    const fallbackLocale = defaultLocale
+    i18nConfig = `
+
+  // Internationalization
+  i18n: {
+    defaultLocale: '${defaultLocale}',
+    supportedLocales: ${supportedLocales},
+    fallbackLocale: '${fallbackLocale}',
+    detectBrowserLanguage: true,
+  },`
+  }
+
   const structureImport = config.studio !== 'none'
     ? `import { structure } from './structure.js'`
     : ''
@@ -640,7 +681,7 @@ ${mediaProcessingConfig}
       firstName: 'Admin',
       lastName: 'User',
     },${passkeyConfig}
-  },${oauth2Config}${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}
+  },${oauth2Config}${oauthConfig}${mailConfig}${captchaConfig}${studioConfig}${i18nConfig}
 }
 `
 }
@@ -756,6 +797,19 @@ function generateEnvExample(config: ProjectConfig): string {
     '# PASSKEY_RP_NAME=My CMS                     # Human-readable name shown in passkey prompts',
     '# PASSKEY_ORIGIN=http://localhost:3000       # Full origin URL (must match your site)'
   )
+
+  // i18n configuration info (if enabled)
+  if (config.i18n !== 'none') {
+    const defaultLocale = config.i18n === 'fr' ? 'fr' : 'en'
+    const supportedLocales = config.i18n === 'en-fr' ? 'en, fr' : config.i18n
+    lines.push(
+      '',
+      '# Internationalization (i18n)',
+      `# Default locale: ${defaultLocale}`,
+      `# Supported locales: ${supportedLocales}`,
+      '# Note: i18n settings are configured in trokky.config.ts'
+    )
+  }
 
   return lines.join('\n')
 }
@@ -892,6 +946,7 @@ ${config.dataAdapter === 'filesystem' ? '├── data/               # Local d
 - **Mail**: ${config.mail}
 - **Auth**: ${config.auth}
 - **Studio**: ${config.studio}
+- **i18n**: ${config.i18n}
 
 ## Scripts
 
@@ -1155,6 +1210,7 @@ export const createCommand = new Command()
   .option('--auth <mode>', 'Auth mode (basic, oauth, none)')
   .option('--studio <mode>', 'Studio mode (embedded, separate, none)')
   .option('--captcha <provider>', 'Captcha provider (none, turnstile, recaptcha)')
+  .option('--i18n <mode>', 'Internationalization (none, en, fr, en-fr)')
   .option('--examples', 'Include example schemas')
   .option('-y, --yes', 'Skip prompts and use defaults')
   .action(async (projectName: string, options) => {
@@ -1182,6 +1238,7 @@ export const createCommand = new Command()
         auth: (options.auth || templateDefaults.auth) as AuthMode,
         studio: (options.studio || templateDefaults.studio) as StudioMode,
         captcha: (options.captcha || templateDefaults.captcha) as CaptchaProvider,
+        i18n: (options.i18n || templateDefaults.i18n) as I18nMode,
         includeExamples: options.examples ?? templateDefaults.includeExamples ?? false,
       }
     } else {
@@ -1203,6 +1260,7 @@ export const createCommand = new Command()
     console.log(chalk.gray(`  Auth:         ${config.auth}`))
     console.log(chalk.gray(`  Studio:       ${config.studio}`))
     console.log(chalk.gray(`  Captcha:      ${config.captcha}`))
+    console.log(chalk.gray(`  i18n:         ${config.i18n}`))
     console.log(chalk.gray(`  Examples:     ${config.includeExamples ? 'yes' : 'no'}`))
     console.log()
 
