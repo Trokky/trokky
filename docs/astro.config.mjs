@@ -10,9 +10,10 @@ export default defineConfig({
         src: './src/assets/logo.svg',
         replacesTitle: false,
       },
-      social: {
-        github: 'https://github.com/Trokky/trokky',
-      },
+      favicon: '/favicon.svg',
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/Trokky/trokky' },
+      ],
       editLink: {
         baseUrl: 'https://github.com/Trokky/trokky/edit/main/docs/',
       },
@@ -75,15 +76,6 @@ export default defineConfig({
             { label: 'Next.js App Router', slug: 'recipes/nextjs-app-router' },
             { label: 'Custom Fields', slug: 'recipes/custom-fields' },
           ],
-        },
-      ],
-      head: [
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:image',
-            content: '/og-image.png',
-          },
         },
       ],
     }),
