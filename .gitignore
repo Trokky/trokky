@@ -75,6 +75,7 @@ TODO.md
 # Package preparation
 *.tgz
 package-lock.json
+!docs/package-lock.json
 
 # Security and keys
 # Root .npmrc needed for GitHub Package Registry
