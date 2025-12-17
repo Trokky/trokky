@@ -1021,6 +1021,7 @@
     "sendingCode": "Envoi...",
     "resendCode": "Vous n'avez pas reçu le code ? Renvoyer",
     "setUp": "Configurer",
+    "disableMethod": "Désactiver",
     "manage": "Gérer",
     "hide": "Masquer",
     "regenerate": "Régénérer",

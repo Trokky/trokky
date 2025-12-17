@@ -575,7 +575,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                     size="sm"
                     onClick={() => setShowDisableDialog('totp')}
                   >
-                    {t('mfa.disable')}
+                    {t('mfa.disableMethod')}
                   </Button>
                 </div>
               ) : (
@@ -608,7 +608,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                     size="sm"
                     onClick={() => setShowDisableDialog('email')}
                   >
-                    {t('mfa.disable')}
+                    {t('mfa.disableMethod')}
                   </Button>
                 </div>
               ) : (
@@ -791,7 +791,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 disabled={isProcessing || !disablePassword}
               >
                 {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                {t('mfa.disable')}
+                {t('mfa.disableMethod')}
               </Button>
             </div>
           </div>
