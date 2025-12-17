@@ -520,6 +520,8 @@ export interface CaptchaConfig {
   options?: {
     theme?: 'light' | 'dark' | 'auto'
     size?: 'normal' | 'compact' | 'invisible'
+    /** Language code for CAPTCHA widget (e.g., 'fr', 'en'). Defaults to i18n.defaultLocale or 'auto' */
+    language?: string
   }
   protectedEndpoints?: {
     login?: boolean
