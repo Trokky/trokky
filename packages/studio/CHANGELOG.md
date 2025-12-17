@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 0.1.34
+
+### Patch Changes
+
+- 59eb132: fix: update @trokky/i18n to 0.1.6 for French API Tokens translations
+
 ## 0.1.33
 
 ### Patch Changes
