@@ -81,7 +81,7 @@ export function UserPreferencesPage() {
         setLocale(preferences.language);
       }
 
-      setMessage({ type: 'success', text: t('language.current') + ': ' + getLocaleName(locale as SupportedLocale) });
+      setMessage({ type: 'success', text: t('preferences.saveSuccess') });
 
       // TODO: When user preferences API is available, update server
       // const response = await apiClient.put(`/api/users/${user?.id}`, { preferences });

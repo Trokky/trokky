@@ -426,7 +426,7 @@
     "sendingCode": "Sending...",
     "resendCode": "Didn't receive the code? Resend",
     "setUp": "Set Up",
-    "disable": "Disable",
+    "disableMethod": "Disable",
     "manage": "Manage",
     "hide": "Hide",
     "regenerate": "Regenerate",
