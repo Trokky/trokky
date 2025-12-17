@@ -1021,7 +1021,6 @@
     "sendingCode": "Envoi...",
     "resendCode": "Vous n'avez pas reçu le code ? Renvoyer",
     "setUp": "Configurer",
-    "disable": "Désactiver",
     "manage": "Gérer",
     "hide": "Masquer",
     "regenerate": "Régénérer",
@@ -1044,12 +1043,18 @@
       "newBackupCodes": "Vos nouveaux codes de secours",
       "newBackupCodesImportant": "Conservez ces codes de secours en lieu sûr. Vos codes précédents ne sont plus valides. Vous pouvez utiliser ces codes pour accéder à votre compte si vous perdez votre appareil d'authentification."
     },
+    "disable": {
+      "authenticator": "Désactiver l'application d'authentification",
+      "email": "Désactiver la vérification par e-mail",
+      "enterPassword": "Entrez votre mot de passe pour désactiver cette méthode 2FA.",
+      "all": "Désactiver toute la 2FA",
+      "allDesc": "Cela supprimera toutes les méthodes 2FA et les codes de secours de votre compte"
+    },
     "disableDialog": {
       "authenticator": "Désactiver l'application d'authentification",
       "email": "Désactiver la vérification par e-mail",
       "enterPassword": "Entrez votre mot de passe pour désactiver cette méthode 2FA.",
       "all": "Désactiver toute la 2FA",
-      "allDesc": "Cela supprimera toutes les méthodes 2FA et les codes de secours de votre compte",
       "allWarning": "Cela désactivera complètement l'authentification à deux facteurs sur votre compte. Toutes les méthodes 2FA (application d'authentification, e-mail) et les codes de secours seront supprimés.",
       "confirmPassword": "Entrez votre mot de passe pour confirmer."
     },
