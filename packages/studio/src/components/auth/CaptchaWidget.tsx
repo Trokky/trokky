@@ -19,6 +19,7 @@ export interface CaptchaWidgetProps {
   options?: {
     theme?: 'light' | 'dark' | 'auto'
     size?: 'normal' | 'compact' | 'invisible'
+    language?: string
   }
   /** Callback when CAPTCHA is verified successfully */
   onVerify: (token: string) => void
@@ -43,6 +44,7 @@ declare global {
           'expired-callback'?: () => void
           theme?: 'light' | 'dark' | 'auto'
           size?: 'normal' | 'compact' | 'invisible'
+          language?: string
         }
       ) => string
       remove: (widgetId: string) => void
@@ -199,6 +201,7 @@ export function CaptchaWidget({
           'expired-callback': () => callbacksRef.current.onExpire?.(),
           theme: options.theme || 'auto',
           size: options.size || 'normal',
+          language: options.language,
         })
       } catch (error) {
         console.error('Failed to render Turnstile widget:', error)
