@@ -1,6 +1,6 @@
 {
   "name": "@trokky/express",
-  "version": "0.1.25",
+  "version": "0.1.27",
   "description": "Express.js integration for Trokky v2 CMS",
   "type": "module",
   "main": "dist/index.js",
@@ -41,7 +41,7 @@
   "devDependencies": {
     "@trokky/core": "^0.1.25",
     "@trokky/mail": "^0.1.0",
-    "@trokky/studio": "^0.1.28",
+    "@trokky/studio": "^0.1.31",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/fs-extra": "^11.0.4",
