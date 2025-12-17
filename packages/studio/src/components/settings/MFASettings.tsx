@@ -65,6 +65,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
   const [showTrustedDevices, setShowTrustedDevices] = useState(false);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [disablePassword, setDisablePassword] = useState('');
   const [showDisableDialog, setShowDisableDialog] = useState<MFAMethodType | null>(null);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
@@ -98,12 +99,18 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
   const loadTrustedDevices = async () => {
     try {
+      setIsLoadingDevices(true);
       const response = await apiClient.get<{ data: { devices: TrustedDevice[] } }>('/auth/mfa/trusted-devices');
       if (response.success && response.data) {
-        setTrustedDevices(response.data.data?.devices || []);
+        // Handle both response structures: { data: { devices: [...] } } and { devices: [...] }
+        const data = response.data as any;
+        const devices = data.data?.devices || data.devices || [];
+        setTrustedDevices(devices);
       }
     } catch (err) {
       console.error('Failed to load trusted devices:', err);
+    } finally {
+      setIsLoadingDevices(false);
     }
   };
 
@@ -668,36 +675,48 @@ export function MFASettings({ onToast }: MFASettingsProps) {
               </div>
               {showTrustedDevices && (
                 <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {trustedDevices.map((device) => (
-                    <div
-                      key={device.id}
-                      className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {device.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {t('mfa.trustedDevice.trusted', { date: new Date(device.trustedAt).toLocaleDateString() })}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => revokeTrustedDevice(device.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
+                  {isLoadingDevices ? (
+                    <div className="flex items-center justify-center py-4">
+                      <LoadingSpinner size="sm" />
                     </div>
-                  ))}
-                  {trustedDevices.length > 1 && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={revokeAllTrustedDevices}
-                    >
-                      {t('mfa.revokeAll')}
-                    </Button>
+                  ) : trustedDevices.length > 0 ? (
+                    <>
+                      {trustedDevices.map((device) => (
+                        <div
+                          key={device.id}
+                          className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {device.name}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {t('mfa.trustedDevice.trusted', { date: new Date(device.trustedAt).toLocaleDateString() })}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => revokeTrustedDevice(device.id)}
+                            className="p-1 text-gray-400 hover:text-red-500"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                      {trustedDevices.length > 1 && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={revokeAllTrustedDevices}
+                        >
+                          {t('mfa.revokeAll')}
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                      {t('common.loading')}
+                    </p>
                   )}
                 </div>
               )}
