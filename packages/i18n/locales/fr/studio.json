@@ -809,57 +809,47 @@
     "title": "Jetons API",
     "subtitle": "Créez et gérez les jetons API pour les applications externes",
     "createToken": "Créer un jeton",
+    "searchPlaceholder": "Rechercher des jetons...",
     "noTokensTitle": "Aucun jeton API",
-    "noTokensDescription": "Créez votre premier jeton API pour permettre aux applications externes d'accéder à votre contenu de manière sécurisée.",
+    "noTokensDesc": "Créez votre premier jeton API pour permettre aux applications externes d'accéder à votre contenu de manière sécurisée.",
     "tableHeaders": {
-      "name": "Nom",
-      "permissions": "Permissions",
+      "token": "Jeton",
+      "status": "Statut",
       "lastUsed": "Dernière utilisation",
       "expires": "Expire",
-      "status": "Statut",
       "actions": "Actions"
     },
     "status": {
       "active": "Actif",
-      "expired": "Expiré",
-      "revoked": "Révoqué"
-    },
-    "lastUsed": {
-      "never": "Jamais",
-      "today": "Aujourd'hui",
-      "yesterday": "Hier",
-      "daysAgo": "Il y a {{days}} jours"
-    },
-    "expires": {
-      "never": "Jamais",
-      "inDays": "Dans {{days}} jours",
+      "inactive": "Inactif",
       "expired": "Expiré"
     },
+    "never": "Jamais",
     "modal": {
       "title": "Créer un jeton API",
       "tokenName": "Nom du jeton",
-      "tokenNamePlaceholder": "ex. : Intégration CI/CD",
-      "tokenNameDescription": "Un nom descriptif pour identifier ce jeton",
+      "tokenNamePlaceholder": "ex. : API de production, Application mobile",
+      "description": "Description",
+      "descriptionPlaceholder": "À quoi servira ce jeton ?",
       "expiration": "Expiration",
-      "expirationDescription": "Quand ce jeton doit-il expirer ?",
-      "expirationOptions": {
-        "never": "Jamais",
-        "30days": "30 jours",
-        "90days": "90 jours",
-        "1year": "1 an"
-      },
+      "expiration30days": "30 jours",
+      "expiration90days": "90 jours (recommandé)",
+      "expiration1year": "1 an",
+      "expirationNever": "N'expire jamais",
+      "expirationCustom": "Date personnalisée",
       "permissions": "Permissions",
-      "permissionsDescription": "Quelles actions ce jeton peut-il effectuer ?",
+      "cancel": "Annuler",
       "creating": "Création en cours...",
-      "create": "Créer le jeton"
+      "createToken": "Créer le jeton"
     },
     "tokenCreated": {
       "title": "Jeton API créé",
       "warning": "C'est la seule fois que vous verrez ce jeton. Copiez-le et conservez-le en lieu sûr.",
+      "yourToken": "Votre jeton API",
       "copied": "Copié !",
-      "copyToken": "Copier le jeton",
-      "done": "Terminé"
+      "close": "Fermer"
     },
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer le jeton \"{{name}}\" ? Cette action est irréversible.",
     "permissions": {
       "viewContent": "Voir le contenu",
       "editContent": "Modifier le contenu",
@@ -869,13 +859,7 @@
       "uploadMedia": "Importer des médias",
       "editMedia": "Modifier les médias",
       "deleteMedia": "Supprimer les médias"
-    },
-    "actions": {
-      "revoke": "Révoquer",
-      "delete": "Supprimer"
-    },
-    "confirmRevoke": "Êtes-vous sûr de vouloir révoquer ce jeton ? Les applications utilisant ce jeton ne pourront plus accéder à l'API.",
-    "confirmDelete": "Êtes-vous sûr de vouloir supprimer ce jeton ? Cette action est irréversible."
+    }
   },
   "webhooks": {
     "title": "Webhooks",
