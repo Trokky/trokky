@@ -1,12 +1,11 @@
 // Core engine
 export { TrokkyCore, type TrokkyCoreOptions, type AuditEvent } from './core/engine.js'
 
-// Crypto adapters
-export { 
-  detectCryptoAdapter, 
-  type CryptoAdapter, 
-  type CryptoAdapterOptions, 
-  type JWTOptions 
+// Crypto adapters (types only - use core.hashPassword() and core.verifyPassword() for operations)
+export {
+  type CryptoAdapter,
+  type CryptoAdapterOptions,
+  type JWTOptions
 } from './crypto/adapter.js'
 
 // Schema management

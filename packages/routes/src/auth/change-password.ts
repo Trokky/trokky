@@ -10,7 +10,6 @@ import {
   SecurityValidator,
   InvalidInputError,
   createLogger,
-  detectCryptoAdapter,
 } from '@trokky/core'
 
 const logger = createLogger('routes', 'ChangePassword')
@@ -80,9 +79,8 @@ export async function changePassword(
       }
     }
 
-    // Verify current password
-    const cryptoAdapter = detectCryptoAdapter()
-    const isValid = await cryptoAdapter.verifyPassword(body.currentPassword, user.passwordHash)
+    // Verify current password using core's crypto adapter for consistency
+    const isValid = await core.verifyPassword(body.currentPassword, user.passwordHash)
 
     if (!isValid) {
       logger.warn('Password change failed: incorrect current password', {
@@ -92,8 +90,8 @@ export async function changePassword(
       throw new InvalidInputError('Current password is incorrect', 'currentPassword')
     }
 
-    // Hash new password
-    const hashedPassword = await cryptoAdapter.hashPassword(body.newPassword)
+    // Hash new password using core's crypto adapter for consistency
+    const hashedPassword = await core.hashPassword(body.newPassword)
 
     // Update user password
     await core.updateUser(user.id, {
