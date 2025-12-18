@@ -68,6 +68,7 @@ import {
   MFAMethodType,
   TrustedDevice,
   SettingsConfig,
+  MediaListResult,
   // Authentication result types
   AuthenticationResult,
   AuthenticationSuccessResult
@@ -961,7 +962,7 @@ export class TrokkyCore {
     return await this.mediaStorage.getFileContent(id)
   }
 
-  public async listMedia(options?: { limit?: number; offset?: number }): Promise<MediaFile[]> {
+  public async listMedia(options?: { limit?: number; offset?: number }): Promise<MediaListResult> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('listMedia')
     }
@@ -970,7 +971,7 @@ export class TrokkyCore {
     if (!this.mediaStorage.listMedia) {
       throw new Error('Media listing not supported by storage adapter')
     }
-    
+
     return await this.mediaStorage.listMedia(options || {})
   }
 

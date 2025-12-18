@@ -213,6 +213,7 @@ export type {
   MediaStorageAdapter,
   DataTransaction,
   MediaListOptions,
+  MediaListResult,
   MediaVariant,
   SplitStorageConfig,
   TrokkyStorageAdapters,

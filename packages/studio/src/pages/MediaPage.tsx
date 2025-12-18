@@ -110,7 +110,23 @@ export function MediaPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24; // Show 24 items per page (good for various grid sizes)
+  const [totalMediaCount, setTotalMediaCount] = useState(0); // Total from server
+  const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
+    const validOptions = [28, 56, 84, 112];
+    try {
+      const saved = localStorage.getItem('trokky-media-items-per-page');
+      const parsed = saved ? parseInt(saved, 10) : 56;
+      return validOptions.includes(parsed) ? parsed : 56;
+    } catch {
+      return 56;
+    }
+  });
+
+  // Sort state
+  type SortField = 'date' | 'name' | 'size';
+  type SortDirection = 'asc' | 'desc';
+  const [sortBy, setSortBy] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const { hasPermission } = usePermissions();
   const canRead = hasPermission(MEDIA_PERMISSIONS.READ);
@@ -218,9 +234,16 @@ export function MediaPage() {
         return;
       }
 
-      const response = await apiClient.getMedia();
+      // Fetch all media files - use high limit for client-side filtering/pagination
+      // Server provides default sorting by date descending (newest first)
+      const response = await apiClient.getMedia({ limit: 10000 });
       setMediaFiles(response.data || []);
-      logger.info('Media files loaded successfully', { count: response.data?.length || 0 });
+      // Store total from server response for accurate pagination display
+      setTotalMediaCount(response.meta?.total || response.data?.length || 0);
+      logger.info('Media files loaded successfully', {
+        count: response.data?.length || 0,
+        total: response.meta?.total
+      });
     } catch (error) {
       logger.error('Failed to load media files:', error);
       setMediaFiles([]);
@@ -230,7 +253,7 @@ export function MediaPage() {
     }
   }, [apiClient]); // Stable dependencies only
 
-  // Filter files based on search and type
+  // Filter and sort files based on search, type, and sort options
   useEffect(() => {
     let filtered = mediaFiles;
 
@@ -245,11 +268,11 @@ export function MediaPage() {
           case 'audio':
             return file.contentType.startsWith('audio/');
           case 'documents':
-            return file.contentType.includes('pdf') || 
+            return file.contentType.includes('pdf') ||
                    file.contentType.includes('text/') ||
                    file.contentType.includes('application/');
           case 'archives':
-            return file.contentType.includes('zip') || 
+            return file.contentType.includes('zip') ||
                    file.contentType.includes('rar') ||
                    file.contentType.includes('tar');
           default:
@@ -261,7 +284,7 @@ export function MediaPage() {
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(file => 
+      filtered = filtered.filter(file =>
         file.filename.toLowerCase().includes(query) ||
         file.metadata?.title?.toLowerCase().includes(query) ||
         file.metadata?.alt?.toLowerCase().includes(query) ||
@@ -271,10 +294,27 @@ export function MediaPage() {
       );
     }
 
+    // Sort files
+    filtered = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'date':
+          comparison = new Date(b._createdAt).getTime() - new Date(a._createdAt).getTime();
+          break;
+        case 'name':
+          comparison = a.filename.localeCompare(b.filename);
+          break;
+        case 'size':
+          comparison = b.size - a.size;
+          break;
+      }
+      return sortDirection === 'asc' ? -comparison : comparison;
+    });
+
     setFilteredFiles(filtered);
     // Reset to page 1 when filters change
     setCurrentPage(1);
-  }, [mediaFiles, selectedType, searchQuery]);
+  }, [mediaFiles, selectedType, searchQuery, sortBy, sortDirection]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredFiles.length / itemsPerPage);
@@ -1102,7 +1142,7 @@ export function MediaPage() {
         </div>
         
         {/* Controls */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {/* Filter toggle for mobile */}
           <Button
             variant="ghost"
@@ -1112,7 +1152,44 @@ export function MediaPage() {
           >
             <FunnelIcon className="h-4 w-4" />
           </Button>
-          
+
+          {/* Sort dropdown */}
+          <select
+            value={`${sortBy}-${sortDirection}`}
+            onChange={(e) => {
+              const [field, dir] = e.target.value.split('-') as [SortField, SortDirection];
+              setSortBy(field);
+              setSortDirection(dir);
+            }}
+            className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="date-desc">{t('media.sort.dateDesc')}</option>
+            <option value="date-asc">{t('media.sort.dateAsc')}</option>
+            <option value="name-asc">{t('media.sort.nameAsc')}</option>
+            <option value="name-desc">{t('media.sort.nameDesc')}</option>
+            <option value="size-desc">{t('media.sort.sizeDesc')}</option>
+            <option value="size-asc">{t('media.sort.sizeAsc')}</option>
+          </select>
+
+          {/* Items per page selector */}
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              const value = parseInt(e.target.value, 10);
+              setItemsPerPage(value);
+              setCurrentPage(1);
+              try {
+                localStorage.setItem('trokky-media-items-per-page', String(value));
+              } catch {}
+            }}
+            className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="28">28 {t('media.perPage')}</option>
+            <option value="56">56 {t('media.perPage')}</option>
+            <option value="84">84 {t('media.perPage')}</option>
+            <option value="112">112 {t('media.perPage')}</option>
+          </select>
+
           {/* View mode toggle */}
           <div className="flex border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
             <button

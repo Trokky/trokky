@@ -484,10 +484,10 @@ export interface MediaStorageAdapter {
   /**
    * List media files with filtering and pagination
    * @param options - Query options (limit, offset, content type filters, etc.)
-   * @returns Array of matching media files
+   * @returns Paginated result with items and total count
    * @throws Error if query is invalid or storage fails
    */
-  listMedia(options?: MediaListOptions): Promise<MediaFile[]>
+  listMedia(options?: MediaListOptions): Promise<MediaListResult>
   
   /**
    * Delete a file and all its variants permanently
@@ -633,6 +633,16 @@ export interface MediaListOptions {
   sortDirection?: 'asc' | 'desc'
   /** Include variant information in results */
   includeVariants?: boolean
+}
+
+/**
+ * Result of listing media files with pagination metadata
+ */
+export interface MediaListResult {
+  /** The media files for the current page */
+  items: MediaFile[]
+  /** Total number of media files matching the query (before pagination) */
+  total: number
 }
 
 /**

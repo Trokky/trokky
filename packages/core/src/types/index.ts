@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import type { 
-  FieldRegistry, 
+import type {
+  FieldRegistry,
   FieldType
 } from '@trokky/types';
 import { CORE_FIELD_TYPES } from '@trokky/types';
+import type { MediaListResult } from './storage-adapters.js';
 import type {
   User,
   UserListOptions,
@@ -284,7 +285,7 @@ export interface StorageAdapter {
   getFile(id: string): Promise<MediaFile | null>
   updateFile?(id: string, metadata: Record<string, any>): Promise<MediaFile>
   getFileContent(id: string): Promise<ArrayBuffer | null>
-  listMedia?(options?: { limit?: number; offset?: number }): Promise<MediaFile[]>
+  listMedia?(options?: { limit?: number; offset?: number }): Promise<MediaListResult>
   deleteFile(id: string): Promise<void>
   
   // Variant operations (for image processing)
@@ -480,6 +481,7 @@ export type {
   MediaStorageAdapter,
   DataTransaction,
   MediaListOptions,
+  MediaListResult,
   MediaVariant,
   SplitStorageConfig,
   TrokkyStorageAdapters,

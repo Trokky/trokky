@@ -197,6 +197,40 @@ GET /api/media
 | `limit` | number | 50 | Number of items to return |
 | `offset` | number | 0 | Number of items to skip |
 
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "media-abc123",
+      "filename": "image.jpg",
+      "contentType": "image/jpeg",
+      "size": 102400,
+      "_createdAt": "2024-01-20T15:00:00Z"
+    }
+  ],
+  "meta": {
+    "count": 10,
+    "total": 157,
+    "limit": 50,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+```
+
+**Meta Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `count` | number | Number of items in current response |
+| `total` | number | Total number of media files in storage |
+| `limit` | number | Requested page size |
+| `offset` | number | Current offset |
+| `hasMore` | boolean | Whether more items exist beyond current page |
+
+**Note:** Media files are returned sorted by creation date (newest first) by default.
+
 ### Get Media
 ```http
 GET /api/media/:id

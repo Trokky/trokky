@@ -8,6 +8,7 @@ import {
   ListOptions,
   MediaFile,
   MediaMetadata,
+  MediaListResult,
   Migration,
   SecurityValidator,
   InvalidInputError,
@@ -559,25 +560,25 @@ export class FilesystemAdapter implements StorageAdapter {
     }
   }
 
-  public async listMedia(options: ListOptions = {}): Promise<MediaFile[]> {
+  public async listMedia(options: ListOptions = {}): Promise<MediaListResult> {
     try {
       // Apply resource limits
       const limit = Math.min(options.limit || 1000, 1000)
       const offset = Math.max(options.offset || 0, 0)
-      
+
       const metadataDir = path.join(this.config.mediaDir, '.metadata')
-      
-      
+
+
       // Check if metadata directory exists
       try {
         await fs.access(metadataDir, constants.F_OK)
       } catch (error) {
-        return []
+        return { items: [], total: 0 }
       }
 
       const files = await fs.readdir(metadataDir)
       const jsonFiles = files.filter(file => file.endsWith('.json'))
-      
+
 
       let mediaFiles: MediaFile[] = []
 
@@ -599,10 +600,13 @@ export class FilesystemAdapter implements StorageAdapter {
       // Sort by creation date (newest first)
       mediaFiles.sort((a, b) => new Date(b._createdAt).getTime() - new Date(a._createdAt).getTime())
 
+      // Store total before pagination
+      const total = mediaFiles.length
+
       // Apply pagination
-      const result = mediaFiles.slice(offset, offset + limit)
-      
-      return result
+      const items = mediaFiles.slice(offset, offset + limit)
+
+      return { items, total }
     } catch (error) {
       console.error('[ERROR] FilesystemAdapter.listMedia failed:', error)
       throw new Error(`Failed to list media files: ${error}`)

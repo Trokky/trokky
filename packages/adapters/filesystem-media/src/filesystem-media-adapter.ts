@@ -6,6 +6,7 @@ import {
   MediaFile,
   MediaMetadata,
   MediaListOptions,
+  MediaListResult,
   MediaVariant,
   SecurityValidator,
   InvalidInputError,
@@ -265,13 +266,13 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
     }
   }
 
-  public async listMedia(options: MediaListOptions = {}): Promise<MediaFile[]> {
+  public async listMedia(options: MediaListOptions = {}): Promise<MediaListResult> {
     try {
       // Check if media directory exists
       try {
         await fs.access(this.config.mediaDir, constants.F_OK)
       } catch {
-        return []
+        return { items: [], total: 0 }
       }
 
       const files = await fs.readdir(this.config.mediaDir)
@@ -360,17 +361,24 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
         })
       }
 
-      // Apply sorting
+      // Apply sorting - default to newest first if no sort specified
       if (options.sort) {
         this.sortMediaFiles(filteredFiles, options.sort, options.sortDirection)
+      } else {
+        // Default: sort by date descending (newest first)
+        this.sortMediaFiles(filteredFiles, 'date', 'desc')
       }
+
+      // Store total count before pagination
+      const total = filteredFiles.length
 
       // Apply pagination
       const { offset = 0, limit } = options
       const start = offset
       const end = limit ? start + limit : undefined
+      const items = filteredFiles.slice(start, end)
 
-      return filteredFiles.slice(start, end)
+      return { items, total }
     } catch (error) {
       this.logger.error('Failed to list media files', error)
       throw new Error(`Failed to list media: ${error instanceof Error ? error.message : 'Unknown error'}`)

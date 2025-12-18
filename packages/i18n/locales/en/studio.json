@@ -672,7 +672,16 @@
     "uploadSuccess": "File uploaded successfully",
     "uploadError": "Failed to upload file",
     "deleteSuccess": "File deleted successfully",
-    "deleteError": "Failed to delete file"
+    "deleteError": "Failed to delete file",
+    "perPage": "per page",
+    "sort": {
+      "dateDesc": "Newest first",
+      "dateAsc": "Oldest first",
+      "nameAsc": "Name A-Z",
+      "nameDesc": "Name Z-A",
+      "sizeDesc": "Largest first",
+      "sizeAsc": "Smallest first"
+    }
   },
   "content": {
     "title": "Content",
@@ -1202,6 +1211,7 @@
     "userAgent": "User Agent:"
   },
   "common": {
+    "title": "Title",
     "cancel": "Cancel",
     "dismiss": "Dismiss",
     "note": "Important:",

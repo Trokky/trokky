@@ -1007,9 +1007,9 @@ export class TrokkyRoutes {
       // Search media files
       try {
         this.logger.debug('Starting media search')
-        const mediaFiles = await this.core.listMedia({ limit: limit * 2 })
+        const { items: mediaFiles } = await this.core.listMedia({ limit: limit * 2 })
         this.logger.debug('Found media files', { count: mediaFiles.length })
-        
+
         for (const file of mediaFiles) {
           const title = file.filename || 'Untitled'
           const description = (file.metadata as any)?.description || (file.metadata as any)?.alt || ''
@@ -1081,17 +1081,18 @@ export class TrokkyRoutes {
       const limit = parseInt(url.searchParams.get('limit') || '50', 10)
       const offset = parseInt(url.searchParams.get('offset') || '0', 10)
 
-      // Get media files from the core engine
-      const mediaFiles = await this.core.listMedia({ limit, offset })
+      // Get media files from the core engine (returns { items, total })
+      const { items, total } = await this.core.listMedia({ limit, offset })
 
       this.logger.debug('Media files listed', {
-        count: mediaFiles.length,
+        count: items.length,
+        total,
         limit,
         offset
       })
 
       // SECURITY: Sanitize responses to remove sensitive internal paths
-      const sanitizedFiles = mediaFiles.map(file => this.sanitizeMediaResponse(file))
+      const sanitizedFiles = items.map(file => this.sanitizeMediaResponse(file))
 
       return {
         status: 200,
@@ -1104,9 +1105,10 @@ export class TrokkyRoutes {
           data: sanitizedFiles,
           meta: {
             count: sanitizedFiles.length,
+            total,
             limit,
             offset,
-            hasMore: sanitizedFiles.length === limit
+            hasMore: offset + sanitizedFiles.length < total
           }
         })
       }

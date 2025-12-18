@@ -69,12 +69,12 @@ export function StatsWidget() {
         }))
       });
 
-      // Get media count - fetch without limit to get total count
+      // Get media count - use meta.total for accurate count
       let mediaCount = 0;
       try {
-        const mediaResponse = await apiClient.getMedia({});
-        if (mediaResponse.success && mediaResponse.meta?.count) {
-          mediaCount = mediaResponse.meta.count;
+        const mediaResponse = await apiClient.getMedia({ limit: 1 });
+        if (mediaResponse.success && mediaResponse.meta?.total !== undefined) {
+          mediaCount = mediaResponse.meta.total;
         }
       } catch (error) {
         logger.warn('Failed to get media count', error);

@@ -309,7 +309,9 @@ export function MediaBrowserContent({
       if (apiClient && typeof apiClient.getMedia === 'function') {
         // Use real API when available
         logger?.debug('MediaBrowser: Loading media from API...')
-        const response = await apiClient.getMedia()
+        // Fetch all media files - use high limit for client-side filtering/pagination
+        // Server provides default sorting by date descending (newest first)
+        const response = await apiClient.getMedia({ limit: 10000 })
 
         logger?.debug('MediaBrowser: API response received', response)
 
@@ -317,6 +319,7 @@ export function MediaBrowserContent({
         if (response?.success && Array.isArray(response.data)) {
           logger?.info('MediaBrowser: Loaded media files from API', {
             count: response.data.length,
+            total: response.meta?.total,
           })
           setMediaFiles(response.data)
         } else {

@@ -276,7 +276,16 @@
     "uploadSuccess": "Fichier importé avec succès",
     "uploadError": "Échec de l'importation du fichier",
     "deleteSuccess": "Fichier supprimé avec succès",
-    "deleteError": "Échec de la suppression du fichier"
+    "deleteError": "Échec de la suppression du fichier",
+    "perPage": "par page",
+    "sort": {
+      "dateDesc": "Plus récents",
+      "dateAsc": "Plus anciens",
+      "nameAsc": "Nom A-Z",
+      "nameDesc": "Nom Z-A",
+      "sizeDesc": "Plus grands",
+      "sizeAsc": "Plus petits"
+    }
   },
   "content": {
     "title": "Contenu",
@@ -1124,6 +1133,7 @@
     "extended": "Session prolongée avec succès"
   },
   "common": {
+    "title": "Titre",
     "cancel": "Annuler",
     "dismiss": "Ignorer",
     "note": "Important :",
