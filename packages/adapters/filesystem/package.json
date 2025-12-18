@@ -1,6 +1,6 @@
 {
   "name": "@trokky/adapter-filesystem",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "File-based storage adapter for Trokky v2",
   "type": "module",
   "main": "dist/index.js",
@@ -25,7 +25,7 @@
   "author": "Trokky Team",
   "license": "MIT",
   "dependencies": {
-    "@trokky/core": "^0.1.0",
+    "@trokky/core": "^0.1.29",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
