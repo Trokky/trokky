@@ -3196,10 +3196,12 @@ export class TrokkyRoutes {
         // Create empty array - items will be added through UI with proper _type
         return [];
       case 'object':
-        // Include _type field for object items if the field defines an object type
+        // Set _type to the field's name — this identifies the object type
+        // in polymorphic contexts (e.g., array items of different types).
+        // Matches Studio's ArrayField behavior which uses itemDefinition.name.
         const baseObject: any = {};
-        if (field.objectType || field.name) {
-          baseObject._type = field.objectType ?? field.name;
+        if (field.name) {
+          baseObject._type = field.name;
         }
         return baseObject;
       case 'reference':
