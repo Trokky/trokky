@@ -29,8 +29,11 @@ export class TrokkyExpress {
   private middleware: TrokkyExpressMiddleware
   private config: ExpressIntegrationConfig
   private logger = createLogger('express', 'TrokkyExpress')
-  private mountedApiPath: string | null = null // Track the mounted API path
-  private mountedStudioPath: string | null = null // Track the mounted Studio path
+  private mountedApiPath: string | null = null
+  private mountedStudioPath: string | null = null
+  private studioConfig: any = null
+  private i18nConfig: any = null
+  private structureConfig: any = null
 
   constructor(config: ExpressIntegrationConfig) {
     if (!config.core) {
@@ -83,18 +86,11 @@ export class TrokkyExpress {
       this.mountedStudioPath = studioPath
 
       // Update Studio config with correct apiBasePath if Studio is enabled
-      if (
-        this.config.studio?.enabled &&
-        (global as any).__TROKKY_STUDIO_CONFIG__
-      ) {
-        ;(global as any).__TROKKY_STUDIO_CONFIG__.apiBasePath = apiPath
+      if (this.config.studio?.enabled && this.studioConfig) {
+        this.studioConfig.apiBasePath = apiPath
 
-        // Also update mediaUrlGenerator with the correct API path
-        if ((global as any).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator) {
-          ;(
-            global as any
-          ).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator.options.apiBasePath =
-            apiPath
+        if (this.studioConfig.mediaUrlGenerator) {
+          this.studioConfig.mediaUrlGenerator.options.apiBasePath = apiPath
         }
 
         this.logger.debug('Updated Studio config with apiBasePath', {
@@ -263,7 +259,7 @@ export class TrokkyExpress {
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
             mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
-            i18n: (global as any).__TROKKY_I18N_CONFIG__ || undefined,
+            i18n: this.i18nConfig || undefined,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -307,7 +303,7 @@ export class TrokkyExpress {
             config: this.config.studio?.config || {},
             customFields: this.config.studio?.customFields || [],
             mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
-            i18n: (global as any).__TROKKY_I18N_CONFIG__ || undefined,
+            i18n: this.i18nConfig || undefined,
           }
 
           const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
@@ -368,7 +364,7 @@ export class TrokkyExpress {
   }
 
   /**
-   * 🎯 PROFESSIONAL SETUP - Clean, type-safe configuration
+   * PROFESSIONAL SETUP - Clean, type-safe configuration
    *
    * Uses the new professional configuration system with:
    * - Organized config sections (storage, media, security, server, studio)
@@ -394,7 +390,7 @@ export class TrokkyExpress {
     config: NewTrokkyConfig
   ): Promise<ExpressIntegration> {
     const logger = createLogger('express', 'ProfessionalSetup')
-    logger.info('🎯 Starting professional Trokky setup')
+    logger.info('Starting professional Trokky setup')
 
     try {
       // Apply smart defaults based on environment
@@ -443,45 +439,41 @@ export class TrokkyExpress {
 
       const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
       await core.init()
-      logger.info('✅ TrokkyCore initialized with professional config')
+      logger.info('TrokkyCore initialized with professional config')
 
-      // Set global studio config for API endpoint access
-      // Note: Register config even when studio.enabled=false to support standalone Studio services
+      // Build studio, structure, and i18n configs for the instance
+      let resolvedStudioConfig: any = null
+      let resolvedStructureConfig: any = null
+      let resolvedI18nConfig: any = null
+
       if (fullConfig.studio) {
-        ;(global as any).__TROKKY_STUDIO_CONFIG__ = fullConfig.studio
-
-        // Always create mediaUrlGenerator configuration for Studio
-        ;(global as any).__TROKKY_STUDIO_CONFIG__.mediaUrlGenerator = {
-          options: {
-            apiBasePath: fullConfig.server.basePath || '/api',
-            mediaConfig: {
-              serving: {
-                mode: fullConfig.media.serving?.mode || 'api',
+        resolvedStudioConfig = {
+          ...fullConfig.studio,
+          mediaUrlGenerator: {
+            options: {
+              apiBasePath: fullConfig.server.basePath || '/api',
+              mediaConfig: {
+                serving: {
+                  mode: fullConfig.media.serving?.mode || 'api',
+                },
               },
             },
           },
+          media: {
+            variants: fullConfig.media.variants || [],
+          },
         }
 
-        // Include media variants in studio config for restore pre-flight checks
-        ;(global as any).__TROKKY_STUDIO_CONFIG__.media = {
-          variants: fullConfig.media.variants || [],
-        }
-
-        logger.debug(
-          '✅ Studio configuration registered globally with mediaUrlGenerator and media variants'
-        )
-
-        // Also register structure separately for structure service access
         if (fullConfig.studio.structure) {
-          ;(global as any).__TROKKY_STRUCTURE__ = fullConfig.studio.structure
-          logger.debug('✅ Structure configuration registered globally')
+          resolvedStructureConfig = fullConfig.studio.structure
         }
+
+        logger.debug('Studio configuration resolved')
       }
 
-      // Register i18n configuration globally for API endpoint access
       if (fullConfig.i18n) {
-        ;(global as any).__TROKKY_I18N_CONFIG__ = fullConfig.i18n
-        logger.debug('✅ i18n configuration registered globally', {
+        resolvedI18nConfig = fullConfig.i18n
+        logger.debug('i18n configuration resolved', {
           defaultLocale: fullConfig.i18n.defaultLocale,
           supportedLocales: fullConfig.i18n.supportedLocales,
         })
@@ -498,14 +490,14 @@ export class TrokkyExpress {
             lastName: fullConfig.security.adminUser.lastName,
             role: fullConfig.security.adminUser.role || 'admin',
           })
-          logger.info('✅ Admin user created')
+          logger.info('Admin user created')
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
           if (errorMessage.includes('already exists')) {
-            logger.info('✅ Admin user already exists')
+            logger.info('Admin user already exists')
           } else {
-            logger.warn('⚠️ Failed to create admin user', error)
+            logger.warn('Failed to create admin user', error)
           }
         }
       }
@@ -590,6 +582,16 @@ export class TrokkyExpress {
       })
 
       const integration = new TrokkyExpress(expressConfig)
+
+      // Store configs on instance (replaces global state pattern)
+      integration.studioConfig = resolvedStudioConfig
+      integration.structureConfig = resolvedStructureConfig
+      integration.i18nConfig = resolvedI18nConfig
+
+      // Pass studio/structure config to routes via shared config reference
+      integration.config.studioConfig = resolvedStudioConfig
+      integration.config.structureConfig = resolvedStructureConfig
+
       const result = await integration.createIntegration()
 
       // Debug: Check result.core before and after assignment
@@ -611,10 +613,10 @@ export class TrokkyExpress {
         hasEvents: !!result.core?.events,
       })
 
-      logger.info('🎉 Professional setup complete!')
+      logger.info('Professional setup complete!')
       return result
     } catch (error) {
-      logger.error('❌ Professional setup failed', error)
+      logger.error('Professional setup failed', error)
       throw new Error(
         `Professional setup failed: ${error instanceof Error ? error.message : String(error)}`
       )
@@ -661,7 +663,7 @@ export class TrokkyExpress {
       media: mediaAdapter,
     }
 
-    logger.info('✅ Split storage adapters created successfully')
+    logger.info('Split storage adapters created successfully')
     return splitAdapters
   }
 

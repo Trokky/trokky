@@ -76,6 +76,10 @@ export interface RoutesConfig {
     assets?: StaticRouteConfig
     [key: string]: StaticRouteConfig | undefined
   }
+  /** Studio configuration (passed from integration, avoids globals) */
+  studioConfig?: any
+  /** Structure configuration (passed from integration, avoids globals) */
+  structureConfig?: any
 }
 
 // Route context for handlers (depends on TrokkyCore, so stays here)

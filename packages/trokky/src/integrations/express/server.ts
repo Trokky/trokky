@@ -179,7 +179,7 @@ export async function startServer(
     httpServer.on('error', reject)
   })
 
-  logger.info(`✅ Trokky server started on port ${port}`)
+  logger.info(`Trokky server started on port ${port}`)
 
   // Call afterStart lifecycle hook
   if (fullConfig.server.lifecycle?.afterStart) {
@@ -252,7 +252,7 @@ async function initializeMailService(
   })
 
   await mailService.initialize()
-  logger.info('✅ Mail service initialized')
+  logger.info('Mail service initialized')
 
   // Setup mail notification service if core is available
   let mailNotificationService: MailNotificationService | undefined
@@ -270,7 +270,7 @@ async function initializeMailService(
     })
 
     await mailNotificationService.initialize()
-    logger.info('✅ Mail notification service initialized')
+    logger.info('Mail notification service initialized')
   } else {
     logger.warn('Core event bus not available - mail notifications disabled')
   }
@@ -382,7 +382,7 @@ async function registerHooks(
     }
   }
 
-  logger.info(`✅ Registered ${registeredCount} event hooks`)
+  logger.info(`Registered ${registeredCount} event hooks`)
 }
 
 async function dispatchWebhook(
@@ -482,7 +482,7 @@ function mountCustomRoutes(
     }
   }
 
-  logger.info(`✅ Mounted ${mountedCount} custom routes`)
+  logger.info(`Mounted ${mountedCount} custom routes`)
 }
 
 function mountRoute(
@@ -590,7 +590,7 @@ function createShutdownHandler(
       })
     })
 
-    logger.info('✅ Trokky server stopped')
+    logger.info('Trokky server stopped')
   }
 }
 
@@ -669,7 +669,7 @@ function logStartupSummary(info: ServerInfo): void {
   }
   console.log(`║  Health:         http://localhost:${info.port}/health${' '.repeat(17)}║`)
   console.log('╠════════════════════════════════════════════════════════════╣')
-  console.log(`║  Mail:           ${(info.mailEnabled ? '✅ Enabled' : '❌ Disabled').padEnd(42)}║`)
+  console.log(`║  Mail:           ${(info.mailEnabled ? 'Enabled' : 'Disabled').padEnd(42)}║`)
   console.log(`║  Custom Routes:  ${String(info.customRoutesCount).padEnd(42)}║`)
   console.log(`║  Event Hooks:    ${String(info.hooksCount).padEnd(42)}║`)
   console.log('╚════════════════════════════════════════════════════════════╝')

@@ -44,11 +44,11 @@ export class TrokkyRoutes {
 
   constructor(config: RoutesConfig) {
     this.core = config.core
-    this.config = {
-      basePath: '',  // Empty by default - let integration layer handle mounting
-      // SECURITY: No default CORS configuration - must be explicitly configured
-      // The dangerous 'origin: true' default has been removed to prevent CSRF attacks
-      ...config
+    // Store reference to config (not a copy) so late-bound properties
+    // like studioConfig/structureConfig are visible when set after construction
+    this.config = config
+    if (!this.config.basePath) {
+      this.config.basePath = ''
     }
 
     this.initializeRoutes()
@@ -2500,7 +2500,7 @@ export class TrokkyRoutes {
       // Public endpoint - no authentication required for branding access on login page
 
       // Get studio configuration from global config or fallback
-      const studioConfig = (global as any).__TROKKY_STUDIO_CONFIG__ || {
+      const studioConfig = this.config.studioConfig || {
         branding: { title: 'Trokky Studio' },
         enabled: true,
         path: '/studio',
@@ -2812,7 +2812,7 @@ export class TrokkyRoutes {
   private getCustomStructureFunction(): any {
     // In Express integration, custom structure is passed through config
     // This will be available via the core config or a separate structure registry
-    return (global as any).__TROKKY_STRUCTURE__ || null
+    return this.config.structureConfig || null
   }
 
   private async getCurrentUser(request: HttpRequest): Promise<any> {
