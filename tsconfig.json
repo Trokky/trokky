@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "trokky": ["./packages/server/src"],
+      "trokky/express": ["./packages/server/src/integrations/express"],
       "trokky/*": ["./packages/server/src/*"],
       "@trokky/studio": ["./packages/studio/src"],
       "@trokky/client": ["./packages/client/src"]
