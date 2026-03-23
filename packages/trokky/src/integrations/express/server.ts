@@ -501,18 +501,42 @@ function mountRoute(
 
   // Add auth middleware if required
   if (authRequirement === true || authRequirement === 'admin') {
-    // TODO: Import auth middleware from integration
-    // For now, we'll add a placeholder that checks for authorization header
-    const authMiddleware: MiddlewareHandler = (req, res, next) => {
+    const core = (integration as any).config?.core
+    const authMiddleware: MiddlewareHandler = async (req, res, next) => {
       const authHeader = req.headers.authorization
       if (!authHeader) {
         res.status(401).json({ error: 'Authentication required' })
         return
       }
-      // TODO: Validate token using integration.core
-      next()
+
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
+
+      try {
+        if (!core) {
+          res.status(500).json({ error: 'Authentication not configured' })
+          return
+        }
+
+        const session = await core.verifyAnyToken(token)
+        if (!session) {
+          res.status(401).json({ error: 'Invalid or expired token' })
+          return
+        }
+
+        // For admin-only routes, verify admin role
+        if (authRequirement === 'admin' && session.role !== 'admin') {
+          res.status(403).json({ error: 'Admin access required' })
+          return
+        }
+
+        // Attach user info to request
+        ;(req as any).user = session
+        next()
+      } catch (error) {
+        res.status(401).json({ error: 'Authentication failed' })
+      }
     }
-    middlewareChain.unshift(authMiddleware)
+    middlewareChain.unshift(authMiddleware as any)
   }
 
   // Add the handler

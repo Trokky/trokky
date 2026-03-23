@@ -8,6 +8,30 @@
 import type { TrokkyCore } from '../core/engine.js'
 import { createLogger } from '../utils/logger.js'
 
+/**
+ * Escape a string for safe embedding in HTML content.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Safely serialize an object for embedding inside a <script> tag.
+ * Prevents breaking out of the script context via </script> or similar sequences.
+ */
+function escapeJsonForScript(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/'/g, '\\u0027')
+}
+
 export interface StudioConfig {
   enabled?: boolean
   path?: string
@@ -250,16 +274,16 @@ export class StudioIntegration {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.config.branding?.title || 'Trokky Studio'}</title>
+    <title>${escapeHtml(this.config.branding?.title || 'Trokky Studio')}</title>
     <script>
-      window.TROKKY_INTEGRATED_CONFIG = ${JSON.stringify(runtimeConfig)};
+      window.TROKKY_INTEGRATED_CONFIG = ${escapeJsonForScript(runtimeConfig)};
     </script>
 </head>
 <body>
     <div id="root">
         <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, sans-serif;">
             <div style="text-align: center;">
-                <h1>${this.config.branding?.title || 'Trokky Studio'}</h1>
+                <h1>${escapeHtml(this.config.branding?.title || 'Trokky Studio')}</h1>
                 <p>Studio HTML generator not provided. Please configure studio.getHTML callback.</p>
             </div>
         </div>

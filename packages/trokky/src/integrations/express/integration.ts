@@ -545,33 +545,14 @@ export class TrokkyExpress {
               enabled: fullConfig.security.enabled,
               publicPaths: [],
               validateToken: async (token: string) => {
-                // Check if it's a JWT token (3 parts separated by dots)
-                const parts = token.split('.')
-                if (parts.length === 3) {
-                  try {
-                    // Try to decode the header and payload to ensure they're valid base64
-                    JSON.parse(Buffer.from(parts[0], 'base64url').toString())
-                    JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-                    // For now, we'll accept any properly formatted JWT
-                    // TODO: Implement proper signature validation with JWT secret
-                    return true
-                  } catch (error) {
-                    return false // Invalid JWT structure
-                  }
+                try {
+                  // Use core's unified token verification which checks
+                  // JWT signature + expiration and API token hash
+                  const session = await core.verifyAnyToken(token)
+                  return session !== null
+                } catch (error) {
+                  return false
                 }
-
-                // Check if it's an API token (64-character hex string)
-                if (token.length === 64 && /^[a-f0-9]{64}$/.test(token)) {
-                  try {
-                    // Validate API token through core engine
-                    const result = await core.validateAppToken(token)
-                    return result.valid
-                  } catch (error) {
-                    return false
-                  }
-                }
-
-                return false // Neither valid JWT nor valid API token format
               },
             }
           : undefined,
