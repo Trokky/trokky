@@ -1,0 +1,137 @@
+{
+  "name": "trokky",
+  "version": "2.0.0",
+  "description": "Modern, composable Content Management System - Server package",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./types/media": {
+      "types": "./dist/types/media.d.ts",
+      "import": "./dist/types/media.js"
+    },
+    "./types/fields": {
+      "types": "./dist/types/fields.d.ts",
+      "import": "./dist/types/fields.js"
+    },
+    "./types/slug": {
+      "types": "./dist/types/slug.d.ts",
+      "import": "./dist/types/slug.js"
+    },
+    "./types/field-system": {
+      "types": "./dist/types/field-system.d.ts",
+      "import": "./dist/types/field-system.js"
+    },
+    "./types/auth": {
+      "types": "./dist/types/auth.d.ts",
+      "import": "./dist/types/auth.js"
+    },
+    "./types/http": {
+      "types": "./dist/types/http.d.ts",
+      "import": "./dist/types/http.js"
+    },
+    "./types/api-requests": {
+      "types": "./dist/types/api-requests.d.ts",
+      "import": "./dist/types/api-requests.js"
+    },
+    "./types/oauth2": {
+      "types": "./dist/types/oauth2.d.ts",
+      "import": "./dist/types/oauth2.js"
+    },
+    "./types/mail": {
+      "types": "./dist/types/mail.d.ts",
+      "import": "./dist/types/mail.js"
+    },
+    "./types/i18n": {
+      "types": "./dist/types/i18n.d.ts",
+      "import": "./dist/types/i18n.js"
+    },
+    "./structure": {
+      "types": "./dist/structure/index.d.ts",
+      "import": "./dist/structure/index.js"
+    },
+    "./mail": {
+      "types": "./dist/mail/index.d.ts",
+      "import": "./dist/mail/index.js"
+    },
+    "./mail/console": {
+      "types": "./dist/mail/adapters/console.d.ts",
+      "import": "./dist/mail/adapters/console.js"
+    },
+    "./mail/resend": {
+      "types": "./dist/mail/adapters/resend.d.ts",
+      "import": "./dist/mail/adapters/resend.js"
+    },
+    "./mail/smtp": {
+      "types": "./dist/mail/adapters/smtp.d.ts",
+      "import": "./dist/mail/adapters/smtp.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n/index.d.ts",
+      "import": "./dist/i18n/index.js"
+    },
+    "./adapters/filesystem-data": {
+      "types": "./dist/adapters/filesystem-data/index.d.ts",
+      "import": "./dist/adapters/filesystem-data/index.js"
+    },
+    "./adapters/filesystem-media": {
+      "types": "./dist/adapters/filesystem-media/index.d.ts",
+      "import": "./dist/adapters/filesystem-media/index.js"
+    },
+    "./adapters/postgres-data": {
+      "types": "./dist/adapters/postgres-data/index.d.ts",
+      "import": "./dist/adapters/postgres-data/index.js"
+    },
+    "./express": {
+      "types": "./dist/integrations/express/index.d.ts",
+      "import": "./dist/integrations/express/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "tsc --project tsconfig.build.json --watch",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'Tests will be added in Phase 11' && exit 0",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "cms",
+    "typescript",
+    "content-management",
+    "trokky"
+  ],
+  "author": "Trokky Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Trokky/trokky.git"
+  },
+  "homepage": "https://trokky.dev",
+  "bugs": {
+    "url": "https://github.com/trokky/trokky/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "typescript": "^5.3.3"
+  }
+}
