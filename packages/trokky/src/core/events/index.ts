@@ -42,7 +42,8 @@ export type {
   WebhookConfig,
   WebhookPayload,
   WebhookDeliveryResult,
-  WebhookRetryPolicy
+  WebhookRetryPolicy,
+  WebhookStorage
 } from './types.js'
 
 // Event creation utilities

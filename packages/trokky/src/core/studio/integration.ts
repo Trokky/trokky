@@ -6,6 +6,7 @@
  */
 
 import type { TrokkyCore } from '../core/engine.js'
+import type { HttpRequest, HttpResponse } from '../../types/http.js'
 import { createLogger } from '../utils/logger.js'
 
 /**
@@ -55,24 +56,7 @@ export interface StudioConfig {
 export interface StudioRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   path: string
-  handler: (request: StudioRequest) => Promise<StudioResponse>
-}
-
-export interface StudioRequest {
-  method: string
-  url: string
-  path: string
-  query: Record<string, string | string[] | undefined>
-  params: Record<string, string>
-  headers: Record<string, string | string[] | undefined>
-  body?: unknown
-  files?: File[]
-}
-
-export interface StudioResponse {
-  status: number
-  headers: Record<string, string>
-  body: unknown
+  handler: (request: HttpRequest) => Promise<HttpResponse>
 }
 
 export class StudioIntegration {
@@ -249,7 +233,7 @@ export class StudioIntegration {
   }
 
   // Studio route handlers
-  private async serveStudioHTML(request: StudioRequest): Promise<StudioResponse> {
+  private async serveStudioHTML(request: HttpRequest): Promise<HttpResponse> {
     try {
       const schemas = this.core.getAllSchemas()
       
@@ -302,7 +286,7 @@ export class StudioIntegration {
     }
   }
 
-  private async serveStudioAssets(request: StudioRequest): Promise<StudioResponse> {
+  private async serveStudioAssets(request: HttpRequest): Promise<HttpResponse> {
     try {
       const assetPath = request.path.replace(/^.*\/assets\//, '')
       
@@ -351,7 +335,7 @@ export class StudioIntegration {
     }
   }
 
-  private async getSchemas(request: StudioRequest): Promise<StudioResponse> {
+  private async getSchemas(request: HttpRequest): Promise<HttpResponse> {
     try {
       const schemas = this.core.getAllSchemas()
       
@@ -375,7 +359,7 @@ export class StudioIntegration {
     }
   }
 
-  private async getSchema(request: StudioRequest): Promise<StudioResponse> {
+  private async getSchema(request: HttpRequest): Promise<HttpResponse> {
     try {
       const { schemaName } = request.params
       const schemas = this.core.getAllSchemas()
@@ -402,7 +386,7 @@ export class StudioIntegration {
     }
   }
 
-  private errorResponse(error: unknown): StudioResponse {
+  private errorResponse(error: unknown): HttpResponse {
     const message = error instanceof Error ? error.message : 'An unexpected error occurred'
     
     return {

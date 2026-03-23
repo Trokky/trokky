@@ -20,7 +20,8 @@ import type {
   WebhookConfig,
   WebhookPayload,
   WebhookDeliveryResult,
-  WebhookRetryPolicy
+  WebhookRetryPolicy,
+  WebhookStorage
 } from './types.js'
 
 /**
@@ -38,16 +39,16 @@ export interface EventBusConfig {
   /** Maximum number of concurrent webhook deliveries */
   maxConcurrentWebhooks?: number
   /** Data storage adapter for webhook persistence (optional) */
-  dataStorage?: any // Will be DataStorageAdapter but avoiding circular imports
+  dataStorage?: WebhookStorage
 }
 
 /**
  * Main EventBus class that orchestrates the entire event system
  */
 export class TrokkyEventBus extends EventEmitter {
-  private config: Required<Omit<EventBusConfig, 'storage' | 'dataStorage'>> & { 
+  private config: Required<Omit<EventBusConfig, 'storage' | 'dataStorage'>> & {
     storage?: EventStorage
-    dataStorage?: any
+    dataStorage?: WebhookStorage
   }
   private logger = createLogger('events', 'EventBus')
   
@@ -58,7 +59,7 @@ export class TrokkyEventBus extends EventEmitter {
   // Webhook management
   private webhookRegistry = new Map<string, WebhookConfig>()
   private webhookDeliveries = new Map<string, WebhookDeliveryResult[]>()
-  private dataStorage?: any // DataStorageAdapter for webhook persistence
+  private dataStorage?: WebhookStorage
   
   // Listener management
   private customListeners = new Map<string, EventListenerConfig>()
@@ -226,7 +227,7 @@ export class TrokkyEventBus extends EventEmitter {
     this.webhookRegistry.set(config.id, fullConfig)
     
     // Save to persistent storage if available
-    if (this.dataStorage && this.dataStorage.saveWebhook) {
+    if (this.dataStorage) {
       try {
         await this.dataStorage.saveWebhook(config.id, fullConfig)
       } catch (error) {
@@ -262,7 +263,7 @@ export class TrokkyEventBus extends EventEmitter {
     this.webhookRegistry.set(id, updated)
     
     // Update in persistent storage if available
-    if (this.dataStorage && this.dataStorage.saveWebhook) {
+    if (this.dataStorage) {
       try {
         await this.dataStorage.saveWebhook(id, updated)
       } catch (error) {
@@ -283,7 +284,7 @@ export class TrokkyEventBus extends EventEmitter {
     
     if (removed) {
       // Remove from persistent storage if available
-      if (this.dataStorage && this.dataStorage.deleteWebhook) {
+      if (this.dataStorage) {
         try {
           await this.dataStorage.deleteWebhook(id)
         } catch (error) {
@@ -752,7 +753,7 @@ export class TrokkyEventBus extends EventEmitter {
    * Load webhooks from persistent storage into memory
    */
   private async loadWebhooksFromStorage(): Promise<void> {
-    if (!this.dataStorage || !this.dataStorage.listWebhooks) {
+    if (!this.dataStorage) {
       return
     }
 

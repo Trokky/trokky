@@ -420,6 +420,21 @@ export interface WebhookDeliveryResult {
 }
 
 // =============================================================================
+// WEBHOOK STORAGE (used by EventBus to persist webhooks without depending on DataStorageAdapter)
+// =============================================================================
+
+/**
+ * Minimal interface for webhook persistence.
+ * EventBus depends on this instead of DataStorageAdapter, breaking the
+ * circular dependency between core/events and core/types/storage-adapters.
+ */
+export interface WebhookStorage {
+  saveWebhook(id: string, webhookData: Partial<WebhookConfig>): Promise<WebhookConfig>
+  listWebhooks(options?: { active?: boolean; limit?: number; offset?: number }): Promise<WebhookConfig[]>
+  deleteWebhook(id: string): Promise<void>
+}
+
+// =============================================================================
 // EVENT STORAGE
 // =============================================================================
 

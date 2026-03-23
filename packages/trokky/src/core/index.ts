@@ -90,7 +90,7 @@ export {
 } from './fields/index.js'
 
 // Studio integration
-export { StudioIntegration, type StudioConfig, type StudioRoute, type StudioRequest, type StudioResponse } from './studio/integration.js'
+export { StudioIntegration, type StudioConfig, type StudioRoute } from './studio/integration.js'
 
 // Media processing
 export { 
@@ -302,6 +302,7 @@ export type {
   WebhookPayload,
   WebhookDeliveryResult,
   WebhookRetryPolicy,
+  WebhookStorage,
   // Configuration types
   EventBusConfig,
   MemoryEventStorageConfig

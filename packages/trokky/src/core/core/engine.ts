@@ -281,7 +281,9 @@ export class TrokkyCore {
         storage: eventStorage,
         enableWebhooks: true,
         maxConcurrentWebhooks: 5,
-        dataStorage: this.dataStorage, // Pass data storage adapter for webhook persistence
+        dataStorage: this.dataStorage?.saveWebhook && this.dataStorage?.listWebhooks && this.dataStorage?.deleteWebhook
+          ? this.dataStorage as import('../events/types.js').WebhookStorage
+          : undefined,
         ...options.eventBusConfig
       }
       
