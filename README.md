@@ -174,52 +174,9 @@ cd packages/client && npm test       # Client tests
 
 ## REST API
 
-All API endpoints are mounted at `/api` by default. Studio is served at `/studio`.
+All API endpoints are mounted at `/api` by default. Studio is served at `/studio`. The server exposes 90+ endpoints covering content CRUD, media management, authentication (JWT, OAuth, passkeys, MFA), webhooks, audit logs, and more.
 
-### Authentication
-- `POST /api/auth/login` - Login with username/password
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/me` - Current user
-- `POST /api/auth/refresh` - Refresh token
-
-### Content
-- `GET /api/collections` - List collections
-- `GET /api/collections/:collection` - List documents (supports `limit`, `offset`, `filter`, `sort`)
-- `POST /api/collections/:collection` - Create document
-- `GET /api/collections/:collection/:id` - Get document
-- `PUT /api/collections/:collection/:id` - Update document
-- `DELETE /api/collections/:collection/:id` - Delete document
-
-### Media
-- `GET /api/media` - List media
-- `POST /api/media/upload` - Upload files (multipart/form-data)
-- `GET /api/media/:id` - Get media info
-- `GET /api/media/:id/file` - Serve file
-- `GET /api/media/:id/variants/:variant` - Serve variant
-- `DELETE /api/media/:id` - Delete media
-
-### Users (Admin)
-- `GET /api/users` - List users
-- `POST /api/users` - Create user
-- `GET /api/users/:id` - Get user
-- `PUT /api/users/:id` - Update user
-- `DELETE /api/users/:id` - Delete user
-
-### Webhooks (Admin)
-- `GET /api/webhooks` - List webhooks
-- `POST /api/webhooks` - Create webhook
-- `PUT /api/webhooks/:id` - Update webhook
-- `DELETE /api/webhooks/:id` - Delete webhook
-- `POST /api/webhooks/:id/test` - Test webhook
-
-### Other
-- `GET /api/health` - Health check (public)
-- `GET /api/schemas/:name` - Get schema definition
-- `GET /api/config/structure` - Studio navigation structure
-- `GET /api/slugs/check-unique` - Check slug uniqueness
-- `GET /api/audit-logs/documents/:id` - Document audit trail
-
-All endpoints return a standard `{ success, data?, error?, meta? }` response format.
+See **[API.md](./API.md)** for the complete API reference.
 
 ## License
 
