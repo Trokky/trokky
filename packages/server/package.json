@@ -133,6 +133,8 @@
     "zod": "^3.22.4"
   },
   "optionalDependencies": {
+    "nodemailer": "^6.10.1",
+    "resend": "^3.5.0",
     "sharp": "^0.34.3"
   },
   "devDependencies": {
@@ -140,6 +142,7 @@
     "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.24",
+    "@types/nodemailer": "^6.4.17",
     "@types/qrcode": "^1.5.6",
     "@types/sharp": "^0.31.1",
     "typescript": "^5.3.3"
