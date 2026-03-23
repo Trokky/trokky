@@ -1,0 +1,47 @@
+{
+  "id": "audit-1774235315626-qeb51phh1of",
+  "documentId": "article-mn2lwb6q-473b30ed-021410",
+  "collection": "article",
+  "operation": "update",
+  "actorId": "user-mn2lwb5f-473b30ed-01cdb7",
+  "actorType": "USER",
+  "actorUsername": "admin",
+  "changes": {
+    "before": {
+      "id": "article-mn2lwb6q-473b30ed-021410",
+      "_collection": "article",
+      "_createdAt": "2026-03-23T03:08:35.618Z",
+      "_updatedAt": "2026-03-23T03:08:35.618Z",
+      "_revision": 1,
+      "_status": "draft",
+      "_createdBy": "user-mn2lwb5f-473b30ed-01cdb7",
+      "_updatedBy": "user-mn2lwb5f-473b30ed-01cdb7",
+      "_createdByType": "USER",
+      "_updatedByType": "USER",
+      "title": "Integration Test Article",
+      "body": "Test content",
+      "_type": "article"
+    },
+    "after": {
+      "id": "article-mn2lwb6q-473b30ed-021410",
+      "_collection": "article",
+      "_createdAt": "2026-03-23T03:08:35.618Z",
+      "_updatedAt": "2026-03-23T03:08:35.626Z",
+      "_revision": 2,
+      "_status": "draft",
+      "_createdBy": "user-mn2lwb5f-473b30ed-01cdb7",
+      "_updatedBy": "user-mn2lwb5f-473b30ed-01cdb7",
+      "_createdByType": "USER",
+      "_updatedByType": "USER",
+      "title": "Updated Title",
+      "body": "Updated content",
+      "_type": "article"
+    },
+    "fields": [
+      "title",
+      "body"
+    ]
+  },
+  "timestamp": "2026-03-23T03:08:35.626Z",
+  "revision": 2
+}

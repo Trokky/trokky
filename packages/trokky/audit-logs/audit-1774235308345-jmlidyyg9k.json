@@ -1,0 +1,28 @@
+{
+  "id": "audit-1774235308345-jmlidyyg9k",
+  "documentId": "article-mn2lw5ke-a58aa374-02ec99",
+  "collection": "article",
+  "operation": "delete",
+  "actorId": "user-mn2lw5j1-a58aa374-01cfa6",
+  "actorType": "USER",
+  "actorUsername": "admin",
+  "changes": {
+    "before": {
+      "id": "article-mn2lw5ke-a58aa374-02ec99",
+      "_collection": "article",
+      "_createdAt": "2026-03-23T03:08:28.334Z",
+      "_updatedAt": "2026-03-23T03:08:28.342Z",
+      "_revision": 2,
+      "_status": "draft",
+      "_createdBy": "user-mn2lw5j1-a58aa374-01cfa6",
+      "_updatedBy": "user-mn2lw5j1-a58aa374-01cfa6",
+      "_createdByType": "USER",
+      "_updatedByType": "USER",
+      "title": "Updated Title",
+      "body": "Updated content",
+      "_type": "article"
+    }
+  },
+  "timestamp": "2026-03-23T03:08:28.345Z",
+  "revision": 2
+}
