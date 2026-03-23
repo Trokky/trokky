@@ -4,19 +4,15 @@
   "private": true,
   "description": "Modern, composable CMS for developers",
   "workspaces": [
-    "packages/*",
-    "packages/adapters/*",
-    "packages/integrations/*",
-    "packages/mail-adapters/*",
-    "!packages/adapters/*.disabled",
-    "!packages/integrations/*.disabled"
+    "packages/server",
+    "packages/studio",
+    "packages/client"
   ],
   "scripts": {
     "build": "turbo build",
     "dev": "cd examples/demo && npm run dev:full",
     "docs:dev": "cd docs && npm run dev",
     "docs:build": "cd docs && npm run build",
-    "dev:worker": "cd examples/demo-cloudflare && npm run dev",
     "dev:packages": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
