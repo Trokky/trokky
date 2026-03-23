@@ -189,6 +189,9 @@ export class TrokkyRoutes {
     // Health check route
     this.addRoute('GET', `${basePath}/health`, this.healthCheck.bind(this))
 
+    // OpenAPI spec (public)
+    this.addRoute('GET', `${basePath}/openapi.json`, this.getOpenApiSpec.bind(this))
+
     // CORS preflight route
     this.addRoute('OPTIONS', `${basePath}/*`, this.handleCors.bind(this))
 
@@ -1492,6 +1495,173 @@ export class TrokkyRoutes {
       })
     } catch (error) {
       return this.errorResponse(error)
+    }
+  }
+
+  private async getOpenApiSpec(_request: HttpRequest): Promise<HttpResponse> {
+    const basePath = this.config.basePath || ''
+    const routes = this.getApiRoutes()
+
+    const paths: Record<string, Record<string, unknown>> = {}
+
+    for (const route of routes) {
+      if (route.method === 'OPTIONS') continue
+      if (route.path.endsWith('/openapi.json')) continue
+
+      // Convert Express :param to OpenAPI {param}
+      const openApiPath = route.path.replace(/:(\w+)/g, '{$1}')
+      const method = route.method.toLowerCase()
+
+      // Extract path parameters
+      const paramMatches = route.path.matchAll(/:(\w+)/g)
+      const parameters: unknown[] = []
+      for (const match of paramMatches) {
+        parameters.push({
+          name: match[1],
+          in: 'path',
+          required: true,
+          schema: { type: 'string' }
+        })
+      }
+
+      // Determine tag from path
+      let tag = 'Other'
+      const pathWithoutBase = route.path.replace(basePath, '')
+      if (pathWithoutBase.startsWith('/collections')) tag = 'Collections'
+      else if (pathWithoutBase.startsWith('/search')) tag = 'Search'
+      else if (pathWithoutBase.startsWith('/stats')) tag = 'Statistics'
+      else if (pathWithoutBase.startsWith('/media')) tag = 'Media'
+      else if (pathWithoutBase.startsWith('/users')) tag = 'Users'
+      else if (pathWithoutBase.startsWith('/auth/mfa') || pathWithoutBase.startsWith('/admin/users')) tag = 'MFA'
+      else if (pathWithoutBase.startsWith('/auth/passkey')) tag = 'Passkeys'
+      else if (pathWithoutBase.startsWith('/auth/oauth')) tag = 'OAuth'
+      else if (pathWithoutBase.startsWith('/auth/device') || pathWithoutBase.startsWith('/auth/token') || pathWithoutBase.startsWith('/auth/authorize')) tag = 'OAuth2 Server'
+      else if (pathWithoutBase.startsWith('/auth/captcha')) tag = 'CAPTCHA'
+      else if (pathWithoutBase.startsWith('/auth')) tag = 'Authentication'
+      else if (pathWithoutBase.startsWith('/tokens')) tag = 'API Tokens'
+      else if (pathWithoutBase.startsWith('/audit-logs')) tag = 'Audit Logs'
+      else if (pathWithoutBase.startsWith('/webhooks')) tag = 'Webhooks'
+      else if (pathWithoutBase.startsWith('/schemas') || pathWithoutBase.startsWith('/config')) tag = 'Configuration'
+      else if (pathWithoutBase.startsWith('/slugs')) tag = 'Utility'
+      else if (pathWithoutBase.startsWith('/health')) tag = 'Utility'
+
+      // Determine if public
+      const publicPaths = ['/health', '/auth/login', '/auth/logout', '/auth/validate', '/auth/refresh',
+        '/auth/request-reset', '/auth/reset-password', '/auth/verify-reset-token',
+        '/auth/captcha/status', '/auth/device', '/auth/token', '/openapi.json']
+      const isPublic = publicPaths.some(p => pathWithoutBase === p || pathWithoutBase.startsWith('/auth/oauth') || pathWithoutBase.startsWith('/auth/passkey/login'))
+
+      const operation: Record<string, unknown> = {
+        tags: [tag],
+        operationId: route.description?.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '') || `${method}_${openApiPath}`,
+        summary: `${route.method} ${pathWithoutBase}`
+      }
+
+      if (parameters.length > 0) {
+        operation.parameters = parameters
+      }
+
+      // Add query parameters for known endpoints
+      if (method === 'get' && pathWithoutBase === '/collections/:collection') {
+        (operation.parameters as unknown[]).push(
+          { name: 'limit', in: 'query', schema: { type: 'integer' }, description: 'Max results to return' },
+          { name: 'offset', in: 'query', schema: { type: 'integer' }, description: 'Results to skip' },
+          { name: 'sort', in: 'query', schema: { type: 'string' }, description: 'Sort field (prefix with - for descending)' },
+          { name: 'filter', in: 'query', schema: { type: 'string' }, description: 'JSON filter object' },
+          { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Full-text search query' }
+        )
+      } else if (method === 'get' && pathWithoutBase === '/slugs/check-unique') {
+        operation.parameters = [
+          { name: 'slug', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'collection', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'excludeId', in: 'query', schema: { type: 'string' } }
+        ]
+      }
+
+      // Add request body for POST/PUT/PATCH
+      if (['post', 'put', 'patch'].includes(method) && !pathWithoutBase.includes('/upload')) {
+        operation.requestBody = {
+          content: { 'application/json': { schema: { type: 'object' } } }
+        }
+      } else if (pathWithoutBase.includes('/upload')) {
+        operation.requestBody = {
+          content: { 'multipart/form-data': { schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string', format: 'binary' } } } } } }
+        }
+      }
+
+      // Responses
+      operation.responses = {
+        '200': {
+          description: 'Success',
+          content: { 'application/json': { schema: { '$ref': '#/components/schemas/ApiResponse' } } }
+        },
+        ...(isPublic ? {} : { '401': { description: 'Unauthorized' } }),
+        '400': { description: 'Bad request' },
+        '500': { description: 'Internal server error' }
+      }
+
+      if (!isPublic) {
+        operation.security = [{ bearerAuth: [] }]
+      }
+
+      if (!paths[openApiPath]) {
+        paths[openApiPath] = {}
+      }
+      paths[openApiPath][method] = operation
+    }
+
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Trokky CMS API',
+        version: '2.0.0',
+        description: 'REST API for Trokky content management system'
+      },
+      servers: [{ url: basePath || '/api', description: 'API base path' }],
+      paths,
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'JWT token or API token'
+          }
+        },
+        schemas: {
+          ApiResponse: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'object', description: 'Response payload' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' }
+                }
+              },
+              meta: {
+                type: 'object',
+                properties: {
+                  total: { type: 'integer' },
+                  page: { type: 'integer' },
+                  limit: { type: 'integer' },
+                  hasNext: { type: 'boolean' },
+                  hasPrev: { type: 'boolean' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: spec
     }
   }
 

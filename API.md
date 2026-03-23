@@ -226,6 +226,7 @@ Implements RFC 8628 (Device Authorization Grant) and Authorization Code flow.
 |--------|------|-------------|
 | GET | `/slugs/check-unique` | Check slug uniqueness (`slug`, `collection`, `excludeId`) |
 | GET | `/health` | Health check (public) |
+| GET | `/openapi.json` | OpenAPI 3.0 spec (public) -- import into Postman, Insomnia, etc. |
 | OPTIONS | `/*` | CORS preflight (public) |
 
 ---
