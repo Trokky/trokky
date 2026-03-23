@@ -10,7 +10,7 @@ import type {
   AuthTokens,
   AuthConfig
 } from '../types/index.js'
-import { createLogger } from '@trokky/core'
+import { createLogger } from 'trokky'
 
 export class HttpClient {
   private config: Required<ClientConfig & { apiToken: string }>

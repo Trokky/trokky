@@ -71,8 +71,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/core": "^0.1.0",
-    "@trokky/types": "^0.1.0",
+    "trokky": "^2.0.0",
     "@faker-js/faker": "^8.0.0",
     "commander": "^11.0.0"
   },
