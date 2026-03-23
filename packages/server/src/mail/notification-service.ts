@@ -8,8 +8,7 @@
 import type { TrokkyEventBus, UserEvent, User, TrokkyCore } from '../core/index.js'
 import { createLogger } from '../core/index.js'
 
-// Import mail service types (will be available once @trokky/mail is built)
-type MailService = any // Will be properly typed when @trokky/mail is available
+import type { MailService } from './mail-service.js'
 
 export interface MailNotificationConfig {
   /** Mail service instance */
