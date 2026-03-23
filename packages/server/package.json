@@ -135,7 +135,10 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.2.2",
+    "busboy": "^1.6.0",
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "qrcode": "^1.5.4",
     "fs-extra": "^11.3.2",
@@ -151,7 +154,9 @@
     "sharp": "^0.34.3"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.4",
     "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.17",
     "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.24",
