@@ -666,6 +666,24 @@ export class TrokkyCore {
     return documents as (Document & T)[]
   }
 
+  public async countDocuments(collection: string, filter?: Record<string, unknown>): Promise<number> {
+    if (this.securityEnabled) {
+      SecurityValidator.validateCollectionName(collection)
+    }
+
+    if (!this.schemas.hasSchema(collection)) {
+      throw new SchemaNotFoundError(collection)
+    }
+
+    if (this.dataStorage.countDocuments) {
+      return this.dataStorage.countDocuments(collection, filter)
+    }
+
+    // Fallback: list and count
+    const documents = await this.dataStorage.listDocuments(collection, { filter })
+    return documents.length
+  }
+
   public async deleteDocument(collection: string, id: string, auditContext?: AuditContext): Promise<void> {
     if (this.rateLimiter) {
       await this.rateLimiter.checkRateLimit('deleteDocument')

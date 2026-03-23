@@ -884,30 +884,18 @@ export class TrokkyRoutes {
       // Validate collection name
       SecurityValidator.validateCollectionName(collection)
 
-      // Get all documents for basic stats
-      const documents = await this.core.listDocuments(collection, {})
-      
-      // Calculate basic statistics
-      const totalDocuments = documents.length
-      const publishedDocuments = documents.filter(doc => doc.published === true).length
-      const draftDocuments = documents.filter(doc => doc.published === false || doc.published === undefined).length
-      
-      // Calculate recent activity (documents created/updated in last 7 days)
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      
-      const recentDocuments = documents.filter(doc => {
-        const updatedAt = new Date(doc._updatedAt || doc._createdAt)
-        return updatedAt > sevenDaysAgo
-      }).length
+      // Use countDocuments to avoid loading all documents into memory
+      const [totalDocuments, publishedDocuments] = await Promise.all([
+        this.core.countDocuments(collection),
+        this.core.countDocuments(collection, { _status: 'published' })
+      ])
+      const draftDocuments = totalDocuments - publishedDocuments
 
       const stats = {
         collection,
         totalDocuments,
         publishedDocuments,
-        draftDocuments,
-        recentDocuments,
-        lastUpdated: new Date().toISOString()
+        draftDocuments
       }
 
       this.logger.debug('Collection stats calculated', { collection, stats })

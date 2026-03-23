@@ -316,6 +316,55 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     }
   }
 
+  public async countDocuments(collection: string, filter?: Record<string, unknown>): Promise<number> {
+    try {
+      SecurityValidator.validateCollectionName(collection)
+
+      const collectionDir = path.join(this.config.contentDir, collection)
+
+      try {
+        await fs.access(collectionDir, constants.F_OK)
+      } catch {
+        return 0
+      }
+
+      const files = await fs.readdir(collectionDir)
+      const jsonFiles = files.filter(file => file.endsWith('.json'))
+
+      if (!filter || Object.keys(filter).length === 0) {
+        return jsonFiles.length
+      }
+
+      // With filter, we need to read files to check values
+      let count = 0
+      for (const file of jsonFiles) {
+        try {
+          const filePath = path.join(collectionDir, file)
+          const fileContent = await fs.readFile(filePath, 'utf8')
+          const documentFile: DocumentFile = JSON.parse(fileContent)
+
+          const doc: Record<string, unknown> = {
+            id: documentFile.id,
+            _status: documentFile.metadata.status,
+            _createdAt: documentFile.metadata.createdAt,
+            _updatedAt: documentFile.metadata.updatedAt,
+            ...documentFile.data
+          }
+
+          const matches = Object.entries(filter).every(([key, value]) => doc[key] === value)
+          if (matches) count++
+        } catch {
+          continue
+        }
+      }
+
+      return count
+    } catch (error) {
+      this.logger.error(`Failed to count documents in collection ${collection}`, error)
+      throw error
+    }
+  }
+
   public async deleteDocument(collection: string, id: string): Promise<void> {
     try {
       SecurityValidator.validateCollectionName(collection)
