@@ -3088,7 +3088,7 @@ export class TrokkyRoutes {
             collection,
             requestedId,
             singletonDocumentId,
-            existingDocument: existingDocuments[0].id || existingDocuments[0]._id
+            existingDocument: existingDocuments[0].id
           })
           
           throw new InvalidInputError(
@@ -3196,10 +3196,10 @@ export class TrokkyRoutes {
         // Create empty array - items will be added through UI with proper _type
         return [];
       case 'object':
-        // Include _type field for object items if specified
+        // Include _type field for object items if the field defines an object type
         const baseObject: any = {};
-        if (field.name) {
-          baseObject._type = field.name;
+        if (field.objectType || field.name) {
+          baseObject._type = field.objectType ?? field.name;
         }
         return baseObject;
       case 'reference':

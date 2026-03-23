@@ -102,19 +102,25 @@ export function generateUUID(): string {
  */
 export function getSecureRandomInt(max: number): number {
   if (max <= 0) throw new Error('Max must be positive')
-  if (max > 256) throw new Error('Max must be <= 256 for single byte sampling')
-  
+  if (max === 1) return 0
+
   const crypto = getUniversalCrypto()
-  
-  // Calculate rejection threshold to avoid modulo bias
-  const threshold = Math.floor(256 / max) * max
-  
+
+  // Determine how many bytes we need to represent max
+  const byteCount = Math.ceil(Math.log2(max) / 8) || 1
+  const maxVal = Math.pow(256, byteCount)
+  const threshold = maxVal - (maxVal % max)
+
   while (true) {
-    const randomByte = crypto.getRandomBytes(1)[0]
-    if (randomByte < threshold) {
-      return randomByte % max
+    const bytes = crypto.getRandomBytes(byteCount)
+    let value = 0
+    for (let i = 0; i < byteCount; i++) {
+      value = (value * 256) + bytes[i]
     }
-    // Reject and retry if above threshold
+    // Rejection sampling to avoid modulo bias
+    if (value < threshold) {
+      return value % max
+    }
   }
 }
 
@@ -123,23 +129,12 @@ export function getSecureRandomInt(max: number): number {
  */
 export function secureShuffleArray<T>(array: T[]): T[] {
   const result = [...array]
-  
+
   for (let i = result.length - 1; i > 0; i--) {
-    // For large arrays, we need to handle max > 256
-    let j: number
-    if (i < 256) {
-      j = getSecureRandomInt(i + 1)
-    } else {
-      // For larger indices, use multiple bytes
-      const crypto = getUniversalCrypto()
-      const bytes = crypto.getRandomBytes(4) // 32-bit random number
-      const randomValue = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]
-      j = randomValue % (i + 1)
-    }
-    
-    [result[i], result[j]] = [result[j], result[i]]
+    const j = getSecureRandomInt(i + 1)
+    ;[result[i], result[j]] = [result[j], result[i]]
   }
-  
+
   return result
 }
 
@@ -214,9 +209,7 @@ export function generateSecurePassword(options: SecurePasswordOptions = {}): str
   
   // Fill remaining length with random characters from full charset
   while (passwordChars.length < length) {
-    const randomIndex = charArray.length < 256 
-      ? getSecureRandomInt(charArray.length)
-      : getSecureRandomInt(256) % charArray.length // Fallback for large charsets
+    const randomIndex = getSecureRandomInt(charArray.length)
     
     passwordChars.push(charArray[randomIndex])
   }

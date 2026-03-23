@@ -45,9 +45,15 @@ export interface CryptoAdapterOptions {
   adapterType?: 'node' | 'webcrypto' | 'auto'
   
   /**
-   * Custom salt rounds for password hashing (default: 12)
+   * Custom salt rounds for password hashing with bcrypt (default: 12)
    */
   saltRounds?: number
+
+  /**
+   * PBKDF2 iteration count for WebCrypto adapter (default: 100,000)
+   * Only used when WebCryptoAdapter is selected.
+   */
+  pbkdf2Iterations?: number
 }
 
 /**

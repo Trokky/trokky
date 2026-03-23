@@ -6,10 +6,13 @@
 import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
 
 export class WebCryptoAdapter implements CryptoAdapter {
-  private saltRounds: number
+  private pbkdf2Iterations: number
 
   constructor(options: CryptoAdapterOptions = {}) {
-    this.saltRounds = options.saltRounds || 12
+    // PBKDF2 needs a high iteration count for security.
+    // bcrypt's saltRounds=12 means 2^12=4096 iterations, but PBKDF2 requires
+    // much higher counts. Default to 100,000 per OWASP recommendations.
+    this.pbkdf2Iterations = options.pbkdf2Iterations ?? 100_000
     
     if (!crypto || !crypto.subtle) {
       throw new Error('Web Crypto API not available in this environment')
@@ -38,7 +41,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
         {
           name: 'PBKDF2',
           salt: salt,
-          iterations: Math.pow(2, this.saltRounds), // 2^12 = 4096 iterations by default
+          iterations: this.pbkdf2Iterations, // 2^12 = 4096 iterations by default
           hash: 'SHA-256'
         },
         keyMaterial,
@@ -83,7 +86,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
         {
           name: 'PBKDF2',
           salt: salt,
-          iterations: Math.pow(2, this.saltRounds),
+          iterations: this.pbkdf2Iterations,
           hash: 'SHA-256'
         },
         keyMaterial,
