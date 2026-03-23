@@ -1,8 +1,7 @@
 /**
  * Trokky - Modern, composable Content Management System
  *
- * This is the main entry point for the trokky server package.
- * Individual modules are available via subpath exports:
+ * Main entry point. Individual modules are available via subpath exports:
  *
  * @example
  * ```typescript
@@ -13,4 +12,5 @@
  * ```
  */
 
-// Re-exports will be added as modules are migrated in Phases 2-6
+// Re-export core public API
+export * from './core/index.js'
