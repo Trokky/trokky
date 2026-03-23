@@ -13,4 +13,4 @@
  * ```
  */
 
-export const VERSION = '2.0.0'
+// Re-exports will be added as modules are migrated in Phases 2-6

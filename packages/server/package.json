@@ -102,7 +102,7 @@
     "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --project tsconfig.build.json --watch",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --project tsconfig.build.json --noEmit",
     "test": "echo 'Tests will be added in Phase 11' && exit 0",
     "clean": "rm -rf dist"
   },
@@ -122,14 +122,9 @@
   "bugs": {
     "url": "https://github.com/trokky/trokky/issues"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "public"
-  },
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.19.24",
     "typescript": "^5.3.3"
