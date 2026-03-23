@@ -5,6 +5,7 @@
 export const articleSchema = {
   name: 'article',
   title: 'Article',
+  type: 'document' as const,
   fields: [
     { name: 'title', type: 'string', required: true },
     { name: 'slug', type: 'slug', options: { source: 'title' } },
@@ -17,6 +18,7 @@ export const articleSchema = {
 export const categorySchema = {
   name: 'category',
   title: 'Category',
+  type: 'document' as const,
   fields: [
     { name: 'title', type: 'string', required: true },
     { name: 'description', type: 'string' },
@@ -26,7 +28,7 @@ export const categorySchema = {
 export const settingsSchema = {
   name: 'settings',
   title: 'Settings',
-  singleton: true,
+  type: 'singleton' as const,
   fields: [
     { name: 'siteName', type: 'string', required: true },
     { name: 'siteUrl', type: 'string' },
