@@ -4,7 +4,7 @@
   "private": true,
   "description": "Modern, composable CMS for developers",
   "workspaces": [
-    "packages/server",
+    "packages/trokky",
     "packages/studio",
     "packages/client"
   ],
