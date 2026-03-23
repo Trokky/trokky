@@ -9,6 +9,30 @@ import { readFileSync, existsSync } from 'fs'
 import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
 
+/**
+ * Escape a string for safe embedding in HTML content.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Safely serialize an object for embedding inside a <script> tag.
+ * Prevents breaking out via </script> or similar sequences.
+ */
+function escapeJsonForScript(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/'/g, '\\u0027')
+}
+
 // Get the Studio package root directory (assuming we're in dist/server/ when compiled)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -51,7 +75,7 @@ export function getStudioHTML(
     // Replace any existing config with our config (handle multi-line objects)
     html = html.replace(
       /window\.TROKKY_CONFIG\s*=\s*{[\s\S]*?};/,
-      `window.TROKKY_CONFIG = ${JSON.stringify(config)};
+      `window.TROKKY_CONFIG = ${escapeJsonForScript(config)};
 
       // TEMPORARY FIX: Override API client path building for dynamic API paths
       window.TROKKY_API_PATH_FIX = function() {
@@ -72,7 +96,7 @@ export function getStudioHTML(
 
               // Replace /api with the correct API base path
               if (endpoint.startsWith('/api')) {
-                const newEndpoint = endpoint.replace('/api', '${config.apiBasePath}');
+                const newEndpoint = endpoint.replace('/api', '${escapeHtml(config.apiBasePath)}');
 
                 endpoint = newEndpoint;
               }
@@ -110,7 +134,7 @@ export function getStudioHTML(
     if (config.branding?.title) {
       html = html.replace(
         /<title>.*?<\/title>/,
-        `<title>${config.branding.title}</title>`
+        `<title>${escapeHtml(config.branding.title)}</title>`
       )
     }
 
@@ -124,18 +148,18 @@ export function getStudioHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${config.branding?.title || 'Trokky Studio'}</title>
+    <title>${escapeHtml(config.branding?.title || 'Trokky Studio')}</title>
     <script>
-      window.TROKKY_CONFIG = ${JSON.stringify(config)};
+      window.TROKKY_CONFIG = ${escapeJsonForScript(config)};
     </script>
 </head>
 <body>
     <div id="root">
         <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, sans-serif;">
             <div style="text-align: center;">
-                <h1>${config.branding?.title || 'Trokky Studio'}</h1>
+                <h1>${escapeHtml(config.branding?.title || 'Trokky Studio')}</h1>
                 <p>Studio not built. Please run: npm run build in @trokky/studio package.</p>
-                <p style="font-size: 12px; color: #666; margin-top: 16px;">Error: ${errorMessage}</p>
+                <p style="font-size: 12px; color: #666; margin-top: 16px;">Error: ${escapeHtml(errorMessage)}</p>
             </div>
         </div>
     </div>
