@@ -10,7 +10,7 @@ import {
   KeyIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 type MFAMethod = 'totp' | 'email';
 

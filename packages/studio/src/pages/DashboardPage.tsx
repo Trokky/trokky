@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import {
   DocumentTextIcon,
   PhotoIcon,

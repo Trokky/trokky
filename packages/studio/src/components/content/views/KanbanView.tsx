@@ -9,7 +9,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import type { Document } from '@/types';
 
 export interface KanbanColumn {

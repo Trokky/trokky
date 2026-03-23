@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS } from '@/constants/permissions';

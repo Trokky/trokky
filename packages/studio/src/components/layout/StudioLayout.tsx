@@ -4,7 +4,7 @@ import { Header } from './Header';
 import { MainSidebar } from './MainSidebar';
 import { ContextSidebar } from './ContextSidebar';
 import { ContextSidebarProvider, useContextSidebar } from '@/contexts/ContextSidebarContext';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 interface StudioLayoutProps {
   showSearch?: boolean;

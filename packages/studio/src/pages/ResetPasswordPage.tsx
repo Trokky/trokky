@@ -7,7 +7,7 @@ import { CheckCircleIcon, XCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/
 import { navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 export function ResetPasswordPage() {
   const { t } = useT('studio');

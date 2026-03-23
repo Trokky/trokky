@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 export interface ChangeStatusModalProps {
   isOpen: boolean;

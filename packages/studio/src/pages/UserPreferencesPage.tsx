@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon, LanguageIcon } from '@heroicons/react/24/outline';
-import { useT, useLocale, SUPPORTED_LOCALES, LOCALE_NAMES, type SupportedLocale } from '@trokky/i18n';
+import { useT, useLocale, SUPPORTED_LOCALES, LOCALE_NAMES, type SupportedLocale } from 'trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';

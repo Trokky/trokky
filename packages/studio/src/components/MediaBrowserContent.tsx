@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react'
 import type { MediaFieldValue, MediaType } from '../types'
-import { useT } from '@trokky/i18n'
+import { useT } from 'trokky/i18n'
 
 // Types for Studio API integration
 interface MediaFile {

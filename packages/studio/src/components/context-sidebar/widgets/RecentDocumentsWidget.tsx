@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ClockIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
-import { useT } from '@trokky/i18n'
+import { useT } from 'trokky/i18n'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 
 export interface RecentDocumentsWidgetConfig {

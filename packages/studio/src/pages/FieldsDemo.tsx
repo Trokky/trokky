@@ -4,8 +4,8 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
-import { FieldRenderer, fieldRegistry } from '@trokky/fields';
-import type { ValidationResult } from '@trokky/fields';
+import { FieldRenderer, fieldRegistry } from '../fields/index';
+import type { ValidationResult } from '../fields/index';
 import { useStudioContext } from '@/contexts/StudioContext';
 
 // Field demo configuration

@@ -7,7 +7,7 @@
 import React from 'react';
 import type { MediaFieldValue, MediaType } from '../types';
 import { MediaBrowserContent } from './MediaBrowserContent';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 // Custom modal component with proper backdrop
 const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {

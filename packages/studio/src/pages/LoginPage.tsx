@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';

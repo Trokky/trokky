@@ -7,7 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 export type ViewType = 'list' | 'grid' | 'table' | 'calendar' | 'kanban';
 

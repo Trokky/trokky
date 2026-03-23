@@ -8,7 +8,7 @@ import {
   DocumentTextIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';

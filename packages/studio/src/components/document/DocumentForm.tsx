@@ -6,11 +6,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { FieldRenderer } from '@trokky/fields';
+import { FieldRenderer } from '../../fields/index';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 const logger = createStudioLogger('DocumentForm');
 

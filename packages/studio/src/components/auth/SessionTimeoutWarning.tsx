@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 interface SessionTimeoutWarningProps {
   show: boolean;

@@ -4,10 +4,10 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
-import { fieldRegistry } from '@trokky/fields';
+import { fieldRegistry } from '../../fields/index';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { StructureContextSidebar } from '@/components/context/StructureContextSidebar';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 interface ContextSidebarProps {
   defaultWidth?: number;

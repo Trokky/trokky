@@ -22,7 +22,7 @@ import { useDynamicPermissions } from '@/hooks/useDynamicPermissions';
 import { USER_PERMISSIONS } from '@/constants/permissions';
 import { ROLE_PERMISSIONS, type UserRole, type Permission, type User } from '@/types';
 import { generateWebSecurePassword } from '@/utils/web-crypto';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 const logger = createStudioLogger('UserManagement');
 

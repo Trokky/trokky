@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { getBasePath } from '@/utils/navigation';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 
 interface OAuthCallbackPageProps {
   onLoginSuccess: () => void;

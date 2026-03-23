@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/i18n';
+import { TrokkyI18nProvider, useT, type I18nConfig } from 'trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';

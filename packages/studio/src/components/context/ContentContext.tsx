@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { useT } from '@trokky/i18n';
+import { useT } from 'trokky/i18n';
 import { useDocumentTypes } from '@/hooks/useStructure';
 import { StructureContextSidebar } from './StructureContextSidebar';
 import { cn } from '@/utils/cn';

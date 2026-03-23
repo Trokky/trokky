@@ -13,8 +13,8 @@ import React, {
 } from 'react'
 import { apiClient } from '@/services/api-client'
 import { createStudioLogger } from '@/utils/logger'
-import type { StudioContext } from '@trokky/fields'
-import type { MediaBrowserConfig } from '@trokky/types/media'
+import type { StudioContext } from '../fields/index'
+import type { MediaBrowserConfig } from 'trokky/types/media'
 import { MediaBrowser } from '@/components/MediaBrowser'
 import type { BrandingConfig } from '@/utils/branding'
 
