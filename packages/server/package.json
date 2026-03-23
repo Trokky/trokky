@@ -123,9 +123,13 @@
     "url": "https://github.com/trokky/trokky/issues"
   },
   "peerDependencies": {
+    "@trokky/studio": "*",
     "react": "^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
+    "@trokky/studio": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }

@@ -33,6 +33,10 @@ export class TrokkyExpress {
   private mountedStudioPath: string | null = null // Track the mounted Studio path
 
   constructor(config: ExpressIntegrationConfig) {
+    if (!config.core) {
+      throw new Error('TrokkyExpress requires config.core. Use TrokkyExpress.create() instead of constructing directly.')
+    }
+
     this.config = config
 
     // Validate configuration to prevent common mounting issues

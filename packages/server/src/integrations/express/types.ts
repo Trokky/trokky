@@ -102,9 +102,6 @@ export interface ExpressIntegrationConfig extends Omit<RoutesConfig, 'core'> {
 
   // Studio integration
   studio?: StudioIntegrationConfig
-
-  // Static routes configuration
-  staticRoutes?: any
 }
 
 // Express request with file upload support
