@@ -64,20 +64,22 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
-    "test": "echo 'No tests configured for this package' && exit 0",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "trokky": "^2.0.0",
     "@faker-js/faker": "^8.0.0",
-    "commander": "^11.0.0"
+    "commander": "^11.0.0",
+    "trokky": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "@vitest/coverage-v8": "^4.1.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "typescript": ">=4.5.0"
