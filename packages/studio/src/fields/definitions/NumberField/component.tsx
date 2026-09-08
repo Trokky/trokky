@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useT } from '@trokky/trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
@@ -13,6 +13,7 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
   const { definition, value, onChange, isReadonly, isDisabled, hasError } = props;
   const [displayValue, setDisplayValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const lastValueRef = useRef(value);
 
   // Ensure number-specific properties are set
   const numberDefinition = definition as NumberFieldDefinition;
@@ -54,6 +55,18 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
   
   // Update display value when prop value changes
   useEffect(() => {
+    const valueChanged = lastValueRef.current !== value;
+    lastValueRef.current = value;
+
+    // Keep in-progress text (e.g. "-", "1.") in local state as long as the
+    // value did not change from outside
+    const parsedDisplay = parseFormattedNumber(displayValue, numberDefinition);
+    const displayIsPending =
+      displayValue.trim() !== '' && (parsedDisplay === null || !isFinite(parsedDisplay));
+    if (!valueChanged && displayIsPending) {
+      return;
+    }
+
     if (value === null || value === undefined || value === '') {
       setDisplayValue('');
       return;
@@ -112,12 +125,10 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
       }
     } else if (displayValue.trim() === '') {
       // Handle empty input
-      onChange('');
+      onChange(null);
       setDisplayValue('');
-    } else {
-      // Invalid input - keep as is for user to correct
-      onChange(displayValue);
     }
+    // Invalid input - keep it in local display state only, never emit NaN/undefined
   };
 
 
@@ -144,9 +155,10 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
       const numValue = parseFormattedNumber(newValue, numberDefinition);
       if (numValue !== null && isFinite(numValue)) {
         onChange(numValue);
-      } else {
-        onChange(newValue);
+      } else if (newValue.trim() === '') {
+        onChange(null);
       }
+      // Unparsable input stays in local display state only
     }
   };
 

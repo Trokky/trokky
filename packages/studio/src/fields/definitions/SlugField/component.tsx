@@ -47,7 +47,10 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   const [uniquenessStatus, setUniquenessStatus] = useState<'unknown' | 'unique' | 'taken' | 'error'>('unknown');
   const [isGenerating, setIsGenerating] = useState(false); // Prevent generation loops
   const [isInEditMode, setIsInEditMode] = useState(false); // Track if user is editing existing slug
+  const [hasInteracted, setHasInteracted] = useState(false); // Track if user touched this field
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousSourceValueRef = useRef<string | undefined>(undefined);
+  const hasSeenSourceValueRef = useRef(false);
 
   // Generate slug from source fields
   const generateSlug = useCallback(() => {
@@ -78,20 +81,34 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     return getSourceValue(source, documentContext.allValues);
   }, [source, documentContext?.allValues]);
 
-  // Auto-generate slug when source fields change (real-time)
+  // Auto-generate slug when the user edits the source field (real-time).
+  // Loading a document must never emit onChange from here.
   useEffect(() => {
+    const previousSourceValue = previousSourceValueRef.current;
+    const sourceEditedByUser =
+      hasSeenSourceValueRef.current && previousSourceValue !== sourceFieldValue;
+    previousSourceValueRef.current = sourceFieldValue;
+    hasSeenSourceValueRef.current = true;
+
     if (!autoGenerate || readOnly || isViewMode || !onChange) {
       return;
     }
 
-    const generatedSlug = generateSlug();
     const isEmpty = !value || value.trim() === '';
+
+    // Only react to a user editing the source field, or to an empty slug once
+    // the user has interacted with this field
+    if (!sourceEditedByUser && !(isEmpty && hasInteracted)) {
+      return;
+    }
+
+    const generatedSlug = generateSlug();
     const isExistingDocumentWithSlug = !documentContext?.isNewDocument && !isEmpty;
-    
+
     // Auto-generate if:
     // 1. Field is empty (always), OR
     // 2. User hasn't manually edited and source field changed AND this is a new document
-    
+
     if (generatedSlug && (isEmpty || (!isManuallyEdited && !isExistingDocumentWithSlug))) {
       if (generatedSlug !== value) {
         // If unique is required and this is not empty (meaning it's an update), 
@@ -104,7 +121,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
         }
       }
     }
-  }, [sourceFieldValue, isManuallyEdited, value, autoGenerate, readOnly, documentContext?.isNewDocument]);
+  }, [sourceFieldValue, isManuallyEdited, value, autoGenerate, readOnly, hasInteracted, documentContext?.isNewDocument]);
 
   // Check slug uniqueness with debouncing
   const checkSlugUniqueness = useCallback(async (slugToCheck: string) => {
@@ -196,7 +213,9 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   // Handle focus - auto-generate if empty
   const handleFocus = () => {
     if (isViewMode || !onChange) return;
-    
+
+    setHasInteracted(true);
+
     const isEmpty = !value || value.trim() === '';
 
     if (isEmpty && !readOnly && autoGenerate) {
@@ -239,6 +258,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
       .replace(/^-+|-+$/g, '');
     
     if (sanitizedText) {
+      setHasInteracted(true);
       setIsManuallyEdited(true);
       onChange(sanitizedText);
     }
@@ -257,7 +277,8 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
       .replace(/[^a-z0-9\-_\/]/g, '') // Remove any character that's not alphanumeric, hyphen, underscore, or slash
       .replace(/--+/g, '-') // Replace multiple consecutive hyphens with single hyphen
       .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
-    
+
+    setHasInteracted(true);
     setIsManuallyEdited(true);
     onChange(sanitizedValue);
   };
@@ -335,6 +356,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
   // Handle edit button click for existing documents
   const handleEdit = () => {
+    setHasInteracted(true);
     setIsInEditMode(true);
     setIsManuallyEdited(true);
   };

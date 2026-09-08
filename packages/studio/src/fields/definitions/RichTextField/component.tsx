@@ -394,6 +394,17 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   // Editor container references for positioning
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
+  // Tiptap binds onUpdate once at editor creation, so keep the values it needs
+  // in refs that are refreshed on every render
+  const onChangeRef = useRef(onChange)
+  const isViewModeRef = useRef(isViewMode)
+  const outputFormatRef = useRef<RichTextOutputFormat>(
+    options.outputFormat || 'html'
+  )
+  onChangeRef.current = onChange
+  isViewModeRef.current = isViewMode
+  outputFormatRef.current = options.outputFormat || 'html'
+
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark')
 
@@ -621,10 +632,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       },
     },
     onUpdate: ({ editor }) => {
-      if (isViewMode || !onChange) return
+      if (isViewModeRef.current || !onChangeRef.current) return
 
       // Get output format from options (default to 'html' for backwards compatibility)
-      const outputFormat: RichTextOutputFormat = options.outputFormat || 'html'
+      const outputFormat: RichTextOutputFormat = outputFormatRef.current
 
       // 🎯 CRITICAL: Transform content to specified format for storage
       const contentToSave = editorToStorageFormat(editor, outputFormat)
@@ -636,7 +647,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
         contentLength: typeof contentToSave === 'string' ? contentToSave.length : JSON.stringify(contentToSave).length,
       })
 
-      onChange(contentToSave)
+      onChangeRef.current(contentToSave)
     },
     onSelectionUpdate: ({ editor }) => {
       handleSelectionUpdate(editor)
@@ -1825,8 +1836,8 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
       {/* Link Dialog Modal */}
       {showLinkDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {t('types.richtext.linkDialog.title')}
             </h3>

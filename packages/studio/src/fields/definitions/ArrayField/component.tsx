@@ -105,19 +105,8 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     selectField = {}
   } = arrayDefinition.options || {};
 
-  // Sanitize array on mount and when value changes - remove null/undefined
-  const hasSanitized = useRef(false);
-  useEffect(() => {
-    if (Array.isArray(value) && value.some(item => item === null || item === undefined)) {
-      // Value contains null/undefined, sanitize it
-      const sanitized = value.filter(item => item !== null && item !== undefined);
-      // Only call onChange if the sanitized array is actually different
-      if (sanitized.length !== value.length) {
-        hasSanitized.current = true;
-        onChange(sanitized);
-      }
-    }
-  }, [value]); // Removed onChange from deps to avoid recreation issues
+  // Null/undefined values are normalised locally in `arrayValue` above; never
+  // emit onChange from an effect just to sanitize the incoming value.
 
   // Validate on value change
   useEffect(() => {

@@ -290,9 +290,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     removeReference: (documentId: string) => {
       if (isMultiple) {
         const newReferences = currentReferences.filter(ref => ref._ref !== documentId);
-        onChange(sanitizeReferenceValue(newReferences.length > 0 ? newReferences : undefined));
+        onChange(newReferences.length > 0 ? sanitizeReferenceValue(newReferences) : null);
       } else {
-        onChange(undefined);
+        onChange(null);
       }
     },
     
@@ -303,7 +303,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     },
     
     clear: () => {
-      onChange(undefined);
+      onChange(null);
     },
     
     reorderReferences: (fromIndex: number, toIndex: number) => {
