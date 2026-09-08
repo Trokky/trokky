@@ -43,7 +43,9 @@ export class NodeCryptoAdapter implements CryptoAdapter {
         return await this.bcrypt.compare(password, hash)
       }
       // Tagged or legacy PBKDF2 hashes written by the WebCrypto adapter
-      return await verifyPasswordHash(password, hash)
+      return await verifyPasswordHash(password, hash, {
+        legacyIterations: [2 ** this.saltRounds],
+      })
     } catch (error) {
       console.error('Password verification failed:', error instanceof Error ? error.message : 'Unknown error')
       return false

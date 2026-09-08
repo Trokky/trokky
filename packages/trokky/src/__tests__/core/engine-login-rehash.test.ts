@@ -186,4 +186,32 @@ describe('TrokkyCore.authenticateUser password hash upgrade', () => {
     expect(payload).not.toHaveProperty('passwordHash')
     expect(dataAdapter.stored().passwordHash).toBe(fresh)
   })
+
+  it('should still authenticate when persisting the login update fails', async () => {
+    setup(LEGACY_FIXTURE)
+    dataAdapter.saveUser.mockRejectedValueOnce(new Error('disk full'))
+
+    const result = await core.authenticateUser('admin', PASSWORD)
+
+    expect(result).not.toBeNull()
+    expect(dataAdapter.saveUser).toHaveBeenCalledTimes(1)
+    // Nothing persisted, so the next login upgrades again.
+    expect(dataAdapter.stored().passwordHash).toBe(LEGACY_FIXTURE)
+  })
+
+  it('should not overwrite a password that changed between verify and persist', async () => {
+    setup(LEGACY_FIXTURE)
+    const changedElsewhere = '$pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+    // getUserByUsername still returns the old record (what login verified), but the
+    // re-read before persisting sees a newer hash written by a concurrent reset.
+    dataAdapter.getUser.mockResolvedValueOnce({ ...dataAdapter.stored(), passwordHash: changedElsewhere })
+
+    const result = await core.authenticateUser('admin', PASSWORD)
+
+    expect(result).not.toBeNull()
+    expect(dataAdapter.saveUser).toHaveBeenCalledTimes(1)
+    const payload = saveUserPayload(dataAdapter, 0)
+    expect(payload.lastLoginAt).toEqual(expect.any(String))
+    expect(payload).not.toHaveProperty('passwordHash')
+  })
 })

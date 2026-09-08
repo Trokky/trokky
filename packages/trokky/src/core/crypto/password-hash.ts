@@ -11,8 +11,16 @@
 
 export const PBKDF2_DEFAULT_ITERATIONS = 100_000
 export const PBKDF2_LEGACY_ITERATIONS = 4096
+/**
+ * Upper bound on the iteration count accepted from a stored hash or from
+ * configuration. A stored hash claiming billions of iterations would otherwise
+ * turn every login attempt for that account into minutes of CPU.
+ */
+export const PBKDF2_MAX_ITERATIONS = 10_000_000
 export const PBKDF2_SALT_BYTES = 16
 export const PBKDF2_KEY_BYTES = 32
+/** Longest hash string we are willing to parse. Real hashes are < 120 chars. */
+const MAX_HASH_LENGTH = 512
 
 const PBKDF2_TAG = 'pbkdf2-sha256'
 const BCRYPT_PATTERN = /^\$2[aby]\$/
@@ -52,9 +60,30 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
+ * True when `iterations` is an integer within the supported range.
+ */
+export function isValidPbkdf2Iterations(iterations: unknown): iterations is number {
+  return (
+    typeof iterations === 'number' &&
+    Number.isInteger(iterations) &&
+    iterations >= 1 &&
+    iterations <= PBKDF2_MAX_ITERATIONS
+  )
+}
+
+function assertValidIterations(iterations: number): void {
+  if (!isValidPbkdf2Iterations(iterations)) {
+    throw new Error(
+      `pbkdf2Iterations must be an integer between 1 and ${PBKDF2_MAX_ITERATIONS}, got ${String(iterations)}`
+    )
+  }
+}
+
+/**
  * Format a PBKDF2 derivation as the versioned hash string.
  */
 export function formatPbkdf2Hash(iterations: number, salt: Uint8Array, dk: Uint8Array): string {
+  assertValidIterations(iterations)
   return `$${PBKDF2_TAG}$${iterations}$${toBase64(salt)}$${toBase64(dk)}`
 }
 
@@ -62,7 +91,7 @@ export function formatPbkdf2Hash(iterations: number, salt: Uint8Array, dk: Uint8
  * Identify the format of a stored password hash. Never throws.
  */
 export function parsePasswordHash(hash: string): ParsedPasswordHash {
-  if (typeof hash !== 'string' || hash.length === 0) {
+  if (typeof hash !== 'string' || hash.length === 0 || hash.length > MAX_HASH_LENGTH) {
     return { kind: 'unknown' }
   }
 
@@ -76,14 +105,19 @@ export function parsePasswordHash(hash: string): ParsedPasswordHash {
     if (parts.length !== 5) {
       return { kind: 'unknown' }
     }
+    // Strict decimal only: Number() would accept '1e5', '0x10' or ' 100000'.
+    if (!/^[1-9][0-9]{0,7}$/.test(parts[2])) {
+      return { kind: 'unknown' }
+    }
     const iterations = Number(parts[2])
-    if (!Number.isInteger(iterations) || iterations <= 0) {
+    if (!isValidPbkdf2Iterations(iterations)) {
       return { kind: 'unknown' }
     }
     try {
       const salt = fromBase64(parts[3])
       const dk = fromBase64(parts[4])
-      if (salt.length === 0 || dk.length === 0) {
+      // We only ever write salt16/dk32; anything else is corrupt or forged.
+      if (salt.length !== PBKDF2_SALT_BYTES || dk.length !== PBKDF2_KEY_BYTES) {
         return { kind: 'unknown' }
       }
       return { kind: 'pbkdf2', iterations, salt, dk }
@@ -110,11 +144,37 @@ export function parsePasswordHash(hash: string): ParsedPasswordHash {
   return { kind: 'unknown' }
 }
 
+function hasSubtle(): boolean {
+  return typeof globalThis.crypto?.subtle?.deriveBits === 'function'
+}
+
+/**
+ * PBKDF2-SHA256 via Node's crypto module, for hosts without global WebCrypto
+ * (Node 18). Same parameters, so output is identical.
+ */
+async function derivePbkdf2Node(
+  password: string,
+  salt: Uint8Array,
+  iterations: number
+): Promise<Uint8Array> {
+  const { pbkdf2 } = await import('crypto')
+  return new Promise((resolve, reject) => {
+    pbkdf2(password, salt, iterations, PBKDF2_KEY_BYTES, 'sha256', (err, key) => {
+      if (err) reject(err)
+      else resolve(new Uint8Array(key.buffer, key.byteOffset, key.byteLength))
+    })
+  })
+}
+
 async function derivePbkdf2(
   password: string,
   salt: Uint8Array,
   iterations: number
 ): Promise<Uint8Array> {
+  assertValidIterations(iterations)
+  if (!hasSubtle()) {
+    return derivePbkdf2Node(password, salt, iterations)
+  }
   const subtle = globalThis.crypto.subtle
   const keyMaterial = await subtle.importKey(
     'raw',
@@ -136,6 +196,15 @@ async function derivePbkdf2(
   return new Uint8Array(derived)
 }
 
+async function randomSalt(): Promise<Uint8Array> {
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    return globalThis.crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_BYTES))
+  }
+  const { randomBytes } = await import('crypto')
+  const buf = randomBytes(PBKDF2_SALT_BYTES)
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+}
+
 /**
  * Hash a password with PBKDF2-SHA256 and return the versioned hash string.
  */
@@ -143,10 +212,13 @@ export async function hashPasswordPbkdf2(
   password: string,
   iterations: number = PBKDF2_DEFAULT_ITERATIONS
 ): Promise<string> {
-  const salt = globalThis.crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_BYTES))
+  assertValidIterations(iterations)
+  const salt = await randomSalt()
   const dk = await derivePbkdf2(password, salt, iterations)
   return formatPbkdf2Hash(iterations, salt, dk)
 }
+
+let warnedMissingBcrypt = false
 
 async function loadBcrypt(): Promise<any | null> {
   try {
@@ -154,14 +226,44 @@ async function loadBcrypt(): Promise<any | null> {
     const { createRequire } = await import('module')
     return createRequire(import.meta.url)('bcrypt')
   } catch {
+    if (!warnedMissingBcrypt) {
+      warnedMissingBcrypt = true
+      console.warn(
+        '[password-hash] A bcrypt ($2…) password hash was encountered but the bcrypt package is not installed; those users cannot log in until it is.'
+      )
+    }
     return null
   }
+}
+
+export interface VerifyPasswordOptions {
+  /**
+   * Extra iteration counts to try for legacy untagged hashes, in addition to
+   * the defaults (100000, then 4096). Main derived legacy hashes at
+   * 2^saltRounds, so adapters pass 2^(configured saltRounds) here.
+   */
+  legacyIterations?: number[]
+}
+
+/**
+ * Iteration counts to try, in order, for a legacy untagged hash.
+ */
+export function legacyIterationCandidates(extra: number[] = []): number[] {
+  const out: number[] = []
+  for (const n of [PBKDF2_DEFAULT_ITERATIONS, PBKDF2_LEGACY_ITERATIONS, ...extra]) {
+    if (isValidPbkdf2Iterations(n) && !out.includes(n)) out.push(n)
+  }
+  return out
 }
 
 /**
  * Verify a password against any supported hash format. Never throws.
  */
-export async function verifyPasswordHash(password: string, hash: string): Promise<boolean> {
+export async function verifyPasswordHash(
+  password: string,
+  hash: string,
+  options: VerifyPasswordOptions = {}
+): Promise<boolean> {
   try {
     const parsed = parsePasswordHash(hash)
 
@@ -171,7 +273,7 @@ export async function verifyPasswordHash(password: string, hash: string): Promis
         return constantTimeEqual(derived, parsed.dk)
       }
       case 'legacy-pbkdf2': {
-        for (const iterations of [PBKDF2_DEFAULT_ITERATIONS, PBKDF2_LEGACY_ITERATIONS]) {
+        for (const iterations of legacyIterationCandidates(options.legacyIterations)) {
           const derived = await derivePbkdf2(password, parsed.salt, iterations)
           if (constantTimeEqual(derived, parsed.dk)) {
             return true

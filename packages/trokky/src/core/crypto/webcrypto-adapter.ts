@@ -6,19 +6,29 @@
 import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
 import {
   PBKDF2_DEFAULT_ITERATIONS,
+  PBKDF2_MAX_ITERATIONS,
   hashPasswordPbkdf2,
+  isValidPbkdf2Iterations,
   pbkdf2NeedsRehash,
   verifyPasswordHash,
 } from './password-hash.js'
 
 export class WebCryptoAdapter implements CryptoAdapter {
   private pbkdf2Iterations: number
+  /** Iteration count main used for legacy untagged hashes: 2^saltRounds. */
+  private legacyIterations: number[]
 
   constructor(options: CryptoAdapterOptions = {}) {
     // PBKDF2 needs a high iteration count for security.
-    // bcrypt's saltRounds=12 means 2^12=4096 iterations, but PBKDF2 requires
-    // much higher counts. Default to 100,000 per OWASP recommendations.
-    this.pbkdf2Iterations = options.pbkdf2Iterations ?? PBKDF2_DEFAULT_ITERATIONS
+    // Default to 100,000 per OWASP recommendations.
+    const iterations = options.pbkdf2Iterations ?? PBKDF2_DEFAULT_ITERATIONS
+    if (!isValidPbkdf2Iterations(iterations)) {
+      throw new Error(
+        `security.cryptoOptions.pbkdf2Iterations must be an integer between 1 and ${PBKDF2_MAX_ITERATIONS}, got ${String(iterations)}`
+      )
+    }
+    this.pbkdf2Iterations = iterations
+    this.legacyIterations = [2 ** (options.saltRounds ?? 12)]
     
     if (!crypto || !crypto.subtle) {
       throw new Error('Web Crypto API not available in this environment')
@@ -34,7 +44,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
   }
 
   async verifyPassword(password: string, hash: string): Promise<boolean> {
-    return verifyPasswordHash(password, hash)
+    return verifyPasswordHash(password, hash, { legacyIterations: this.legacyIterations })
   }
 
   needsRehash(hash: string): boolean {

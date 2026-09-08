@@ -6,6 +6,9 @@ import {
   verifyPasswordHash,
   PBKDF2_DEFAULT_ITERATIONS,
   PBKDF2_LEGACY_ITERATIONS,
+  PBKDF2_MAX_ITERATIONS,
+  formatPbkdf2Hash,
+  hashPasswordPbkdf2,
 } from '../../core/crypto/password-hash.js'
 import { WebCryptoAdapter } from '../../core/crypto/webcrypto-adapter.js'
 import { NodeCryptoAdapter } from '../../core/crypto/node-adapter.js'
@@ -211,6 +214,63 @@ describe('password-hash compatibility', () => {
     it('should return false for arrays of different lengths', () => {
       expect(constantTimeEqual(new Uint8Array([1, 2, 3]), new Uint8Array([1, 2]))).toBe(false)
       expect(constantTimeEqual(new Uint8Array(), new Uint8Array([1]))).toBe(false)
+    })
+  })
+
+  describe('review fixes: legacy saltRounds, parser hardening, Node fallback', () => {
+    // main derived legacy hashes at 2^saltRounds, and saltRounds was configurable.
+    it('should verify a legacy hash produced with a non-default saltRounds (2^10) when the adapter is told', async () => {
+      const hash = makeLegacyHash(PASSWORD, 2 ** 10)
+      expect(await verifyPasswordHash(PASSWORD, hash)).toBe(false) // defaults alone cannot
+      expect(await verifyPasswordHash(PASSWORD, hash, { legacyIterations: [2 ** 10] })).toBe(true)
+      expect(await new WebCryptoAdapter({ saltRounds: 10 }).verifyPassword(PASSWORD, hash)).toBe(true)
+      expect(await new NodeCryptoAdapter({ saltRounds: 10 }).verifyPassword(PASSWORD, hash)).toBe(true)
+      expect(await new WebCryptoAdapter({ saltRounds: 10 }).verifyPassword(WRONG_PASSWORD, hash)).toBe(false)
+    })
+
+    it('should reject tagged hashes with out-of-range or non-decimal iteration counts', async () => {
+      const salt = randomBytes(16)
+      const dk = randomBytes(32)
+      const good = formatPbkdf2Hash(1000, salt, dk)
+      const withIterations = (raw: string): string => good.replace('$1000$', `$${raw}$`)
+      for (const raw of [String(PBKDF2_MAX_ITERATIONS + 1), '2147483647', '1e5', '0x10', ' 100000', '100000.0', '0', '-1', '']) {
+        expect(parsePasswordHash(withIterations(raw)).kind, raw).toBe('unknown')
+        expect(await verifyPasswordHash(PASSWORD, withIterations(raw)), raw).toBe(false)
+      }
+      expect(parsePasswordHash(withIterations(String(PBKDF2_MAX_ITERATIONS))).kind).toBe('pbkdf2')
+    })
+
+    it('should reject tagged hashes whose salt or key length is not 16/32 bytes', () => {
+      const dk = randomBytes(32)
+      expect(parsePasswordHash(formatPbkdf2Hash(1000, randomBytes(1), dk)).kind).toBe('unknown')
+      expect(parsePasswordHash(formatPbkdf2Hash(1000, randomBytes(16), randomBytes(31))).kind).toBe('unknown')
+      expect(parsePasswordHash(formatPbkdf2Hash(1000, randomBytes(16), dk)).kind).toBe('pbkdf2')
+      expect(parsePasswordHash('$pbkdf2-sha256$1000$' + 'A'.repeat(600)).kind).toBe('unknown')
+    })
+
+    it('should refuse to hash with an invalid iteration count instead of writing an unverifiable hash', async () => {
+      await expect(hashPasswordPbkdf2(PASSWORD, 1.5)).rejects.toThrow(/pbkdf2Iterations/)
+      await expect(hashPasswordPbkdf2(PASSWORD, PBKDF2_MAX_ITERATIONS + 1)).rejects.toThrow(/pbkdf2Iterations/)
+      expect(() => new WebCryptoAdapter({ pbkdf2Iterations: 1.5 })).toThrow(/pbkdf2Iterations/)
+      expect(() => new WebCryptoAdapter({ pbkdf2Iterations: 0 })).toThrow(/pbkdf2Iterations/)
+    })
+
+    it('should verify and produce PBKDF2 hashes without global WebCrypto (Node 18 path)', async () => {
+      const realCrypto = globalThis.crypto
+      // Node 18 has no globalThis.crypto at all.
+      Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true, writable: true })
+      try {
+        expect(await verifyPasswordHash(PASSWORD, LEGACY_FIXTURE_A)).toBe(true)
+        expect(await verifyPasswordHash(WRONG_PASSWORD, LEGACY_FIXTURE_A)).toBe(false)
+        const tagged = await hashPasswordPbkdf2(PASSWORD, 2000)
+        expect(tagged.startsWith('$pbkdf2-sha256$2000$')).toBe(true)
+        expect(await verifyPasswordHash(PASSWORD, tagged)).toBe(true)
+        // The same tagged hash must verify identically with WebCrypto back in place.
+        Object.defineProperty(globalThis, 'crypto', { value: realCrypto, configurable: true, writable: true })
+        expect(await verifyPasswordHash(PASSWORD, tagged)).toBe(true)
+      } finally {
+        Object.defineProperty(globalThis, 'crypto', { value: realCrypto, configurable: true, writable: true })
+      }
     })
   })
 })

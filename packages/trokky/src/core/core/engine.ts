@@ -1838,19 +1838,34 @@ export class TrokkyCore {
       }
 
       // Upgrade the stored hash if it uses an outdated format or work factor.
-      // Never blocks login: a failure here is logged and ignored.
+      // Never blocks login: any failure below is logged and ignored.
       const loginUpdate: UpdateUserData = { lastLoginAt: new Date().toISOString() }
       if (this.cryptoAdapter.needsRehash(user.passwordHash)) {
         try {
-          loginUpdate.passwordHash = await this.hashPassword(password)
-          this.logger.debug('Password hash upgraded to current format', { userId: user.id })
+          const upgradedHash = await this.hashPassword(password)
+          // Guard against a password change/reset that completed between our
+          // verify and this persist: only replace the hash we actually verified.
+          const current = await this.getUser(user.id)
+          if (current && current.passwordHash === user.passwordHash) {
+            loginUpdate.passwordHash = upgradedHash
+          } else {
+            this.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })
+          }
         } catch (error) {
           this.logger.warn('Failed to upgrade password hash', { userId: user.id })
         }
       }
 
-      // Update last login time (and upgraded hash, if any) in a single persist
-      await this.updateUser(user.id, loginUpdate)
+      // Persist last login time (and upgraded hash, if any) in a single write.
+      // A storage failure here must not turn a correct password into a 401.
+      try {
+        await this.updateUser(user.id, loginUpdate)
+        if (loginUpdate.passwordHash) {
+          this.logger.debug('Password hash upgraded to current format', { userId: user.id })
+        }
+      } catch (error) {
+        this.logger.warn('Failed to persist login update', { userId: user.id })
+      }
 
       // Check MFA requirements
       const mfaStatus = await this.checkMFARequired(user.id)
