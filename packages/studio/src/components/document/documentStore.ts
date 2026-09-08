@@ -114,7 +114,12 @@ export function deepEqual(a: any, b: any, ignoredKeys: Set<string> = new Set()):
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b)) return false
     if (a.length !== b.length) return false
-    return a.every((item, index) => deepEqual(item, b[index], ignoredKeys))
+    // Index-wise, not .every(): every() skips holes, so a sparse array would
+    // compare equal to a dense one and a real edit would report clean.
+    for (let index = 0; index < a.length; index++) {
+      if (!deepEqual(a[index], b[index], ignoredKeys)) return false
+    }
+    return true
   }
 
   if (

@@ -184,10 +184,7 @@ export function DocumentForm() {
     return [];
   }, []);
 
-  // Notify parent component about validation errors
-  useEffect(() => {
-    onValidationChange(Object.keys(errors).length > 0);
-  }, [errors, onValidationChange]);
+
 
   // The store clears the error for a path as soon as its value changes
   const handleFieldChange = useCallback((fieldName: string, value: any) => {
@@ -278,6 +275,28 @@ export function DocumentForm() {
       return conditionalResult.visible;
     });
   }, [fieldsArray, document]);
+
+  // Only errors on fields the editor can actually see may block saving.
+  // A required field hidden by a conditional would otherwise keep its error
+  // and disable Save with no field on screen to correct.
+  const visibleFieldNames = useMemo(
+    () => new Set(visibleFields.map((field: any) => field.name)),
+    [visibleFields]
+  );
+
+  const blockingErrorCount = useMemo(
+    () =>
+      Object.keys(errors).filter(path => {
+        const [topLevel] = path.split(/[.[]/);
+        return visibleFieldNames.has(topLevel);
+      }).length,
+    [errors, visibleFieldNames]
+  );
+
+  // Notify parent component about validation errors
+  useEffect(() => {
+    onValidationChange(blockingErrorCount > 0);
+  }, [blockingErrorCount, onValidationChange]);
 
   // All hooks are declared above this point (rules of hooks)
   if (!schema || !document) {

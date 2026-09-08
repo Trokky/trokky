@@ -49,6 +49,13 @@ export function isIncompleteArrayItem(item: any): boolean {
   return false
 }
 
+/** True for `{}` literals only: not arrays, Dates, class instances or null. */
+export function isPlainObject(value: any): value is Record<string, any> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
 /**
  * Property carrying the editor-side stable identity of an array item.
  *
@@ -58,8 +65,13 @@ export function isIncompleteArrayItem(item: any): boolean {
  */
 export const ITEM_KEY = '__trokkyItemKey'
 
-/** Keys that must never reach an object literal built from user data. */
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+/**
+ * Keys that must never be assigned onto an object literal built from user data.
+ * Only `__proto__` is actually unsafe: assigning it re-points the prototype.
+ * `constructor` and `prototype` are ordinary own properties and may be content
+ * (a schema is free to have a field called "prototype"), so they are kept.
+ */
+const DANGEROUS_KEYS = ['__proto__']
 
 /** True when the key may be written into a payload object. */
 export function isSafeKey(key: string): boolean {
@@ -88,12 +100,9 @@ export function ensureItemKeys(value: any): any {
     let changed = false
     const next = value.map(item => {
       let processed = ensureItemKeys(item)
-      if (
-        processed &&
-        typeof processed === 'object' &&
-        !Array.isArray(processed) &&
-        !processed[ITEM_KEY]
-      ) {
+      // Plain objects only: spreading a Date, RegExp or class instance would
+      // flatten it to {} and lose the value.
+      if (isPlainObject(processed) && !processed[ITEM_KEY]) {
         processed = { ...processed, [ITEM_KEY]: createItemKey() }
       }
       if (processed !== item) changed = true
@@ -102,10 +111,16 @@ export function ensureItemKeys(value: any): any {
     return changed ? next : value
   }
 
-  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+  if (isPlainObject(value)) {
     let changed = false
     const next: Record<string, any> = {}
     for (const [key, entry] of Object.entries(value)) {
+      // Assigning __proto__ would re-point the clone's prototype, after which
+      // it is no longer a plain object and the marker stripper skips it.
+      if (key === '__proto__') {
+        changed = true
+        continue
+      }
       const processed = ensureItemKeys(entry)
       if (processed !== entry) changed = true
       next[key] = processed
@@ -137,7 +152,7 @@ export function stripItemKeys(value: any): any {
     return value.map(stripItemKeys)
   }
 
-  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+  if (isPlainObject(value)) {
     const next: Record<string, any> = {}
     for (const [key, entry] of Object.entries(value)) {
       if (key === ITEM_KEY || !isSafeKey(key)) continue
@@ -219,7 +234,10 @@ export function buildSavePayload(
  * Schema `default` values that a field plugin should turn into a real value
  * (a date field's "now" must not reach the document as the literal string).
  */
-const DEFAULT_SENTINELS = new Set(['now', 'today'])
+const DEFAULT_SENTINELS = new Set(['now'])
+
+/** Field types whose plugin understands a sentinel default. */
+const SENTINEL_FIELD_TYPES = new Set(['date', 'datetime'])
 
 /**
  * Resolve a schema-declared default for a new document.
@@ -234,10 +252,15 @@ export function resolveFieldDefault(
   getPlugin: (type: string) => { getDefaultValue?: (field: any) => any } | undefined
 ): any {
   const declared = field?.default
-  if (typeof declared !== 'string' || !DEFAULT_SENTINELS.has(declared)) {
+  if (
+    typeof declared !== 'string' ||
+    !DEFAULT_SENTINELS.has(declared) ||
+    !field.type ||
+    !SENTINEL_FIELD_TYPES.has(field.type)
+  ) {
     return declared
   }
-  const plugin = field.type ? getPlugin(field.type) : undefined
+  const plugin = getPlugin(field.type)
   if (!plugin || typeof plugin.getDefaultValue !== 'function') return declared
   try {
     const resolved = plugin.getDefaultValue(field)

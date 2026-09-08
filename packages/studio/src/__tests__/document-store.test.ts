@@ -420,4 +420,13 @@ describe('collectValidationErrors', () => {
 
     expect(errors).toEqual({})
   })
+
+  describe('sparse arrays', () => {
+    it('does not report a hole as equal to a value', () => {
+      // Array.prototype.every skips holes, which would report a real edit clean
+      expect(deepEqual(Array(1), ['changed'])).toBe(false)
+      expect(deepEqual(['changed'], Array(1))).toBe(false)
+      expect(deepEqual(Array(1), Array(1))).toBe(true)
+    })
+  })
 })

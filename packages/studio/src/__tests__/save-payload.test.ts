@@ -6,6 +6,8 @@ import {
   isMissingValue,
   ITEM_KEY,
   resolveFieldDefault,
+  ensureItemKeys,
+  stripItemKeys,
 } from '../components/document/savePayload'
 
 const schema = {
@@ -295,6 +297,36 @@ describe('buildSavePayload', () => {
 
     it('leaves an undeclared default undefined', () => {
       expect(resolveFieldDefault({ type: 'string' }, getPlugin)).toBeUndefined()
+    })
+  })
+
+  describe('values the marker machinery must not damage', () => {
+    it('leaves a Date inside an array intact instead of spreading it to {}', () => {
+      const date = new Date(0)
+      const out = ensureItemKeys({ dates: [date] })
+      expect(out.dates[0]).toBeInstanceOf(Date)
+      expect(out.dates[0].getTime()).toBe(0)
+    })
+
+    it('keeps content named prototype or constructor', () => {
+      const out = stripItemKeys({ prototype: 'content', constructor: 'content', _key: 'keep' })
+      expect(out).toEqual({ prototype: 'content', constructor: 'content', _key: 'keep' })
+    })
+
+    it('drops a content __proto__ key rather than re-pointing the clone', () => {
+      const hostile = JSON.parse('{"__proto__": {"polluted": true}, "items": [{"a": 1}]}')
+      const out = ensureItemKeys(hostile)
+      expect(Object.getPrototypeOf(out)).toBe(Object.prototype)
+      expect(({} as any).polluted).toBeUndefined()
+      // the marker stripper still recognises the clone as a plain object
+      expect(ITEM_KEY in stripItemKeys(out).items[0]).toBe(false)
+    })
+
+    it('only resolves the now sentinel, and only for date-like fields', () => {
+      const getPlugin = () => ({ getDefaultValue: () => 'PLUGIN' })
+      expect(resolveFieldDefault({ type: 'string', default: 'now' }, getPlugin)).toBe('now')
+      expect(resolveFieldDefault({ type: 'date', default: 'today' }, getPlugin)).toBe('today')
+      expect(resolveFieldDefault({ type: 'date', default: 'now' }, getPlugin)).toBe('PLUGIN')
     })
   })
 })
