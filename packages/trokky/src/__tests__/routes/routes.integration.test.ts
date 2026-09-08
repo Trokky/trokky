@@ -5,7 +5,7 @@
  * and executed against a real TrokkyCore backed by in-memory adapters.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { TrokkyCore } from '../../core/core/engine.js'
 import type { Document, User } from '../../core/types/index.js'
 import type { TrokkyRoutes } from '../../routes/index.js'
@@ -321,8 +321,6 @@ describe('TrokkyRoutes integration', () => {
       expect(body.data?.user.username).toBe('testuser')
     })
 
-    // v2 currently maps a failed credential check to 400 INVALID_INPUT rather
-    // than 401; asserted as-is so the test documents real behaviour.
     it('should reject an invalid password', async () => {
       const response = await executeRoute(
         routes,
@@ -335,7 +333,7 @@ describe('TrokkyRoutes integration', () => {
       )
       const body = parseResponseBody(response)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(401)
       expect(body.success).toBe(false)
     })
 
@@ -351,7 +349,7 @@ describe('TrokkyRoutes integration', () => {
       )
       const body = parseResponseBody(response)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(401)
       expect(body.success).toBe(false)
     })
 
@@ -373,9 +371,6 @@ describe('TrokkyRoutes integration', () => {
       expect(body.data?.username).toBe('testuser')
     })
 
-    // BaseRoutes.errorResponse intends to map an InvalidInputError with
-    // field 'authorization' to 401, but the field lives under details.field,
-    // so v2 currently answers 400 INVALID_INPUT. Asserted as-is.
     it('should reject /auth/me without a token', async () => {
       const response = await executeRoute(
         routes,
@@ -383,7 +378,7 @@ describe('TrokkyRoutes integration', () => {
       )
       const body = parseResponseBody(response)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(401)
       expect(body.success).toBe(false)
     })
 
@@ -454,8 +449,6 @@ describe('TrokkyRoutes integration', () => {
       expect(body.data?.users).toBeInstanceOf(Array)
     })
 
-    // v2 raises InvalidInputError('...', 'permissions'), which errorResponse
-    // maps to 400 rather than 403.
     it('should deny editors without the users:read permission', async () => {
       const { token } = await createAuthenticatedUser(core, {
         username: 'plain-editor',
@@ -473,7 +466,7 @@ describe('TrokkyRoutes integration', () => {
       )
       const body = parseResponseBody(response)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(403)
       expect(body.success).toBe(false)
     })
 
@@ -563,6 +556,166 @@ describe('TrokkyRoutes integration', () => {
 
       expect(response.status).toBe(404)
       expect(body.success).toBe(false)
+    })
+  })
+
+  // Issue 008: authentication failures, permission denials and validation
+  // errors used to collapse into a single 400 INVALID_INPUT response. These
+  // tests pin the three status codes apart so they cannot merge again.
+  describe('auth error status codes', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should return 401 UNAUTHORIZED when the token is missing', async () => {
+      const response = await executeRoute(
+        routes,
+        createMockRequest({ method: 'GET', path: '/api/collections' })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(401)
+      expect(body.success).toBe(false)
+      expect((body.error as { code?: string }).code).toBe('UNAUTHORIZED')
+    })
+
+    it('should return 401 UNAUTHORIZED for a malformed token', async () => {
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'GET',
+          path: '/api/collections',
+          headers: { Authorization: 'Bearer not-a-real-token' }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(401)
+      expect((body.error as { code?: string }).code).toBe('UNAUTHORIZED')
+    })
+
+    it('should return 401 UNAUTHORIZED for an expired token', async () => {
+      const { user } = await createAuthenticatedUser(core, {
+        username: 'expiring-admin',
+        email: 'expiring-admin@example.com',
+        role: 'admin'
+      })
+      const shortLivedToken = await core.generateAuthToken(user, '1s')
+
+      // The token is accepted while it is still valid...
+      const beforeExpiry = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'GET',
+          path: '/api/collections',
+          headers: { Authorization: `Bearer ${shortLivedToken}` }
+        })
+      )
+      expect(beforeExpiry.status).toBe(200)
+
+      // ...and rejected once its exp claim is in the past.
+      vi.setSystemTime(new Date(Date.now() + 60_000))
+
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'GET',
+          path: '/api/collections',
+          headers: { Authorization: `Bearer ${shortLivedToken}` }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(401)
+      expect((body.error as { code?: string }).code).toBe('UNAUTHORIZED')
+    })
+
+    it('should return 401 UNAUTHORIZED for wrong login credentials', async () => {
+      await createAuthenticatedUser(core, {
+        username: 'login-check',
+        email: 'login-check@example.com',
+        password: 'CorrectPassword123!',
+        role: 'editor'
+      })
+
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'POST',
+          path: '/api/auth/login',
+          headers: { 'Content-Type': 'application/json' },
+          body: { username: 'login-check', password: 'WrongPassword123!' }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(401)
+      expect((body.error as { code?: string }).code).toBe('UNAUTHORIZED')
+    })
+
+    it('should return 403 FORBIDDEN when an authenticated user lacks the permission', async () => {
+      const doc = await core.saveDocument('posts', { title: 'Protected', content: 'Body' })
+      const { token } = await createAuthenticatedUser(core, {
+        username: 'viewer-user',
+        email: 'viewer-user@example.com',
+        role: 'viewer'
+      })
+
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'DELETE',
+          path: `/api/collections/posts/${doc.id}`,
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(403)
+      expect(body.success).toBe(false)
+      expect((body.error as { code?: string }).code).toBe('FORBIDDEN')
+    })
+
+    it('should return 403 FORBIDDEN when an authenticated user lacks admin access', async () => {
+      // validateAdminAccess guards user management, webhooks and settings. It denies on a
+      // missing permission, not a missing identity, so it must be 403: a 401 sends the
+      // Studio into a token refresh and, on failure, signs the editor out for what is
+      // really an authorisation decision.
+      const { token } = await createAuthenticatedUser(core, {
+        username: 'editor-user',
+        email: 'editor-user@example.com',
+        role: 'editor'
+      })
+
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'POST',
+          path: '/api/users',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: { username: 'new-user', email: 'new-user@example.com', password: 'Passw0rd!x' }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(403)
+      expect((body.error as { code?: string }).code).toBe('FORBIDDEN')
+    })
+
+    it('should still return 400 INVALID_INPUT for a genuine bad request', async () => {
+      const response = await executeRoute(
+        routes,
+        createMockRequest({
+          method: 'POST',
+          path: '/api/auth/login',
+          headers: { 'Content-Type': 'application/json' },
+          body: { username: 'someone' }
+        })
+      )
+      const body = parseResponseBody(response)
+
+      expect(response.status).toBe(400)
+      expect((body.error as { code?: string }).code).toBe('INVALID_INPUT')
     })
   })
 

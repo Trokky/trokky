@@ -139,7 +139,7 @@ describe('TrokkyRoutes', () => {
       expect(response.body.data.refreshToken).toBeDefined()
     })
 
-    it('should return 400 for invalid credentials', async () => {
+    it('should return 401 for invalid credentials', async () => {
       core.authenticateUser.mockResolvedValueOnce(null)
 
       const route = routes.findRoute('POST', '/auth/login')!
@@ -149,7 +149,7 @@ describe('TrokkyRoutes', () => {
         body: { username: 'admin', password: 'wrong' },
       }))
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(401)
       expect(response.body.success).toBe(false)
     })
 

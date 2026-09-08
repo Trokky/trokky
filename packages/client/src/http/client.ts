@@ -12,6 +12,18 @@ import type {
 } from '../types/index.js'
 import { createLogger } from '@trokky/trokky'
 
+/**
+ * Endpoints where a 401 must not trigger a refresh: it means the supplied
+ * credentials or refresh token are themselves bad, not that the access token
+ * expired, so refreshing cannot help and would recurse on /auth/refresh.
+ */
+const NON_RECOVERABLE_ENDPOINTS = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/validate'
+]
+
 export class HttpClient {
   private config: Required<ClientConfig & { apiToken: string }>
   private tokens: AuthTokens | null = null
@@ -161,6 +173,8 @@ export class HttpClient {
     const url = this.buildUrl(endpoint)
     const requestOptions = this.buildRequestOptions(options)
 
+    const recoverable = !NON_RECOVERABLE_ENDPOINTS.some(path => endpoint.includes(path))
+
     let attempt = 0
     while (attempt <= this.config.retries) {
       try {
@@ -170,7 +184,7 @@ export class HttpClient {
         attempt++
         
         // If it's an auth error and we have a refresh token, try to refresh
-        if (this.isAuthError(error) && this.tokens?.refreshToken && attempt === 1) {
+        if (recoverable && this.isAuthError(error) && this.tokens?.refreshToken && attempt === 1) {
           try {
             await this.refreshAuth()
             requestOptions.headers = this.buildHeaders(options.headers)

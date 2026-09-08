@@ -49,7 +49,7 @@ export class DocumentNotFoundError extends TrokkyError {
 }
 
 export class InvalidInputError extends TrokkyError {
-  constructor(message: string, field?: string) {
+  constructor(message: string, public readonly field?: string) {
     super(message, 'INVALID_INPUT', { field })
     this.name = 'InvalidInputError'
   }

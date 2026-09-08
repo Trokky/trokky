@@ -71,19 +71,10 @@ export class DocumentRoutes extends BaseRoutes {
     } catch (error) {
       this.logger.error('Failed to list collections', { error: error instanceof Error ? error.message : String(error) })
       
+      // Delegate to errorResponse so authentication failures map to 401
+      // rather than being flattened into 400 here.
       if (error instanceof InvalidInputError) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            success: false,
-            error: {
-              code: error.code || 'INVALID_INPUT',
-              message: error.message,
-              details: error.details
-            }
-          })
-        }
+        return this.errorResponse(error)
       }
 
       return {

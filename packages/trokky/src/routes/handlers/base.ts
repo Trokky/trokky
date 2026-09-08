@@ -63,14 +63,24 @@ export abstract class BaseRoutes {
 
     // SECURITY: Enhanced error handling with proper typing and status mapping
     if (error instanceof InvalidInputError) {
-      errorCode = 'INVALID_INPUT'
-      errorMessage = (error as any).message
-      statusCode = 400
-      
-      // Handle authentication errors specifically
-      if ((error as any).field === 'authorization') {
-        statusCode = 401
-        errorCode = 'UNAUTHORIZED'
+      errorMessage = error.message
+
+      // The field the error names decides the status: authentication failures
+      // are 401, permission denials are 403, anything else is a bad request.
+      switch (error.field) {
+        case 'authorization':
+        case 'credentials':
+          statusCode = 401
+          errorCode = 'UNAUTHORIZED'
+          break
+        case 'permission':
+        case 'permissions':
+          statusCode = 403
+          errorCode = 'FORBIDDEN'
+          break
+        default:
+          statusCode = 400
+          errorCode = 'INVALID_INPUT'
       }
     } else if (error instanceof Error) {
       // More robust error detection
@@ -104,7 +114,13 @@ export abstract class BaseRoutes {
         message: errorMessage,
         // Include validation details for ValidationError
         ...(error instanceof Error && error.name === 'ValidationError' && 'validationErrors' in error && Array.isArray(error.validationErrors)
-          ? { details: error.validationErrors } 
+          ? { details: error.validationErrors }
+          : {}),
+        // ...and the offending field for an InvalidInputError. Handlers that used to build
+        // this response inline carried `details`, so omitting it here would quietly change
+        // the body shape of the endpoints that now delegate to this method.
+        ...(error instanceof InvalidInputError && error.details
+          ? { details: error.details }
           : {})
       }
     }
@@ -230,7 +246,7 @@ export abstract class BaseRoutes {
     // Check if user has admin role or users:write permission
     const hasAdminAccess = session.role === 'admin' || session.permissions.includes('users:write')
     if (!hasAdminAccess) {
-      throw new InvalidInputError('Insufficient permissions for admin operations', 'authorization')
+      throw new InvalidInputError('Insufficient permissions for admin operations', 'permissions')
     }
 
     // Log admin access

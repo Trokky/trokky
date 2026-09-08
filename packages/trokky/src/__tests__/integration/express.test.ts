@@ -106,7 +106,7 @@ describe('Express Integration', () => {
         .send({ username: 'admin', password: 'WrongPassword!' })
         .set('Content-Type', 'application/json')
 
-      expect(res.status).toBe(400)
+      expect(res.status).toBe(401)
       expect(res.body.success).toBe(false)
     })
 

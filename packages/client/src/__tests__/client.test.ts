@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
 // QueryBuilder needs an HttpClient and CacheManager; the chaining tests never touch them.
 const mockHttp = {} as never
@@ -149,6 +149,89 @@ describe('HttpClient', () => {
       token: 'test-token',
     })
     expect(client).toBeDefined()
+  })
+})
+
+describe('HttpClient 401 handling', () => {
+  const jsonResponse = (status: number, body: unknown) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: `HTTP ${status}`,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+  })
+
+  const signedIn = async () => {
+    const { HttpClient } = await import('../http/client.js')
+    return new HttpClient({
+      baseUrl: 'http://localhost:3000/api',
+      token: 'access-1',
+      refreshToken: 'refresh-1',
+      retries: 3,
+    })
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('should not refresh or clear tokens when /auth/login returns 401', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = await signedIn()
+
+    await expect(
+      client.request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username: 'someone', password: 'wrong' }),
+      })
+    ).rejects.toMatchObject({ status: 401 })
+
+    // One call only: the login itself. No /auth/refresh round trip.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/auth/refresh'))).toBe(true)
+    // A wrong password must not wipe the caller's existing session.
+    expect(client.getTokens()).toMatchObject({
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+    })
+  })
+
+  it('should not recurse when /auth/refresh itself returns 401', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired refresh token' } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = await signedIn()
+
+    await expect(client.refreshAuth()).rejects.toMatchObject({ status: 401 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should still refresh once and retry when an ordinary endpoint returns 401', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired authentication token' } })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, { accessToken: 'access-2', refreshToken: 'refresh-2' })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { success: true, data: { id: 'a1' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = await signedIn()
+
+    const result = await client.request('/collections/article/a1')
+
+    expect(result).toMatchObject({ id: 'a1' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/auth/refresh')
+    expect(client.getTokens()).toMatchObject({ accessToken: 'access-2' })
   })
 })
 
