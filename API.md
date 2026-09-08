@@ -167,6 +167,18 @@ All responses use the standard format:
 |--------|------|-------------|
 | GET | `/auth/captcha/status` | Get CAPTCHA configuration (provider, site key) |
 
+### Password hashing (`security.cryptoOptions`)
+
+Configured in `trokky.config.ts` / `TrokkyExpress.create()`, not over HTTP.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `adapterType` | `'auto'` | `'node'` (bcrypt), `'webcrypto'` (PBKDF2), or `'auto'` |
+| `saltRounds` | `12` | bcrypt cost factor, Node adapter only |
+| `pbkdf2Iterations` | `100000` | PBKDF2 iteration count, WebCrypto adapter only |
+
+New PBKDF2 hashes are stored in the versioned format `$pbkdf2-sha256$<iterations>$<salt>$<dk>`, so the iteration count travels with each hash and raising `pbkdf2Iterations` never invalidates existing passwords. Legacy untagged PBKDF2 hashes and bcrypt hashes still verify; any hash that is not PBKDF2 at the current iteration count is transparently rehashed on the user's next successful password login.
+
 ## OAuth2 Authorization Server
 
 Implements RFC 8628 (Device Authorization Grant) and Authorization Code flow.

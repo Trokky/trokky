@@ -134,6 +134,8 @@ export default {
 }
 ```
 
+Password hashing is tuned via `security.cryptoOptions` (`adapterType`, `saltRounds`, `pbkdf2Iterations`); see [API.md](./API.md) for the versioned hash format and rehash-on-login behavior.
+
 ## Development
 
 ### Requirements

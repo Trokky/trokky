@@ -1837,8 +1837,20 @@ export class TrokkyCore {
         return null
       }
 
-      // Update last login time
-      await this.updateUser(user.id, { lastLoginAt: new Date().toISOString() })
+      // Upgrade the stored hash if it uses an outdated format or work factor.
+      // Never blocks login: a failure here is logged and ignored.
+      const loginUpdate: UpdateUserData = { lastLoginAt: new Date().toISOString() }
+      if (this.cryptoAdapter.needsRehash(user.passwordHash)) {
+        try {
+          loginUpdate.passwordHash = await this.hashPassword(password)
+          this.logger.debug('Password hash upgraded to current format', { userId: user.id })
+        } catch (error) {
+          this.logger.warn('Failed to upgrade password hash', { userId: user.id })
+        }
+      }
+
+      // Update last login time (and upgraded hash, if any) in a single persist
+      await this.updateUser(user.id, loginUpdate)
 
       // Check MFA requirements
       const mfaStatus = await this.checkMFARequired(user.id)

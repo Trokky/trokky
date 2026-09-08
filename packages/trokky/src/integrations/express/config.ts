@@ -180,6 +180,12 @@ export interface SecurityConfig {
     adapterType?: 'node' | 'webcrypto' | 'auto'
     /** Salt rounds for password hashing (default: 12) */
     saltRounds?: number
+    /**
+     * PBKDF2 iteration count for the WebCrypto adapter (default: 100000).
+     * Stored per hash, so changing it only affects new hashes; older hashes are
+     * upgraded on next login.
+     */
+    pbkdf2Iterations?: number
   }
   /** Passkey/WebAuthn configuration for passwordless authentication */
   passkey?: PasskeyConfig
@@ -706,6 +712,7 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       cryptoOptions: {
         adapterType: 'auto', // Auto-detect best crypto adapter (webcrypto in modern Node, bcrypt fallback)
         saltRounds: 12,
+        pbkdf2Iterations: 100_000,
         ...config.security?.cryptoOptions
       },
       adminUser: config.security?.adminUser,
