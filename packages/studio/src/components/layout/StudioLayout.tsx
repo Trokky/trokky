@@ -39,7 +39,7 @@ function StudioLayoutInner({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-dvh flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <Header
         onOpenMobileMenu={handleOpenMobileMenu}
@@ -63,7 +63,7 @@ function StudioLayoutInner({
         )}
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto bg-white dark:bg-gray-800">
+        <main className="flex-1 min-w-0 overflow-auto bg-white dark:bg-gray-800">
           <Outlet />
         </main>
 
@@ -85,8 +85,8 @@ function StudioLayoutInner({
           />
           
           {/* Sidebar */}
-          <div className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out">
-            <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="fixed inset-y-0 left-0 w-64 flex flex-col bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out">
+            <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {t('sidebar.navigation')}
               </h2>
@@ -99,7 +99,7 @@ function StudioLayoutInner({
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <MainSidebar isMobile onItemClick={handleCloseMobileMenu} />
             </div>
           </div>

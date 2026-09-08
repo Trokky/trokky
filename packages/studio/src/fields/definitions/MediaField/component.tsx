@@ -578,8 +578,8 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     }
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUploadDialog(false)}>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50" onClick={() => setShowUploadDialog(false)}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
               {getDialogTitle()}

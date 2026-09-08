@@ -58,10 +58,11 @@ export function Modal({
       />
       
       {/* Modal container - no click handler */}
-      <div className="flex min-h-screen items-center justify-center p-4 pointer-events-none">
+      <div className="flex min-h-full items-center justify-center p-4 pointer-events-none">
         {/* Modal */}
         <div className={cn(
           'relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full pointer-events-auto',
+          'max-h-[calc(100dvh-2rem)] overflow-y-auto flex flex-col',
           'animate-in fade-in slide-in-from-bottom duration-200',
           sizeClasses[size]
         )}>

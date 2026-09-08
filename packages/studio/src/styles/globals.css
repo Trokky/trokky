@@ -58,7 +58,9 @@
   /* Animation utilities */
   .animate-in {
     animation-duration: 200ms;
-    animation-fill-mode: both;
+    /* backwards (not both): the end keyframe must not persist, or the
+       resulting transform would trap position:fixed descendants */
+    animation-fill-mode: backwards;
   }
   
   .fade-in {

@@ -4,17 +4,32 @@
  * Now using global Modal component for consistency
  */
 
+import { useEffect } from 'react';
 import type { MediaFieldValue, MediaType } from '@trokky/trokky/types';
 import { MediaBrowserContent } from './MediaBrowserContent';
 import { useT } from '@trokky/trokky/i18n';
 
 // Custom modal component with proper backdrop
 const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
-  
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-full items-center justify-center p-4">
         {/* Full screen backdrop */}
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" 
@@ -22,7 +37,7 @@ const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {
         />
         
         {/* Modal content */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-[calc(100vh-2rem)] sm:h-[calc(100vh-4rem)] md:h-[85vh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-[calc(100dvh-2rem)] sm:h-[calc(100dvh-4rem)] md:h-[85dvh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
           {title && (
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <div className="flex-1">

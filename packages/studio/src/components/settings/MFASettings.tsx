@@ -752,8 +752,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Disable Dialog */}
       {showDisableDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
             </h3>
@@ -798,8 +798,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Regenerate Backup Codes Dialog */}
       {showRegenerateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {t('mfa.regenerateBackupCodes.title')}
             </h3>
@@ -843,8 +843,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Show Backup Codes Dialog (after regeneration) */}
       {showBackupCodes && backupCodes.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {t('mfa.setup.newBackupCodes')}
             </h3>
@@ -885,8 +885,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Disable All MFA Dialog */}
       {showDisableAllDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
               {t('mfa.disableDialog.all')}
             </h3>

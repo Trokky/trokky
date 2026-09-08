@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/trokky/i18n';
 import { AppRouter } from './Router';
@@ -126,8 +127,15 @@ function AppContent() {
     <>
       <AppRouter />
       <SessionTimeoutWarningContainer />
-      <ToastContainer />
-      <ConfirmDialogContainer />
+      {/* Portalled into document.body so they paint after the StudioContext
+          MediaBrowser, which shares the same z-index */}
+      {createPortal(
+        <>
+          <ToastContainer />
+          <ConfirmDialogContainer />
+        </>,
+        document.body
+      )}
     </>
   );
 }

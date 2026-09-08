@@ -1384,9 +1384,9 @@ export function MediaPage() {
           onClose={() => setIsViewerOpen(false)}
           size="xl"
         >
-          <div className="flex flex-col -m-6 h-[calc(90vh-8rem)]">
+          <div className="flex flex-col -m-6 h-[calc(100dvh-2rem)] sm:h-[85dvh] overflow-hidden rounded-lg">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center space-x-4 min-w-0 flex-1">
                 <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
                   {currentViewerIndex + 1} of {filteredFiles.length}
@@ -1478,11 +1478,11 @@ export function MediaPage() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex">
+            <div className="flex-1 flex flex-col md:flex-row min-h-0">
               {/* Left section: Media preview + variants */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {/* Media preview */}
-                <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-8">
+                <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
                   {selectedFile.contentType.startsWith('image/') ? (
                   <img
                     src={getMediaUrl(selectedFile)}
@@ -1528,7 +1528,7 @@ export function MediaPage() {
                 
                 {/* Image Variants Section */}
                 {selectedFile.contentType.startsWith('image/') && selectedFile.metadata?.imageVariants && Object.keys(selectedFile.metadata.imageVariants).length > 0 && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                         Image Variants
@@ -1599,7 +1599,7 @@ export function MediaPage() {
                 {/* No variants section for images without variants */}
                 {selectedFile.contentType.startsWith('image/') && 
                  (!selectedFile.metadata?.imageVariants || Object.keys(selectedFile.metadata.imageVariants).length === 0) && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                     <div className="text-center">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
                         Image Variants
@@ -1624,7 +1624,7 @@ export function MediaPage() {
               </div>
 
               {/* Metadata sidebar */}
-              <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-6">
+              <div className="w-full md:w-80 shrink-0 overflow-y-auto bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 md:p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   {t('media.details')}
                 </h3>
