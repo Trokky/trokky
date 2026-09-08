@@ -75,17 +75,15 @@ export function MediaBrowser({
     }
   };
 
-  const closeLabel = t('mediaBrowser.close');
-
   return (
     <Dialog
       open={isOpen}
       onClose={onClose}
       variant="center"
       size="xl"
-      height="fill"
+      height="tall"
       className="overflow-hidden"
-      ariaLabel={closeLabel}
+      ariaLabel={t('mediaBrowser.title')}
     >
       <Dialog.Header padded={false} className="px-4 py-3">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">{t('mediaBrowser.title')}</h2>

@@ -11,6 +11,12 @@ export const Z_OVERLAY = 50
 export const Z_TOAST = 60
 export const Z_DEBUG = 100
 
+/**
+ * Highest stacking value a dialog may take. The overlay band is 50-59 so a
+ * deeply nested stack can never reach the toast layer.
+ */
+export const Z_OVERLAY_MAX = Z_TOAST - 1
+
 /** Id of the container appended to document.body that every dialog portals into. */
 export const OVERLAY_ROOT_ID = 'studio-overlays'
 
@@ -21,25 +27,40 @@ export interface DialogStack {
   remove(id: string): void
   /** Set (or clear with null) the Escape handler for a registered dialog. */
   setEscapeHandler(id: string, handler: (() => void) | null): void
-  /** Invoke the topmost Escape handler. Returns whether one ran. */
+  /**
+   * Give Escape to the topmost dialog. Returns whether the event was consumed:
+   * the top dialog owns Escape even when it opted out of closing on it, so the
+   * key never falls through to the dialog underneath.
+   */
   handleEscape(): boolean
   /** Position of the dialog in the stack, or -1 when it is not registered. */
   depthOf(id: string): number
   /** True when the dialog is the last registered one. */
   isTopmost(id: string): boolean
-  /** Stacking value for the dialog: the overlay base plus its depth. */
+  /** Stacking value for the dialog: the overlay base plus its depth, clamped. */
   zIndexOf(id: string): number
   /** Number of open dialogs. */
   size(): number
   /** Registered ids, bottom first. */
   ids(): string[]
+  /** Bumped on every push and remove so subscribers can re-read their depth. */
+  version(): number
+  /** Run `listener` whenever the stack changes. Returns an unsubscribe. */
+  subscribe(listener: () => void): () => void
 }
 
 export function createDialogStack(): DialogStack {
   const stack: string[] = []
   const escapeHandlers = new Map<string, () => void>()
+  const listeners = new Set<() => void>()
+  let version = 0
 
   const depthOf = (id: string) => stack.indexOf(id)
+
+  const notify = () => {
+    version += 1
+    listeners.forEach(listener => listener())
+  }
 
   return {
     push(id) {
@@ -48,6 +69,7 @@ export function createDialogStack(): DialogStack {
         stack.splice(existing, 1)
       }
       stack.push(id)
+      notify()
     },
     remove(id) {
       const index = stack.indexOf(id)
@@ -55,6 +77,9 @@ export function createDialogStack(): DialogStack {
         stack.splice(index, 1)
       }
       escapeHandlers.delete(id)
+      if (index !== -1) {
+        notify()
+      }
     },
     setEscapeHandler(id, handler) {
       if (handler) {
@@ -64,14 +89,12 @@ export function createDialogStack(): DialogStack {
       }
     },
     handleEscape() {
-      for (let index = stack.length - 1; index >= 0; index -= 1) {
-        const handler = escapeHandlers.get(stack[index])
-        if (handler) {
-          handler()
-          return true
-        }
+      if (stack.length === 0) return false
+      const handler = escapeHandlers.get(stack[stack.length - 1])
+      if (handler) {
+        handler()
       }
-      return false
+      return true
     },
     depthOf,
     isTopmost(id) {
@@ -79,7 +102,7 @@ export function createDialogStack(): DialogStack {
     },
     zIndexOf(id) {
       const depth = depthOf(id)
-      return Z_OVERLAY + (depth < 0 ? 0 : depth)
+      return Math.min(Z_OVERLAY + (depth < 0 ? 0 : depth), Z_OVERLAY_MAX)
     },
     size() {
       return stack.length
@@ -87,11 +110,67 @@ export function createDialogStack(): DialogStack {
     ids() {
       return [...stack]
     },
+    version() {
+      return version
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
   }
 }
 
 /** Process-wide stack. Portalled dialogs are not React descendants of each other. */
 export const dialogStack = createDialogStack()
+
+/**
+ * True while any dialog is open.
+ *
+ * Document-level Escape handlers that are not dialogs (the RichText fullscreen
+ * mode, the media viewer's arrow-key navigation) must bail out when this is
+ * true: `stopPropagation` cannot stop listeners already bound to `document`,
+ * so ownership has to be checked rather than enforced.
+ */
+export function hasOpenDialogs(): boolean {
+  return dialogStack.size() > 0
+}
+
+/** Escape events the dialog stack has already acted on. */
+const consumedEscapes = new WeakSet<KeyboardEvent>()
+
+/**
+ * Whether this Escape belongs to a dialog and the caller must leave it alone.
+ *
+ * Checking the stack alone is not enough. Sibling listeners on `document` run
+ * in registration order, and a handler that re-subscribes on every render (the
+ * RichText fullscreen one used to) ends up running after the dialog listener.
+ * By then React has flushed the close synchronously and the stack is already
+ * empty, so the event itself has to carry the fact that a dialog consumed it.
+ */
+export function isEscapeOwnedByDialog(event?: KeyboardEvent): boolean {
+  if (event && consumedEscapes.has(event)) return true
+  return hasOpenDialogs()
+}
+
+/**
+ * Whether a closing dialog may hand focus back to the element it stole it from.
+ *
+ * `closedDepth` is the depth the dialog held just before it left the stack and
+ * `remainingCount` the stack size just after. A surviving entry at or above
+ * that index was stacked on top of the closing dialog and must keep focus.
+ */
+export function shouldRestoreFocus(
+  element: Element | null | undefined,
+  closedDepth: number,
+  remainingCount: number
+): boolean {
+  if (!element) return false
+  if (!element.isConnected) return false
+  if (closedDepth >= 0 && remainingCount > closedDepth) return false
+  return true
+}
 
 export interface ScrollLock {
   /** Take a lock. Returns an idempotent release function. */
@@ -153,6 +232,7 @@ let escapeListeners = 0
 function handleDocumentEscape(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
   if (dialogStack.handleEscape()) {
+    consumedEscapes.add(event)
     event.stopPropagation()
   }
 }
@@ -173,6 +253,112 @@ export function acquireEscapeListener(): () => void {
       document.removeEventListener('keydown', handleDocumentEscape)
     }
   }
+}
+
+/** Marks the nodes this module made inert so it never clears somebody else's. */
+export const INERT_MARKER = 'data-dialog-inert'
+
+/**
+ * Makes everything outside the overlay root inert while a dialog is open.
+ *
+ * `aria-modal` alone does not stop a screen reader's virtual cursor in every
+ * browser, so the page behind gets `inert` (with an `aria-hidden` fallback for
+ * engines that do not support it yet).
+ */
+export function setBackgroundInert(inert: boolean, root?: HTMLElement | null): void {
+  const container = root ?? (typeof document === 'undefined' ? null : document.body)
+  if (!container) return
+
+  if (inert) {
+    Array.from(container.children).forEach(child => {
+      if (child.id === OVERLAY_ROOT_ID) return
+      if (child.hasAttribute(INERT_MARKER)) return
+      if (child.hasAttribute('inert') || child.getAttribute('aria-hidden') === 'true') return
+      child.setAttribute(INERT_MARKER, '')
+      child.setAttribute('inert', '')
+      child.setAttribute('aria-hidden', 'true')
+    })
+    return
+  }
+
+  Array.from(container.querySelectorAll(`[${INERT_MARKER}]`)).forEach(child => {
+    child.removeAttribute(INERT_MARKER)
+    child.removeAttribute('inert')
+    child.removeAttribute('aria-hidden')
+  })
+}
+
+let inertHolders = 0
+
+/** Holds the background inert while at least one dialog is open. */
+export function acquireBackgroundInert(): () => void {
+  if (inertHolders === 0) {
+    setBackgroundInert(true)
+  }
+  inertHolders += 1
+
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    inertHolders -= 1
+    if (inertHolders === 0) {
+      setBackgroundInert(false)
+    }
+  }
+}
+
+/** Number of dialogs currently holding the background inert. */
+export function backgroundInertCount(): number {
+  return inertHolders
+}
+
+/** Tailwind breakpoints used by the responsive drawers, in pixels. */
+export const BREAKPOINTS = {
+  md: 768,
+  lg: 1024,
+} as const
+
+/** Media query matching viewports at or above `px`. */
+export function minWidthQuery(px: number): string {
+  return `(min-width: ${px}px)`
+}
+
+export type MediaMatcher = (query: string) => MediaQueryList | null
+
+const defaultMediaMatcher: MediaMatcher = query =>
+  typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+    ? null
+    : window.matchMedia(query)
+
+/**
+ * Calls `onMatch` while the viewport matches `query`, once on setup and again
+ * on every crossing into the query.
+ *
+ * Drawers that CSS hides above a breakpoint must actually close there: left
+ * open they would keep their stack registration, scroll lock and Tab trap while
+ * invisible.
+ */
+export function watchBreakpoint(
+  query: string,
+  onMatch: () => void,
+  matchMedia: MediaMatcher = defaultMediaMatcher
+): () => void {
+  const list = matchMedia(query)
+  if (!list) return () => {}
+
+  if (list.matches) {
+    onMatch()
+  }
+
+  const listener = (event: MediaQueryListEvent) => {
+    if (event.matches) {
+      onMatch()
+    }
+  }
+
+  list.addEventListener('change', listener)
+  return () => list.removeEventListener('change', listener)
 }
 
 /** Returns the `#studio-overlays` node, creating and appending it when absent. */

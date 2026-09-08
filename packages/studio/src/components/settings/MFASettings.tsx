@@ -915,6 +915,7 @@ export function MFASettings({ onToast }: MFASettingsProps) {
           }}
           variant="center"
           size="sm"
+          ariaLabel={t('mfa.disableDialog.all')}
         >
           <Dialog.Header>
             <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">

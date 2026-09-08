@@ -9,23 +9,33 @@
  * the topmost one.
  */
 
-import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useT } from '@trokky/trokky/i18n'
 import { cn } from '@/utils/cn'
 import {
   Z_OVERLAY,
+  acquireBackgroundInert,
   acquireEscapeListener,
   bodyScrollLock,
   dialogStack,
   getFocusableElements,
   getOverlayRoot,
+  shouldRestoreFocus,
 } from './dialogInternals.js'
 
 export type DialogVariant = 'center' | 'sheet' | 'drawer-right' | 'drawer-left' | 'fullscreen'
-export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'full'
-export type DialogHeight = 'auto' | 'fill'
+export type DialogSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
+export type DialogHeight = 'auto' | 'tall' | 'fill'
 
 export interface DialogProps {
   /** Whether the dialog is rendered. */
@@ -36,7 +46,7 @@ export interface DialogProps {
   variant?: DialogVariant
   /** Max width of the panel from the `sm` breakpoint up. Ignored by `fullscreen`. */
   size?: DialogSize
-  /** `fill` makes the panel take all available height instead of hugging content. */
+  /** `tall` keeps a margin around the panel, `fill` takes all available height. */
   height?: DialogHeight
   /** Renders a default header and labels the dialog. */
   title?: React.ReactNode
@@ -94,12 +104,22 @@ const panelVariants: Record<DialogVariant, string> = {
   fullscreen: 'h-[100dvh] max-h-[100dvh]',
 }
 
-const fillVariants: Record<DialogVariant, string> = {
-  center: 'h-[100dvh] sm:h-[calc(100dvh-2rem)]',
-  sheet: 'h-[90dvh]',
-  'drawer-right': '',
-  'drawer-left': '',
-  fullscreen: '',
+const heightVariants: Record<Exclude<DialogHeight, 'auto'>, Record<DialogVariant, string>> = {
+  // `tall` leaves the panel short of the viewport so the backdrop stays visible.
+  tall: {
+    center: 'h-[100dvh] sm:h-[85dvh]',
+    sheet: 'h-[85dvh]',
+    'drawer-right': '',
+    'drawer-left': '',
+    fullscreen: '',
+  },
+  fill: {
+    center: 'h-[100dvh] sm:h-[calc(100dvh-2rem)]',
+    sheet: 'h-[90dvh]',
+    'drawer-right': '',
+    'drawer-left': '',
+    fullscreen: '',
+  },
 }
 
 const animationVariants: Record<DialogVariant, string> = {
@@ -113,6 +133,7 @@ const animationVariants: Record<DialogVariant, string> = {
 // Centred dialogs are full-bleed sheets below the sm breakpoint; drawers are
 // edge-anchored, so they keep their width at every viewport.
 const sizeClasses: Record<DialogSize, string> = {
+  xs: 'sm:max-w-xs',
   sm: 'sm:max-w-md',
   md: 'sm:max-w-lg',
   lg: 'sm:max-w-2xl',
@@ -120,12 +141,15 @@ const sizeClasses: Record<DialogSize, string> = {
   full: 'sm:max-w-7xl',
 }
 
+// Drawers are full-bleed up to their cap, so every size is also capped against
+// the viewport: a drawer that covers the screen leaves no backdrop to tap.
 const drawerSizeClasses: Record<DialogSize, string> = {
-  sm: 'max-w-md',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-  full: 'max-w-7xl',
+  xs: 'max-w-[min(16rem,85vw)]',
+  sm: 'max-w-[min(20rem,85vw)]',
+  md: 'max-w-[min(32rem,85vw)]',
+  lg: 'max-w-[min(42rem,90vw)]',
+  xl: 'max-w-[min(56rem,90vw)]',
+  full: 'max-w-[min(80rem,95vw)]',
 }
 
 export function Dialog({
@@ -148,11 +172,21 @@ export function Dialog({
 }: DialogProps) {
   const generatedId = useId()
   const idRef = useRef(generatedId)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [zIndex, setZIndex] = useState(Z_OVERLAY)
+  // The panel is state, not a ref: the portal only mounts once the overlay root
+  // is resolved, so the effects that need the node have to re-run when it lands.
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const [overlayRoot, setOverlayRoot] = useState<HTMLElement | null>(null)
+  const restoreTargetRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+
+  // Depth is re-read on every stack change: unmounting a dialog underneath
+  // shifts everyone above it down, and a stale z would paint out of order.
+  const zIndex = useSyncExternalStore(
+    dialogStack.subscribe,
+    () => dialogStack.zIndexOf(idRef.current),
+    () => Z_OVERLAY
+  )
 
   useEffect(() => {
     setOverlayRoot(getOverlayRoot())
@@ -162,14 +196,28 @@ export function Dialog({
   useEffect(() => {
     if (!open) return
     const id = idRef.current
+    restoreTargetRef.current = document.activeElement as HTMLElement | null
     dialogStack.push(id)
-    setZIndex(dialogStack.zIndexOf(id))
-    dialogStack.setEscapeHandler(id, closeOnEscape ? () => onCloseRef.current() : null)
     const releaseEscape = acquireEscapeListener()
+    const releaseInert = acquireBackgroundInert()
     return () => {
       releaseEscape()
+      releaseInert()
+      const closedDepth = dialogStack.depthOf(id)
       dialogStack.remove(id)
+      const target = restoreTargetRef.current
+      restoreTargetRef.current = null
+      // A dialog stacked on top of this one keeps focus; only the last one out
+      // hands it back, and never to a node that has left the document.
+      if (shouldRestoreFocus(target, closedDepth, dialogStack.size())) {
+        target?.focus?.()
+      }
     }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    dialogStack.setEscapeHandler(idRef.current, closeOnEscape ? () => onCloseRef.current() : null)
   }, [open, closeOnEscape])
 
   // Ref-counted scroll lock so nested dialogs do not fight over document.body.
@@ -178,31 +226,30 @@ export function Dialog({
     return bodyScrollLock.lock()
   }, [open])
 
-  // Focus trap with focus return to whatever was focused before opening.
+  // Initial focus, once the panel actually exists.
   useEffect(() => {
-    if (!open) return
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    const panel = panelRef.current
-
-    const initial =
-      initialFocus?.current || (panel ? getFocusableElements(panel)[0] : null) || panel
+    if (!open || !panel) return
+    const initial = initialFocus?.current || getFocusableElements(panel)[0] || panel
     initial?.focus?.()
+  }, [open, panel, initialFocus])
+
+  // Focus trap.
+  useEffect(() => {
+    if (!open || !panel) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Tab') return
       if (!dialogStack.isTopmost(idRef.current)) return
-      const current = panelRef.current
-      if (!current) return
-      const focusable = getFocusableElements(current)
+      const focusable = getFocusableElements(panel)
       const active = document.activeElement as HTMLElement | null
       if (focusable.length === 0) {
         event.preventDefault()
-        current.focus()
+        panel.focus()
         return
       }
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      const outside = !current.contains(active)
+      const outside = !panel.contains(active)
       if (event.shiftKey && (outside || active === first)) {
         event.preventDefault()
         last.focus()
@@ -215,9 +262,8 @@ export function Dialog({
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused?.focus?.()
     }
-  }, [open, initialFocus])
+  }, [open, panel])
 
   if (!open || !overlayRoot) return null
 
@@ -244,7 +290,7 @@ export function Dialog({
           aria-hidden="true"
         />
         <div
-          ref={panelRef}
+          ref={setPanel}
           role="dialog"
           aria-modal="true"
           aria-label={title ? undefined : ariaLabel}
@@ -256,7 +302,7 @@ export function Dialog({
             'relative flex flex-col w-full min-h-0 shadow-xl focus:outline-none',
             surface,
             panelVariants[variant],
-            height === 'fill' && fillVariants[variant],
+            height !== 'auto' && heightVariants[height][variant],
             variant !== 'fullscreen' &&
               (variant === 'drawer-left' || variant === 'drawer-right'
                 ? drawerSizeClasses[size]

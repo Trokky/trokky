@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { MainSidebar } from './MainSidebar';
 import { ContextSidebar } from './ContextSidebar';
 import { ContextSidebarProvider, useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { Dialog } from '@/components/ui/Dialog.js';
+import { BREAKPOINTS, minWidthQuery, watchBreakpoint } from '@/components/ui/dialogInternals.js';
 import { useT } from '@trokky/trokky/i18n';
 
 interface StudioLayoutProps {
@@ -29,6 +30,13 @@ function StudioLayoutInner({
   const handleCloseMobileMenu = () => {
     setMobileMenuOpen(false);
   };
+
+  // The drawer is hidden by CSS at lg, so it must actually close there: left
+  // open it would keep the scroll lock and the Tab trap while invisible.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    return watchBreakpoint(minWidthQuery(BREAKPOINTS.lg), handleCloseMobileMenu);
+  }, [mobileMenuOpen]);
 
   return (
     <div className="h-dvh flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -72,7 +80,7 @@ function StudioLayoutInner({
         open={mobileMenuOpen}
         onClose={handleCloseMobileMenu}
         variant="drawer-left"
-        size="sm"
+        size="xs"
         wrapperClassName="lg:hidden"
         title={t('sidebar.navigation')}
       >

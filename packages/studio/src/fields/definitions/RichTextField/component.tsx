@@ -15,6 +15,7 @@ import Gapcursor from '@tiptap/extension-gapcursor'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import { Dialog } from '@/components/ui/Dialog.js'
+import { bodyScrollLock, isEscapeOwnedByDialog } from '@/components/ui/dialogInternals.js'
 import {
   BoldIcon,
   ItalicIcon,
@@ -828,27 +829,34 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     setIsFullscreen(!isFullscreen)
   }, [editor, isFullscreen, contentBackup, onChange])
 
+  // Kept in a ref so the fullscreen effect below subscribes once instead of on
+  // every render: re-subscribing moves the listener behind the dialog one and
+  // churns the scroll lock.
+  const toggleFullscreenRef = useRef(toggleFullscreen)
+  toggleFullscreenRef.current = toggleFullscreen
+
   // Escape key handler for fullscreen mode
   useEffect(() => {
+    if (!isFullscreen) return
+
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isFullscreen) {
-        toggleFullscreen()
-      }
+      if (event.key !== 'Escape') return
+      // A dialog opened from inside fullscreen (the link dialog) owns Escape:
+      // stopPropagation cannot reach a listener already bound to document.
+      if (isEscapeOwnedByDialog(event)) return
+      toggleFullscreenRef.current()
     }
 
-    if (isFullscreen) {
-      document.addEventListener('keydown', handleEscape)
-      // Prevent body scroll when fullscreen
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    document.addEventListener('keydown', handleEscape)
+    // Share the ref-counted lock rather than writing document.body directly,
+    // so a dialog underneath keeps its own lock.
+    const releaseScroll = bodyScrollLock.lock()
 
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = ''
+      releaseScroll()
     }
-  }, [isFullscreen, toggleFullscreen])
+  }, [isFullscreen])
 
   // Add link functionality
   const openLinkDialog = useCallback(() => {

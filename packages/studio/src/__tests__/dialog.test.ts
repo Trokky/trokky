@@ -1,14 +1,27 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
+  BREAKPOINTS,
+  INERT_MARKER,
+  OVERLAY_ROOT_ID,
   Z_OVERLAY,
+  Z_OVERLAY_MAX,
   Z_STICKY,
   Z_TOAST,
   Z_DEBUG,
+  acquireBackgroundInert,
+  backgroundInertCount,
   createDialogStack,
   createScrollLock,
+  dialogStack,
+  hasOpenDialogs,
+  isEscapeOwnedByDialog,
+  minWidthQuery,
+  setBackgroundInert,
+  shouldRestoreFocus,
+  watchBreakpoint,
 } from '../components/ui/dialogInternals.js'
 
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -98,7 +111,7 @@ describe('escape routing', () => {
     expect(closed).toEqual(['picker', 'drawer'])
   })
 
-  it('skips dialogs that opted out of Escape', () => {
+  it('consumes Escape at a top dialog that opted out, without closing anything', () => {
     const stack = createDialogStack()
     const closed: string[] = []
     stack.push('drawer')
@@ -106,7 +119,24 @@ describe('escape routing', () => {
     stack.push('locked')
     stack.setEscapeHandler('locked', null)
 
+    // The top dialog owns Escape even when it declines to close on it, so the
+    // key must not fall through to the dialog underneath.
     expect(stack.handleEscape()).toBe(true)
+    expect(closed).toEqual([])
+  })
+
+  it('gives Escape back to the dialog underneath once the locked one closes', () => {
+    const stack = createDialogStack()
+    const closed: string[] = []
+    stack.push('drawer')
+    stack.setEscapeHandler('drawer', () => closed.push('drawer'))
+    stack.push('locked')
+    stack.setEscapeHandler('locked', null)
+
+    stack.handleEscape()
+    stack.remove('locked')
+    stack.handleEscape()
+
     expect(closed).toEqual(['drawer'])
   })
 
@@ -123,6 +153,251 @@ describe('escape routing', () => {
     stack.remove('a')
 
     expect(stack.handleEscape()).toBe(false)
+  })
+})
+
+describe('stack subscriptions', () => {
+  it('notifies subscribers on push and remove', () => {
+    const stack = createDialogStack()
+    const listener = vi.fn()
+    const unsubscribe = stack.subscribe(listener)
+
+    stack.push('a')
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    stack.remove('a')
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    unsubscribe()
+    stack.push('b')
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not notify when removing a dialog that is not registered', () => {
+    const stack = createDialogStack()
+    const listener = vi.fn()
+    stack.subscribe(listener)
+
+    stack.remove('ghost')
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('re-reads the z-index of the survivors when dialogs below them close', () => {
+    const stack = createDialogStack()
+    stack.push('a')
+    stack.push('b')
+    stack.push('c')
+    expect(stack.zIndexOf('c')).toBe(Z_OVERLAY + 2)
+
+    stack.remove('a')
+    stack.remove('b')
+    stack.push('d')
+
+    // c must fall back to the base as the entries under it go, otherwise the
+    // newly opened d would paint under a dialog the stack thinks it is above.
+    expect(stack.zIndexOf('c')).toBe(Z_OVERLAY)
+    expect(stack.zIndexOf('d')).toBe(Z_OVERLAY + 1)
+    expect(stack.isTopmost('d')).toBe(true)
+  })
+
+  it('keeps every dialog under the toast layer no matter how deep the stack', () => {
+    const stack = createDialogStack()
+    const ids = Array.from({ length: 25 }, (_, index) => `dialog-${index}`)
+    ids.forEach(id => stack.push(id))
+
+    const highest = Math.max(...ids.map(id => stack.zIndexOf(id)))
+    expect(highest).toBe(Z_OVERLAY_MAX)
+    expect(highest).toBeLessThan(Z_TOAST)
+  })
+})
+
+describe('escape ownership', () => {
+  afterEach(() => {
+    dialogStack.ids().forEach(id => dialogStack.remove(id))
+  })
+
+  it('reports no owner while the process-wide stack is empty', () => {
+    expect(hasOpenDialogs()).toBe(false)
+    expect(isEscapeOwnedByDialog()).toBe(false)
+  })
+
+  it('claims Escape for the whole time a dialog is registered', () => {
+    dialogStack.push('viewer')
+    expect(hasOpenDialogs()).toBe(true)
+
+    dialogStack.push('link')
+    dialogStack.remove('link')
+    // The viewer is still open, so the fullscreen editor underneath must not
+    // treat this Escape as its own.
+    expect(hasOpenDialogs()).toBe(true)
+
+    dialogStack.remove('viewer')
+    expect(hasOpenDialogs()).toBe(false)
+  })
+})
+
+describe('focus restoration', () => {
+  let trigger: HTMLButtonElement
+
+  beforeEach(() => {
+    trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+  })
+
+  afterEach(() => {
+    trigger.remove()
+  })
+
+  it('restores focus when the closing dialog was the only one', () => {
+    expect(shouldRestoreFocus(trigger, 0, 0)).toBe(true)
+  })
+
+  it('restores focus to the drawer when a picker opened from it closes', () => {
+    // picker sat at depth 1, the drawer at depth 0 survives.
+    expect(shouldRestoreFocus(trigger, 1, 1)).toBe(true)
+  })
+
+  it('leaves focus alone when a dialog above the closing one survives', () => {
+    // the drawer sat at depth 0 and the picker above it is still open.
+    expect(shouldRestoreFocus(trigger, 0, 1)).toBe(false)
+  })
+
+  it('skips an element that has left the document', () => {
+    trigger.remove()
+    expect(shouldRestoreFocus(trigger, 0, 0)).toBe(false)
+  })
+
+  it('skips when nothing was focused before the dialog opened', () => {
+    expect(shouldRestoreFocus(null, 0, 0)).toBe(false)
+  })
+})
+
+describe('breakpoint watching', () => {
+  type QueryListener = (event: MediaQueryListEvent) => void
+
+  const createList = (matches: boolean) => {
+    const listeners = new Set<QueryListener>()
+    let removeCalls = 0
+    const list = {
+      matches,
+      addEventListener(_type: string, listener: QueryListener) {
+        listeners.add(listener)
+      },
+      removeEventListener(_type: string, listener: QueryListener) {
+        listeners.delete(listener)
+        removeCalls += 1
+      },
+      removeCalls: () => removeCalls,
+      fire(next: boolean) {
+        list.matches = next
+        listeners.forEach(listener => listener({ matches: next } as MediaQueryListEvent))
+      },
+    }
+    return list
+  }
+
+  it('builds a min-width query for the drawer breakpoints', () => {
+    expect(minWidthQuery(BREAKPOINTS.lg)).toBe('(min-width: 1024px)')
+    expect(minWidthQuery(BREAKPOINTS.md)).toBe('(min-width: 768px)')
+  })
+
+  it('closes the drawer as soon as the viewport crosses the breakpoint', () => {
+    const list = createList(false)
+    const onMatch = vi.fn()
+    watchBreakpoint('(min-width: 1024px)', onMatch, () => list as unknown as MediaQueryList)
+
+    expect(onMatch).not.toHaveBeenCalled()
+
+    list.fire(true)
+    expect(onMatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes immediately when the viewport is already past the breakpoint', () => {
+    const list = createList(true)
+    const onMatch = vi.fn()
+    watchBreakpoint('(min-width: 1024px)', onMatch, () => list as unknown as MediaQueryList)
+
+    expect(onMatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores crossings back below the breakpoint', () => {
+    const list = createList(false)
+    const onMatch = vi.fn()
+    watchBreakpoint('(min-width: 1024px)', onMatch, () => list as unknown as MediaQueryList)
+
+    list.fire(false)
+    expect(onMatch).not.toHaveBeenCalled()
+  })
+
+  it('unsubscribes on release', () => {
+    const list = createList(false)
+    const stop = watchBreakpoint('(min-width: 1024px)', vi.fn(), () => list as unknown as MediaQueryList)
+
+    stop()
+    expect(list.removeCalls()).toBe(1)
+  })
+
+  it('is a no-op where matchMedia is unavailable', () => {
+    const onMatch = vi.fn()
+    expect(() => watchBreakpoint('(min-width: 1024px)', onMatch, () => null)()).not.toThrow()
+    expect(onMatch).not.toHaveBeenCalled()
+  })
+})
+
+describe('background inert', () => {
+  let app: HTMLElement
+  let overlays: HTMLElement
+
+  beforeEach(() => {
+    app = document.createElement('div')
+    overlays = document.createElement('div')
+    overlays.id = OVERLAY_ROOT_ID
+    document.body.append(app, overlays)
+  })
+
+  afterEach(() => {
+    setBackgroundInert(false)
+    app.remove()
+    overlays.remove()
+  })
+
+  it('hides the page behind the dialog from assistive technology', () => {
+    setBackgroundInert(true)
+
+    expect(app.hasAttribute('inert')).toBe(true)
+    expect(app.getAttribute('aria-hidden')).toBe('true')
+    expect(overlays.hasAttribute('inert')).toBe(false)
+    expect(overlays.getAttribute('aria-hidden')).toBeNull()
+  })
+
+  it('releases exactly what it took', () => {
+    setBackgroundInert(true)
+    setBackgroundInert(false)
+
+    expect(app.hasAttribute('inert')).toBe(false)
+    expect(app.getAttribute('aria-hidden')).toBeNull()
+    expect(app.hasAttribute(INERT_MARKER)).toBe(false)
+  })
+
+  it('leaves an element that was already inert for other reasons alone', () => {
+    app.setAttribute('aria-hidden', 'true')
+    setBackgroundInert(true)
+    setBackgroundInert(false)
+
+    expect(app.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('keeps the background inert until the last dialog closes', () => {
+    const releaseOuter = acquireBackgroundInert()
+    const releaseInner = acquireBackgroundInert()
+    expect(backgroundInertCount()).toBe(2)
+
+    releaseInner()
+    expect(app.hasAttribute('inert')).toBe(true)
+
+    releaseOuter()
+    expect(app.hasAttribute('inert')).toBe(false)
+    expect(backgroundInertCount()).toBe(0)
   })
 })
 
@@ -208,6 +483,20 @@ const MIGRATED_CALL_SITES = [
   'fields/definitions/PortableTextField/component.tsx',
 ]
 
+/**
+ * The two editor fullscreen modes are in-place layout switches rather than
+ * dialogs. They are exempt line by line so any other hand-rolled overlay,
+ * however it is styled, still fails the check below.
+ */
+const EDITOR_FULLSCREEN_OVERLAYS: Record<string, string[]> = {
+  'fields/definitions/RichTextField/component.tsx': [
+    '<div className="fixed inset-0 bg-white dark:bg-gray-900 z-overlay flex flex-col">',
+  ],
+  'fields/definitions/PortableTextField/component.tsx': [
+    "<div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-overlay bg-white dark:bg-gray-900 flex flex-col p-4' : 'overflow-visible'}`}>",
+  ],
+}
+
 const FIELD_DRAWER_CALL_SITES = [
   'fields/definitions/ObjectField/component.tsx',
   'fields/definitions/ArrayField/component.tsx',
@@ -227,9 +516,63 @@ describe('dialog registry', () => {
 
   it.each(MIGRATED_CALL_SITES)('%s defines no overlay of its own', file => {
     const source = readFileSync(join(srcDir, file), 'utf8')
-    const overlays = source.split('\n').filter(line => line.includes('fixed inset-0'))
-    // The editor fullscreen modes are in-place layout switches, not dialogs.
-    const dialogOverlays = overlays.filter(line => !line.includes('flex flex-col'))
-    expect(dialogOverlays).toEqual([])
+    const allowed = EDITOR_FULLSCREEN_OVERLAYS[file] ?? []
+    const overlays = source
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.includes('fixed inset-0'))
+      .filter(line => !allowed.includes(line))
+    expect(overlays).toEqual([])
+  })
+
+  it('allows the editor fullscreen containers only where they still exist', () => {
+    // Guards the exemption list itself: a stale entry would silently widen the
+    // hole the "no overlay of its own" check is meant to close.
+    Object.entries(EDITOR_FULLSCREEN_OVERLAYS).forEach(([file, lines]) => {
+      const source = readFileSync(join(srcDir, file), 'utf8')
+      lines.forEach(line => expect(source).toContain(line))
+    })
+  })
+})
+
+describe('escape and scroll ownership at the call sites', () => {
+  it('the RichText fullscreen mode defers Escape to an open dialog', () => {
+    const source = readFileSync(
+      join(srcDir, 'fields/definitions/RichTextField/component.tsx'),
+      'utf8'
+    )
+    expect(source).toContain('isEscapeOwnedByDialog(event)')
+    expect(source).not.toContain('document.body.style.overflow')
+    expect(source).toContain('bodyScrollLock.lock()')
+  })
+
+  it('the media viewer defers Escape to the dialog stack', () => {
+    const source = readFileSync(join(srcDir, 'pages/MediaPage.tsx'), 'utf8')
+    expect(source).toContain('isEscapeOwnedByDialog(e)')
+  })
+
+  it('no component writes the body overflow behind the ref-counted lock', () => {
+    MIGRATED_CALL_SITES.forEach(file => {
+      const source = readFileSync(join(srcDir, file), 'utf8')
+      expect(source).not.toContain('body.style.overflow')
+    })
+  })
+})
+
+describe('responsive drawers', () => {
+  it.each([
+    ['components/layout/StudioLayout.tsx', 'BREAKPOINTS.lg'],
+    ['components/document/DocumentSidebar.tsx', 'BREAKPOINTS.md'],
+  ])('%s closes its drawer at %s', (file, breakpoint) => {
+    const source = readFileSync(join(srcDir, file), 'utf8')
+    expect(source).toContain(`watchBreakpoint(minWidthQuery(${breakpoint})`)
+  })
+})
+
+describe('layering tokens at the call sites', () => {
+  it('the permissions debug panel layers through the token, not an inline z-index', () => {
+    const source = readFileSync(join(srcDir, 'components/debug/PermissionsDebugPanel.tsx'), 'utf8')
+    expect(source).toContain('z-debug')
+    expect(source).not.toContain('zIndex')
   })
 })

@@ -21,6 +21,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { DocumentHistoryPanel } from './DocumentHistoryPanel';
 import { Dialog } from '@/components/ui/Dialog.js';
+import { BREAKPOINTS, minWidthQuery, watchBreakpoint } from '@/components/ui/dialogInternals.js';
 import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('DocumentSidebar');
@@ -54,6 +55,13 @@ export function DocumentSidebar() {
       return false;
     }
   });
+
+  // The drawer is hidden by CSS at md, so it must actually close there: left
+  // open it would keep the scroll lock and the Tab trap while invisible.
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return;
+    return watchBreakpoint(minWidthQuery(BREAKPOINTS.md), () => onToggleMobileSidebar(false));
+  }, [isMobileSidebarOpen, onToggleMobileSidebar]);
 
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
