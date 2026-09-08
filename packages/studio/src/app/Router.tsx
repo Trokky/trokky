@@ -10,9 +10,7 @@ import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
 import { AuditLogsPage } from '@/pages/AuditLogsPage';
-import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { DocumentEditorPage } from '@/components/document';
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 import { DeviceAuthPage } from '@/pages/DeviceAuthPage';
 import { AuthorizePage } from '@/pages/AuthorizePage';
@@ -103,10 +101,6 @@ const router = createBrowserRouter([
       {
         path: 'audit-logs',
         element: <AuditLogsPage />
-      },
-      {
-        path: 'fields-demo',
-        element: <FieldsDemo />
       },
       {
         path: '*',

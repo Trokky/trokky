@@ -12,6 +12,7 @@ import { usePermissions } from './usePermissions'
 import { useStudioContext } from '@/contexts/StudioContext'
 import { apiClient } from '@/services/api-client'
 import { createStudioLogger } from '@/utils/logger'
+import { formatFileSize } from '@/utils/format'
 import { WidgetRenderer } from '@/components/context-sidebar/WidgetRenderer'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 
@@ -132,7 +133,12 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
     const globalConfig = structure.contextSidebar
     if (globalConfig?.contexts) {
       const contextKey = currentContext.type
-      const contextConfig = globalConfig.contexts[contextKey]
+      const contextConfig =
+        contextKey in globalConfig.contexts
+          ? globalConfig.contexts[
+              contextKey as keyof typeof globalConfig.contexts
+            ]
+          : undefined
       if (contextConfig) {
         logger.debug('Found global context sidebar config', { 
           context: currentContext, 
@@ -151,8 +157,8 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
     
     return {
       context: currentContext,
-      structureItem: null, // Would be populated from structure
-      document: null, // Would be populated from current document
+      structureItem: undefined, // Would be populated from structure
+      document: undefined, // Would be populated from current document
       collection: currentContext.schemaType ? {
         name: currentContext.schemaType,
         title: currentContext.schemaType,
@@ -246,13 +252,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
           studioContext?.utils?.showToast?.(message, type as any)
         },
         showConfirm: async (message: string, title?: string) => {
-          return studioContext?.utils?.showConfirm?.(message, title) || Promise.resolve(false)
-        },
-        openModal: (content: any, options = {}) => {
-          studioContext?.utils?.openModal?.(content, options)
-        },
-        closeModal: () => {
-          studioContext?.utils?.closeModal?.()
+          return studioContext?.utils?.showConfirm?.(message, { title }) || Promise.resolve(false)
         },
         refresh: () => window.location.reload(),
         toggleSidebar: () => contextSidebar.toggleCollapse(),
@@ -262,7 +262,10 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         client: apiClient,
         request: async (method: string, path: string, data?: any) => {
           try {
-            const response = await apiClient.request(method, path, data)
+            const response = await apiClient.request(path, {
+              method: method.toUpperCase(),
+              body: data !== undefined ? JSON.stringify(data) : undefined,
+            })
             return response.success ? response.data : null
           } catch (error) {
             logger.error('API request failed', error)
@@ -280,8 +283,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         },
         downloadFile: async (mediaId: string) => {
           try {
-            const response = await fetch(`/api/media/${mediaId}/file`)
-            return await response.blob()
+            return await apiClient.downloadMediaFile(mediaId)
           } catch (error) {
             logger.error('File download failed', error)
             throw error
@@ -289,7 +291,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         }
       },
       utils: {
-        formatDate: (date: Date | string, format?: string) => {
+        formatDate: (date: Date | string, _format?: string) => {
           const d = new Date(date)
           return d.toLocaleDateString()
         },
@@ -304,12 +306,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
           if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
           return `${Math.floor(minutes / 1440)}d ago`
         },
-        formatFileSize: (bytes: number) => {
-          const sizes = ['B', 'KB', 'MB', 'GB']
-          if (bytes === 0) return '0 B'
-          const i = Math.floor(Math.log(bytes) / Math.log(1024))
-          return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
-        },
+        formatFileSize,
         generateSlug: (text: string) => {
           return text
             .toLowerCase()
@@ -325,7 +322,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
           let timeoutId: NodeJS.Timeout
           return ((...args: any[]) => {
             clearTimeout(timeoutId)
-            timeoutId = setTimeout(() => func.apply(null, args), delay)
+            timeoutId = setTimeout(() => func(...args), delay)
           }) as T
         },
         copyToClipboard: async (text: string) => {
@@ -424,7 +421,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         contextSidebar.setContent(
           React.createElement('div', { 
             className: 'p-4 text-red-600' 
-          }, `Error rendering widgets: ${error.message}`)
+          }, `Error rendering widgets: ${error instanceof Error ? error.message : String(error)}`)
         )
       }
     } else if (contextSidebarConfig.content.type === 'callback' && renderContext) {
@@ -436,7 +433,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         contextSidebar.setContent(
           React.createElement('div', { 
             className: 'p-4 text-red-600' 
-          }, `Error rendering sidebar content: ${error.message}`)
+          }, `Error rendering sidebar content: ${error instanceof Error ? error.message : String(error)}`)
         )
       }
     }

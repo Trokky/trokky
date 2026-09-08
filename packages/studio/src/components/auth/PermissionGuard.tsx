@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { Permission } from '@/types';
+import type { Permission, UserRole } from '@/types';
 
 interface PermissionGuardProps {
   /** Single permission required */
@@ -14,7 +14,7 @@ interface PermissionGuardProps {
   /** Multiple permissions (user needs ALL of these) */
   allPermissions?: Permission[];
   /** Role-based access */
-  roles?: ('admin' | 'editor' | 'author' | 'viewer')[];
+  roles?: UserRole[];
   /** What to render when user doesn't have permission */
   fallback?: React.ReactNode;
   /** Children to render when user has permission */
@@ -63,7 +63,7 @@ export function usePermissionGuard(
   permission?: Permission,
   anyPermissions?: Permission[],
   allPermissions?: Permission[],
-  roles?: ('admin' | 'editor' | 'author' | 'viewer')[]
+  roles?: UserRole[]
 ): boolean {
   const { hasPermission, hasAnyPermission, hasAllPermissions, user } = usePermissions();
 

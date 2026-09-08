@@ -3,11 +3,10 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useApiClient } from './useApiClient'
+import { apiClient } from '../services/api-client'
 import { getStudioConfigService, type StudioBranding, type StudioConfigData } from '../services/config-service'
 
 export function useStudioConfig() {
-  const apiClient = useApiClient()
   const [config, setConfig] = useState<StudioConfigData | null>(null)
   const [branding, setBranding] = useState<StudioBranding>({
     title: 'Trokky Studio'

@@ -314,6 +314,13 @@ export interface MFAConfig {
   }>;
 }
 
+export interface UserPreferences {
+  theme?: 'light' | 'dark';
+  language?: string;
+  timezone?: string;
+  [key: string]: unknown;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -324,6 +331,7 @@ export interface User {
   permissions: Permission[];
   isActive: boolean;
   profileImage?: string;
+  preferences?: UserPreferences;
   mfa?: MFAConfig;
   lastLoginAt?: string;
   createdAt: string;

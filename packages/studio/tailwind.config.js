@@ -73,6 +73,12 @@ export default {
         '112': '28rem',
         '128': '32rem',
       },
+      zIndex: {
+        // Overlay layering tokens. Mirrored in src/components/ui/dialogInternals.ts.
+        sticky: '40',
+        overlay: '50',
+        toast: '200',
+      },
       maxWidth: {
         '8xl': '88rem',
         '9xl': '96rem',

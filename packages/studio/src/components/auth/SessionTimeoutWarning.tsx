@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 interface SessionTimeoutWarningProps {
   show: boolean;
@@ -51,7 +51,7 @@ export function SessionTimeoutWarning({
   if (!show) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 max-w-sm">
+    <div className="fixed top-4 right-4 z-toast max-w-sm">
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 shadow-lg">
         <div className="flex items-start">
           <div className="flex-shrink-0">

@@ -1,55 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Dialog } from '@/components/ui/Dialog.js';
 import { apiClient } from '@/services/api-client';
 import {
   ShieldCheckIcon,
-  DevicePhoneMobileIcon,
-  EnvelopeIcon,
-  KeyIcon,
-  ComputerDesktopIcon,
-  TrashIcon,
-  ArrowPathIcon,
   CheckCircleIcon,
-  XCircleIcon,
   ExclamationTriangleIcon,
   ClipboardDocumentIcon,
-  EyeIcon,
-  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
-import { useT } from '@trokky/i18n';
-
-type MFAMethodType = 'totp' | 'email';
-
-interface MFAMethod {
-  type: MFAMethodType;
-  enabled: boolean;
-  verified: boolean;
-  verifiedAt?: string;
-}
-
-interface TrustedDevice {
-  id: string;
-  name: string;
-  trustedAt: string;
-  expiresAt: string;
-  lastUsedAt?: string;
-}
-
-interface MFAStatus {
-  enabled: boolean;
-  methods: MFAMethod[];
-  backupCodesRemaining: number;
-  backupCodesGeneratedAt?: string;
-  trustedDevicesCount: number;
-}
+import { useT } from '@trokky/trokky/i18n';
+import type { MFAMethodType, MFAStatus, SetupStep, TrustedDevice } from './mfa/types';
+import {
+  TotpQrPanel,
+  TotpVerifyPanel,
+  EmailVerifyPanel,
+  BackupCodesPanel,
+} from './mfa/MFASetupPanels';
+import { MFAMethodList } from './mfa/MFAMethodList';
 
 interface MFASettingsProps {
   onToast?: (message: string, type: 'success' | 'error' | 'info') => void;
 }
-
-type SetupStep = 'idle' | 'totp-qr' | 'totp-verify' | 'email-verify' | 'backup-codes';
 
 export function MFASettings({ onToast }: MFASettingsProps) {
   const { t } = useT('studio');
@@ -403,362 +376,82 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Setup Steps */}
       {setupStep === 'totp-qr' && totpSetupData && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            {t('mfa.setup.authenticator')}
-          </h4>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t('mfa.setup.scanQrCode')}
-            </p>
-            <div className="flex justify-center">
-              <img
-                src={totpSetupData.qrCode}
-                alt="TOTP QR Code"
-                className="w-48 h-48 bg-white p-2 rounded"
-              />
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                {t('mfa.setup.orEnterManually')}
-              </p>
-              <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded font-mono text-sm">
-                {totpSetupData.manualEntryKey}
-                <button
-                  onClick={() => copyToClipboard(totpSetupData.manualEntryKey)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <ClipboardDocumentIcon className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={cancelSetup}>
-                {t('mfa.cancel')}
-              </Button>
-              <Button onClick={() => setSetupStep('totp-verify')}>
-                {t('mfa.next')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TotpQrPanel
+          totpSetupData={totpSetupData}
+          onCopy={copyToClipboard}
+          onCancel={cancelSetup}
+          onNext={() => setSetupStep('totp-verify')}
+        />
       )}
 
       {setupStep === 'totp-verify' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            {t('mfa.setup.verifyAuthenticatorCode')}
-          </h4>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t('mfa.setup.enterCodeToVerify')}
-            </p>
-            {error && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
-                {error}
-              </div>
-            )}
-            <Input
-              type="text"
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              className="text-center text-2xl tracking-widest font-mono"
-              maxLength={6}
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={cancelSetup}>
-                {t('mfa.cancel')}
-              </Button>
-              <Button onClick={verifyTOTPSetup} disabled={isProcessing || verificationCode.length !== 6}>
-                {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                {t('mfa.verify')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TotpVerifyPanel
+          verificationCode={verificationCode}
+          onVerificationCodeChange={setVerificationCode}
+          error={error}
+          isProcessing={isProcessing}
+          onCancel={cancelSetup}
+          onVerify={verifyTOTPSetup}
+        />
       )}
 
       {setupStep === 'email-verify' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            {t('mfa.setup.verifyEmailCode')}
-          </h4>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t('mfa.setup.enterEmailCode')}
-            </p>
-            {error && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm text-red-600 dark:text-red-400">
-                {error}
-              </div>
-            )}
-            <Input
-              type="text"
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              className="text-center text-2xl tracking-widest font-mono"
-              maxLength={6}
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={cancelSetup}>
-                {t('mfa.cancel')}
-              </Button>
-              <Button onClick={verifyEmailOTPSetup} disabled={isProcessing || verificationCode.length !== 6}>
-                {isProcessing ? <LoadingSpinner size="sm" className="mr-2" /> : null}
-                {t('mfa.verify')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <EmailVerifyPanel
+          verificationCode={verificationCode}
+          onVerificationCodeChange={setVerificationCode}
+          error={error}
+          isProcessing={isProcessing}
+          onCancel={cancelSetup}
+          onVerify={verifyEmailOTPSetup}
+        />
       )}
 
       {setupStep === 'backup-codes' && backupCodes.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">
-            {t('mfa.setup.saveBackupCodes')}
-          </h4>
-          <div className="space-y-4">
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                {t('mfa.setup.backupCodesImportant')}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded">
-              {backupCodes.map((code, idx) => (
-                <div key={idx} className="p-2 bg-white dark:bg-gray-800 rounded">
-                  {code}
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => copyToClipboard(backupCodes.join('\n'))}
-              >
-                <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                {t('mfa.copyAll')}
-              </Button>
-              <Button onClick={finishBackupCodesSetup}>
-                {t('mfa.done')}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <BackupCodesPanel
+          backupCodes={backupCodes}
+          onCopy={copyToClipboard}
+          onDone={finishBackupCodesSetup}
+        />
       )}
 
       {/* Methods List (when not in setup) */}
       {setupStep === 'idle' && (
-        <div className="space-y-4">
-          {/* Authenticator App */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <DevicePhoneMobileIcon className="h-8 w-8 text-gray-400" />
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">
-                    {t('mfa.authenticatorApp')}
-                  </h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t('mfa.authenticatorAppDesc')}
-                  </p>
-                </div>
-              </div>
-              {totpMethod?.enabled ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600 dark:text-green-400">{t('mfa.enabled')}</span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowDisableDialog('totp')}
-                  >
-                    {t('mfa.disableMethod')}
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" onClick={initTOTPSetup} disabled={isProcessing}>
-                  {t('mfa.setUp')}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Email Verification */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <EnvelopeIcon className="h-8 w-8 text-gray-400" />
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">
-                    {t('mfa.emailVerification')}
-                  </h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t('mfa.emailVerificationDesc')}
-                  </p>
-                </div>
-              </div>
-              {emailMethod?.enabled ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-green-600 dark:text-green-400">{t('mfa.enabled')}</span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowDisableDialog('email')}
-                  >
-                    {t('mfa.disableMethod')}
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" onClick={initEmailOTPSetup} disabled={isProcessing}>
-                  {t('mfa.setUp')}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Backup Codes */}
-          {mfaStatus?.enabled && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <KeyIcon className="h-8 w-8 text-gray-400" />
-                  <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white">
-                      {t('mfa.backupCodes')}
-                    </h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {t('mfa.backupCodesRemaining', { count: mfaStatus.backupCodesRemaining })}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowRegenerateDialog(true)}
-                  disabled={isProcessing}
-                >
-                  <ArrowPathIcon className="h-4 w-4 mr-1" />
-                  {t('mfa.regenerate')}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Trusted Devices */}
-          {mfaStatus?.enabled && mfaStatus.trustedDevicesCount > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <ComputerDesktopIcon className="h-8 w-8 text-gray-400" />
-                  <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white">
-                      {t('mfa.trustedDevices')}
-                    </h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {t('mfa.trustedDevicesCount', { count: mfaStatus.trustedDevicesCount })}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setShowTrustedDevices(!showTrustedDevices);
-                    if (!showTrustedDevices) loadTrustedDevices();
-                  }}
-                >
-                  {showTrustedDevices ? t('mfa.hide') : t('mfa.manage')}
-                </Button>
-              </div>
-              {showTrustedDevices && (
-                <div className="space-y-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {isLoadingDevices ? (
-                    <div className="flex items-center justify-center py-4">
-                      <LoadingSpinner size="sm" />
-                    </div>
-                  ) : trustedDevices.length > 0 ? (
-                    <>
-                      {trustedDevices.map((device) => (
-                        <div
-                          key={device.id}
-                          className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {device.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {t('mfa.trustedDevice.trusted', { date: new Date(device.trustedAt).toLocaleDateString() })}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => revokeTrustedDevice(device.id)}
-                            className="p-1 text-gray-400 hover:text-red-500"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                      {trustedDevices.length > 1 && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full mt-2"
-                          onClick={revokeAllTrustedDevices}
-                        >
-                          {t('mfa.revokeAll')}
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                      {t('common.loading')}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Disable All MFA Button */}
-          {mfaStatus?.enabled && (
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium text-red-800 dark:text-red-200">
-                      {t('mfa.disable.all')}
-                    </h4>
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {t('mfa.disable.allDesc')}
-                    </p>
-                  </div>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => setShowDisableAllDialog(true)}
-                    disabled={isProcessing}
-                  >
-                    <XCircleIcon className="h-4 w-4 mr-1" />
-                    {t('mfa.disable.all')}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <MFAMethodList
+          mfaStatus={mfaStatus}
+          totpMethod={totpMethod}
+          emailMethod={emailMethod}
+          isProcessing={isProcessing}
+          showTrustedDevices={showTrustedDevices}
+          trustedDevices={trustedDevices}
+          isLoadingDevices={isLoadingDevices}
+          onSetupTOTP={initTOTPSetup}
+          onSetupEmailOTP={initEmailOTPSetup}
+          onDisableMethod={setShowDisableDialog}
+          onRegenerateBackupCodes={() => setShowRegenerateDialog(true)}
+          onToggleTrustedDevices={() => {
+            setShowTrustedDevices(!showTrustedDevices);
+            if (!showTrustedDevices) loadTrustedDevices();
+          }}
+          onRevokeTrustedDevice={revokeTrustedDevice}
+          onRevokeAllTrustedDevices={revokeAllTrustedDevices}
+          onDisableAll={() => setShowDisableAllDialog(true)}
+        />
       )}
 
       {/* Disable Dialog */}
       {showDisableDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowDisableDialog(null);
+            setDisablePassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          title={showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
+        >
+          <Dialog.Body>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               {t('mfa.disableDialog.enterPassword')}
             </p>
@@ -794,17 +487,24 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.disableMethod')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Regenerate Backup Codes Dialog */}
       {showRegenerateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {t('mfa.regenerateBackupCodes.title')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowRegenerateDialog(false);
+            setRegeneratePassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          title={t('mfa.regenerateBackupCodes.title')}
+        >
+          <Dialog.Body>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               {t('mfa.regenerateBackupCodes.description')}
             </p>
@@ -839,17 +539,23 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.regenerate')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Show Backup Codes Dialog (after regeneration) */}
       {showBackupCodes && backupCodes.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {t('mfa.setup.newBackupCodes')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowBackupCodes(false);
+            setBackupCodes([]);
+          }}
+          variant="center"
+          size="md"
+          title={t('mfa.setup.newBackupCodes')}
+        >
+          <Dialog.Body>
             <div className="space-y-4">
               <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -881,17 +587,29 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Disable All MFA Dialog */}
       {showDisableAllDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
+        <Dialog
+          open
+          onClose={() => {
+            setShowDisableAllDialog(false);
+            setDisableAllPassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          ariaLabel={t('mfa.disableDialog.all')}
+        >
+          <Dialog.Header>
+            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
               {t('mfa.disableDialog.all')}
             </h3>
+          </Dialog.Header>
+          <Dialog.Body>
             <div className="p-4 mb-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <p className="text-sm text-red-800 dark:text-red-200">
                 {t('mfa.disableDialog.allWarning')}
@@ -932,8 +650,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.disableDialog.all')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ import type {
   MediaFieldValue,
   MediaAssetReference,
   MediaType
-} from '@trokky/types'
+} from '@trokky/trokky/types'
 
 // Re-export shared types for consumers
 export type {
@@ -29,7 +29,7 @@ export type {
   MediaFieldValue,
   MediaAssetReference,
   MediaType
-} from '@trokky/types'
+} from '@trokky/trokky/types'
 
 export interface ClientConfig {
   // API endpoint configuration

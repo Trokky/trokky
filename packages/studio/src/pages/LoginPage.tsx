@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
+import { authStore } from '@/services/auth-store';
 import { storageService, STORAGE_KEYS } from '@/utils/storage';
 import { getStudioPath } from '@/utils/navigation';
 import { ChevronDownIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
@@ -139,11 +140,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
 
   const completeLoginAfterBackupCodes = () => {
     if (setupState.pendingToken && setupState.pendingUser) {
-      localStorage.setItem('trokky_auth_token', setupState.pendingToken);
-      if (setupState.pendingRefreshToken) {
-        localStorage.setItem('trokky_refresh_token', setupState.pendingRefreshToken);
-      }
-      apiClient.setAuthToken(setupState.pendingToken);
+      authStore.persist(setupState.pendingToken, setupState.pendingRefreshToken);
       onLoginSuccess(setupState.pendingToken, setupState.pendingUser);
     }
   };
@@ -186,11 +183,7 @@ export function LoginPage({ onLoginSuccess, onMFASetupRequired }: LoginPageProps
           }));
         } else if (data.token && data.user) {
           // No backup codes, complete login immediately
-          localStorage.setItem('trokky_auth_token', data.token);
-          if (data.refreshToken) {
-            localStorage.setItem('trokky_refresh_token', data.refreshToken);
-          }
-          apiClient.setAuthToken(data.token);
+          authStore.persist(data.token, data.refreshToken);
           onLoginSuccess(data.token, data.user);
         } else {
           // Fallback

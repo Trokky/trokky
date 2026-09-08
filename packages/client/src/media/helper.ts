@@ -4,7 +4,7 @@
  */
 
 import type { HttpClient } from '../http/client.js'
-import type { MediaFieldValue } from '@trokky/types'
+import type { MediaFieldValue } from '@trokky/trokky/types'
 
 export interface MediaVariant {
   url: string

@@ -9,11 +9,9 @@ import {
   ClockIcon,
   UserIcon,
   TagIcon,
-  LinkIcon,
   ChevronRightIcon,
   ChevronDownIcon,
   TrashIcon,
-  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentEditor } from './DocumentEditorContext';
@@ -22,7 +20,9 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { DocumentHistoryPanel } from './DocumentHistoryPanel';
-import { useT } from '@trokky/i18n';
+import { Dialog } from '@/components/ui/Dialog.js';
+import { BREAKPOINTS, minWidthQuery, watchBreakpoint } from '@/components/ui/dialogInternals.js';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('DocumentSidebar');
 
@@ -56,9 +56,16 @@ export function DocumentSidebar() {
     }
   });
 
+  // The drawer is hidden by CSS at md, so it must actually close there: left
+  // open it would keep the scroll lock and the Tab trap while invisible.
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return;
+    return watchBreakpoint(minWidthQuery(BREAKPOINTS.md), () => onToggleMobileSidebar(false));
+  }, [isMobileSidebarOpen, onToggleMobileSidebar]);
+
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [, setDocumentUrl] = useState<string | null>(null);
   const [contributors, setContributors] = useState<Array<{id: string, username: string, role: string}>>([]);
   const [usernameCache, setUsernameCache] = useState<Record<string, string>>({});
 
@@ -106,7 +113,7 @@ export function DocumentSidebar() {
         for (const log of auditLogs) {
           if (log.actorId && !contributorMap.has(log.actorId)) {
             // Try to resolve username
-            let username = log.actorUsername || await resolveUsername(log.actorId);
+            const username = log.actorUsername || await resolveUsername(log.actorId);
             const role = log.actorId === document?._createdBy ? 'Creator' : 'Editor';
             contributorMap.set(log.actorId, { id: log.actorId, username, role });
           }
@@ -308,7 +315,7 @@ export function DocumentSidebar() {
     
     try {
       // Get public URL from settings API
-      const response = await apiClient.get('/config/settings');
+      const response = await apiClient.get<{ settings?: { publicUrl?: string } }>('/config/settings');
       let publicUrl = window.location.origin; // fallback
       
       if (response.success && response.data?.settings?.publicUrl) {
@@ -510,7 +517,7 @@ export function DocumentSidebar() {
               </h4>
               <div className="flex flex-wrap gap-1">
                 {contributors.length > 0 ? (
-                  contributors.slice(0, 5).map((contributor, index) => (
+                  contributors.slice(0, 5).map((contributor) => (
                     <span
                       key={contributor.id}
                       className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
@@ -622,33 +629,25 @@ export function DocumentSidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isMobileSidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => onToggleMobileSidebar(false)}
-          />
-          {/* Sidebar panel */}
-          <div className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-gray-50 dark:bg-gray-900 flex flex-col shadow-xl">
-            {/* Mobile header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                {t('documentEditor.documentInfo')}
-              </h3>
-              <button
-                onClick={() => onToggleMobileSidebar(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                title={t('common.close')}
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-            {sidebarContent}
-          </div>
-        </div>
-      )}
+      {/* Mobile drawer */}
+      <Dialog
+        open={isMobileSidebarOpen}
+        onClose={() => onToggleMobileSidebar(false)}
+        variant="drawer-right"
+        size="sm"
+        wrapperClassName="md:hidden"
+        surface="bg-gray-50 dark:bg-gray-900"
+        ariaLabel={t('documentEditor.documentInfo')}
+      >
+        <Dialog.Header padded={false} className="p-4">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+            {t('documentEditor.documentInfo')}
+          </h3>
+        </Dialog.Header>
+        <Dialog.Body scroll={false} padded={false} className="flex flex-col">
+          {sidebarContent}
+        </Dialog.Body>
+      </Dialog>
 
       {/* Desktop: Collapsed sidebar */}
       {isCollapsed && (

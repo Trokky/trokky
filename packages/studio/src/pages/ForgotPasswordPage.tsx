@@ -8,7 +8,7 @@ import { fetchBranding, applyBrandColors, BrandingConfig } from '@/utils/brandin
 import { getStudioPath, navigateTo } from '@/utils/navigation';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { useCaptcha } from '@/hooks/useCaptcha';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 export function ForgotPasswordPage() {
   const { t } = useT('studio');

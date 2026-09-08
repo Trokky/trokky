@@ -7,9 +7,12 @@ import React, {
   useRef,
   useCallback,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/services/api-client'
+import { authStore } from '@/services/auth-store'
 import { createStudioLogger } from '@/utils/logger'
 import type { User } from '@/types'
+import { clearStructureCache } from '../services/structure-service.js'
 
 const logger = createStudioLogger('useAuth')
 
@@ -62,113 +65,135 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const signedOutState = (): AuthState => ({
+  isAuthenticated: false,
+  user: null,
+  token: null,
+  refreshToken: null,
+  isLoading: false,
+  sessionExpiresAt: null,
+  showTimeoutWarning: false,
+  lastActivity: new Date(),
+})
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    token: null,
-    refreshToken: null,
+    ...signedOutState(),
     isLoading: true,
-    sessionExpiresAt: null,
-    showTimeoutWarning: false,
-    lastActivity: new Date(),
   })
 
-  // Keep refs in sync with state
-  useEffect(() => {
-    authStateRef.current = authState
-    refreshTokenRef.current = authState.refreshToken
-  }, [authState])
-
+  const queryClient = useQueryClient()
   const sessionCheckRef = useRef<NodeJS.Timeout | null>(null)
   const inactivityCheckRef = useRef<NodeJS.Timeout | null>(null)
-  const isRefreshingRef = useRef(false)
-  const refreshTokenRef = useRef<string | null>(null)
   const authStateRef = useRef<AuthState>(authState)
+
+  // Keep the ref in sync so the interval callbacks can read the latest state
+  // without being torn down and rebuilt on every render.
+  useEffect(() => {
+    authStateRef.current = authState
+  }, [authState])
+
+  const stopSessionMonitoring = useCallback(() => {
+    if (sessionCheckRef.current) {
+      clearInterval(sessionCheckRef.current)
+      sessionCheckRef.current = null
+    }
+    if (inactivityCheckRef.current) {
+      clearInterval(inactivityCheckRef.current)
+      inactivityCheckRef.current = null
+    }
+  }, [])
+
+  const endSession = useCallback(() => {
+    stopSessionMonitoring()
+    authStore.clear()
+    // Every cached read - the current user above all - belonged to the session
+    // that just ended; the next sign-in must not see the previous user's data.
+    queryClient.clear()
+    // The structure service keeps its own copy outside react-query, and
+    // /config/structure is generated per user: without this the next sign-in
+    // would render the previous user's navigation and schema availability.
+    clearStructureCache()
+    setAuthState(signedOutState())
+  }, [queryClient, stopSessionMonitoring])
 
   // Track user activity for inactivity detection
   const updateActivity = useCallback(() => {
     setAuthState(prev => ({ ...prev, lastActivity: new Date() }))
-  }, []) // Empty dependency array - function doesn't depend on external values
+  }, [])
 
-  // Auto-refresh session before expiry
-  const refreshSession = useCallback(async () => {
-    if (isRefreshingRef.current || !refreshTokenRef.current) {
-      return
+  /**
+   * The only refresh path in the Studio. The store de-duplicates concurrent
+   * calls, so the session timer and a 401 arriving at the same moment share one
+   * `/auth/refresh` round trip.
+   */
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    const session = await authStore.refresh()
+
+    if (!session) {
+      logger.warn('Session refresh failed, ending session')
+      endSession()
+      return false
     }
 
-    try {
-      isRefreshingRef.current = true
-      logger.info('Refreshing session automatically')
+    setAuthState(prev => ({
+      ...prev,
+      token: session.token,
+      refreshToken: authStore.getRefreshToken(),
+      sessionExpiresAt: session.expiresAt
+        ? new Date(session.expiresAt)
+        : prev.sessionExpiresAt,
+      showTimeoutWarning: false,
+    }))
 
-      const response = await apiClient.post('/auth/refresh', {
-        refreshToken: refreshTokenRef.current,
-      })
+    logger.info('Session refreshed successfully')
+    return true
+  }, [endSession])
 
-      if (
-        response.success &&
-        response.data &&
-        typeof response.data === 'object' &&
-        'token' in response.data &&
-        'refreshToken' in response.data &&
-        'expiresAt' in response.data
-      ) {
-        const { token, refreshToken, expiresAt } = response.data as {
-          token: string
-          refreshToken: string
-          expiresAt: string
+  // Session monitoring: expiry-driven refresh plus an inactivity watchdog.
+  const startSessionMonitoring = useCallback(
+    (expiresAt: Date | null) => {
+      if (!expiresAt) return
+
+      stopSessionMonitoring()
+
+      const sessionConfig = getSessionConfig()
+
+      sessionCheckRef.current = setInterval(() => {
+        const timeUntilExpiry = expiresAt.getTime() - Date.now()
+
+        if (
+          timeUntilExpiry <= sessionConfig.REFRESH_BUFFER_MS &&
+          timeUntilExpiry > 0
+        ) {
+          refreshSession()
         }
 
-        // Update stored tokens
-        localStorage.setItem('trokky_auth_token', token)
-        localStorage.setItem('trokky_refresh_token', refreshToken)
+        if (timeUntilExpiry <= 0) {
+          logger.warn('Session expired, forcing logout')
+          endSession()
+        }
+      }, sessionConfig.CHECK_INTERVAL_MS)
 
-        // Update auth client
-        apiClient.setAuthToken(token)
+      inactivityCheckRef.current = setInterval(() => {
+        const timeSinceActivity =
+          Date.now() - authStateRef.current.lastActivity.getTime()
 
-        const newExpiresAt = new Date(expiresAt)
+        if (timeSinceActivity >= sessionConfig.INACTIVITY_TIMEOUT_MS) {
+          logger.warn('User inactive for too long, forcing logout')
+          endSession()
+        }
+      }, sessionConfig.CHECK_INTERVAL_MS)
+    },
+    [endSession, refreshSession, stopSessionMonitoring]
+  )
 
-        setAuthState(prev => ({
-          ...prev,
-          token,
-          refreshToken,
-          sessionExpiresAt: newExpiresAt,
-          showTimeoutWarning: false, // This should hide the warning
-        }))
-
-        logger.info('Session refreshed successfully')
-      } else {
-        logger.error('Invalid refresh response:', response)
-        throw new Error('Failed to refresh session')
-      }
-    } catch (error) {
-      logger.error('Session refresh failed', error)
-      // Force logout on refresh failure - clear state directly
-      localStorage.removeItem('trokky_auth_token')
-      localStorage.removeItem('trokky_refresh_token')
-      apiClient.clearAuthToken()
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        refreshToken: null,
-        isLoading: false,
-        sessionExpiresAt: null,
-        showTimeoutWarning: false,
-        lastActivity: new Date(),
-      })
-    } finally {
-      isRefreshingRef.current = false
-    }
-  }, []) // Remove all dependencies to avoid hoisting issues, use refs for stable access
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }))
 
-      // Check for stored tokens
-      const storedToken = localStorage.getItem('trokky_auth_token')
-      const storedRefreshToken = localStorage.getItem('trokky_refresh_token')
+      const { token: storedToken, refreshToken: storedRefreshToken } =
+        authStore.getTokens()
 
       logger.info('Checking auth', {
         hasStoredToken: !!storedToken,
@@ -177,37 +202,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!storedToken) {
         logger.info('No stored token, showing login page')
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          refreshToken: null,
-          isLoading: false,
-          sessionExpiresAt: null,
-          showTimeoutWarning: false,
-          lastActivity: new Date(),
-        })
+        setAuthState(signedOutState())
         return
       }
 
-      // Ensure token is set in apiClient before validation
-      apiClient.setAuthToken(storedToken)
-
-      // Validate token with server
-      logger.info('Validating stored token with server')
-
       const response = await apiClient.post('/auth/validate', {
         token: storedToken,
-      })
-
-      logger.info('Token validation response', {
-        success: response.success,
-        hasData: !!response.data,
-        dataKeys:
-          response.data && typeof response.data === 'object'
-            ? Object.keys(response.data)
-            : [],
-        error: response.error,
       })
 
       if (
@@ -237,152 +237,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           lastActivity: new Date(),
         })
 
-        // Start session monitoring
         startSessionMonitoring(expiresAt)
-      } else {
-        // Token invalid, try to refresh if we have a refresh token
-        if (storedRefreshToken) {
-          try {
-            const refreshResponse = await apiClient.post('/auth/refresh', {
-              refreshToken: storedRefreshToken,
-            })
-
-            if (
-              refreshResponse.success &&
-              refreshResponse.data &&
-              typeof refreshResponse.data === 'object' &&
-              'token' in refreshResponse.data &&
-              'refreshToken' in refreshResponse.data &&
-              'user' in refreshResponse.data &&
-              'expiresAt' in refreshResponse.data
-            ) {
-              const { token, refreshToken, user, expiresAt } =
-                refreshResponse.data as {
-                  token: string
-                  refreshToken: string
-                  user: any
-                  expiresAt: string
-                }
-
-              localStorage.setItem('trokky_auth_token', token)
-              localStorage.setItem('trokky_refresh_token', refreshToken)
-              apiClient.setAuthToken(token)
-
-              const sessionExpiresAt = new Date(expiresAt)
-
-              setAuthState({
-                isAuthenticated: true,
-                user,
-                token,
-                refreshToken,
-                isLoading: false,
-                sessionExpiresAt,
-                showTimeoutWarning: false,
-                lastActivity: new Date(),
-              })
-
-              startSessionMonitoring(sessionExpiresAt)
-              logger.info('Session restored via refresh token')
-              return
-            }
-          } catch (refreshError) {
-            logger.warn('Refresh token also invalid', refreshError)
-          }
-        }
-
-        // Both tokens invalid, clear auth state
-        logger.warn('Stored tokens are invalid, clearing auth state', {
-          response,
-        })
-        localStorage.removeItem('trokky_auth_token')
-        localStorage.removeItem('trokky_refresh_token')
-        apiClient.clearAuthToken()
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          refreshToken: null,
-          isLoading: false,
-          sessionExpiresAt: null,
-          showTimeoutWarning: false,
-          lastActivity: new Date(),
-        })
+        return
       }
-    } catch (error) {
-      logger.error('Auth check failed', error)
-      // Clear invalid tokens
-      localStorage.removeItem('trokky_auth_token')
-      localStorage.removeItem('trokky_refresh_token')
-      apiClient.clearAuthToken()
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        refreshToken: null,
-        isLoading: false,
-        sessionExpiresAt: null,
-        showTimeoutWarning: false,
-        lastActivity: new Date(),
-      })
-    }
-  }
 
-  const login = async (
-    username: string,
-    password: string,
-    rememberMe = false
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await apiClient.post('/auth/login', {
-        username,
-        password,
-        rememberMe,
-      })
-
-      if (
-        response.success &&
-        response.data &&
-        typeof response.data === 'object' &&
-        'user' in response.data &&
-        'token' in response.data &&
-        'expiresAt' in response.data
-      ) {
-        const { user, token, refreshToken, expiresAt } = response.data as {
-          user: any
-          token: string
-          refreshToken?: string
-          expiresAt: string
-        }
-
-        logger.info('User login successful', { username, rememberMe })
-
-        // Store tokens
-        localStorage.setItem('trokky_auth_token', token)
-        if (refreshToken) {
-          localStorage.setItem('trokky_refresh_token', refreshToken)
-        }
-
-        // Update API client
-        apiClient.setAuthToken(token)
-
-        const sessionExpiresAt = new Date(expiresAt)
+      // Stored token is stale: fall through to the one refresh mechanism.
+      const session = await authStore.refresh()
+      if (session?.token) {
+        const sessionExpiresAt = session.expiresAt
+          ? new Date(session.expiresAt)
+          : null
 
         setAuthState({
           isAuthenticated: true,
-          user,
-          token,
-          refreshToken: refreshToken || null,
+          user: (session.user as User) ?? null,
+          token: session.token,
+          refreshToken: authStore.getRefreshToken(),
           isLoading: false,
           sessionExpiresAt,
           showTimeoutWarning: false,
           lastActivity: new Date(),
         })
 
-        // Start session monitoring
         startSessionMonitoring(sessionExpiresAt)
+        logger.info('Session restored via refresh token')
+        return
+      }
 
-        return { success: true }
-      } else {
+      logger.warn('Stored tokens are invalid, clearing auth state')
+      endSession()
+    } catch (error) {
+      logger.error('Auth check failed', error)
+      endSession()
+    }
+  }, [endSession, startSessionMonitoring])
+
+  const login = useCallback(
+    async (
+      username: string,
+      password: string,
+      rememberMe = false
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const response = await apiClient.post('/auth/login', {
+          username,
+          password,
+          rememberMe,
+        })
+
+        if (
+          response.success &&
+          response.data &&
+          typeof response.data === 'object' &&
+          'user' in response.data &&
+          'token' in response.data &&
+          'expiresAt' in response.data
+        ) {
+          const { user, token, refreshToken, expiresAt } = response.data as {
+            user: any
+            token: string
+            refreshToken?: string
+            expiresAt: string
+          }
+
+          logger.info('User login successful', { username, rememberMe })
+
+          authStore.persist(token, refreshToken)
+
+          const sessionExpiresAt = new Date(expiresAt)
+
+          setAuthState({
+            isAuthenticated: true,
+            user,
+            token,
+            refreshToken: refreshToken || null,
+            isLoading: false,
+            sessionExpiresAt,
+            showTimeoutWarning: false,
+            lastActivity: new Date(),
+          })
+
+          startSessionMonitoring(sessionExpiresAt)
+
+          return { success: true }
+        }
+
         logger.warn('Login failed', {
           username,
           error: response.error?.message,
@@ -391,47 +330,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           success: false,
           error: response.error?.message || 'Login failed',
         }
+      } catch (error) {
+        logger.error('Login error', { username, error })
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Login failed',
+        }
       }
-    } catch (error) {
-      logger.error('Login error', { username, error })
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Login failed',
-      }
-    }
-  }
+    },
+    [startSessionMonitoring]
+  )
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
-      // Stop session monitoring
       stopSessionMonitoring()
 
-      // Attempt server logout
-      if (authState.refreshToken) {
-        await apiClient.post('/auth/logout', {
-          refreshToken: authState.refreshToken,
-        })
+      const refreshToken = authStore.getRefreshToken()
+      if (refreshToken) {
+        await apiClient.post('/auth/logout', { refreshToken })
       }
       logger.info('User logout successful')
     } catch (error) {
       logger.error('Logout failed', error)
     } finally {
-      // Always clear local state
-      localStorage.removeItem('trokky_auth_token')
-      localStorage.removeItem('trokky_refresh_token')
-      apiClient.clearAuthToken()
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        refreshToken: null,
-        isLoading: false,
-        sessionExpiresAt: null,
-        showTimeoutWarning: false,
-        lastActivity: new Date(),
-      })
+      endSession()
     }
-  }
+  }, [endSession, stopSessionMonitoring])
 
   const dismissTimeoutWarning = useCallback(() => {
     setAuthState(prev => ({ ...prev, showTimeoutWarning: false }))
@@ -441,91 +365,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState(prev => ({ ...prev, user }))
   }, [])
 
-  // Session monitoring functions
-  const startSessionMonitoring = useCallback(
-    (expiresAt: Date | null) => {
-      if (!expiresAt) return
-
-      stopSessionMonitoring()
-
-      const sessionConfig = getSessionConfig()
-
-      // Set up periodic session checks
-      sessionCheckRef.current = setInterval(() => {
-        const now = new Date()
-        const timeUntilExpiry = expiresAt.getTime() - now.getTime()
-        const currentAuthState = authStateRef.current
-
-        // Skip warning - let auto-refresh handle expiry silently
-        // Warning disabled to prevent user disruption
-
-        // Auto-refresh if within refresh buffer
-        if (
-          timeUntilExpiry <= sessionConfig.REFRESH_BUFFER_MS &&
-          timeUntilExpiry > 0
-        ) {
-          refreshSession()
-        }
-
-        // Force logout if expired
-        if (timeUntilExpiry <= 0) {
-          logger.warn('Session expired, forcing logout')
-          // Clear state directly to avoid hoisting issues
-          localStorage.removeItem('trokky_auth_token')
-          localStorage.removeItem('trokky_refresh_token')
-          apiClient.clearAuthToken()
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            refreshToken: null,
-            isLoading: false,
-            sessionExpiresAt: null,
-            showTimeoutWarning: false,
-            lastActivity: new Date(),
-          })
-        }
-      }, sessionConfig.CHECK_INTERVAL_MS)
-
-      // Set up inactivity monitoring
-      inactivityCheckRef.current = setInterval(() => {
-        const now = new Date()
-        const currentAuthState = authStateRef.current
-        const timeSinceActivity =
-          now.getTime() - currentAuthState.lastActivity.getTime()
-
-        if (timeSinceActivity >= sessionConfig.INACTIVITY_TIMEOUT_MS) {
-          logger.warn('User inactive for too long, forcing logout')
-          // Clear state directly to avoid hoisting issues
-          localStorage.removeItem('trokky_auth_token')
-          localStorage.removeItem('trokky_refresh_token')
-          apiClient.clearAuthToken()
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            refreshToken: null,
-            isLoading: false,
-            sessionExpiresAt: null,
-            showTimeoutWarning: false,
-            lastActivity: new Date(),
-          })
-        }
-      }, sessionConfig.CHECK_INTERVAL_MS)
-    },
-    [refreshSession]
-  ) // Remove logout dependency
-
-  const stopSessionMonitoring = useCallback(() => {
-    if (sessionCheckRef.current) {
-      clearInterval(sessionCheckRef.current)
-      sessionCheckRef.current = null
+  // A 401 hands recovery to the one refresh mechanism. The API client retries
+  // the failed request at most once on a true result.
+  useEffect(() => {
+    apiClient.onUnauthorized = async () => refreshSession()
+    return () => {
+      apiClient.onUnauthorized = null
     }
-    if (inactivityCheckRef.current) {
-      clearInterval(inactivityCheckRef.current)
-      inactivityCheckRef.current = null
-    }
-  }, [])
+  }, [refreshSession])
 
   // Set up activity tracking
   useEffect(() => {
@@ -551,28 +398,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         document.removeEventListener(event, handleActivity)
       })
     }
-  }, [authState.isAuthenticated]) // Remove updateActivity dependency since it's now stable
+  }, [authState.isAuthenticated, updateActivity])
 
-  // Check auth on mount - but only after apiClient is initialized
+  // Check auth on mount
   useEffect(() => {
-    // Ensure apiClient is initialized first
-    if (!(apiClient as any).backendUrl) {
-      apiClient.initialize()
-    }
     checkAuth()
 
-    // Cleanup on unmount
     return () => {
       stopSessionMonitoring()
     }
+    // Deliberately mount-only: checkAuth is stable and re-running it would
+    // re-validate the session on every render of the provider.
   }, [])
 
-  // Clean up timers when component unmounts
-  useEffect(() => {
-    return stopSessionMonitoring
-  }, [stopSessionMonitoring])
-
-  // Restart session monitoring when sessionExpiresAt changes (after refresh)
+  // Restart session monitoring when the expiry moves (after a refresh)
   useEffect(() => {
     if (authState.isAuthenticated && authState.sessionExpiresAt) {
       startSessionMonitoring(authState.sessionExpiresAt)
@@ -592,7 +431,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dismissTimeoutWarning,
     updateActivity,
     updateUser,
-  } as AuthContextType
+  } as unknown as AuthContextType
 
   return React.createElement(
     AuthContext.Provider,

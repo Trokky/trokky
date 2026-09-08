@@ -4,7 +4,7 @@
  */
 
 import React from 'react'
-import { useT } from '@trokky/i18n'
+import { useT } from '@trokky/trokky/i18n'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 import { RecentDocumentsWidget, type RecentDocumentsWidgetConfig } from './widgets/RecentDocumentsWidget'
 
@@ -48,7 +48,7 @@ export function WidgetRenderer({
 
   return (
     <div className="space-y-4">
-      {content.widgets.map((widget, index) =>
+      {content.widgets.map(widget =>
         renderWidget({ ...widget }, context, t)
       )}
     </div>

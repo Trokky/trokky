@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { SETTINGS_PERMISSIONS } from '@/constants/permissions';
@@ -92,7 +92,9 @@ export function SettingsPage() {
       setLoading(true);
       logger.debug('Loading settings from API');
       
-      const response = await apiClient.get('/config/settings');
+      const response = await apiClient.get<{
+        settings?: Record<string, any>
+      }>('/config/settings');
       
       if (response.success && response.data?.settings) {
         const settings = response.data.settings;

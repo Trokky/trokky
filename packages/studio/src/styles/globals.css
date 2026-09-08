@@ -58,7 +58,9 @@
   /* Animation utilities */
   .animate-in {
     animation-duration: 200ms;
-    animation-fill-mode: both;
+    /* backwards (not both): the end keyframe must not persist, or the
+       resulting transform would trap position:fixed descendants */
+    animation-fill-mode: backwards;
   }
   
   .fade-in {
@@ -79,6 +81,39 @@
   
   .slide-in-from-right {
     animation-name: slideInFromRight;
+  }
+
+  /* Drawer entrances: the panel travels its own full width. */
+  .slide-in-from-right-full {
+    animation-name: slideInFromRightFull;
+  }
+
+  .slide-in-from-left-full {
+    animation-name: slideInFromLeftFull;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in {
+    animation: none;
+  }
+}
+
+@keyframes slideInFromRightFull {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromLeftFull {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }
 

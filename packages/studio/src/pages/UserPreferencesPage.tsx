@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon, LanguageIcon } from '@heroicons/react/24/outline';
-import { useT, useLocale, SUPPORTED_LOCALES, LOCALE_NAMES, type SupportedLocale } from '@trokky/i18n';
+import { PaintBrushIcon, BellIcon, LinkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { useT, useLocale, type SupportedLocale } from '@trokky/trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
@@ -226,7 +226,7 @@ export function UserPreferencesPage() {
             </div>
           </div>
 
-          <MFASettings showToast={showToast} />
+          <MFASettings onToast={showToast} />
 
           {/* Passkeys Section */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">

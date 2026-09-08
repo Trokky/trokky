@@ -4,7 +4,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { GoogleLoginButton } from './GoogleLoginButton';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 interface OAuthProvider {
   provider: 'google' | 'github' | 'microsoft';

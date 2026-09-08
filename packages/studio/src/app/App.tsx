@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/i18n';
+import { TrokkyI18nProvider, useT, type I18nConfig } from '@trokky/trokky/i18n';
 import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -33,6 +34,11 @@ function getI18nConfig(): I18nConfig {
     debug: i18nConfig?.debug ?? import.meta.env.DEV,
   };
 }
+
+// Configure the API client once, at import time, before any component renders
+// or any hook fires a request. `initialize()` is idempotent, so nothing
+// downstream needs to guard against an unconfigured client.
+apiClient.initialize();
 
 // Create a client
 const queryClient = new QueryClient({
@@ -126,8 +132,18 @@ function AppContent() {
     <>
       <AppRouter />
       <SessionTimeoutWarningContainer />
-      <ToastContainer />
-      <ConfirmDialogContainer />
+      {/* Portalled into document.body, above the dialog layer: toasts and
+          confirms carry the z-toast token, dialogs the z-overlay token */}
+      {createPortal(
+        // data-dialog-exempt keeps this layer out of the background-inert sweep:
+        // a toast raised while a dialog is open must stay dismissible and
+        // announceable, and it paints above the dialog on the z-toast token.
+        <div data-dialog-exempt="">
+          <ToastContainer />
+          <ConfirmDialogContainer />
+        </div>,
+        document.body
+      )}
     </>
   );
 }
@@ -139,8 +155,6 @@ export function App() {
   const i18nConfig = useMemo(() => getI18nConfig(), []);
 
   useEffect(() => {
-    // Initialize API client synchronously - config is already available
-    apiClient.initialize();
     const logger = createStudioLogger('App');
     logger.info('Trokky Studio started');
 
@@ -159,8 +173,9 @@ export function App() {
     loadBranding();
 
     // Listen for settings updates to refresh branding
-    const handleSettingsUpdate = async (event: CustomEvent) => {
-      const settings = event.detail?.settings;
+    const handleSettingsUpdate = async (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const settings = detail?.settings;
       if (settings) {
         const updatedBranding: BrandingConfig = {
           title: settings.studioTitle,
@@ -179,10 +194,10 @@ export function App() {
       }
     };
 
-    window.addEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+    window.addEventListener('trokky:settings:updated', handleSettingsUpdate);
 
     return () => {
-      window.removeEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+      window.removeEventListener('trokky:settings:updated', handleSettingsUpdate);
     };
   }, []);
 

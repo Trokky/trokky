@@ -10,7 +10,7 @@ import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { Document } from '@/types';
 
 export interface ListColumn {
@@ -407,13 +407,13 @@ export const getDefaultColumns = (): ListColumn[] => {
       key: 'title',
       title: 'Title',
       sortable: true,
-      render: (value, doc) => getSmartDocumentTitle(doc)
+      render: (_value, doc) => getSmartDocumentTitle(doc)
     },
     {
       key: '_status',
       title: 'Status',
       sortable: true,
-      render: (value, doc) => {
+      render: (value, _doc) => {
         // Use _status as the single source of truth
         const status = value || 'draft';
         const isPublished = status === 'published';

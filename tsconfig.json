@@ -11,38 +11,24 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "baseUrl": ".",
     "paths": {
-      "@trokky/core": ["./packages/core/src"],
-      "@trokky/routes": ["./packages/routes/src"],
+      "@trokky/trokky": ["./packages/trokky/src"],
+      "@trokky/trokky/express": ["./packages/trokky/src/integrations/express"],
+      "@trokky/trokky/*": ["./packages/trokky/src/*"],
       "@trokky/studio": ["./packages/studio/src"],
-      "@trokky/client": ["./packages/client/src"],
-      "@trokky/mail": ["./packages/mail/src"],
-      "@trokky/i18n": ["./packages/i18n/src"],
-      "@trokky/express": ["./packages/integrations/express/src"],
-      "@trokky/nextjs": ["./packages/integrations/nextjs/src"],
-      "@trokky/cloudflare": ["./packages/integrations/cloudflare-workers/src"],
-      "@trokky/hono": ["./packages/integrations/hono/src"],
-      "@trokky/adapter-filesystem": ["./packages/adapters/filesystem/src"],
-      "@trokky/adapter-cloudflare": ["./packages/adapters/cloudflare/src"],
-      "@trokky/adapter-s3": ["./packages/adapters/s3/src"]
+      "@trokky/client": ["./packages/client/src"]
     }
   },
   "include": [
-    "next-env.d.ts",
     "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/dist/**"
   ]
 }

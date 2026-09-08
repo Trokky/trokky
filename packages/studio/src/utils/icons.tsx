@@ -13,7 +13,6 @@
  */
 
 import React from 'react';
-import type { IconMeta, IconLibraryAdapter } from '@trokky/fields';
 
 // Import adapters from fields package
 // Note: We re-implement a minimal version here to avoid circular dependencies

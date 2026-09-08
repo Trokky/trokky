@@ -4,8 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import type { MediaFieldValue, MediaType } from '../types'
-import { useT } from '@trokky/i18n'
+import type { MediaFieldValue, MediaType } from '@trokky/trokky/types'
+import { useT } from '@trokky/trokky/i18n'
+import { formatFileSize } from '@/utils/format'
+import { getBestPreviewVariant } from '@/utils/media'
 
 // Types for Studio API integration
 interface MediaFile {
@@ -53,6 +55,7 @@ interface MediaBrowserAPI {
   ) => Promise<any>
   deleteMedia?: (id: string) => Promise<any>
   updateMedia?: (id: string, metadata: any) => Promise<any>
+  regenerateVariants?: (id: string) => Promise<any>
 }
 
 // SVG Icons
@@ -219,19 +222,6 @@ function getMediaTypeIcon(mediaType: string): React.ReactElement {
   }
 }
 
-// Helper function to get the best available variant for preview
-function getBestPreviewVariant(media: MediaFile): string | undefined {
-  // For image media with variants, prefer thumbnail > small > original
-  if (media.metadata?.imageVariants) {
-    const variants = media.metadata.imageVariants
-    if (variants.thumbnail) return 'thumbnail'
-    if (variants.small) return 'small'
-    // If no small variants, use original (undefined means original)
-  }
-  // For non-image media or media without variants, use original
-  return undefined
-}
-
 // Helper function to get media URL using the new MediaUrlGenerator
 function getMediaUrl(
   media: MediaFile,
@@ -263,15 +253,9 @@ function getMediaUrl(
   )
 }
 
-function formatFileSize(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1)
-}
-
 export function MediaBrowserContent({
   onSelect,
   mediaTypeFilter,
-  showVariantSelector = false,
-  context,
   apiClient,
   logger,
   mediaUrlGenerator,
@@ -287,10 +271,6 @@ export function MediaBrowserContent({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20 // Show 20 items per page (4 rows of 5)
-
-  // Cross-platform development check
-  const isDevelopment =
-    typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true
 
   // Load media files when component mounts
   useEffect(() => {
@@ -501,7 +481,7 @@ export function MediaBrowserContent({
 
       {/* Single Media View */}
       {viewMode === 'single' && selectedMedia ? (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Back Navigation */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
             <button
@@ -649,7 +629,7 @@ export function MediaBrowserContent({
                               logger?.info('Regenerating variants for', {
                                 mediaId: selectedMedia.id,
                               })
-                              await apiClient.regenerateVariants(
+                              await apiClient.regenerateVariants?.(
                                 selectedMedia.id
                               )
                               // Refresh media list to get updated variants
@@ -781,7 +761,7 @@ export function MediaBrowserContent({
                       {t('mediaBrowser.size')}
                     </dt>
                     <dd className="text-gray-900 dark:text-white">
-                      {formatFileSize(selectedMedia.size)} MB
+                      {formatFileSize(selectedMedia.size)}
                     </dd>
                   </div>
                   <div className="flex justify-between">
@@ -874,7 +854,7 @@ export function MediaBrowserContent({
                           selectedMedia.metadata?.height
                             ? `${selectedMedia.metadata.width} × ${selectedMedia.metadata.height} • `
                             : ''}
-                          {formatFileSize(selectedMedia.size)} MB
+                          {formatFileSize(selectedMedia.size)}
                         </p>
                       </div>
 
@@ -1078,7 +1058,7 @@ export function MediaBrowserContent({
                         {media.filename}
                       </p>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
-                        {formatFileSize(media.size)} MB
+                        {formatFileSize(media.size)}
                       </p>
                     </div>
                   </div>

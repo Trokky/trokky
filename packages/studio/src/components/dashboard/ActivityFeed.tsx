@@ -8,8 +8,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClockIcon,
-  UserIcon,
-  DocumentTextIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,
@@ -23,7 +21,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('ActivityFeed');
 
@@ -53,7 +51,7 @@ function groupActivitiesByDocument(activities: AuditLog[]): DocumentGroup[] {
   // Convert to sorted groups (by most recent activity)
   const groups: DocumentGroup[] = [];
   
-  documentMap.forEach((docActivities, key) => {
+  documentMap.forEach(docActivities => {
     // Sort activities within document by timestamp (newest first)
     const sortedDocActivities = docActivities.sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()

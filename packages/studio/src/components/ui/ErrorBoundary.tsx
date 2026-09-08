@@ -1,7 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { Button } from './Button';
 import { DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 // Translation strings interface
 interface ErrorBoundaryTranslations {

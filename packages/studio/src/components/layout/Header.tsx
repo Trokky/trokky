@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -102,7 +102,7 @@ export function Header({
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <header className="sticky top-0 z-sticky bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6">
         {/* Left section */}
         <div className="flex items-center space-x-4">
@@ -221,7 +221,7 @@ export function Header({
           )}
 
           {/* Settings dropdown - only show if user has access to any settings features */}
-          {hasAnyPermission(SETTINGS_MENU_PERMISSIONS) && (
+          {hasAnyPermission([...SETTINGS_MENU_PERMISSIONS]) && (
             <div className="hidden sm:block relative">
               <Button
                 variant="ghost"

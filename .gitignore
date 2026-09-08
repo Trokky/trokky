@@ -57,6 +57,7 @@ examples/demo/data/
 examples/*/media/
 **/media/
 !packages/*/src/media/
+!packages/*/src/**/media/
 
 # Archived files from refactoring
 examples/demo/archived-files/

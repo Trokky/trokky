@@ -1,0 +1,219 @@
+/**
+ * Universal crypto utilities that work across all JavaScript environments
+ * Supports: Browser, Node.js, Cloudflare Workers, Deno, Bun, etc.
+ */
+
+export interface UniversalCrypto {
+  getRandomBytes(length: number): Uint8Array
+}
+
+/**
+ * Detect and return the best crypto implementation for the current environment
+ */
+export function getUniversalCrypto(): UniversalCrypto {
+  // Web Crypto API (browser, Cloudflare Workers, Deno)
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && 'getRandomValues' in globalThis.crypto) {
+    return {
+      getRandomBytes(length: number): Uint8Array {
+        const array = new Uint8Array(length)
+        globalThis.crypto.getRandomValues(array)
+        return array
+      }
+    }
+  }
+
+  // Node.js environment - use dynamic require detection to avoid bundling
+  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+    return {
+      getRandomBytes(length: number): Uint8Array {
+        try {
+          // Use dynamic require detection to prevent bundlers from trying to resolve this
+          const requireFunc = typeof require !== 'undefined' ? require : null
+          if (!requireFunc) throw new Error('require not available')
+          const crypto = requireFunc('crypto')
+          return new Uint8Array(crypto.randomBytes(length))
+        } catch (error) {
+          // Fallback if crypto is not available
+          return getFallbackRandomBytes(length)
+        }
+      }
+    }
+  }
+
+  // Fallback for any other environment
+  return {
+    getRandomBytes: getFallbackRandomBytes
+  }
+}
+
+/**
+ * Fallback random bytes implementation using Math.random()
+ * Not cryptographically secure - only for environments without crypto support
+ */
+function getFallbackRandomBytes(length: number): Uint8Array {
+  console.warn('⚠️ Using Math.random() fallback for crypto operations. This is not cryptographically secure.')
+  const array = new Uint8Array(length)
+  for (let i = 0; i < length; i++) {
+    array[i] = Math.floor(Math.random() * 256)
+  }
+  return array
+}
+
+/**
+ * Convert byte array to hex string
+ */
+export function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Generate a cryptographically secure random hex string
+ */
+export function generateRandomHex(length: number): string {
+  const crypto = getUniversalCrypto()
+  const bytes = crypto.getRandomBytes(Math.ceil(length / 2))
+  return bytesToHex(bytes).slice(0, length)
+}
+
+/**
+ * Generate a UUID v4
+ */
+export function generateUUID(): string {
+  const crypto = getUniversalCrypto()
+  const bytes = crypto.getRandomBytes(16)
+  
+  // Set version (4) and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+  const hex = bytesToHex(bytes)
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32)
+  ].join('-')
+}
+
+/**
+ * Generate a cryptographically secure random integer between 0 and max (exclusive)
+ * Uses rejection sampling to avoid modulo bias
+ */
+export function getSecureRandomInt(max: number): number {
+  if (max <= 0) throw new Error('Max must be positive')
+  if (max === 1) return 0
+
+  const crypto = getUniversalCrypto()
+
+  // Determine how many bytes we need to represent max
+  const byteCount = Math.ceil(Math.log2(max) / 8) || 1
+  const maxVal = Math.pow(256, byteCount)
+  const threshold = maxVal - (maxVal % max)
+
+  while (true) {
+    const bytes = crypto.getRandomBytes(byteCount)
+    let value = 0
+    for (let i = 0; i < byteCount; i++) {
+      value = (value * 256) + bytes[i]
+    }
+    // Rejection sampling to avoid modulo bias
+    if (value < threshold) {
+      return value % max
+    }
+  }
+}
+
+/**
+ * Cryptographically secure array shuffling using Fisher-Yates algorithm
+ */
+export function secureShuffleArray<T>(array: T[]): T[] {
+  const result = [...array]
+
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = getSecureRandomInt(i + 1)
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+
+  return result
+}
+
+/**
+ * Generate a cryptographically secure password
+ */
+export interface SecurePasswordOptions {
+  length?: number
+  includeUppercase?: boolean
+  includeLowercase?: boolean
+  includeNumbers?: boolean
+  includeSpecialChars?: boolean
+  customChars?: string
+  excludeSimilar?: boolean // Exclude similar looking chars like 0/O, 1/l/I
+}
+
+export function generateSecurePassword(options: SecurePasswordOptions = {}): string {
+  const {
+    length = 16,
+    includeUppercase = true,
+    includeLowercase = true,
+    includeNumbers = true,
+    includeSpecialChars = true,
+    customChars = '',
+    excludeSimilar = false
+  } = options
+
+  if (length < 1) throw new Error('Password length must be at least 1')
+  if (length > 1000) throw new Error('Password length too large')
+
+  let charset = ''
+  const requiredChars: string[] = []
+  
+  // Build character sets
+  if (includeLowercase) {
+    const lowercase = excludeSimilar ? 'abcdefghijkmnopqrstuvwxyz' : 'abcdefghijklmnopqrstuvwxyz'
+    charset += lowercase
+    requiredChars.push(lowercase[getSecureRandomInt(lowercase.length)])
+  }
+  
+  if (includeUppercase) {
+    const uppercase = excludeSimilar ? 'ABCDEFGHJKLMNPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    charset += uppercase
+    requiredChars.push(uppercase[getSecureRandomInt(uppercase.length)])
+  }
+  
+  if (includeNumbers) {
+    const numbers = excludeSimilar ? '23456789' : '0123456789'
+    charset += numbers
+    requiredChars.push(numbers[getSecureRandomInt(numbers.length)])
+  }
+  
+  if (includeSpecialChars) {
+    const special = '!@#$%^&*()_+-=[]{}|;:,.<>?'
+    charset += special
+    requiredChars.push(special[getSecureRandomInt(special.length)])
+  }
+  
+  if (customChars) {
+    charset += customChars
+  }
+  
+  if (!charset) {
+    throw new Error('At least one character type must be included')
+  }
+  
+  // Convert charset to array for secure selection
+  const charArray = charset.split('')
+  
+  // Start with required characters
+  const passwordChars = [...requiredChars]
+  
+  // Fill remaining length with random characters from full charset
+  while (passwordChars.length < length) {
+    const randomIndex = getSecureRandomInt(charArray.length)
+    
+    passwordChars.push(charArray[randomIndex])
+  }
+  
+  // Securely shuffle the password to avoid predictable patterns
+  return secureShuffleArray(passwordChars).join('')
+}

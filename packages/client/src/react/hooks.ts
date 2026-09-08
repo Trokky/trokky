@@ -31,7 +31,6 @@ declare const React: any;
  * ```
  */
 export function useResolvedContent(client: TrokkyClient, content: string): string {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return React.useMemo(() => {
     if (!content || !client) return content;
     return client.resolveContent(content);
@@ -46,7 +45,6 @@ export function useResolvedContent(client: TrokkyClient, content: string): strin
  * @returns Boolean indicating if content contains shortcodes
  */
 export function useHasShortcodes(client: TrokkyClient, content: string): boolean {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return React.useMemo(() => {
     if (!content || !client) return false;
     return client.hasShortcodes(content);
@@ -61,7 +59,6 @@ export function useHasShortcodes(client: TrokkyClient, content: string): boolean
  * @returns Array of image shortcode data
  */
 export function useContentMedia(client: TrokkyClient, content: string) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return React.useMemo(() => {
     if (!content || !client) return [];
     return client.extractContentMedia(content);

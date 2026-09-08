@@ -2,12 +2,10 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
-  "linked": [
-    ["@trokky/fields", "@trokky/studio"],
-    ["@trokky/core", "@trokky/routes", "@trokky/express"],
-    ["@trokky/mail", "@trokky/mail-adapter-console", "@trokky/mail-adapter-resend", "@trokky/mail-adapter-smtp"]
+  "fixed": [
+    ["@trokky/trokky", "@trokky/studio", "@trokky/client"]
   ],
+  "linked": [],
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

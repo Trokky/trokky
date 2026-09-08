@@ -4,26 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: 'Package to publish (e.g., client, studio, or "all")'
+        description: 'Package to publish'
         required: true
         default: 'all'
         type: choice
         options:
           - all
-          - client
-          - core
-          - routes
-          - fields
+          - trokky
           - studio
-          - structure
-          - express
-          - adapter-filesystem
-          - adapter-filesystem-data
-          - adapter-filesystem-media
+          - client
+      dry_run:
+        description: 'Run npm publish with --dry-run (nothing is published)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
   packages: write
+
+concurrency:
+  # Shared with release-changesets.yml so two publishes never race the registry.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -31,19 +34,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js 18.x
-        uses: actions/setup-node@v3
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           registry-url: 'https://npm.pkg.github.com'
           scope: '@trokky'
-
-      - name: Configure npm for GitHub Packages
-        run: |
-          echo "@trokky:registry=https://npm.pkg.github.com" >> ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+          cache: npm
 
       - name: Install Dependencies
         run: npm ci
@@ -54,28 +53,52 @@ jobs:
         run: npm run build
 
       - name: Publish Selected Package
-        run: |
-          if [ "${{ github.event.inputs.package }}" = "all" ]; then
-            echo "Publishing all packages..."
-            npm publish --workspace packages/fields || echo "fields already published"
-            npm publish --workspace packages/core || echo "core already published"
-            npm publish --workspace packages/routes || echo "routes already published"
-            npm publish --workspace packages/structure || echo "structure already published"
-            npm publish --workspace packages/client || echo "client already published"
-            npm publish --workspace packages/adapters/filesystem || echo "adapter-filesystem already published"
-            npm publish --workspace packages/adapters/filesystem-data || echo "adapter-filesystem-data already published"
-            npm publish --workspace packages/adapters/filesystem-media || echo "adapter-filesystem-media already published"
-            npm publish --workspace packages/studio || echo "studio already published"
-            npm publish --workspace packages/integrations/express || echo "express already published"
-          else
-            echo "Publishing @trokky/${{ github.event.inputs.package }}..."
-            if [ "${{ github.event.inputs.package }}" = "express" ]; then
-              npm publish --workspace packages/integrations/express
-            elif [[ "${{ github.event.inputs.package }}" == adapter-* ]]; then
-              npm publish --workspace packages/adapters/${{ github.event.inputs.package }}
-            else
-              npm publish --workspace packages/${{ github.event.inputs.package }}
-            fi
-          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_PACKAGE: ${{ inputs.package }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          extra_args=()
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            extra_args+=(--dry-run)
+          fi
+
+          publish_workspace() {
+            local dir="$1"
+            local name version
+            read -r name version < <(node -p "const p=require('./packages/${dir}/package.json'); p.name+' '+p.version")
+
+            # Dry runs always exercise `npm publish --dry-run`; only real
+            # publishes skip versions that are already on the registry.
+            # GitHub Packages may answer an empty body for an unknown version, so
+            # compare the returned version instead of trusting the exit status.
+            if [ "$INPUT_DRY_RUN" != "true" ]; then
+              local published
+              published=$(npm view "${name}@${version}" version 2>/dev/null || true)
+              if [ "$published" = "$version" ]; then
+                echo "Skipping ${name}@${version}: already published."
+                return 0
+              fi
+            fi
+
+            echo "Publishing ${name}@${version}..."
+            npm publish --workspace "packages/${dir}" --access restricted "${extra_args[@]+"${extra_args[@]}"}"
+          }
+
+          case "$INPUT_PACKAGE" in
+            all)
+              # Dependency order: trokky first, then its dependents.
+              publish_workspace trokky
+              publish_workspace client
+              publish_workspace studio
+              ;;
+            trokky | studio | client)
+              publish_workspace "$INPUT_PACKAGE"
+              ;;
+            *)
+              echo "Unknown package: ${INPUT_PACKAGE}" >&2
+              exit 1
+              ;;
+          esac

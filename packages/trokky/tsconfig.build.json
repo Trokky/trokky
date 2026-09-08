@@ -1,18 +1,24 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "module": "Node16",
+    "moduleResolution": "node16",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
-    "noEmit": false,
-    "module": "esnext",
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "types": ["node"]
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "composite": true,
+    "noEmit": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "dist", "node_modules"]
+  "include": ["src/**/*", "src/**/*.json"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**/*"]
 }

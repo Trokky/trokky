@@ -5,22 +5,18 @@
  */
 
 import {
-  UserIcon,
   ClockIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,
   EyeIcon,
-  ComputerDesktopIcon,
-  CogIcon,
-  GlobeAltIcon,
   ChevronDownIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 import { ChangesDiff } from './ChangesDiff';
 import { createStudioLogger } from '@/utils/logger';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('AuditLogEntry');
 
@@ -130,25 +126,8 @@ export function AuditLogEntry({
     }
   };
 
-  // Get actor icon based on type
-  const getActorIcon = (actorType: string) => {
-    switch (actorType) {
-      case 'user':
-        return UserIcon;
-      case 'api':
-        return ComputerDesktopIcon;
-      case 'system':
-        return CogIcon;
-      case 'webhook':
-        return GlobeAltIcon;
-      default:
-        return UserIcon;
-    }
-  };
-
   const operationInfo = getOperationInfo(auditLog.operation);
   const OperationIcon = operationInfo.icon;
-  const ActorIcon = getActorIcon(auditLog.actorType);
 
   // Get changed fields summary
   const getChangedFieldsSummary = () => {

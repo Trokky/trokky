@@ -12,9 +12,10 @@ import React, {
   useState,
 } from 'react'
 import { apiClient } from '@/services/api-client'
+import { authStore } from '@/services/auth-store'
 import { createStudioLogger } from '@/utils/logger'
-import type { StudioContext } from '@trokky/fields'
-import type { MediaBrowserConfig } from '@trokky/types/media'
+import type { StudioContext } from '../fields/index'
+import type { MediaBrowserConfig } from '@trokky/trokky/types/media'
 import { MediaBrowser } from '@/components/MediaBrowser'
 import type { BrandingConfig } from '@/utils/branding'
 
@@ -116,7 +117,6 @@ export function StudioContextProvider({
         if (mediaUrlConfig) {
           const { options } = mediaUrlConfig
           const servingMode = options.mediaConfig?.serving?.mode || 'api'
-          const apiBasePath = options.apiBasePath || '/api'
           const staticBasePath =
             options.mediaConfig?.serving?.staticBasePath || '/media'
 
@@ -158,7 +158,9 @@ export function StudioContextProvider({
     // Fetch studio config from API endpoint to get proper media serving config
     const fetchStudioConfig = async () => {
       try {
-        const response = await apiClient.get('/config/studio')
+        const response = await apiClient.get<{
+          studioConfig?: { mediaUrlGenerator?: unknown }
+        }>('/config/studio')
 
         if (
           response.success &&
@@ -238,23 +240,6 @@ export function StudioContextProvider({
     []
   )
 
-  // Modal system (simplified - could be enhanced with a proper modal library)
-  const openModal = useCallback(
-    (component: React.ComponentType, props: any = {}) => {
-      // Dispatch event that modal system can listen to
-      window.dispatchEvent(
-        new CustomEvent('studio:openModal', {
-          detail: { component, props },
-        })
-      )
-    },
-    []
-  )
-
-  const closeModal = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('studio:closeModal'))
-  }, [])
-
   // Media browser utilities
   const showMediaBrowser = useCallback((config: MediaBrowserConfig) => {
     setMediaBrowserState({
@@ -273,31 +258,8 @@ export function StudioContextProvider({
   // Create the studio context value
   const studioContext = useMemo((): StudioContext => {
     return {
-      apiClient: {
-        // Document operations
-        getDocuments: apiClient.getDocuments.bind(apiClient),
-        getDocument: (type: string, id?: string) =>
-          apiClient.getDocument(type, id || ''),
-        createDocument: apiClient.createDocument.bind(apiClient),
-        updateDocument: apiClient.updateDocument.bind(apiClient),
-        deleteDocument: apiClient.deleteDocument.bind(apiClient),
-
-        // Media operations
-        getMedia: apiClient.getMedia.bind(apiClient),
-        getMediaById: apiClient.getMediaFile.bind(apiClient),
-        uploadMedia: (file: File, metadata?: any) =>
-          apiClient.uploadMedia(file, metadata),
-        deleteMedia: apiClient.deleteMedia.bind(apiClient),
-        updateMedia: apiClient.updateMedia.bind(apiClient),
-
-        // Schema operations
-        getSchemas: apiClient.getSchemas.bind(apiClient),
-        getSchema: apiClient.getSchema.bind(apiClient),
-
-        // Generic HTTP methods
-        get: apiClient.get.bind(apiClient),
-        post: apiClient.post.bind(apiClient),
-      },
+      // The client itself: one path to the API, with the real signatures.
+      apiClient,
 
       auth: {
         getCurrentUser: () => {
@@ -319,7 +281,8 @@ export function StudioContextProvider({
           return userData.permissions?.includes(permission) || false
         },
         getAccessToken: () => {
-          return localStorage.getItem('accessToken')
+          // The auth store is the only owner of the session token.
+          return authStore.getToken()
         },
       },
 
@@ -333,8 +296,6 @@ export function StudioContextProvider({
       utils: {
         showToast,
         showConfirm,
-        openModal,
-        closeModal,
         showMediaBrowser,
       },
 
@@ -354,8 +315,6 @@ export function StudioContextProvider({
   }, [
     showToast,
     showConfirm,
-    openModal,
-    closeModal,
     showMediaBrowser,
     fieldLogger,
     mediaUrlGenerator,

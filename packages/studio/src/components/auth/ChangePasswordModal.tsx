@@ -7,7 +7,8 @@
 import React, { useState } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
-import { useT } from '@trokky/i18n';
+import { Dialog } from '@/components/ui/Dialog.js';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('ChangePasswordModal');
 
@@ -102,26 +103,15 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {t('changePassword.title')}
-          </h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            disabled={loading}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+    <Dialog
+      open={isOpen}
+      onClose={handleClose}
+      variant="center"
+      size="sm"
+      title={t('changePassword.title')}
+    >
+      <Dialog.Body>
         {success ? (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-4">
             <div className="flex items-center">
@@ -222,7 +212,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
             </div>
           </form>
         )}
-      </div>
-    </div>
+      </Dialog.Body>
+    </Dialog>
   );
 }

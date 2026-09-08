@@ -251,7 +251,7 @@ export class TypeGenerator {
     content += ` * Generated from Trokky schema\n */\n\n`
 
     // Add imports
-    content += `import type { ${imports.join(', ')} } from '@trokky/types'\n\n`
+    content += `import type { ${imports.join(', ')} } from '@trokky/trokky/types'\n\n`
 
     // Generate field interfaces if needed
     const complexFields = document.fields.filter(field => 

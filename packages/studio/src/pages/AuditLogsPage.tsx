@@ -14,7 +14,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   UserIcon,
-  DocumentTextIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,
@@ -24,7 +23,7 @@ import {
   ChevronRightIcon as ChevronRightSmallIcon
 } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';

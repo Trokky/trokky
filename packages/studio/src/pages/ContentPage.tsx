@@ -8,14 +8,13 @@ import {
   DocumentTextIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { useT } from '@trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { apiClient, ApiClientError } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { storage } from '@/utils/storage';
 import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
-import { ContentContext } from '@/components/context/ContentContext';
 import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Document } from '@/types';
@@ -168,10 +167,6 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
     try {
       setLoading(true);
       setError(null);
-
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
 
       // Debug: Log filter parameters
       const queryParams = {
@@ -349,7 +344,14 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
   // };
 
   // Handle bulk status change
+  const isDocumentStatus = (
+    value: string
+  ): value is 'draft' | 'published' | 'archived' =>
+    value === 'draft' || value === 'published' || value === 'archived';
+
   const handleBulkStatusChange = async (newStatus: string) => {
+    if (!isDocumentStatus(newStatus)) return;
+
     // Check if user has publish permission when changing to/from published
     const currentStatuses = selectedItems.map(id => {
       const doc = documents.find(d => d._id === id);
@@ -693,10 +695,6 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       setLoading(true);
       setError(null);
 
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-
       const response = await apiClient.getDocument(schemaName, documentId);
       
       if (response.success && response.data) {
@@ -802,10 +800,6 @@ function ContentOverview() {
     try {
       setLoading(true);
       setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
       
       // Use the collections endpoint that matches our demo backend
       const response = await apiClient.get<{ collections: Collection[] }>('/collections');

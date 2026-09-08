@@ -4,6 +4,7 @@
 
 import { createStudioLogger } from './logger'
 import { getStructureService } from '../services/structure-service'
+import { authStore } from '@/services/auth-store'
 
 const logger = createStudioLogger('Debug')
 
@@ -100,10 +101,11 @@ export const TrokkyDebug: TrokkyDebugInterface = {
       // Clear structure cache
       this.clearStructureCache()
       
+      // The session lives in the auth store, which owns both token keys
+      authStore.clear()
+
       // Clear other potential caches
       const cacheKeys = [
-        'trokky_auth_token',
-        'trokky_refresh_token', 
         'trokky_user_data',
         'trokky_theme',
         'trokky_sidebar_collapsed',

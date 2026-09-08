@@ -213,7 +213,7 @@ export interface WidgetContent {
 export interface ContextSidebarRenderContext {
   /** Current route/page context */
   context: {
-    type: 'collectionIndex' | 'documentEditor' | 'dashboard' | 'media' | 'users' | 'settings'
+    type: 'collectionIndex' | 'documentEditor' | 'dashboard' | 'media' | 'users' | 'settings' | 'schema'
     schemaType?: string
     documentId?: string
     isEditing?: boolean
@@ -337,12 +337,6 @@ export interface ContextSidebarRenderContext {
     
     /** Show confirmation dialog */
     showConfirm: (message: string, title?: string) => Promise<boolean>
-    
-    /** Open modal */
-    openModal: (content: ReactNode, options?: { title?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) => void
-    
-    /** Close current modal */
-    closeModal: () => void
     
     /** Refresh current page/data */
     refresh: () => void

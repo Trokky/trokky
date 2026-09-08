@@ -1,6 +1,5 @@
 import type {
   ApiResponse,
-  BackendCapabilities,
   Document,
   Schema,
   SchemaApiResponse,
@@ -9,413 +8,19 @@ import type {
   QueryOptions,
   SearchResponse,
 } from '@/types'
-import { createStudioLogger } from '../utils/logger'
-import { storageService, STORAGE_KEYS } from '@/utils/storage'
+import { authStore, type RefreshedSession } from './auth-store'
+import { ApiClientError } from './api/errors'
+import { HttpClient } from './api/http-client'
+import { buildMediaUrl, transformMediaObject } from './api/media-urls'
+import { clientSideSearch } from './api/client-search'
 
-export class ApiClientError extends Error {
-  constructor(
-    message: string,
-    public readonly status?: number,
-    public readonly code?: string,
-    public readonly details?: any
-  ) {
-    super(message)
-    this.name = 'ApiClientError'
-  }
-}
+export { ApiClientError }
 
-export class ApiClient {
-  private backendUrl: string = ''
-  private capabilities: BackendCapabilities | null = null
-  private authToken: string | null = null
-  private logger = createStudioLogger('ApiClient')
-
-  constructor(backendUrl?: string) {
-    if (backendUrl) {
-      this.backendUrl = backendUrl
-    }
-  }
-
-  /**
-   * Initialize the API client with configuration
-   */
-  initialize(): void {
-    // Priority order for backend URL:
-    // 1. Injected backend URL from server (integrated deployment) - highest priority
-    // 2. Build-time environment variable (VITE_BACKEND_URL)
-    // 3. Saved URL from localStorage (user's custom setting) - only if no config provided
-    // 4. Development mode fallback
-
-    const config = (window as any).TROKKY_CONFIG
-    const injectedBackendUrl = config?.backendUrl
-    const buildTimeBackendUrl = import.meta.env.VITE_BACKEND_URL
-    const savedBackendUrl = storageService.get<string>(STORAGE_KEYS.BACKEND_URL)
-
-    if (injectedBackendUrl) {
-      // Use server-injected backend URL (integrated deployment)
-      this.setBackendUrl(injectedBackendUrl)
-      // Clear any stale localStorage URL when config is provided
-      if (savedBackendUrl && savedBackendUrl !== injectedBackendUrl) {
-        storageService.remove(STORAGE_KEYS.BACKEND_URL)
-        this.logger.debug('Cleared stale backend URL from localStorage')
-      }
-    } else if (buildTimeBackendUrl) {
-      // Use build-time configured backend URL
-      this.setBackendUrl(buildTimeBackendUrl)
-      // Clear any stale localStorage URL when build-time config is provided
-      if (savedBackendUrl && savedBackendUrl !== buildTimeBackendUrl) {
-        storageService.remove(STORAGE_KEYS.BACKEND_URL)
-        this.logger.debug('Cleared stale backend URL from localStorage')
-      }
-    } else if (savedBackendUrl) {
-      // Use saved backend URL from localStorage (only when no config provided)
-      this.setBackendUrl(savedBackendUrl)
-    } else if (import.meta.env.DEV) {
-      // Development mode fallback - assume API is on localhost:3210
-      const devBackendUrl = 'http://localhost:3210/api'
-      this.setBackendUrl(devBackendUrl)
-    } else {
-      // No backend URL configured - Studio will show login form to set it
-      this.logger.info(
-        'No backend URL configured. User will need to set it in login form.'
-      )
-    }
-
-    // Restore auth token from localStorage if available
-    this.restoreAuthToken()
-
-    this.logger.info('Studio initialized', {
-      backendUrl: this.backendUrl,
-      hasAuthToken: !!this.authToken,
-    })
-  }
-
-  /**
-   * Set a custom backend URL
-   * The URL should be the complete API endpoint (e.g., http://localhost:3000/cms-api)
-   */
-  setBackendUrl(url: string): void {
-    // Remove trailing slash if present
-    this.backendUrl = url.replace(/\/$/, '')
-
-    // Update capabilities with new endpoints
-    this.updateCapabilities()
-
-    this.logger.info('Backend URL set', {
-      backendUrl: this.backendUrl,
-    })
-  }
-
-  /**
-   * Update capabilities after backend URL change
-   */
-  private updateCapabilities(): void {
-    this.capabilities = {
-      version: '2.0.0',
-      features: {
-        search: false,
-        media: true,
-        auth: true,
-        structure: true,
-        workflows: false,
-      },
-      endpoints: {
-        documents: '/collections',
-        auth: '/auth',
-        structure: '/structure',
-        slugs: '/slugs',
-      },
-      limits: {
-        maxUploadSize: 100 * 1024 * 1024,
-        maxResults: 100,
-        requestRate: 1000,
-      },
-    }
-  }
-
-  /**
-   * Check if the client is initialized
-   */
-  get isInitialized(): boolean {
-    return !!this.backendUrl && !!this.capabilities
-  }
-
-  /**
-   * Get backend capabilities
-   */
-  getCapabilities(): BackendCapabilities | null {
-    return this.capabilities
-  }
-
-  /**
-   * Check if a feature is available
-   */
-  hasFeature(feature: keyof BackendCapabilities['features']): boolean {
-    return this.capabilities?.features[feature] ?? false
-  }
-
-  /**
-   * Set authentication token
-   */
-  setAuthToken(token: string): void {
-    this.authToken = token
-    try {
-      localStorage.setItem('trokky_auth_token', token)
-    } catch (error) {
-      console.warn('Failed to save auth token:', error)
-    }
-  }
-
-  /**
-   * Clear authentication token
-   */
-  clearAuthToken(): void {
-    this.authToken = null
-    try {
-      localStorage.removeItem('trokky_auth_token')
-      localStorage.removeItem('trokky_refresh_token')
-    } catch (error) {
-      console.warn('Failed to clear auth token:', error)
-    }
-  }
-
-  /**
-   * Store both auth token and refresh token (used after MFA verification)
-   */
-  async storeTokens(token: string, refreshToken?: string): Promise<void> {
-    this.setAuthToken(token)
-    if (refreshToken) {
-      try {
-        localStorage.setItem('trokky_refresh_token', refreshToken)
-      } catch (error) {
-        console.warn('Failed to save refresh token:', error)
-      }
-    }
-  }
-
-  /**
-   * Restore auth token from storage
-   */
-  restoreAuthToken(): void {
-    try {
-      const token = localStorage.getItem('trokky_auth_token')
-      if (token) {
-        this.authToken = token
-        this.logger.info('Auth token restored from localStorage')
-      }
-    } catch (error) {
-      console.warn('Failed to restore auth token:', error)
-    }
-  }
-
-  /**
-   * Make an HTTP request with automatic error handling
-   */
-  async request<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    skipAuth = false
-  ): Promise<ApiResponse<T>> {
-    // Check if backend URL is configured
-    if (!this.backendUrl) {
-      return {
-        success: false,
-        error: {
-          message:
-            'Backend URL not configured. Please configure it in the login form.',
-          code: 'NO_BACKEND_URL',
-        },
-      }
-    }
-
-    // Build the full URL
-    const url = this.buildUrl(endpoint)
-
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      ...((options.headers as Record<string, string>) || {}),
-    }
-
-    // Only set Content-Type if not FormData (browser will set it automatically for FormData)
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json'
-    }
-
-    // Add auth token if available and not skipped
-    if (this.authToken && !skipAuth) {
-      headers['Authorization'] = `Bearer ${this.authToken}`
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'include',
-      })
-
-      // Handle non-JSON responses
-      const contentType = response.headers.get('content-type')
-      if (!contentType?.includes('application/json')) {
-        if (!response.ok) {
-          throw new ApiClientError(
-            `HTTP ${response.status}: ${response.statusText}`,
-            response.status
-          )
-        }
-        return { success: true, data: null as T }
-      }
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Handle 401 Unauthorized - try to refresh token automatically
-        if (
-          response.status === 401 &&
-          this.authToken &&
-          !skipAuth &&
-          !endpoint.includes('/auth/validate')
-        ) {
-          try {
-            // Try to validate stored token to potentially refresh it
-            const storedToken = localStorage.getItem('trokky_auth_token')
-            if (storedToken) {
-              const validateResponse = await this.post('/auth/validate', {
-                token: storedToken,
-              })
-              if (
-                validateResponse.success &&
-                validateResponse.data &&
-                typeof validateResponse.data === 'object' &&
-                'valid' in validateResponse.data &&
-                validateResponse.data.valid &&
-                'session' in validateResponse.data &&
-                validateResponse.data.session
-              ) {
-                // Token is still valid, retry the original request
-                this.setAuthToken(storedToken)
-                return this.request(endpoint, options, skipAuth)
-              }
-            }
-          } catch (refreshError) {
-            // Token refresh failed, proceed with clearing auth
-          }
-
-          // Clear invalid token
-          this.clearAuthToken()
-          localStorage.removeItem('trokky_auth_token')
-        }
-
-        throw new ApiClientError(
-          data.error?.message || `HTTP ${response.status}`,
-          response.status,
-          data.error?.code,
-          data.error?.details
-        )
-      }
-
-      return {
-        success: true,
-        data: data.data || data,
-        meta: data.meta,
-      }
-    } catch (error) {
-      if (error instanceof ApiClientError) {
-        throw error
-      }
-
-      throw new ApiClientError(
-        `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-    }
-  }
-
-  /**
-   * Build full URL from relative endpoint
-   */
-  private buildUrl(endpoint: string): string {
-    // If endpoint is already a full URL, return as-is
-    if (endpoint.startsWith('http')) {
-      return endpoint
-    }
-
-    // Check if backendUrl is set
-    if (!this.backendUrl) {
-      this.logger.warn(
-        'Backend URL not set, cannot build URL for endpoint:',
-        endpoint
-      )
-      throw new ApiClientError(
-        'Backend URL not configured. Please set the backend URL.'
-      )
-    }
-
-    // Remove leading slash from endpoint to ensure proper joining
-    const cleanEndpoint = endpoint.startsWith('/')
-      ? endpoint.slice(1)
-      : endpoint
-
-    // Join backendUrl with the clean endpoint
-    const url = cleanEndpoint
-      ? `${this.backendUrl}/${cleanEndpoint}`
-      : this.backendUrl
-
-    this.logger.debug('Building URL:', {
-      originalEndpoint: endpoint,
-      cleanEndpoint,
-      backendUrl: this.backendUrl,
-      finalUrl: url,
-    })
-
-    return url
-  }
-
-  /**
-   * GET request helper
-   */
-  async get<T>(
-    endpoint: string,
-    params?: Record<string, any>
-  ): Promise<ApiResponse<T>> {
-    const url = new URL(this.buildUrl(endpoint))
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value))
-        }
-      })
-    }
-
-    return this.request<T>(url.toString(), { method: 'GET' })
-  }
-
-  /**
-   * POST request helper
-   */
-  async post<T>(endpoint: string, data?: any, options?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-      headers: options?.headers,
-    })
-  }
-
-  /**
-   * PUT request helper
-   */
-  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    })
-  }
-
-  /**
-   * DELETE request helper
-   */
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'DELETE' })
-  }
-
+/**
+ * The Studio API client: every endpoint the admin UI talks to, on top of the
+ * HttpClient transport.
+ */
+export class ApiClient extends HttpClient {
   // ========================================
   // Schema & Document Methods
   // ========================================
@@ -546,6 +151,40 @@ export class ApiClient {
   }
 
   /**
+   * Download a media file's bytes.
+   *
+   * Callers used to reach for a bare `fetch('/api/media/<id>/file')`, which
+   * hardcoded the API path and sent no credentials. This goes through the
+   * configured backend URL and the session token like every other request.
+   */
+  async downloadMediaFile(id: string): Promise<Blob> {
+    this.ensureConfigured()
+
+    const headers: Record<string, string> = {}
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+
+    // Same transport as every other request, including `credentials`. A
+    // credentialed cross-origin request needs the API to reflect the Origin
+    // rather than answer `*`; verified against the deployments, which reflect
+    // it and allow the Authorization header on the media preflight.
+    const response = await fetch(this.buildUrl(`/media/${id}/file`), {
+      headers,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      throw new ApiClientError(
+        `HTTP ${response.status}: ${response.statusText}`,
+        response.status
+      )
+    }
+
+    return response.blob()
+  }
+
+  /**
    * Upload media file
    */
   async uploadMedia(
@@ -655,24 +294,9 @@ export class ApiClient {
    * Transform media object to include constructed URLs
    */
   private transformMediaObject(media: any): any {
-    if (!media || !media.id) {
-      return media
-    }
-
-    return {
-      ...media,
-      url: this.getMediaUrl(media.id), // Original file URL
-      // Add variant URLs if they exist
-      ...(media.variants && {
-        variants: Object.keys(media.variants).reduce((acc, variantName) => {
-          acc[variantName] = {
-            ...media.variants[variantName],
-            url: this.getMediaUrl(media.id, variantName),
-          }
-          return acc
-        }, {} as any),
-      }),
-    }
+    return transformMediaObject(this.backendUrl, media, (assetRef, variant) =>
+      this.getMediaUrl(assetRef, variant)
+    )
   }
 
   /**
@@ -680,23 +304,13 @@ export class ApiClient {
    * This properly handles the configurable API base path
    */
   getMediaUrl(assetRef: string, variant?: string): string {
-    if (!assetRef) {
-      return ''
-    }
-
-    // If no variant specified, return the original file URL
-    if (!variant) {
-      return `${this.backendUrl}/media/${assetRef}/file`
-    }
-
-    // Return variant URL
-    return `${this.backendUrl}/media/${assetRef}/variants/${variant}`
+    return buildMediaUrl(this.backendUrl, assetRef, variant)
   }
-
   /**
    * Get the backend URL (useful for external URL construction)
    */
   getBackendUrl(): string {
+    this.ensureConfigured()
     return this.backendUrl
   }
 
@@ -816,57 +430,8 @@ export class ApiClient {
     query: string,
     options: { types?: string[]; limit?: number } = {}
   ): Promise<ApiResponse<SearchResponse>> {
-    // Basic client-side search implementation
-    const results: any[] = []
-
-    // Search documents if enabled
-    if (!options.types || options.types.includes('documents')) {
-      try {
-        const schemas = await this.getSchemas()
-        if (schemas.success && schemas.data) {
-          for (const schema of schemas.data.slice(0, 3)) {
-            const docs = await this.getDocuments(schema.name, {
-              limit: 5,
-              search: query,
-            })
-            if (docs.success && docs.data?.documents) {
-              results.push(
-                ...docs.data.documents.map((doc: any) => ({
-                  id: doc.id || doc._id,
-                  type: 'document',
-                  title: doc.title || doc.name || doc.id || doc._id,
-                  url: `/content/${schema.name}/${doc.id || doc._id}`,
-                  metadata: {
-                    status: doc._status,
-                    createdAt: doc._createdAt,
-                  },
-                }))
-              )
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('Document search failed:', error)
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        results: results.slice(0, options.limit || 20),
-        totalCount: results.length,
-        categories: {
-          documents: results.filter(r => r.type === 'document').length,
-          media: 0,
-          users: 0,
-          schemas: 0,
-        },
-        query,
-        searchTime: 0,
-      },
-    }
+    return clientSideSearch(this, query, options)
   }
-
   // ========================================
   // Auth Methods (if available)
   // ========================================
@@ -973,3 +538,12 @@ export class ApiClient {
 
 // Singleton instance
 export const apiClient = new ApiClient()
+
+// The auth store owns the refresh mechanism but not the transport; wire the one
+// round trip it needs here, where the singleton exists.
+authStore.setRefresher(async refreshToken => {
+  const response = await apiClient.post<RefreshedSession>('/auth/refresh', {
+    refreshToken,
+  })
+  return response.success && response.data?.token ? response.data : null
+})
