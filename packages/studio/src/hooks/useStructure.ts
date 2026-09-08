@@ -1,67 +1,63 @@
 /**
  * Structure Hooks - React hooks for structure and navigation
+ *
+ * All four hooks read through react-query against one key family, so the
+ * structure is fetched once and every consumer shares that copy instead of each
+ * keeping its own useState mirror of the structure service's cache.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { apiClient } from '../services/api-client'
 import { createStructureService } from '../services/structure-service'
-import type { 
-  StudioStructure, 
-  NavigationTree, 
-  StructureGenerationOptions 
+import type {
+  StudioStructure,
+  NavigationTree,
+  StructureGenerationOptions,
 } from '../types/structure'
+
+/** Root of the structure key family; everything below it invalidates together. */
+export const STRUCTURE_QUERY_KEY = ['structure'] as const
+
+function structureService() {
+  return createStructureService(apiClient)
+}
 
 /**
  * Hook for managing structure state
  */
 export function useStructure(options?: StructureGenerationOptions) {
-  const [structure, setStructure] = useState<StudioStructure | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const structureService = createStructureService(apiClient)
-
-  const loadStructure = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const loadedStructure = await structureService.getStructure(options)
-      setStructure(loadedStructure)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load structure')
-      console.error('Failed to load structure:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [structureService, options])
+  const query = useQuery({
+    queryKey: [...STRUCTURE_QUERY_KEY, 'root', options ?? null],
+    queryFn: () => structureService().getStructure(options),
+  })
 
   const refreshStructure = useCallback(() => {
-    structureService.clearCache()
-    loadStructure()
-  }, [structureService, loadStructure])
+    structureService().clearCache()
+    queryClient.invalidateQueries({ queryKey: STRUCTURE_QUERY_KEY })
+  }, [queryClient])
 
-  const setCustomStructure = useCallback((customStructure: StudioStructure) => {
-    try {
-      structureService.setStructure(customStructure)
-      setStructure(customStructure)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid structure')
-    }
-  }, [structureService])
+  const setCustomStructure = useCallback(
+    (customStructure: StudioStructure) => {
+      structureService().setStructure(customStructure)
+      queryClient.invalidateQueries({ queryKey: STRUCTURE_QUERY_KEY })
+    },
+    [queryClient]
+  )
 
-  useEffect(() => {
-    loadStructure()
-  }, [loadStructure])
+  const structure = query.data ?? null
+  const error = query.error ? (query.error as Error).message : null
 
   return {
     structure,
-    loading,
+    loading: query.isPending,
     error,
     refreshStructure,
     setCustomStructure,
-    isReady: !loading && !error && structure !== null
+    isReady: !query.isPending && !error && structure !== null,
   }
 }
 
@@ -70,42 +66,33 @@ export function useStructure(options?: StructureGenerationOptions) {
  */
 export function useNavigation(options?: StructureGenerationOptions) {
   const location = useLocation()
-  const [navigation, setNavigation] = useState<NavigationTree | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const structureService = createStructureService(apiClient)
-
-  const loadNavigation = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const navTree = await structureService.getNavigation(location.pathname, options)
-      setNavigation(navTree)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load navigation')
-      console.error('Failed to load navigation:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [structureService, location.pathname, options])
+  const query = useQuery<NavigationTree>({
+    queryKey: [
+      ...STRUCTURE_QUERY_KEY,
+      'navigation',
+      location.pathname,
+      options ?? null,
+    ],
+    queryFn: () => structureService().getNavigation(location.pathname, options),
+  })
 
   const refreshNavigation = useCallback(() => {
-    structureService.clearCache()
-    loadNavigation()
-  }, [structureService, loadNavigation])
+    structureService().clearCache()
+    queryClient.invalidateQueries({ queryKey: STRUCTURE_QUERY_KEY })
+  }, [queryClient])
 
-  useEffect(() => {
-    loadNavigation()
-  }, [loadNavigation])
+  const navigation = query.data ?? null
+  const error = query.error ? (query.error as Error).message : null
 
   return {
     navigation,
-    loading,
+    loading: query.isPending,
     error,
     refreshNavigation,
     currentPath: location.pathname,
-    isReady: !loading && !error && navigation !== null
+    isReady: !query.isPending && !error && navigation !== null,
   }
 }
 
@@ -113,37 +100,22 @@ export function useNavigation(options?: StructureGenerationOptions) {
  * Hook for getting structure item by schema type
  */
 export function useStructureItem(schemaType: string) {
-  const [item, setItem] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: [...STRUCTURE_QUERY_KEY, 'item', schemaType],
+    queryFn: () => structureService().getStructureItemBySchema(schemaType),
+    enabled: !!schemaType,
+  })
 
-  const structureService = createStructureService(apiClient)
-
-  useEffect(() => {
-    async function loadItem() {
-      try {
-        setLoading(true)
-        setError(null)
-        const structureItem = await structureService.getStructureItemBySchema(schemaType)
-        setItem(structureItem)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load structure item')
-        console.error('Failed to load structure item:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (schemaType) {
-      loadItem()
-    }
-  }, [structureService, schemaType])
+  const error = query.error ? (query.error as Error).message : null
+  // A disabled query never resolves, so an empty schemaType must not read as
+  // permanently loading the way `isPending` alone would.
+  const loading = !!schemaType && query.isPending
 
   return {
-    item,
+    item: query.data ?? null,
     loading,
     error,
-    isReady: !loading && !error
+    isReady: !loading && !error,
   }
 }
 
@@ -151,43 +123,28 @@ export function useStructureItem(schemaType: string) {
  * Hook for getting all document types from structure
  */
 export function useDocumentTypes() {
-  const [documentTypes, setDocumentTypes] = useState<any[]>([])
-  const [singletonTypes, setSingletonTypes] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const query = useQuery({
+    queryKey: [...STRUCTURE_QUERY_KEY, 'documentTypes'],
+    queryFn: async () => {
+      const service = structureService()
+      const [documentTypes, singletonTypes] = await Promise.all([
+        service.getDocumentListItems(),
+        service.getSingletonItems(),
+      ])
+      return { documentTypes, singletonTypes }
+    },
+  })
 
-  const structureService = createStructureService(apiClient)
-
-  useEffect(() => {
-    async function loadTypes() {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        const [docItems, singletonItems] = await Promise.all([
-          structureService.getDocumentListItems(),
-          structureService.getSingletonItems()
-        ])
-        
-        setDocumentTypes(docItems)
-        setSingletonTypes(singletonItems)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load document types')
-        console.error('Failed to load document types:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadTypes()
-  }, [structureService])
+  const documentTypes = query.data?.documentTypes ?? []
+  const singletonTypes = query.data?.singletonTypes ?? []
+  const error = query.error ? (query.error as Error).message : null
 
   return {
     documentTypes,
     singletonTypes,
     allTypes: [...documentTypes, ...singletonTypes],
-    loading,
+    loading: query.isPending,
     error,
-    isReady: !loading && !error
+    isReady: !query.isPending && !error,
   }
 }

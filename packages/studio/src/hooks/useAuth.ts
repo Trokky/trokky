@@ -7,6 +7,7 @@ import React, {
   useRef,
   useCallback,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/services/api-client'
 import { authStore } from '@/services/auth-store'
 import { createStudioLogger } from '@/utils/logger'
@@ -80,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
   })
 
+  const queryClient = useQueryClient()
   const sessionCheckRef = useRef<NodeJS.Timeout | null>(null)
   const inactivityCheckRef = useRef<NodeJS.Timeout | null>(null)
   const authStateRef = useRef<AuthState>(authState)
@@ -104,8 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const endSession = useCallback(() => {
     stopSessionMonitoring()
     authStore.clear()
+    // Every cached read - the current user above all - belonged to the session
+    // that just ended; the next sign-in must not see the previous user's data.
+    queryClient.clear()
     setAuthState(signedOutState())
-  }, [stopSessionMonitoring])
+  }, [queryClient, stopSessionMonitoring])
 
   // Track user activity for inactivity detection
   const updateActivity = useCallback(() => {

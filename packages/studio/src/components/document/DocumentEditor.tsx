@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
@@ -26,6 +27,14 @@ import { DocumentSidebar } from './DocumentSidebar';
 import { fieldRegistry } from '@/fields/registry/index.js';
 
 const logger = createStudioLogger('DocumentEditor');
+
+/** Cache key for a schema definition. */
+export const SCHEMA_QUERY_KEY = (schemaName: string) =>
+  ['schema', schemaName] as const;
+
+/** Cache key for one document of a schema. */
+export const DOCUMENT_QUERY_KEY = (schemaName: string, documentId?: string) =>
+  ['document', schemaName, documentId] as const;
 
 // Helper function to get user-friendly display names
 function getSchemaDisplayName(schemaName?: string, schema?: any): string {
@@ -71,6 +80,7 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const { t } = useT('studio');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   // Use structure-driven context sidebar instead of manual configuration
   useStructureContextSidebar();
@@ -216,8 +226,14 @@ export function DocumentEditor({
       setLoading(true);
       setError(null);
       
-      // Load schema
-      const schemaResponse = await apiClient.getSchema(schemaName);
+      // Schemas change only when a developer redeploys, so the editor reads
+      // them through the query cache: remounting to edit a sibling document, or
+      // StrictMode's double mount, no longer refetches.
+      const schemaResponse = await queryClient.fetchQuery({
+        queryKey: SCHEMA_QUERY_KEY(schemaName),
+        queryFn: () => apiClient.getSchema(schemaName),
+        retry: false,
+      });
       logger.debug('Schema loaded', { 
         success: schemaResponse.success, 
         hasData: !!schemaResponse.data
@@ -243,7 +259,15 @@ export function DocumentEditor({
 
       // Load document if editing existing
       if (!isNewDocument && documentId) {
-        const docResponse = await apiClient.getDocument(schemaName, documentId);
+        // Documents are shared editing surfaces on a multi-editor CMS, so this
+        // read stays fresh (staleTime 0) and only de-duplicates concurrent and
+        // double-mounted requests rather than serving a cached copy.
+        const docResponse = await queryClient.fetchQuery({
+          queryKey: DOCUMENT_QUERY_KEY(schemaName, documentId),
+          queryFn: () => apiClient.getDocument(schemaName, documentId),
+          staleTime: 0,
+          retry: false,
+        });
         logger.debug('Document response received', { 
           success: docResponse.success, 
           hasData: !!docResponse.data
@@ -483,6 +507,9 @@ export function DocumentEditor({
         });
         
         store.markSaved(savedDoc);
+
+        // The cached copy of this document is now the pre-save one
+        queryClient.invalidateQueries({ queryKey: DOCUMENT_QUERY_KEY(schemaName, documentId) });
 
         // Show success toast
         showToast('Saved', 'success');
