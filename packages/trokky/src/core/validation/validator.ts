@@ -52,7 +52,8 @@ export class DocumentValidator {
       let fieldSchema = this.buildFieldSchema(fieldDef)
       
       if (!fieldDef.required) {
-        fieldSchema = fieldSchema.optional()
+        // The Studio sends null for every field it has no value for
+        fieldSchema = fieldSchema.nullish()
       }
 
       schemaShape[fieldName] = fieldSchema
@@ -113,7 +114,8 @@ export class DocumentValidator {
           const typedPropDef = propDef as FieldDefinition
           let propSchema = this.buildFieldSchema(typedPropDef)
           if (!typedPropDef.required) {
-            propSchema = propSchema.optional()
+            // The Studio sends null for every field it has no value for
+            propSchema = propSchema.nullish()
           }
           objectShape[propName] = propSchema
         }

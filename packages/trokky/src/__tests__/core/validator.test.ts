@@ -20,6 +20,8 @@ const schemas: ContentSchema[] = [
       title: { type: 'string', required: true },
       subtitle: { type: 'string' },
       views: { type: 'number' },
+      featured: { type: 'boolean' },
+      tags: { type: 'array', of: { type: 'string' } },
       author: { type: 'reference', to: 'authors' },
       seo: {
         type: 'object',
@@ -37,6 +39,15 @@ const schemas: ContentSchema[] = [
     fields: {
       title: { type: 'string', required: true },
       slug: { type: 'slug', required: true, source: 'title' }
+    }
+  },
+  {
+    name: 'flags',
+    type: 'document',
+    title: 'Flags',
+    fields: {
+      enabled: { type: 'boolean', required: true },
+      labels: { type: 'array', required: true, of: { type: 'string' } }
     }
   }
 ]
@@ -97,11 +108,48 @@ describe('DocumentValidator', () => {
     expect(fieldErrors(result, 'slug')).toContain('Slug cannot be empty')
   })
 
+  it('should accept a null optional boolean field', () => {
+    const result = validator.validateDocument('articles', { title: 'Post', featured: null })
+
+    expect(result.valid).toBe(true)
+  })
+
+  it('should accept a null optional array field', () => {
+    const result = validator.validateDocument('articles', { title: 'Post', tags: null })
+
+    expect(result.valid).toBe(true)
+  })
+
+  it('should reject a null required boolean field', () => {
+    const result = validator.validateDocument('flags', { enabled: null, labels: [] })
+
+    expect(result.valid).toBe(false)
+    expect(fieldErrors(result, 'enabled').length).toBeGreaterThan(0)
+  })
+
+  it('should reject a null required array field', () => {
+    const result = validator.validateDocument('flags', { enabled: true, labels: null })
+
+    expect(result.valid).toBe(false)
+    expect(fieldErrors(result, 'labels').length).toBeGreaterThan(0)
+  })
+
+  it('should accept a null optional property inside an object field', () => {
+    const result = validator.validateDocument('articles', {
+      title: 'Post',
+      seo: { metaTitle: null }
+    })
+
+    expect(result.valid).toBe(true)
+  })
+
   it('should still accept populated values for the relaxed fields', () => {
     const result = validator.validateDocument('articles', {
       title: 'Post',
       subtitle: 'Sub',
       views: 42,
+      featured: true,
+      tags: ['news'],
       author: { _ref: 'author-1' },
       seo: { metaTitle: 'Meta' },
       slug: 'post'
