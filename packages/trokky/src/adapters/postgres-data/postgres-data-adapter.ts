@@ -727,6 +727,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
       updateData.mfa ? JSON.stringify(updateData.mfa) : null,
       (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,
+      updateData.lastLoginAt,
       now
     ]
 
@@ -752,7 +753,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         oauth_providers = COALESCE($12, oauth_providers),
         mfa = COALESCE($13, mfa),
         passkeys = COALESCE($14, passkeys),
-        updated_at = $15
+        last_login_at = COALESCE($15, last_login_at),
+        updated_at = $16
       WHERE id = $1${condition}
       RETURNING *
     `, params)

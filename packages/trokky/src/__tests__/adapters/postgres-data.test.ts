@@ -107,7 +107,7 @@ describe('PostgresDataAdapter', () => {
       // A single conditional UPDATE, no separate read
       expect(queryCalls).toHaveLength(1)
       expect(queryCalls[0].text).toContain('UPDATE')
-      expect(queryCalls[0].text).toContain('WHERE id = $1 AND password_hash = $16')
+      expect(queryCalls[0].text).toContain('WHERE id = $1 AND password_hash = $17')
       expect(queryCalls[0].text).toContain('RETURNING *')
       expect(queryCalls[0].params).toContain('hash-v1')
     })
@@ -124,6 +124,65 @@ describe('PostgresDataAdapter', () => {
 
       expect(updated).toBeNull()
       expect(queryCalls).toHaveLength(1)
+    })
+
+    it('should persist lastLoginAt on the conditional update', async () => {
+      const adapter = await createAdapter()
+      const loginAt = '2026-09-08T08:30:00.000Z'
+      nextResults = [{ rows: [userRow({ last_login_at: loginAt })], rowCount: 1 }]
+
+      const updated = await adapter.saveUserIf(
+        'user-001',
+        { passwordHash: 'hash-v2', lastLoginAt: loginAt },
+        { passwordHash: 'hash-v1' }
+      )
+
+      expect(updated).not.toBeNull()
+      expect(updated!.lastLoginAt).toBe(loginAt)
+      expect(queryCalls[0].text).toContain('last_login_at = COALESCE($15, last_login_at)')
+      expect(queryCalls[0].params[14]).toBe(loginAt)
+    })
+  })
+
+  describe('saveUser (update branch)', () => {
+    beforeEach(() => {
+      queryCalls.length = 0
+      nextResults = []
+      poolQuery.mockClear()
+    })
+
+    it('should persist lastLoginAt when updating an existing user', async () => {
+      const adapter = await createAdapter()
+      const loginAt = '2026-09-08T09:15:00.000Z'
+      // saveUser reads the existing row first, then issues the UPDATE
+      nextResults = [
+        { rows: [userRow()], rowCount: 1 },
+        { rows: [userRow({ last_login_at: loginAt })], rowCount: 1 }
+      ]
+
+      const saved = await adapter.saveUser('user-001', { lastLoginAt: loginAt })
+
+      expect(queryCalls).toHaveLength(2)
+      expect(queryCalls[1].text).toContain('last_login_at = COALESCE($15, last_login_at)')
+      expect(queryCalls[1].params[14]).toBe(loginAt)
+      expect(saved.lastLoginAt).toBe(loginAt)
+    })
+
+    it('should leave last_login_at to COALESCE when the update omits lastLoginAt', async () => {
+      const adapter = await createAdapter()
+      const storedLoginAt = '2026-09-07T10:00:00.000Z'
+      nextResults = [
+        { rows: [userRow()], rowCount: 1 },
+        { rows: [userRow()], rowCount: 1 }
+      ]
+
+      const saved = await adapter.saveUser('user-001', { firstName: 'Grace' })
+
+      expect(queryCalls).toHaveLength(2)
+      expect(queryCalls[1].text).toContain('last_login_at = COALESCE($15, last_login_at)')
+      expect(queryCalls[1].params[14] ?? null).toBeNull()
+      // The stored value survives the update
+      expect(saved.lastLoginAt).toBe(storedLoginAt)
     })
   })
 })
