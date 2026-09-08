@@ -305,6 +305,10 @@ export class TrokkyCore {
       getUser: (id) => this.getUser(id),
       getUserByUsername: (username) => this.getUserByUsername(username),
       updateUser: (id, userData) => this.updateUser(id, userData),
+      // Adapters that support a conditional write set updatedAt themselves
+      updateUserIf: this.dataStorage.saveUserIf
+        ? (id, userData, condition) => this.dataStorage.saveUserIf!(id, userData, condition)
+        : undefined,
       validateAppToken: (token) => this.validateAppToken(token),
       logAuditEvent: (event) => this.logAuditEvent(event),
       checkMFARequired: (userId) => this.mfaService.checkMFARequired(userId),
@@ -490,6 +494,7 @@ export class TrokkyCore {
       // User operations (with fallback if not implemented)
       getUser: storage.getUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
       saveUser: storage.saveUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
+      saveUserIf: storage.saveUserIf?.bind(storage),
       listUsers: storage.listUsers?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
       deleteUser: storage.deleteUser?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),
       getUserByUsername: storage.getUserByUsername?.bind(storage) || (() => { throw new Error('User operations not supported by unified adapter') }),

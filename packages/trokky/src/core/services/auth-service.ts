@@ -23,6 +23,12 @@ export interface AuthServiceDependencies {
   getUser: (id: string) => Promise<User | null>
   getUserByUsername: (username: string) => Promise<User | null>
   updateUser: (id: string, userData: UpdateUserData) => Promise<User>
+  /** Conditional update, present only when the data adapter supports saveUserIf */
+  updateUserIf?: (
+    id: string,
+    userData: Partial<UpdateUserData>,
+    condition: { passwordHash: string }
+  ) => Promise<User | null>
   validateAppToken: (token: string) => Promise<{ valid: boolean; appToken?: AppToken; error?: string }>
   logAuditEvent: (event: AuditEvent) => void
   checkMFARequired: (userId: string) => Promise<MFARequirement>
@@ -212,16 +218,35 @@ export class AuthService {
       // Upgrade the stored hash if it uses an outdated format or work factor.
       // Never blocks login: any failure below is logged and ignored.
       const loginUpdate: UpdateUserData = { lastLoginAt: new Date().toISOString() }
+      let loginUpdatePersisted = false
       if (this.deps.cryptoAdapter.needsRehash(user.passwordHash)) {
         try {
           const upgradedHash = await this.hashPassword(password)
-          // Guard against a password change/reset that completed between our
-          // verify and this persist: only replace the hash we actually verified.
-          const current = await this.deps.getUser(user.id)
-          if (current && current.passwordHash === user.passwordHash) {
-            loginUpdate.passwordHash = upgradedHash
+          const updateUserIf = this.deps.updateUserIf
+          if (updateUserIf) {
+            // Atomic compare-and-set: the write only applies while the stored
+            // hash is still the one we verified, so a password change/reset that
+            // commits in between cannot be overwritten.
+            const updated = await updateUserIf(
+              user.id,
+              { ...loginUpdate, passwordHash: upgradedHash },
+              { passwordHash: user.passwordHash }
+            )
+            if (updated) {
+              loginUpdatePersisted = true
+              this.deps.logger.debug('Password hash upgraded to current format', { userId: user.id })
+            } else {
+              this.deps.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })
+            }
           } else {
-            this.deps.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })
+            // Adapter has no conditional update: guard with a re-read, which
+            // narrows but does not close the race.
+            const current = await this.deps.getUser(user.id)
+            if (current && current.passwordHash === user.passwordHash) {
+              loginUpdate.passwordHash = upgradedHash
+            } else {
+              this.deps.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })
+            }
           }
         } catch (error) {
           this.deps.logger.warn('Failed to upgrade password hash', { userId: user.id })
@@ -230,13 +255,15 @@ export class AuthService {
 
       // Persist last login time (and upgraded hash, if any) in a single write.
       // A storage failure here must not turn a correct password into a 401.
-      try {
-        await this.deps.updateUser(user.id, loginUpdate)
-        if (loginUpdate.passwordHash) {
-          this.deps.logger.debug('Password hash upgraded to current format', { userId: user.id })
+      if (!loginUpdatePersisted) {
+        try {
+          await this.deps.updateUser(user.id, loginUpdate)
+          if (loginUpdate.passwordHash) {
+            this.deps.logger.debug('Password hash upgraded to current format', { userId: user.id })
+          }
+        } catch (error) {
+          this.deps.logger.warn('Failed to persist login update', { userId: user.id })
         }
-      } catch (error) {
-        this.deps.logger.warn('Failed to persist login update', { userId: user.id })
       }
 
       // Check MFA requirements

@@ -34,6 +34,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   
   // Security limits
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
+  private readonly userWriteLocks = new Map<string, Promise<void>>()
 
   constructor(config: FilesystemDataAdapterConfig = {}) {
     this.config = {
@@ -416,9 +417,38 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   }
 
   public async saveUser(id: string, userData: CreateUserData | Partial<UpdateUserData>): Promise<User> {
-    try {
-      SecurityValidator.validateDocumentId(id)
+    SecurityValidator.validateDocumentId(id)
+    return this.withUserLock(id, () => this.writeUserFile(id, userData))
+  }
 
+  public async saveUserIf(
+    id: string,
+    userData: Partial<UpdateUserData>,
+    condition: { passwordHash: string }
+  ): Promise<User | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    return this.withUserLock(id, async () => {
+      const filePath = this.getUserPath(id)
+
+      let existingUser: UserFile
+      try {
+        const existingContent = await fs.readFile(filePath, 'utf8')
+        existingUser = JSON.parse(existingContent)
+      } catch {
+        return null
+      }
+
+      if (existingUser.passwordHash !== condition.passwordHash) {
+        return null
+      }
+
+      return this.writeUserFile(id, userData)
+    })
+  }
+
+  private async writeUserFile(id: string, userData: CreateUserData | Partial<UpdateUserData>): Promise<User> {
+    try {
       await fsExtra.ensureDir(this.config.usersDir, { mode: this.config.dirMode })
 
       const filePath = this.getUserPath(id)
@@ -994,6 +1024,25 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
 
   private getDocumentPath(collection: string, id: string): string {
     return path.join(this.config.contentDir, collection, `${id}.json`)
+  }
+
+  /**
+   * Serialize writes to a single user file within this process so that
+   * compare-and-set operations (saveUserIf) cannot interleave with saveUser.
+   */
+  private async withUserLock<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.userWriteLocks.get(id) ?? Promise.resolve()
+    const current = previous.then(operation, operation)
+    const settled = current.then(() => undefined, () => undefined)
+    this.userWriteLocks.set(id, settled)
+
+    try {
+      return await current
+    } finally {
+      if (this.userWriteLocks.get(id) === settled) {
+        this.userWriteLocks.delete(id)
+      }
+    }
   }
 
   private getUserPath(id: string): string {

@@ -206,7 +206,24 @@ export interface DataStorageAdapter {
    * @throws Error if validation fails or storage fails
    */
   saveUser(id: string, userData: CreateUserData | Partial<UpdateUserData>): Promise<User>
-  
+
+  /**
+   * Conditionally update a user, but only while the stored password hash still
+   * matches the expected one. The comparison and the write must be atomic
+   * (a single conditional statement for SQL backends, a lock for file backends)
+   * so a concurrent password change cannot be overwritten.
+   *
+   * Optional: adapters that do not implement it fall back to a
+   * read-compare-write, which is not race free.
+   *
+   * @param id - The user ID
+   * @param userData - The user fields to update
+   * @param condition - The password hash the caller expects to still be stored
+   * @returns The updated user, or null if the stored hash no longer matches (nothing written)
+   * @throws Error if storage fails
+   */
+  saveUserIf?(id: string, userData: Partial<UpdateUserData>, condition: { passwordHash: string }): Promise<User | null>
+
   /**
    * List users with filtering and pagination
    * @param options - Query options (role, isActive, limit, offset)

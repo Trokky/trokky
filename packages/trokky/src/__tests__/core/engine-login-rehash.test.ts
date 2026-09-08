@@ -61,6 +61,9 @@ function createMockDataAdapter(user: User) {
 
   return {
     stored: () => stored,
+    setStored: (patch: Partial<User>): void => {
+      stored = { ...stored, ...patch }
+    },
     saveUser,
     getUser: vi.fn(async () => ({ ...stored })),
     getUserByUsername: vi.fn(async () => ({ ...stored })),
@@ -82,6 +85,33 @@ function createMockDataAdapter(user: User) {
 }
 
 type MockDataAdapter = ReturnType<typeof createMockDataAdapter>
+
+/**
+ * Wrap the mock adapter with a conditional write that compares the stored hash
+ * at write time. onBeforeCompare simulates a concurrent password change landing
+ * between the login's verify and this write.
+ */
+function withSaveUserIf(
+  dataAdapter: MockDataAdapter,
+  onBeforeCompare?: () => void
+): MockDataAdapter & { saveUserIf: ReturnType<typeof vi.fn> } {
+  const saveUserIf = vi.fn(
+    async (
+      _id: string,
+      data: Partial<User>,
+      condition: { passwordHash: string }
+    ): Promise<User | null> => {
+      onBeforeCompare?.()
+      if (dataAdapter.stored().passwordHash !== condition.passwordHash) {
+        return null
+      }
+      dataAdapter.setStored(data)
+      return { ...dataAdapter.stored() }
+    }
+  )
+
+  return { ...dataAdapter, saveUserIf }
+}
 
 function createCore(dataAdapter: MockDataAdapter): TrokkyCore {
   return new TrokkyCore(
@@ -197,6 +227,57 @@ describe('TrokkyCore.authenticateUser password hash upgrade', () => {
     expect(dataAdapter.saveUser).toHaveBeenCalledTimes(1)
     // Nothing persisted, so the next login upgrades again.
     expect(dataAdapter.stored().passwordHash).toBe(LEGACY_FIXTURE)
+  })
+
+  it('should not overwrite a hash that changed concurrently when the adapter supports saveUserIf', async () => {
+    const changedElsewhere =
+      '$pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+    dataAdapter = createMockDataAdapter(createTestUser(LEGACY_FIXTURE))
+    const conditionalAdapter = withSaveUserIf(dataAdapter, () => {
+      // A password reset commits between our verify and the conditional write.
+      dataAdapter.setStored({ passwordHash: changedElsewhere })
+    })
+    core = createCore(conditionalAdapter)
+
+    const result = await core.authenticateUser('admin', PASSWORD)
+
+    expect(result?.type).toBe('success')
+    expect(conditionalAdapter.saveUserIf).toHaveBeenCalledTimes(1)
+    // The upgraded hash was rejected, so the concurrent one survives
+    expect(dataAdapter.stored().passwordHash).toBe(changedElsewhere)
+    // lastLoginAt is still recorded through the plain fallback write
+    expect(dataAdapter.saveUser).toHaveBeenCalledTimes(1)
+    const payload = saveUserPayload(dataAdapter, 0)
+    expect(payload.lastLoginAt).toEqual(expect.any(String))
+    expect(payload).not.toHaveProperty('passwordHash')
+    expect(dataAdapter.stored().lastLoginAt).toEqual(expect.any(String))
+  })
+
+  it('should upgrade the hash through saveUserIf when nothing changed concurrently', async () => {
+    dataAdapter = createMockDataAdapter(createTestUser(LEGACY_FIXTURE))
+    const conditionalAdapter = withSaveUserIf(dataAdapter)
+    core = createCore(conditionalAdapter)
+
+    const result = await core.authenticateUser('admin', PASSWORD)
+
+    expect(result?.type).toBe('success')
+    expect(conditionalAdapter.saveUserIf).toHaveBeenCalledTimes(1)
+    // No fallback write was needed: the conditional write carried lastLoginAt
+    expect(dataAdapter.saveUser).not.toHaveBeenCalled()
+    expect(dataAdapter.stored().passwordHash.startsWith(TAGGED_PREFIX)).toBe(true)
+    expect(dataAdapter.stored().lastLoginAt).toEqual(expect.any(String))
+    await expect(verifyPasswordHash(PASSWORD, dataAdapter.stored().passwordHash)).resolves.toBe(true)
+  })
+
+  it('should still upgrade through the fallback path when the adapter has no saveUserIf', async () => {
+    setup(LEGACY_FIXTURE)
+
+    const result = await core.authenticateUser('admin', PASSWORD)
+
+    expect(result?.type).toBe('success')
+    expect(dataAdapter).not.toHaveProperty('saveUserIf')
+    expect(dataAdapter.saveUser).toHaveBeenCalledTimes(1)
+    expect(dataAdapter.stored().passwordHash.startsWith(TAGGED_PREFIX)).toBe(true)
   })
 
   it('should not overwrite a password that changed between verify and persist', async () => {

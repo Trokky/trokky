@@ -297,6 +297,8 @@ export interface StorageAdapter {
   // User operations (system entities)
   getUser?(id: string): Promise<User | null>
   saveUser?(id: string, userData: Partial<User>): Promise<User>
+  /** Update a user only while the stored password hash still matches (atomic compare-and-set) */
+  saveUserIf?(id: string, userData: Partial<User>, condition: { passwordHash: string }): Promise<User | null>
   listUsers?(options?: UserListOptions): Promise<User[]>
   deleteUser?(id: string): Promise<void>
   getUserByUsername?(username: string): Promise<User | null>

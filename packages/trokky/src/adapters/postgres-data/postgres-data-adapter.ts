@@ -636,45 +636,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
       if (existingUser) {
         // Update existing user
-        const updateData = userData as Partial<UpdateUserData>
-        const result = await this.query(`
-          UPDATE ${this.tableName('users')}
-          SET
-            username = COALESCE($2, username),
-            email = COALESCE($3, email),
-            password_hash = COALESCE($4, password_hash),
-            first_name = COALESCE($5, first_name),
-            last_name = COALESCE($6, last_name),
-            role = COALESCE($7, role),
-            permissions = COALESCE($8, permissions),
-            is_active = COALESCE($9, is_active),
-            profile_image = COALESCE($10, profile_image),
-            preferences = COALESCE($11, preferences),
-            oauth_providers = COALESCE($12, oauth_providers),
-            mfa = COALESCE($13, mfa),
-            passkeys = COALESCE($14, passkeys),
-            updated_at = $15
-          WHERE id = $1
-          RETURNING *
-        `, [
-          id,
-          updateData.username,
-          updateData.email,
-          (updateData as any).passwordHash,
-          updateData.firstName,
-          updateData.lastName,
-          updateData.role,
-          // Only pass permissions if explicitly provided (including empty array), otherwise null to preserve existing
-          updateData.permissions !== undefined ? JSON.stringify(updateData.permissions) : null,
-          updateData.isActive,
-          updateData.profileImage,
-          // Only pass preferences if explicitly provided, otherwise null to preserve existing
-          updateData.preferences !== undefined ? JSON.stringify(updateData.preferences) : null,
-          (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
-          updateData.mfa ? JSON.stringify(updateData.mfa) : null,
-          (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,
-          now
-        ])
+        const result = await this.updateUserRow(id, userData as Partial<UpdateUserData>, now)
 
         const row: UserRow = result.rows[0]
         return this.mapRowToUser(row)
@@ -714,6 +676,86 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       this.logger.error('Failed to save user', { id, userData, error })
       throw error
     }
+  }
+
+  async saveUserIf(
+    id: string,
+    userData: Partial<UpdateUserData>,
+    condition: { passwordHash: string }
+  ): Promise<User | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    try {
+      const result = await this.updateUserRow(id, userData, new Date().toISOString(), condition.passwordHash)
+
+      if (!result.rowCount) {
+        return null
+      }
+
+      const row: UserRow = result.rows[0]
+      return this.mapRowToUser(row)
+    } catch (error) {
+      this.logger.error('Failed to conditionally save user', { id, error })
+      throw error
+    }
+  }
+
+  /**
+   * Shared UPDATE for user rows. When expectedPasswordHash is provided the
+   * write only applies while the stored hash still matches, in one statement.
+   */
+  private async updateUserRow(
+    id: string,
+    updateData: Partial<UpdateUserData>,
+    now: string,
+    expectedPasswordHash?: string
+  ): Promise<any> {
+    const params: any[] = [
+      id,
+      updateData.username,
+      updateData.email,
+      (updateData as any).passwordHash,
+      updateData.firstName,
+      updateData.lastName,
+      updateData.role,
+      // Only pass permissions if explicitly provided (including empty array), otherwise null to preserve existing
+      updateData.permissions !== undefined ? JSON.stringify(updateData.permissions) : null,
+      updateData.isActive,
+      updateData.profileImage,
+      // Only pass preferences if explicitly provided, otherwise null to preserve existing
+      updateData.preferences !== undefined ? JSON.stringify(updateData.preferences) : null,
+      (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
+      updateData.mfa ? JSON.stringify(updateData.mfa) : null,
+      (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,
+      now
+    ]
+
+    let condition = ''
+    if (expectedPasswordHash !== undefined) {
+      params.push(expectedPasswordHash)
+      condition = ` AND password_hash = $${params.length}`
+    }
+
+    return await this.query(`
+      UPDATE ${this.tableName('users')}
+      SET
+        username = COALESCE($2, username),
+        email = COALESCE($3, email),
+        password_hash = COALESCE($4, password_hash),
+        first_name = COALESCE($5, first_name),
+        last_name = COALESCE($6, last_name),
+        role = COALESCE($7, role),
+        permissions = COALESCE($8, permissions),
+        is_active = COALESCE($9, is_active),
+        profile_image = COALESCE($10, profile_image),
+        preferences = COALESCE($11, preferences),
+        oauth_providers = COALESCE($12, oauth_providers),
+        mfa = COALESCE($13, mfa),
+        passkeys = COALESCE($14, passkeys),
+        updated_at = $15
+      WHERE id = $1${condition}
+      RETURNING *
+    `, params)
   }
 
   async listUsers(options: UserListOptions = {}): Promise<User[]> {

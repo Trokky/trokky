@@ -267,6 +267,57 @@ describe('FilesystemDataAdapter', () => {
     })
   })
 
+  describe('saveUserIf (conditional update)', () => {
+    beforeEach(async () => {
+      await adapter.saveUser('user-001', {
+        username: 'admin',
+        email: 'admin@example.com',
+        password: 'ignored',
+        passwordHash: 'hash-v1',
+        role: 'admin',
+      })
+    })
+
+    it('should apply the update when the stored password hash matches', async () => {
+      const updated = await adapter.saveUserIf(
+        'user-001',
+        { passwordHash: 'hash-v2', lastLoginAt: '2026-09-07T10:00:00.000Z' },
+        { passwordHash: 'hash-v1' }
+      )
+
+      expect(updated).not.toBeNull()
+      expect(updated!.passwordHash).toBe('hash-v2')
+
+      const stored = await adapter.getUser('user-001')
+      expect(stored!.passwordHash).toBe('hash-v2')
+      expect(stored!.lastLoginAt).toBe('2026-09-07T10:00:00.000Z')
+    })
+
+    it('should return null and write nothing when the stored password hash differs', async () => {
+      const updated = await adapter.saveUserIf(
+        'user-001',
+        { passwordHash: 'hash-v2', lastLoginAt: '2026-09-07T10:00:00.000Z' },
+        { passwordHash: 'stale-hash' }
+      )
+
+      expect(updated).toBeNull()
+
+      const stored = await adapter.getUser('user-001')
+      expect(stored!.passwordHash).toBe('hash-v1')
+      expect(stored!.lastLoginAt).toBeUndefined()
+    })
+
+    it('should return null for a user that does not exist', async () => {
+      const updated = await adapter.saveUserIf(
+        'user-999',
+        { passwordHash: 'hash-v2' },
+        { passwordHash: 'hash-v1' }
+      )
+
+      expect(updated).toBeNull()
+    })
+  })
+
   describe('security - path traversal prevention', () => {
     it('should reject collection names with path traversal', async () => {
       await expect(
