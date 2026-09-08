@@ -10,6 +10,7 @@ import type { MediaFieldDefinition } from './definition'
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/trokky/types'
 import { MEDIA_FIELD_DEFAULTS } from './definition'
 import { Dialog } from '@/components/ui/Dialog.js'
+import { formatFileSize } from '../../../utils/format'
 
 // Heroicons imports - using icons that are available
 import {
@@ -118,24 +119,6 @@ function getMediaTypeLabel(mediaType: MediaType, t?: (key: string) => string): s
   return labels[mediaType] || 'Media'
 }
 
-// Format file size for display
-function formatFileSize(bytes: number | undefined | null): string {
-  // Guard against undefined/null bytes
-  if (bytes === undefined || bytes === null || typeof bytes !== 'number') {
-    return 'Unknown size'
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unitIndex = 0
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex++
-  }
-
-  return `${size.toFixed(1)} ${units[unitIndex]}`
-}
 
 // Truncate text for display with ellipsis
 function truncateText(text: string, maxLength: number = 50): string {

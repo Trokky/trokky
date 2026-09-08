@@ -23,6 +23,7 @@ const ArchiveBoxIcon = ({ className }: { className?: string }) => (
 )
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { MediaFieldValue, MediaType } from './definition'
+import { formatFileSize } from '../../../utils/format'
 
 type MediaFieldPreviewProps = FieldComponentProps
 
@@ -47,20 +48,6 @@ function getMediaTypeFromMime(mimeType: string): MediaType {
   )
     return 'document'
   return 'archive'
-}
-
-// Format file size for display
-function formatFileSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unitIndex = 0
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex++
-  }
-
-  return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
 // Truncate text for display with ellipsis

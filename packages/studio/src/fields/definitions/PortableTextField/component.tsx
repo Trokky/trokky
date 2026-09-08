@@ -13,7 +13,7 @@ import {
   normalizePortableTextContent,
   generateKey
 } from './validation';
-import { createStudioLogger } from '../../utils/logger';
+import { createStudioLogger } from '../../../utils/logger';
 import { Dialog } from '@/components/ui/Dialog.js';
 
 const logger = createStudioLogger('PortableTextField');

@@ -38,9 +38,14 @@ export function formatDate(date: string | Date, format: 'short' | 'long' | 'rela
 }
 
 /**
- * Format file size for display
+ * Format file size for display.
+ *
+ * The one implementation: six near-copies of this lived inline across the media
+ * page, the media browser, the search modal and three MediaField modules, each
+ * with its own units and rounding.
  */
-export function formatFileSize(bytes: number): string {
+export function formatFileSize(bytes: number | undefined | null): string {
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return 'Unknown size';
   if (bytes === 0) return '0 B';
   
   const k = 1024;

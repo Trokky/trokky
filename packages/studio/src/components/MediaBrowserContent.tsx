@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import type { MediaFieldValue, MediaType } from '@trokky/trokky/types'
 import { useT } from '@trokky/trokky/i18n'
+import { formatFileSize } from '@/utils/format'
 
 // Types for Studio API integration
 interface MediaFile {
@@ -262,10 +263,6 @@ function getMediaUrl(
   throw new Error(
     `Cannot generate URL for media ${media.id}${variant ? ` variant ${variant}` : ''}`
   )
-}
-
-function formatFileSize(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1)
 }
 
 export function MediaBrowserContent({
@@ -776,7 +773,7 @@ export function MediaBrowserContent({
                       {t('mediaBrowser.size')}
                     </dt>
                     <dd className="text-gray-900 dark:text-white">
-                      {formatFileSize(selectedMedia.size)} MB
+                      {formatFileSize(selectedMedia.size)}
                     </dd>
                   </div>
                   <div className="flex justify-between">
@@ -869,7 +866,7 @@ export function MediaBrowserContent({
                           selectedMedia.metadata?.height
                             ? `${selectedMedia.metadata.width} × ${selectedMedia.metadata.height} • `
                             : ''}
-                          {formatFileSize(selectedMedia.size)} MB
+                          {formatFileSize(selectedMedia.size)}
                         </p>
                       </div>
 
@@ -1073,7 +1070,7 @@ export function MediaBrowserContent({
                         {media.filename}
                       </p>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
-                        {formatFileSize(media.size)} MB
+                        {formatFileSize(media.size)}
                       </p>
                     </div>
                   </div>

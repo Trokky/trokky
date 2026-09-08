@@ -6,13 +6,17 @@
 
 import { useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { FieldRenderer } from '../../fields/index';
+import { FieldRenderer, evaluateConditional } from '../../fields/index';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('DocumentForm');
+
+// One implementation of conditional visibility, owned by the field system.
+// Re-exported here because DocumentEditor imports it from this module.
+export { evaluateConditional };
 
 // Helper function to format field names into readable titles
 function formatFieldName(fieldName: string): string {
@@ -24,106 +28,6 @@ function formatFieldName(fieldName: string): string {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ')
     .trim();
-}
-
-// Conditional visibility evaluation functions (copied from ObjectField)
-function evaluateCondition(actualValue: any, expectedValue: any, operator: string): boolean {
-  switch (operator) {
-    case 'equals':
-      return actualValue === expectedValue;
-    case 'notEquals':
-      return actualValue !== expectedValue;
-    case 'contains':
-      if (typeof actualValue === 'string') {
-        return actualValue.includes(String(expectedValue));
-      }
-      if (Array.isArray(actualValue)) {
-        return actualValue.includes(expectedValue);
-      }
-      return false;
-    case 'notContains':
-      if (typeof actualValue === 'string') {
-        return !actualValue.includes(String(expectedValue));
-      }
-      if (Array.isArray(actualValue)) {
-        return !actualValue.includes(expectedValue);
-      }
-      return true;
-    case 'exists':
-      return actualValue !== undefined && actualValue !== null && actualValue !== '';
-    case 'notExists':
-      return actualValue === undefined || actualValue === null || actualValue === '';
-    case 'greaterThan':
-      return typeof actualValue === 'number' && typeof expectedValue === 'number' && actualValue > expectedValue;
-    case 'lessThan':
-      return typeof actualValue === 'number' && typeof expectedValue === 'number' && actualValue < expectedValue;
-    default:
-      console.warn(`Unknown conditional operator: ${operator}`);
-      return false;
-  }
-}
-
-export function evaluateConditional(
-  fieldDefinition: any,
-  documentValues: Record<string, any>
-): { visible: boolean; reason: string; evaluatedFields: string[] } {
-  // Handle function-based hidden property
-  if (typeof fieldDefinition.hidden === 'function') {
-    try {
-      const isHidden = fieldDefinition.hidden(documentValues);
-      return {
-        visible: !isHidden,
-        reason: isHidden ? 'Hidden by function' : 'Visible by function',
-        evaluatedFields: Object.keys(documentValues)
-      };
-    } catch (error) {
-      console.error('Error evaluating hidden function:', error);
-      return { visible: true, reason: 'Function error - defaulting to visible', evaluatedFields: [] };
-    }
-  }
-
-  // Handle boolean hidden property
-  if (typeof fieldDefinition.hidden === 'boolean') {
-    return {
-      visible: !fieldDefinition.hidden,
-      reason: fieldDefinition.hidden ? 'Hidden by boolean' : 'Visible by boolean',
-      evaluatedFields: []
-    };
-  }
-
-  // Handle conditional visibility
-  if (fieldDefinition.conditional) {
-    const { field, value, operator = 'equals', conditions, logic = 'and' } = fieldDefinition.conditional;
-    const evaluatedFields = [field];
-
-    // Single condition
-    if (!conditions) {
-      const actualValue = documentValues[field];
-      const result = evaluateCondition(actualValue, value, operator);
-      return {
-        visible: result,
-        reason: result ? `Condition met: ${field} ${operator} ${value}` : `Condition not met: ${field} ${operator} ${value}`,
-        evaluatedFields
-      };
-    }
-
-    // Multiple conditions
-    const results = conditions.map((condition: any) => {
-      evaluatedFields.push(condition.field);
-      const actualValue = documentValues[condition.field];
-      return evaluateCondition(actualValue, condition.value, condition.operator || 'equals');
-    });
-
-    const visible = logic === 'and' ? results.every((r: boolean) => r) : results.some((r: boolean) => r);
-    return {
-      visible,
-      reason: `Multiple conditions (${logic}): ${visible ? 'met' : 'not met'}`,
-      evaluatedFields
-    };
-  }
-
-  // Default to visible
-  return { visible: true, reason: 'No conditions - default visible', evaluatedFields: [] };
 }
 
 export function DocumentForm() {

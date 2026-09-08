@@ -15,6 +15,7 @@ import {
 import { useT } from '@trokky/trokky/i18n';
 import { Dialog } from '@/components/ui/Dialog.js';
 import { apiClient } from '@/services/api-client';
+import { formatFileSize } from '@/utils/format';
 
 interface SimpleSearchModalProps {
   isOpen: boolean;
@@ -66,15 +67,6 @@ function highlightText(text: string, query: string): string {
   return sanitized.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
 }
 
-
-// Format file size
-function formatFileSize(bytes: number): string {
-  if (!bytes) return '';
-  
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
-}
 
 export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
   const { t } = useT('studio');
