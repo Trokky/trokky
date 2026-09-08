@@ -50,7 +50,6 @@ export function GridView({
   cardSize = 'medium',
   columnsPerRow,
   // imageField = 'image', // Now dynamically checking multiple fields
-  titleField = 'title',
   subtitleField = 'subtitle',
   descriptionField = 'description',
   dateField = '_updatedAt',

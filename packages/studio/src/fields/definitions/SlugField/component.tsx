@@ -30,7 +30,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     studioContext,
     documentContext,
     mode,
-    ...restProps
   } = props;
 
   // Type-safe access to slug field specific properties  
@@ -42,7 +41,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
   const readOnly = slugDefinition.readOnly ?? definitionAny.options?.readOnly ?? false;
   const unique = slugDefinition.unique ?? definitionAny.options?.unique ?? true;
   const source = slugDefinition.source ?? definitionAny.options?.source;
-  const maxLength = slugDefinition.maxLength ?? definitionAny.options?.maxLength;
   
   const [isManuallyEdited, setIsManuallyEdited] = useState(false);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
@@ -87,7 +85,6 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
     }
 
     const generatedSlug = generateSlug();
-    const isNewDocument = documentContext?.isNewDocument;
     const isEmpty = !value || value.trim() === '';
     const isExistingDocumentWithSlug = !documentContext?.isNewDocument && !isEmpty;
     
@@ -197,7 +194,7 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
 
   // Handle focus - auto-generate if empty
-  const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+  const handleFocus = () => {
     if (isViewMode || !onChange) return;
     
     const isEmpty = !value || value.trim() === '';

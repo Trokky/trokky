@@ -1,8 +1,6 @@
-import type { 
-  ReferenceFieldDefinition, 
-  ReferenceValidation,
-  ReferenceValue,
-  ReferenceSearchResult
+import type {
+  ReferenceFieldDefinition,
+  ReferenceValue
 } from './definition.js';
 import type { ValidationResult, DocumentContext } from '../../base/FieldDefinition.js';
 import { REFERENCE_FIELD_DEFAULTS } from './definition.js';
@@ -10,7 +8,7 @@ import { REFERENCE_FIELD_DEFAULTS } from './definition.js';
 export function validateReferenceField(
   value: string | string[] | ReferenceValue | ReferenceValue[] | undefined,
   definition: ReferenceFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const validation = { ...REFERENCE_FIELD_DEFAULTS.validation, ...definition.validation };
   

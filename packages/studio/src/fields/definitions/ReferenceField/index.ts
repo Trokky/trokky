@@ -3,7 +3,6 @@ import type { ReferenceFieldDefinition, ReferenceValue } from './definition.js';
 import { ReferenceFieldComponent } from './component.js';
 import { ReferenceFieldPreview } from './preview.js';
 import { validateReferenceField, getDefaultReferenceValue } from './validation.js';
-import { REFERENCE_FIELD_DEFAULTS } from './definition.js';
 
 export const referenceFieldPlugin: FieldPlugin<ReferenceFieldDefinition, ReferenceValue | ReferenceValue[]> = {
   type: 'reference',

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { PortableTextFieldDefinition, PortableTextContent, PortableTextBlock } from './definition.js';
 import { getPlainTextFromPortableText, getPortableTextStats } from './validation.js';
@@ -34,13 +33,8 @@ export function PortableTextFieldPreview(props: PortableTextFieldPreviewProps) {
       </span>
     );
   }
-  
-  // Truncate content for preview
   const maxPreviewLength = 150;
-  const truncatedText = textContent.length > maxPreviewLength 
-    ? textContent.slice(0, maxPreviewLength) + '...'
-    : textContent;
-  
+
   // Render a simplified version of the blocks
   const renderBlockPreview = (block: PortableTextBlock, index: number) => {
     const text = block.children?.[0]?.text || '';

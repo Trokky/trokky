@@ -92,7 +92,9 @@ export function SettingsPage() {
       setLoading(true);
       logger.debug('Loading settings from API');
       
-      const response = await apiClient.get('/config/settings');
+      const response = await apiClient.get<{
+        settings?: Record<string, any>
+      }>('/config/settings');
       
       if (response.success && response.data?.settings) {
         const settings = response.data.settings;

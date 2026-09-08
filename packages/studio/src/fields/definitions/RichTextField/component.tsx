@@ -24,7 +24,6 @@ import {
   NumberedListIcon,
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
-  ChartBarIcon,
   ChatBubbleBottomCenterTextIcon,
   ArrowsPointingOutIcon,
   XMarkIcon,
@@ -65,15 +64,8 @@ import { useT } from 'trokky/i18n'
 import type { MediaFieldValue } from 'trokky/types'
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer'
 import {
-  createImageShortcode,
-  resolveShortcodes,
-  contentToShortcodes,
-  type TrokkyImageShortcode,
-} from './shortcodes'
-import {
   editorToStorageFormat,
   storageToEditorFormat,
-  detectContentFormat,
 } from './format-converter'
 import type { RichTextOutputFormat, ProseMirrorDocument } from './definition'
 
@@ -345,7 +337,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     isReadonly,
     studioContext,
     mode,
-    ...restProps
   } = props
 
   const { t } = useT('fields')
@@ -569,7 +560,7 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     })(),
     editable: !isDisabled && !isReadonly,
     editorProps: {
-      handlePaste: (view, event) => {
+      handlePaste: (_view, event) => {
         const clipboardData = event.clipboardData
         if (!clipboardData) return false
 

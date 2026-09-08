@@ -3,7 +3,7 @@
  * Read-only display component for media fields
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 // TODO: Add proper icon imports when Studio icons are available
 // Using placeholder icons for now
 const PhotoIcon = ({ className }: { className?: string }) => (
@@ -21,18 +21,8 @@ const SpeakerWaveIcon = ({ className }: { className?: string }) => (
 const ArchiveBoxIcon = ({ className }: { className?: string }) => (
   <div className={className}>📦</div>
 )
-const EyeIcon = ({ className }: { className?: string }) => (
-  <div className={className}>👁️</div>
-)
-const ArrowDownTrayIcon = ({ className }: { className?: string }) => (
-  <div className={className}>⬇️</div>
-)
 import type { FieldComponentProps } from '../../base/FieldPlugin'
-import type {
-  MediaFieldDefinition,
-  MediaFieldValue,
-  MediaType,
-} from './definition'
+import type { MediaFieldValue, MediaType } from './definition'
 
 type MediaFieldPreviewProps = FieldComponentProps
 
@@ -115,18 +105,10 @@ function formatDuration(seconds: number): string {
 }
 
 export function MediaFieldPreview(props: MediaFieldPreviewProps) {
-  const { value, definition, documentContext, studioContext, ...restProps } =
-    props
-
-  const mediaDefinition = definition as MediaFieldDefinition
-  const options = mediaDefinition.options || {}
+  const { value, studioContext } = props
 
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null)
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null)
-
-  // Cross-platform development check
-  const isDevelopment =
-    typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true
 
   // Load asset when value changes
   useEffect(() => {

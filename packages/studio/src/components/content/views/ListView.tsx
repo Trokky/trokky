@@ -407,13 +407,13 @@ export const getDefaultColumns = (): ListColumn[] => {
       key: 'title',
       title: 'Title',
       sortable: true,
-      render: (value, doc) => getSmartDocumentTitle(doc)
+      render: (_value, doc) => getSmartDocumentTitle(doc)
     },
     {
       key: '_status',
       title: 'Status',
       sortable: true,
-      render: (value, doc) => {
+      render: (value, _doc) => {
         // Use _status as the single source of truth
         const status = value || 'draft';
         const isPublished = status === 'published';

@@ -364,7 +364,7 @@ export function DocumentForm() {
         definition={field}
         hasError={!!error}
         error={error}
-        mode={isReadOnly ? "view" : "edit"}
+        mode="edit"
         disabled={isReadOnly}
         studioContext={studioContext || undefined}
         documentContext={documentContext}

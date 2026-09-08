@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { getBasePath } from '@/utils/navigation';
@@ -148,7 +148,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
           }
 
           // Login mode: Store tokens and redirect to dashboard
-          const { token, refreshToken, user, expiresAt } = response.data;
+          const { token, refreshToken, user } = response.data;
 
           if (token && user) {
             // Store tokens

@@ -6,7 +6,6 @@
  * Based on proven legacy architecture from Trokky v1
  */
 
-import React from 'react';
 import { fieldRegistry } from '../registry/FieldRegistry.js';
 import { FieldWrapper } from './FieldWrapper.js';
 import type { FieldComponentProps } from '../base/FieldPlugin.js';

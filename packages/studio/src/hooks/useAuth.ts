@@ -454,7 +454,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionCheckRef.current = setInterval(() => {
         const now = new Date()
         const timeUntilExpiry = expiresAt.getTime() - now.getTime()
-        const currentAuthState = authStateRef.current
 
         // Skip warning - let auto-refresh handle expiry silently
         // Warning disabled to prevent user disruption

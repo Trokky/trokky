@@ -1,4 +1,3 @@
-import React from 'react';
 import { StringFieldPreview } from '../StringField/preview.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { PasswordFieldDefinition } from './definition.js';

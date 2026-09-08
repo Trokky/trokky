@@ -1,4 +1,3 @@
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ObjectFieldDefinition } from './definition.js';
 import { 
@@ -110,14 +109,14 @@ export function ObjectFieldPreview({ value, definition }: ObjectPreviewProps) {
   
   // Show some key field values if available
   const keyFields = Object.entries(objectDefinition.fields)
-    .filter(([fieldName, field]) => {
+    .filter(([fieldName]) => {
       const fieldValue = sanitizedValue[fieldName];
       return fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
     })
     .slice(0, 2);
 
   if (keyFields.length > 0) {
-    const keyValues = keyFields.map(([fieldName, field]) => {
+    const keyValues = keyFields.map(([fieldName]) => {
       const fieldValue = sanitizedValue[fieldName];
       let displayValue: string;
       

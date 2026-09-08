@@ -3,13 +3,17 @@
  */
 
 import { useCurrentUser } from './useCurrentUser'
-import type { Permission } from '@/types'
+import type { Permission, User } from '@/types'
 
 // Action types for schema-level permission checks
 export type SchemaAction = 'read' | 'write' | 'delete' | 'publish'
 
 interface UsePermissionsReturn {
+  /** Current user, or null while loading / unauthenticated */
+  user: User | null
   hasPermission: (permission: Permission) => boolean
+  /** Check a global (non schema-scoped) permission by name */
+  hasGlobalPermission: (permission: string) => boolean
   hasAnyPermission: (permissions: Permission[]) => boolean
   hasAllPermissions: (permissions: Permission[]) => boolean
   hasSchemaPermission: (
@@ -152,8 +156,13 @@ export function usePermissions(): UsePermissionsReturn {
     return false
   }
 
+  const hasGlobalPermission = (permission: string): boolean =>
+    hasPermission(permission as Permission)
+
   return {
+    user,
     hasPermission,
+    hasGlobalPermission,
     hasAnyPermission,
     hasAllPermissions,
     hasSchemaPermission,

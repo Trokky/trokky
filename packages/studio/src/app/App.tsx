@@ -159,8 +159,9 @@ export function App() {
     loadBranding();
 
     // Listen for settings updates to refresh branding
-    const handleSettingsUpdate = async (event: CustomEvent) => {
-      const settings = event.detail?.settings;
+    const handleSettingsUpdate = async (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const settings = detail?.settings;
       if (settings) {
         const updatedBranding: BrandingConfig = {
           title: settings.studioTitle,
@@ -179,10 +180,10 @@ export function App() {
       }
     };
 
-    window.addEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+    window.addEventListener('trokky:settings:updated', handleSettingsUpdate);
 
     return () => {
-      window.removeEventListener('trokky:settings:updated', handleSettingsUpdate as EventListener);
+      window.removeEventListener('trokky:settings:updated', handleSettingsUpdate);
     };
   }, []);
 

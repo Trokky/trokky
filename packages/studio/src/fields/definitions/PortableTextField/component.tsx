@@ -4,19 +4,15 @@ import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type {
   PortableTextFieldDefinition,
   PortableTextContent,
-  PortableTextBlock,
-  PortableTextSpan,
-  PortableTextMarkDef
+  PortableTextBlock
 } from './definition';
 import {
-  validatePortableTextField,
   sanitizePortableTextValue,
   getPlainTextFromPortableText,
   getPortableTextStats,
   normalizePortableTextContent,
   generateKey
 } from './validation';
-import { BLOCK_STYLES, MARKS } from './definition';
 import { createStudioLogger } from '../../utils/logger';
 
 const logger = createStudioLogger('PortableTextField');
@@ -32,7 +28,7 @@ interface DragState {
 }
 
 export function PortableTextFieldComponent(props: PortableTextFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode } = props;
   const { t } = useT('fields');
 
   if (definition.type !== 'portable') {
@@ -1114,7 +1110,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
         }}
       >
         {/* Render blocks */}
-        {blocksToRender.map((block, index) => {
+        {blocksToRender.map((block) => {
           const isSelected = selectedBlockKey === block._key;
           const text = block.children?.[0]?.text || '';
           const marks = block.children?.[0]?.marks || [];

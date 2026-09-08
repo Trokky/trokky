@@ -14,7 +14,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   UserIcon,
-  DocumentTextIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,

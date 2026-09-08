@@ -5,10 +5,7 @@
 import { useState, useEffect } from 'react';
 import {
   DocumentTextIcon,
-  UsersIcon,
   PhotoIcon,
-  ClockIcon,
-  ChartBarIcon,
   RectangleStackIcon
 } from '@heroicons/react/24/outline';
 import { apiClient } from '@/services/api-client';
@@ -45,13 +42,19 @@ export function StatsWidget() {
       logger.debug('Starting to load stats');
       
       // Get all available collections dynamically
-      const collectionsResponse = await apiClient.get('/collections');
-      const collections = collectionsResponse.success ? collectionsResponse.data?.collections || [] : [];
-      const collectionNames = collections.map((col: any) => col.name);
-      
-      logger.debug('Found collections for stats', { 
-        collectionNames, 
-        collections: collections.map((c: any) => ({ name: c.name, title: c.title, singleton: c.singleton }))
+      interface CollectionSummary {
+        name: string;
+        title?: string;
+        singleton?: boolean;
+      }
+
+      const collectionsResponse = await apiClient.get<{ collections: CollectionSummary[] }>('/collections');
+      const collections: CollectionSummary[] = collectionsResponse.success ? collectionsResponse.data?.collections || [] : [];
+      const collectionNames = collections.map((col) => col.name);
+
+      logger.debug('Found collections for stats', {
+        collectionNames,
+        collections: collections.map((c) => ({ name: c.name, title: c.title, singleton: c.singleton }))
       });
 
       // Fetch stats for all collections

@@ -8,10 +8,10 @@ import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import { useStudioContext } from './StudioContext'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useStructure, useStructureItem } from '@/hooks/useStructure'
+import { useStructure } from '@/hooks/useStructure'
 import { apiClient } from '@/services/api-client'
 import { createStudioLogger } from '@/utils/logger'
-import type { ContextSidebarRenderContext, StructureItem } from '@/types/structure'
+import type { ContextSidebarRenderContext } from '@/types/structure'
 
 const logger = createStudioLogger('StructureCallbackContext')
 
@@ -187,7 +187,7 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
             }
           },
           
-          searchDocuments: async (query: string, schemaTypes?: string[]) => {
+          searchDocuments: async (_query: string, _schemaTypes?: string[]) => {
             try {
               // Would need to implement search endpoint
               return []
@@ -199,8 +199,12 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
           
           getUserStats: async () => {
             try {
-              const response = await apiClient.request('GET', '/users/stats')
-              return response.success ? response.data : {
+              const response = await apiClient.get<{
+                totalUsers: number
+                activeUsers: number
+                recentLogins: any[]
+              }>('/users/stats')
+              return response.success && response.data ? response.data : {
                 totalUsers: 0,
                 activeUsers: 0,
                 recentLogins: []
@@ -213,8 +217,13 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
           
           getSystemStats: async () => {
             try {
-              const response = await apiClient.request('GET', '/system/stats')
-              return response.success ? response.data : {
+              const response = await apiClient.get<{
+                totalDocuments: number
+                totalMedia: number
+                storageUsed: number
+                lastBackup?: Date
+              }>('/system/stats')
+              return response.success && response.data ? response.data : {
                 totalDocuments: 0,
                 totalMedia: 0,
                 storageUsed: 0
@@ -235,11 +244,11 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
           },
           
           showConfirm: async (message: string, title?: string) => {
-            return studioContext?.utils?.showConfirm?.(message, title) || false
+            return studioContext?.utils?.showConfirm?.(message, { title }) || false
           },
           
           openModal: (content: ReactNode, options = {}) => {
-            studioContext?.utils?.openModal?.(content, options)
+            studioContext?.utils?.openModal?.(() => <>{content}</>, options)
           },
           
           closeModal: () => {
@@ -254,7 +263,7 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
             // Would need to implement
           },
           
-          setSidebarContent: (content: ReactNode) => {
+          setSidebarContent: (_content: ReactNode) => {
             // Would need to implement
           }
         },
@@ -265,7 +274,10 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
           
           request: async (method: string, path: string, data?: any) => {
             try {
-              const response = await apiClient.request(method, path, data)
+              const response = await apiClient.request(path, {
+                method: method.toUpperCase(),
+                body: data !== undefined ? JSON.stringify(data) : undefined,
+              })
               return response.success ? response.data : null
             } catch (error) {
               logger.error('API request failed', error)

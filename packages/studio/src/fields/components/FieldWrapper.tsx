@@ -5,7 +5,7 @@
  * Handles labels, descriptions, errors, and validation states.
  */
 
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useT } from 'trokky/i18n';
 import type { BaseFieldDefinition, ValidationState } from '../base/FieldDefinition.js';
 

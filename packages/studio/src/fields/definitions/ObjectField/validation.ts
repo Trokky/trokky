@@ -65,8 +65,6 @@ export function validateObjectField(
   }
 
   // Validate each defined field
-  const metadata = getObjectMetadata(objectValue, definition);
-  
   for (const [fieldName, fieldDef] of Object.entries(definition.fields)) {
     // Check conditional visibility
     const fieldDefWithName = { name: fieldName, ...fieldDef };
@@ -141,7 +139,7 @@ export function validateObjectField(
 export function validateObjectFieldItem(
   value: any,
   fieldDefinition: any, // Using any here since we're working with NestedFieldDefinition
-  objectValues: Record<string, any>,
+  _objectValues: Record<string, any>,
   documentContext?: any
 ): ValidationResult {
   const errors: string[] = [];
@@ -326,10 +324,6 @@ export function getObjectMetadata(
 
   const completionPercentage = visibleFields.length > 0 
     ? Math.round((filledFields.length / visibleFields.length) * 100)
-    : 100;
-
-  const requiredCompletionPercentage = requiredFields.length > 0
-    ? Math.round((completedRequiredFields.length / requiredFields.length) * 100)
     : 100;
 
   return {

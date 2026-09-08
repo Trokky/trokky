@@ -15,7 +15,7 @@ export function getSmartDocumentTitle(doc: Document, schema?: any): string {
   if (schema?.fields) {
     const fields = Array.isArray(schema.fields) 
       ? schema.fields 
-      : Object.entries(schema.fields).map(([name, field]) => ({ name, ...field }));
+      : Object.entries(schema.fields as Record<string, Record<string, unknown>>).map(([name, field]) => ({ name, ...field }));
     
     const firstField = fields[0];
     if (firstField && doc[firstField.name]) {

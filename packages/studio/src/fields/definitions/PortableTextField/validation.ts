@@ -11,7 +11,7 @@ import { PORTABLE_TEXT_FIELD_DEFAULTS } from './definition.js';
 export function validatePortableTextField(
   value: PortableTextContent | undefined,
   definition: PortableTextFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const validation = { ...PORTABLE_TEXT_FIELD_DEFAULTS.validation, ...definition.validation };
   const errors: string[] = [];

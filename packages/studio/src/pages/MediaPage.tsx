@@ -72,7 +72,7 @@ interface MediaTypeInfo {
 export function MediaPage() {
   const { t } = useT('studio');
   // Declarative context sidebar configuration for media page
-  const contextSidebar = useContextSidebar({
+  useContextSidebar({
     page: 'media',
     title: t('media.title'),
     defaultVisible: false,
@@ -110,7 +110,7 @@ export function MediaPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalMediaCount, setTotalMediaCount] = useState(0); // Total from server
+  const [, setTotalMediaCount] = useState(0); // Total from server
   const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
     const validOptions = [28, 56, 84, 112];
     try {
@@ -129,7 +129,6 @@ export function MediaPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const { hasPermission } = usePermissions();
-  const canRead = hasPermission(MEDIA_PERMISSIONS.READ);
   const canUpload = hasPermission(MEDIA_PERMISSIONS.UPLOAD);
   const canEdit = hasPermission(MEDIA_PERMISSIONS.EDIT);
   const canDelete = hasPermission(MEDIA_PERMISSIONS.DELETE);
@@ -846,7 +845,7 @@ export function MediaPage() {
   };
 
   // Render media item
-  const renderMediaItem = (file: MediaFile, index: number) => {
+  const renderMediaItem = (file: MediaFile, _index: number) => {
     const FileIcon = getFileIcon(file.contentType);
     const isImage = file.contentType.startsWith('image/');
     const variantCount = getVariantCount(file);

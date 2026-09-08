@@ -3,20 +3,14 @@
  * Read-only preview rendering for textarea fields
  */
 
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { TextareaFieldDefinition } from './definition.js';
 
 // Use generic FieldComponentProps to match plugin interface
 type TextareaPreviewProps = FieldComponentProps;
 
 export function TextareaFieldPreview(props: TextareaPreviewProps) {
-  const { value, definition, compact, maxLength } = props;
+  const { value, compact, maxLength } = props;
   
-  // Type-safe access to textarea field specific properties
-  const textareaDefinition = definition as TextareaFieldDefinition;
-  const options = textareaDefinition.options || {};
-
   // Handle empty values
   if (!value || (typeof value === 'string' && value.trim().length === 0)) {
     return (

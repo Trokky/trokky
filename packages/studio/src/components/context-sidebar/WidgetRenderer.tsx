@@ -48,7 +48,7 @@ export function WidgetRenderer({
 
   return (
     <div className="space-y-4">
-      {content.widgets.map((widget, index) =>
+      {content.widgets.map(widget =>
         renderWidget({ ...widget }, context, t)
       )}
     </div>

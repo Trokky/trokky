@@ -213,7 +213,7 @@ export interface WidgetContent {
 export interface ContextSidebarRenderContext {
   /** Current route/page context */
   context: {
-    type: 'collectionIndex' | 'documentEditor' | 'dashboard' | 'media' | 'users' | 'settings'
+    type: 'collectionIndex' | 'documentEditor' | 'dashboard' | 'media' | 'users' | 'settings' | 'schema'
     schemaType?: string
     documentId?: string
     isEditing?: boolean

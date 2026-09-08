@@ -1,4 +1,3 @@
-import React from 'react';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { BooleanFieldDefinition } from './definition.js';
@@ -8,7 +7,7 @@ import { convertToBoolean } from './validation.js';
 type BooleanFieldComponentProps = FieldComponentProps;
 
 export function BooleanFieldComponent(props: BooleanFieldComponentProps) {
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode, ...restProps } = props;
+  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode } = props;
   const { t } = useT('fields');
 
   // Type guard for boolean field definition

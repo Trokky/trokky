@@ -11,8 +11,8 @@ import type { InfoFieldDefinition } from './definition.js';
  * Info fields don't store values, so validation always passes
  */
 export function validateInfoField(
-  value: any,
-  definition: InfoFieldDefinition
+  _value: any,
+  _definition: InfoFieldDefinition
 ): ValidationResult {
   // Info fields are always valid since they don't store data
   return {

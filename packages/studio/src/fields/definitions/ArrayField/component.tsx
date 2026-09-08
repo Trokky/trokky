@@ -47,11 +47,6 @@ const GripVerticalIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Generate unique key for array items
-function generateItemKey(): string {
-  return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
 // Array field component
 export function ArrayFieldComponent(props: FieldComponentProps) {
   const { t } = useT('fields');
@@ -64,9 +59,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     isDisabled = false,
     isReadonly = false,
     documentContext,
-    onValidationChange,
-    onFocus,
-    onBlur
+    onValidationChange
   } = props;
   const arrayDefinition = definition as ArrayFieldDefinition;
   

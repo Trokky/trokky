@@ -12,7 +12,6 @@ import { UserPreferencesPage } from '@/pages/UserPreferencesPage';
 import { AuditLogsPage } from '@/pages/AuditLogsPage';
 import { FieldsDemo } from '@/pages/FieldsDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { DocumentEditorPage } from '@/components/document';
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
 import { DeviceAuthPage } from '@/pages/DeviceAuthPage';
 import { AuthorizePage } from '@/pages/AuthorizePage';

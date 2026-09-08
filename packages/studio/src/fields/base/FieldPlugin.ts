@@ -84,7 +84,7 @@ export interface StudioContext {
     openModal: (component: React.ComponentType, props?: any) => void
     closeModal: () => void
     showMediaBrowser: (
-      config: import('@trokky/types').MediaBrowserConfig
+      config: import('trokky/types/media').MediaBrowserConfig
     ) => void
   }
 
@@ -100,6 +100,27 @@ export interface StudioContext {
   mediaUrlGenerator?: {
     getMediaUrl: (mediaId: string, variant?: string) => string
   } | null
+
+  // Studio branding configuration
+  branding?: {
+    title?: string
+    organizationName?: string
+    primaryColor?: string
+    secondaryColor?: string
+    logo?: string
+  }
+
+  // Studio configuration
+  config?: any
+
+  // Current theme
+  theme?: 'light' | 'dark' | 'auto'
+
+  // Studio settings
+  settings?: Record<string, any>
+
+  // All available schemas, keyed by schema name
+  schemas?: Record<string, any>
 }
 
 // Props passed to field components

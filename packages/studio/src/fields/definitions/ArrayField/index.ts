@@ -8,7 +8,7 @@ import type { FieldPlugin } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition } from './definition.js';
 import { ArrayFieldComponent } from './component.js';
 import { ArrayFieldPreview } from './preview.js';
-import { validateArrayField, getDefaultItemValue } from './validation.js';
+import { validateArrayField } from './validation.js';
 import { ARRAY_FIELD_DEFAULTS } from './definition.js';
 
 // Export all components and utilities

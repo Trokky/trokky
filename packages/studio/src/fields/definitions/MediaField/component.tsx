@@ -14,7 +14,6 @@ import { MEDIA_FIELD_DEFAULTS } from './definition'
 import {
   PhotoIcon,
   XMarkIcon,
-  EyeIcon,
 } from '@heroicons/react/24/outline'
 
 // Custom SVG icons for compatibility
@@ -45,12 +44,6 @@ const ArchiveBoxIcon = ({ className }: { className?: string }) => (
 const PlusIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-)
-
-const PencilIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
   </svg>
 )
 
@@ -160,9 +153,7 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     hasError,
     isDisabled,
     isReadonly,
-    documentContext,
     studioContext,
-    ...restProps
   } = props
 
   const { t } = useT('fields')
@@ -178,7 +169,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
 
   const [isDragOver, setIsDragOver] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [currentAsset, setCurrentAsset] = useState<MediaAsset | null>(null)
@@ -440,11 +430,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     onChange(null)
   }, [onChange])
 
-  // Handle metadata edit
-  const handleMetadataEdit = useCallback(() => {
-    setShowMetadataEditor(true)
-  }, [])
-
   // Handle instance metadata change
   const handleInstanceMetadataChange = useCallback(
     (field: string, newValue: string) => {
@@ -474,13 +459,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
       return typeMap[validation.restrictToMediaType] || '*/*'
     }
     return '*/*'
-  }
-
-  // Get media type icon
-  const getMediaIcon = (mimeType: string) => {
-    const mediaType = getMediaTypeFromMime(mimeType)
-    const IconComponent = MEDIA_TYPE_ICONS[mediaType] || DocumentIcon
-    return IconComponent
   }
 
   // Get image URL with fallback logic for variants
@@ -548,7 +526,6 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     // Get the appropriate icon based on media type restriction
     const mediaType = validation.restrictToMediaType || 'image'
     const IconComponent = MEDIA_TYPE_ICONS[mediaType] || PhotoIcon
-    const typeLabel = getMediaTypeLabel(mediaType, t)
 
     return (
       <div

@@ -3,7 +3,7 @@
  * Shows current user permissions and field states for debugging
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useT } from 'trokky/i18n'
 import {
@@ -50,7 +50,7 @@ export function PermissionsDebugPanel({
   canDelete = true,
 }: PermissionsDebugPanelProps) {
   const { t } = useT('studio')
-  const { user, permissions } = useAuth()
+  const { user } = useAuth()
   const [isExpanded, setIsExpanded] = useState(false)
   const [showFieldDetails, setShowFieldDetails] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -70,7 +70,7 @@ export function PermissionsDebugPanel({
     return null
   }
 
-  const userPermissions = permissions || {
+  const userPermissions = {
     canCreate: true,
     canRead: true,
     canUpdate: true,

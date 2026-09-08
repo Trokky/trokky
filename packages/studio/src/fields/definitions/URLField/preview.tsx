@@ -1,4 +1,3 @@
-import React from 'react';
 import { StringFieldPreview } from '../StringField/preview.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { URLFieldDefinition } from './definition.js';
@@ -20,10 +19,8 @@ export function URLFieldPreview(props: URLFieldPreviewProps) {
   }
   
   // Validate URL before displaying
-  let isValidUrl = false;
   try {
     new URL(value);
-    isValidUrl = true;
   } catch (e) {
     // Invalid URL - fall back to string preview
     return (

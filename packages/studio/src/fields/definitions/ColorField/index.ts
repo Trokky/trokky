@@ -33,7 +33,7 @@ export const ColorFieldPlugin: FieldPlugin<ColorFieldDefinition, string> = {
   validate: (
     value: string,
     definition: ColorFieldDefinition,
-    context?: DocumentContext
+    _context?: DocumentContext
   ): ValidationResult => {
     if (!value) {
       if (definition.required) {

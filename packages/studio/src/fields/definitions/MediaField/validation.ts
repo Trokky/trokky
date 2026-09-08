@@ -255,7 +255,7 @@ function validateVideoConstraints(
 export function validateMediaField(
   value: MediaFieldValue | null,
   definition: MediaFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];

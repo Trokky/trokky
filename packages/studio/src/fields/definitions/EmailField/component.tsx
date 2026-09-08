@@ -3,7 +3,6 @@
  * Extends StringField component with email-specific features
  */
 
-import React from 'react';
 import { useT } from 'trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';

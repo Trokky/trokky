@@ -1,19 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { FieldRegistry } from '../fields/registry/index'
+import type { FieldPlugin } from '../fields/base/FieldPlugin'
 
 // Create a minimal valid plugin that passes all validation
-function createTestPlugin(name: string, overrides: Record<string, any> = {}) {
+function createTestPlugin(
+  name: string,
+  overrides: Partial<FieldPlugin> = {}
+): FieldPlugin {
   return {
-    name,
     type: name,
     displayName: `Test ${name}`,
     description: `A test field: ${name}`,
-    category: 'text' as const,
+    category: 'text',
     component: () => null,
-    validate: () => ({ valid: true, errors: [] }),
+    validate: () => ({ isValid: true, errors: [] }),
     getDefaultValue: () => '',
     toSchemaField: () => ({ name, type: name }),
-    fromSchemaField: (f: any) => f,
+    fromSchemaField: f => f,
     ...overrides,
   }
 }
@@ -56,7 +59,7 @@ describe('FieldRegistry', () => {
     registry.register(createTestPlugin('b'))
     registry.register(createTestPlugin('c'))
     expect(registry.getAll()).toHaveLength(3)
-    expect(registry.getAll().map(p => p.name)).toEqual(expect.arrayContaining(['a', 'b', 'c']))
+    expect(registry.getAll().map(p => p.type)).toEqual(expect.arrayContaining(['a', 'b', 'c']))
   })
 
   it('should reject invalid plugin (missing required props)', () => {
@@ -118,9 +121,8 @@ describe.skip('Built-in field plugin exports', () => {
 
   it('should export color field plugin', async () => {
     const mod = await import('../fields/definitions/ColorField/index')
-    // May be exported as colorFieldPlugin or ColorFieldPlugin
-    const plugin = mod.colorFieldPlugin || (mod as any).default || Object.values(mod).find((v: any) => v?.type === 'color')
-    expect(plugin).toBeDefined()
+    expect(mod.ColorFieldPlugin).toBeDefined()
+    expect(mod.ColorFieldPlugin.type).toBe('color')
   })
 
   it('should export each plugin with required properties', async () => {

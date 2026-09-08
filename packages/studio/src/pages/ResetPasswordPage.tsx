@@ -54,13 +54,17 @@ export function ResetPasswordPage() {
     // Verify token validity
     const verifyToken = async () => {
       try {
-        const response = await apiClient.post('/auth/verify-reset-token', {
+        const response = await apiClient.post<{
+          valid?: boolean
+          expiresIn?: number
+          message?: string
+        }>('/auth/verify-reset-token', {
           token: tokenFromUrl,
         });
 
         if (response.success && response.data?.valid) {
           setTokenValid(true);
-          setExpiresIn(response.data.expiresIn);
+          setExpiresIn(response.data.expiresIn ?? null);
         } else {
           setError(response.data?.message || t('auth.resetPassword.tokenInvalid'));
         }

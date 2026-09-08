@@ -33,7 +33,7 @@ export function useDynamicPermissions() {
         setLoading(true);
         setError(null);
         
-        const response = await client.get('/config/structure');
+        const response = await client.get<{ structure?: { items?: any[] } }>('/config/structure');
         
         if (response.success && response.data?.structure?.items) {
           const items = response.data.structure.items;

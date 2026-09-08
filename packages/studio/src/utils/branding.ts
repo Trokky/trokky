@@ -67,7 +67,7 @@ export function applyBrandColors(branding: BrandingConfig): void {
  */
 export async function fetchBranding(): Promise<BrandingConfig> {
   try {
-    const response = await apiClient.get('/config/studio');
+    const response = await apiClient.get<{ studioConfig?: { branding?: BrandingConfig } }>('/config/studio');
     if (response.success && response.data?.studioConfig?.branding) {
       return response.data.studioConfig.branding;
     }

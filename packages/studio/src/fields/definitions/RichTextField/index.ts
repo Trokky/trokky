@@ -1,9 +1,8 @@
 import type { FieldPlugin } from '../../base/FieldPlugin';
-import type { RichTextFieldDefinition, RichTextContent, RichTextValue, ProseMirrorDocument } from './definition';
+import type { RichTextFieldDefinition, RichTextValue } from './definition';
 import { RichTextFieldComponent } from './component';
 import { RichTextFieldPreview } from './preview';
 import { validateRichTextField, getDefaultRichTextValue } from './validation';
-import { RICHTEXT_FIELD_DEFAULTS } from './definition';
 
 export const richtextFieldPlugin: FieldPlugin<RichTextFieldDefinition, RichTextValue> = {
   type: 'richtext',

@@ -1,4 +1,3 @@
-import React from 'react';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { URLFieldDefinition } from './definition.js';

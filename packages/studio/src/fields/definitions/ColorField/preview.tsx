@@ -3,10 +3,9 @@
  * Displays color value in list/grid views
  */
 
-import React from 'react'
 import type { FieldComponentProps } from '../../base/index.js'
 
-export function ColorFieldPreview({ value, definition }: FieldComponentProps) {
+export function ColorFieldPreview({ value }: FieldComponentProps) {
   if (!value) {
     return <span className="text-gray-400 dark:text-gray-500">No color</span>
   }

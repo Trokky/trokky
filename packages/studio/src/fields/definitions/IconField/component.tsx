@@ -3,14 +3,14 @@
  * Visual icon picker with grid view, search, and filtering
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter, CustomIconDefinition } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
 import { heroiconsAdapter } from './adapters/heroicons.js';
-import { customSvgAdapter, setCustomIcons, getCustomIcons } from './adapters/custom-svg.js';
+import { customSvgAdapter, setCustomIcons } from './adapters/custom-svg.js';
 
 // Icon library registry
 const iconLibraries: Record<string, IconLibraryAdapter> = {
@@ -50,12 +50,6 @@ const SearchIcon = ({ className }: { className?: string }) => (
 const XMarkIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const ChevronDownIcon = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
   </svg>
 );
 

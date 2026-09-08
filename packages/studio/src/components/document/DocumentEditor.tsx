@@ -35,30 +35,6 @@ function getSchemaDisplayName(schemaName?: string, schema?: any): string {
   return schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
 }
 
-// Helper function to get document display title
-function getDocumentDisplayTitle(document: any, schema: any, schemaName: string): string {
-  if (!document) return `New ${getSchemaDisplayName(schemaName, schema)}`;
-  
-  // Try common title fields first
-  if (document.title) return document.title;
-  if (document.name) return document.name;
-  
-  // Fallback to first field value
-  if (schema?.fields) {
-    const fields = Array.isArray(schema.fields) 
-      ? schema.fields 
-      : Object.entries(schema.fields).map(([name, field]) => ({ name, ...field }));
-    
-    const firstField = fields[0];
-    if (firstField && document[firstField.name]) {
-      const value = document[firstField.name];
-      return typeof value === 'string' ? value : `New ${getSchemaDisplayName(schemaName, schema)}`;
-    }
-  }
-  
-  return `New ${getSchemaDisplayName(schemaName, schema)}`;
-}
-
 export interface DocumentEditorProps {
   schemaName: string;
   documentId?: string;
@@ -108,12 +84,6 @@ export function DocumentEditor({
     
     const result = permissions.hasSchemaPermission(schemaName, 'write');
     return result;
-  }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
-
-  // Check if user has delete permission for this schema
-  const hasDeletePermission = useMemo(() => {
-    if (!permissions) return false;
-    return permissions.hasSchemaPermission(schemaName, 'delete');
   }, [permissions, schemaName, permissions?.isAdmin, permissions?.userPermissions?.length]);
 
   // Check if user has publish permission for this schema

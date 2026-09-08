@@ -3,9 +3,8 @@
  * Shows recently updated documents for a schema
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClockIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useT } from 'trokky/i18n'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 
@@ -42,7 +41,7 @@ export function RecentDocumentsWidget({
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  const { data, ui, utils, context: currentContext, api } = context
+  const { data, utils, context: currentContext, api } = context
   const schemaType = config.schemaType || currentContext.schemaType
   const limit = config.limit || 5
   const title = config.title || (schemaType

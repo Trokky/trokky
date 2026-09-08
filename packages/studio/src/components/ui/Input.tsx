@@ -5,6 +5,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   helperText?: string;
+  ref?: React.Ref<HTMLInputElement>;
 }
 
 export function Input({

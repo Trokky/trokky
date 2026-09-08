@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -15,8 +15,6 @@ import {
   XCircleIcon,
   ExclamationTriangleIcon,
   ClipboardDocumentIcon,
-  EyeIcon,
-  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 import { useT } from 'trokky/i18n';
 

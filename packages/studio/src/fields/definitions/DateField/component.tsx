@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/index.js';
-import type { DateFieldDefinition, DateFieldValue } from './definition.js';
+import type { DateFieldDefinition } from './definition.js';
 import { DATE_FIELD_DEFAULTS } from './definition.js';
 
 export const DateFieldComponent: React.FC<FieldComponentProps> = ({
@@ -12,8 +12,7 @@ export const DateFieldComponent: React.FC<FieldComponentProps> = ({
   error,
   isDisabled,
   isReadonly,
-  mode,
-  ...props
+  mode
 }) => {
   const { t } = useT('fields');
   const fieldDef = definition as DateFieldDefinition;

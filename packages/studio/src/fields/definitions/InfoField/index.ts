@@ -8,7 +8,6 @@ import type { InfoFieldDefinition } from './definition.js';
 import { InfoFieldComponent } from './component.js';
 import { InfoFieldPreview } from './preview.js';
 import { validateInfoField } from './validation.js';
-import { INFO_FIELD_DEFAULTS } from './definition.js';
 
 export const infoFieldPlugin: FieldPlugin<InfoFieldDefinition, null> = {
   type: 'info',

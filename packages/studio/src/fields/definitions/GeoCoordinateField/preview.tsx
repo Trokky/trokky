@@ -2,7 +2,6 @@
  * GeoCoordinate Field Preview Component
  */
 
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { GeoCoordinate } from './definition.js';
 

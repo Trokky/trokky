@@ -1,6 +1,5 @@
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { RichTextFieldDefinition, RichTextContent } from './definition.js';
+import type { RichTextFieldDefinition } from './definition.js';
 import { getTextContent, getHTMLContent, stripHTML } from './validation.js';
 
 type RichTextFieldPreviewProps = FieldComponentProps;

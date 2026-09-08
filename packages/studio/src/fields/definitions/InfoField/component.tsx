@@ -61,17 +61,6 @@ function markdownToHtml(markdown: string): string {
  * Get Heroicon component by name
  */
 function getHeroIcon(iconName: string) {
-  // Map of common icon names to Heroicons
-  const iconMap: Record<string, string> = {
-    'information-circle': 'InformationCircleIcon',
-    'exclamation-triangle': 'ExclamationTriangleIcon',
-    'light-bulb': 'LightBulbIcon',
-    'check-circle': 'CheckCircleIcon',
-    'x-circle': 'XCircleIcon',
-  };
-
-  const mappedName = iconMap[iconName] || iconName;
-
   // Simple SVG icons as fallback
   const svgIcons: Record<string, React.ReactElement> = {
     'information-circle': (

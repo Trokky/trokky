@@ -221,7 +221,7 @@ export function Header({
           )}
 
           {/* Settings dropdown - only show if user has access to any settings features */}
-          {hasAnyPermission(SETTINGS_MENU_PERMISSIONS) && (
+          {hasAnyPermission([...SETTINGS_MENU_PERMISSIONS]) && (
             <div className="hidden sm:block relative">
               <Button
                 variant="ghost"

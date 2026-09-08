@@ -7,7 +7,6 @@ import type { GeoCoordinate, GeoCoordinateFieldDefinition } from './definition.j
 import { GeoCoordinateFieldComponent } from './component.js';
 import { GeoCoordinateFieldPreview } from './preview.js';
 import { validateGeoCoordinate } from './validation.js';
-import { GEO_COORDINATE_FIELD_DEFAULTS } from './definition.js';
 
 export const geoCoordinateFieldPlugin: FieldPlugin<GeoCoordinateFieldDefinition, GeoCoordinate> = {
   type: 'geoCoordinate',

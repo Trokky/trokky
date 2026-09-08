@@ -5,7 +5,7 @@
 
 import type { FieldPlugin } from '../../base/FieldPlugin.js';
 import type { DocumentContext, ValidationResult } from '../../base/FieldDefinition.js';
-import { IconFieldComponent, registerIconLibrary } from './component.js';
+import { IconFieldComponent } from './component.js';
 import { IconFieldPreview } from './preview.js';
 import type { IconFieldDefinition, IconValue } from './definition.js';
 import { iconFieldSchema } from './definition.js';
@@ -34,7 +34,7 @@ export const IconFieldPlugin: FieldPlugin<IconFieldDefinition, IconValue | null>
   validate: (
     value: IconValue | null,
     definition: IconFieldDefinition,
-    context?: DocumentContext
+    _context?: DocumentContext
   ): ValidationResult => {
     if (!value) {
       if (definition.required) {
@@ -81,12 +81,12 @@ export const IconFieldPlugin: FieldPlugin<IconFieldDefinition, IconValue | null>
   },
 
   // Default value generator
-  getDefaultValue: (definition: IconFieldDefinition): IconValue | null => {
+  getDefaultValue: (_definition: IconFieldDefinition): IconValue | null => {
     return null;
   },
 
   // Schema conversion utilities
-  toSchemaField: (definition: IconFieldDefinition) => {
+  toSchemaField: (_definition: IconFieldDefinition) => {
     return {
       type: 'object',
       properties: {

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { BooleanFieldDefinition } from './definition.js';
 import { convertToBoolean, getBooleanDisplayText } from './validation.js';

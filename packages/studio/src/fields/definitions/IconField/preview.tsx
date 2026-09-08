@@ -3,7 +3,6 @@
  * Displays icon preview in lists and cards
  */
 
-import React from 'react';
 import type { IconValue } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
 

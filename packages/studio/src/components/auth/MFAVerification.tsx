@@ -27,7 +27,6 @@ export function MFAVerification({
   methods,
   onSuccess,
   onBack,
-  onError,
 }: MFAVerificationProps) {
   const { t } = useT('studio');
   const [code, setCode] = useState('');

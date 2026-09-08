@@ -1,6 +1,5 @@
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
-import type { ReferenceFieldDefinition, ReferenceValue } from './definition.js';
+import type { ReferenceFieldDefinition } from './definition.js';
 import { normalizeReferenceValue, getReferenceDisplayValue } from './validation.js';
 
 type ReferenceFieldPreviewProps = FieldComponentProps;
@@ -50,7 +49,7 @@ export function ReferenceFieldPreview(props: ReferenceFieldPreviewProps) {
   
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {visibleReferences.map((ref, index) => {
+      {visibleReferences.map((ref) => {
         const displayValue = getReferenceDisplayValue(ref, options.displayField);
         
         return (

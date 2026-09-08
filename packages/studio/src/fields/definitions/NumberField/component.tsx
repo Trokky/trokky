@@ -3,7 +3,7 @@ import { useT } from 'trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { NumberFieldDefinition } from './definition.js';
-import { formatNumber, parseFormattedNumber, cleanNumberString } from './validation.js';
+import { formatNumber, parseFormattedNumber } from './validation.js';
 
 // Number field component props
 type NumberFieldComponentProps = FieldComponentProps;
@@ -18,7 +18,6 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
   const numberDefinition = definition as NumberFieldDefinition;
   const showSpinButtons = numberDefinition.options?.showSpinButtons !== false; // Default true
   const autoFormat = numberDefinition.options?.autoFormat !== false; // Default true
-  const format = numberDefinition.options?.format || 'decimal';
   const displayMode = numberDefinition.options?.displayMode || 'input';
   const showValue = numberDefinition.options?.showValue !== false; // Default true for slider
 

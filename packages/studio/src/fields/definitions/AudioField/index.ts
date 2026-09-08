@@ -8,7 +8,7 @@ import { MediaFieldPreview } from '../MediaField/preview.js';
 import { validateMediaField } from '../MediaField/validation.js';
 import type { MediaFieldDefinition } from '../MediaField/definition.js';
 import type { FieldPlugin } from '../../base/FieldPlugin.js';
-import type { BaseFieldDefinition, ValidationResult, DocumentContext } from '../../base/FieldDefinition.js';
+import type { BaseFieldDefinition } from '../../base/FieldDefinition.js';
 
 // Audio field definition - separate type, not extending MediaFieldDefinition
 export interface AudioFieldDefinition extends BaseFieldDefinition {

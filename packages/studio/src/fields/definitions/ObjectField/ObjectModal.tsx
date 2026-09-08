@@ -40,7 +40,6 @@ export function ObjectModal({
   isOpen,
   onClose,
   definition,
-  value,
   visibleFields,
   renderField,
 }: ObjectModalProps) {

@@ -3,7 +3,6 @@ import { useT } from 'trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS } from '@/constants/permissions';
-import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { UserManagement } from '@/components/users/UserManagement';
 import { AppTokenManagement } from '@/components/users/AppTokenManagement';
 import { WebhookManagement } from '@/components/users/WebhookManagement';
@@ -13,7 +12,7 @@ export function UsersPage() {
   const { t } = useT('studio');
 
   // Declarative context sidebar configuration for users page
-  const contextSidebar = useContextSidebar({
+  useContextSidebar({
     page: 'users',
     title: t('users.title'),
     defaultVisible: false,

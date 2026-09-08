@@ -26,7 +26,6 @@ export function StringFieldComponent(props: StringFieldComponentProps) {
     onBlur,
     onKeyPress,
     onKeyDown,
-    ...restProps
   } = props;
 
   // Type-safe access to string field specific properties

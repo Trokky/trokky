@@ -1,5 +1,5 @@
 import type { FieldPlugin, BaseFieldDefinition, ValidationResult } from '../../base/index.js';
-import type { SlugifyOptions, SlugFieldValue } from 'trokky/types';
+import type { SlugifyOptions } from 'trokky/types';
 import { SlugFieldComponent } from './component.js';
 import { SlugFieldPreview } from './preview.js';
 

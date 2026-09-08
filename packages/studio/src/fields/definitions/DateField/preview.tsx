@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FieldComponentProps } from '../../base/index.js';
-import type { DateFieldDefinition, DateFieldValue } from './definition.js';
+import type { DateFieldDefinition } from './definition.js';
 import { formatDateForDisplay } from './validation.js';
 
 export const DateFieldPreview: React.FC<FieldComponentProps> = ({

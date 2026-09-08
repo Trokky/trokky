@@ -9,7 +9,7 @@ import type { EmailFieldDefinition } from './definition.js';
 export function validateEmailField(
   value: string,
   definition: EmailFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];

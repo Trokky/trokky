@@ -1,16 +1,13 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import { FieldWrapper } from '../../components/FieldWrapper.js';
 import type {
   ObjectFieldDefinition,
   NestedFieldDefinition,
-  ObjectOperations,
-  ObjectFieldMetadata,
-  ObjectLayout
+  ObjectOperations
 } from './definition.js';
 import {
-  validateObjectField,
   getObjectMetadata,
   evaluateConditional,
   getDefaultObjectValue,
@@ -346,82 +343,6 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
         </div>
       </div>
     );
-  };
-  
-  // Render preview when collapsed
-  const renderPreview = () => {
-    // Disable preview entirely unless explicitly configured with template or fields
-    if (!getCollapseState('main') || !options.preview) return null;
-
-    const { fields: previewFields = [], template, maxLength = 150, showCount = false } = options.preview;
-
-    // Only show preview if explicitly configured with template
-    if (template) {
-      const normalizedFields = Array.isArray(objectDefinition.fields)
-        ? objectDefinition.fields
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({
-            name,
-            type: field.type,
-            title: field.title || name,
-            description: field.description,
-            required: field.required,
-            validation: field.validation,
-            options: field.options,
-            defaultValue: field.defaultValue
-          }));
-
-      const rendered = renderTemplate(template, {
-        values: objectValue,
-        fields: normalizedFields.reduce((acc, f) => ({ ...acc, [f.name]: f }), {}),
-        metadata
-      });
-
-      // Only render if template produced actual content
-      if (rendered && rendered.trim()) {
-        return (
-          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
-            {rendered.slice(0, maxLength)}{rendered.length > maxLength && '...'}
-          </div>
-        );
-      }
-    }
-
-    // Only show field-based preview if explicitly configured
-    if (previewFields && previewFields.length > 0) {
-      const previewFieldsArray = Array.isArray(objectDefinition.fields)
-        ? objectDefinition.fields
-        : Object.entries(objectDefinition.fields || {}).map(([name, field]: [string, any]) => ({
-            name,
-            type: field.type,
-            title: field.title || name,
-            description: field.description,
-            required: field.required
-          }));
-
-      const previewText = previewFields
-        .map(fieldName => {
-          const field = previewFieldsArray.find(f => f.name === fieldName);
-          const value = objectValue[fieldName];
-          if (!field || !value) return null;
-          return `${field.title}: ${String(value)}`;
-        })
-        .filter(Boolean)
-        .join(', ');
-
-      if (previewText) {
-        return (
-          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md text-sm text-gray-600 dark:text-gray-400">
-            {previewText.slice(0, maxLength)}{previewText.length > maxLength && '...'}
-            {showCount && (
-              <span className="ml-2 text-xs">({metadata.filledCount} fields)</span>
-            )}
-          </div>
-        );
-      }
-    }
-
-    // No preview configured or no content - return null
-    return null;
   };
   
   // Render main content based on layout

@@ -14,7 +14,7 @@ export function useDocumentTitle(isAuthenticated: boolean = false) {
       // Note: branding.title is already merged on backend as:
       //   settings.studioTitle || trokky.config.branding.title || 'Trokky Studio'
       try {
-        const configResponse = await apiClient.get('/config/studio')
+        const configResponse = await apiClient.get<{ studioConfig?: { branding?: { title?: string } } }>('/config/studio')
         if (configResponse.success && configResponse.data?.studioConfig?.branding) {
           const branding = configResponse.data.studioConfig.branding
 

@@ -3,7 +3,6 @@ import type { ObjectFieldDefinition } from './definition.js';
 import { validateObjectField, getDefaultObjectValue } from './validation.js';
 import { ObjectFieldComponent } from './component.js';
 import { ObjectFieldPreview } from './preview.js';
-import { OBJECT_FIELD_DEFAULTS } from './definition.js';
 
 export * from './definition.js';
 export * from './validation.js';

@@ -2,7 +2,7 @@
  * GeoCoordinate Field Component
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { GeoCoordinate, GeoCoordinateFieldDefinition } from './definition.js';

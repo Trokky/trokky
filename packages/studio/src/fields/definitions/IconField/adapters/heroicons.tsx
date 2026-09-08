@@ -3,7 +3,6 @@
  * Provides access to Heroicons (by Tailwind CSS)
  */
 
-import React from 'react';
 import type { IconLibraryAdapter, IconMeta } from '../definition.js';
 
 // Heroicons Outline icons - comprehensive list

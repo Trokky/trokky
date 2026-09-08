@@ -100,10 +100,10 @@ export function validateArrayRemove(
  * Validates moving an item within array
  */
 export function validateArrayMove(
-  currentArray: any[], 
-  fromIndex: number, 
-  toIndex: number, 
-  definition: ArrayFieldDefinition
+  _currentArray: any[],
+  _fromIndex: number,
+  _toIndex: number,
+  _definition: ArrayFieldDefinition
 ): ValidationResult {
   // Moving items doesn't change validation constraints
   return { isValid: true, errors: [] };

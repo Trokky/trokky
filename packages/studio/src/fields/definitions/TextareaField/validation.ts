@@ -4,7 +4,7 @@
  */
 
 import type { ValidationResult } from '../../base/FieldDefinition.js';
-import type { TextareaFieldDefinition, TextareaValidation } from './definition.js';
+import type { TextareaFieldDefinition } from './definition.js';
 
 /**
  * Validate textarea field value

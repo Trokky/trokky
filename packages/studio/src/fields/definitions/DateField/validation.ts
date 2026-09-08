@@ -130,7 +130,7 @@ export function getDefaultDateValue(definition: DateFieldDefinition): DateFieldV
 
 export function formatDateForDisplay(
   value: DateFieldValue,
-  format?: string
+  _format?: string
 ): string {
   if (!value) return '';
   

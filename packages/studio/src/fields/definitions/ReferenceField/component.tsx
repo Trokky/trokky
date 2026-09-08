@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useT } from 'trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type {
@@ -8,9 +8,7 @@ import type {
   ReferenceOperations
 } from './definition.js';
 import {
-  validateReferenceField,
   sanitizeReferenceValue,
-  getDefaultReferenceValue,
   normalizeReferenceValue,
   getReferenceDisplayValue,
   getFilteredTypes
@@ -58,7 +56,7 @@ type ReferenceFieldComponentProps = FieldComponentProps & {
 
 export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const { t } = useT('fields');
-  const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, studioContext, isArrayItem, excludeIds = [] } = props;
+  const { definition, value, onChange, hasError, isDisabled, isReadonly, studioContext, isArrayItem, excludeIds = [] } = props;
 
   if (definition.type !== 'reference') {
     return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
@@ -353,7 +351,6 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
           return resultsWithSelection;
         }
 
-        const searchResults: ReferenceSearchResult[] = [];
         const searchTypes = types || targetTypes.map(t => t.type);
 
         // Determine limit based on whether it's initial load or search
@@ -570,7 +567,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   }, [isSearchOpen]);
   
   // Render single reference item
-  const renderReferenceItem = (ref: ReferenceValue, index: number) => {
+  const renderReferenceItem = (ref: ReferenceValue) => {
     const displayValue = getReferenceDisplayValue(ref, options.displayField);
     const targetType = targetTypes.find(t => t.type === ref._type);
     
@@ -758,7 +755,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       {/* Current references */}
       {currentReferences.length > 0 && (
         <div className="space-y-2 mb-3">
-          {currentReferences.map((ref, index) => renderReferenceItem(ref, index))}
+          {currentReferences.map((ref) => renderReferenceItem(ref))}
           
           {isMultiple && options.showCount && (
             <p className="text-xs text-gray-500 dark:text-gray-400 text-right">

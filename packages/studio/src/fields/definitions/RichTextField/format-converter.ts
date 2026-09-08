@@ -9,7 +9,7 @@
 
 import type { Editor } from '@tiptap/react'
 import type { RichTextOutputFormat, ProseMirrorDocument, ProseMirrorNode } from './definition'
-import { contentToShortcodes, resolveShortcodes, type MediaUrlGenerator } from './shortcodes'
+import { resolveShortcodes, type MediaUrlGenerator } from './shortcodes'
 
 /**
  * Convert editor content to the specified output format for storage
@@ -135,7 +135,7 @@ function editorToHtml(editor: Editor): string {
 function normalizeHtmlImages(html: string): string {
   return html.replace(
     /<img([^>]*)>/g,
-    (match, attrs) => {
+    (_match, attrs) => {
       // Extract attributes
       const src = attrs.match(/src="([^"]*)"/)?.[1] || ''
       const alt = attrs.match(/alt="([^"]*)"/)?.[1] || ''
@@ -212,7 +212,7 @@ export function htmlToMarkdown(html: string): string {
   markdown = markdown.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
 
   // Convert images - parse attributes regardless of order, use relative URLs
-  markdown = markdown.replace(/<img([^>]*)>/gi, (match, attrs) => {
+  markdown = markdown.replace(/<img([^>]*)>/gi, (_match, attrs) => {
     const src = attrs.match(/src="([^"]*)"/)?.[1] || ''
     const alt = attrs.match(/alt="([^"]*)"/)?.[1] || ''
     const title = attrs.match(/title="([^"]*)"/)?.[1]

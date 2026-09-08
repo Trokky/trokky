@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useT } from 'trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -21,7 +21,6 @@ interface GoogleLoginButtonProps {
  */
 export function GoogleLoginButton({
   mode = 'login',
-  onSuccess,
   onError,
   disabled,
   className = '',

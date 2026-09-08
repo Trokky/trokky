@@ -5,15 +5,11 @@
  */
 
 import {
-  UserIcon,
   ClockIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,
   EyeIcon,
-  ComputerDesktopIcon,
-  CogIcon,
-  GlobeAltIcon,
   ChevronDownIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
@@ -130,25 +126,8 @@ export function AuditLogEntry({
     }
   };
 
-  // Get actor icon based on type
-  const getActorIcon = (actorType: string) => {
-    switch (actorType) {
-      case 'user':
-        return UserIcon;
-      case 'api':
-        return ComputerDesktopIcon;
-      case 'system':
-        return CogIcon;
-      case 'webhook':
-        return GlobeAltIcon;
-      default:
-        return UserIcon;
-    }
-  };
-
   const operationInfo = getOperationInfo(auditLog.operation);
   const OperationIcon = operationInfo.icon;
-  const ActorIcon = getActorIcon(auditLog.actorType);
 
   // Get changed fields summary
   const getChangedFieldsSummary = () => {

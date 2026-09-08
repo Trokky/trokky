@@ -5,7 +5,7 @@
  * Supports Cloudflare Turnstile and Google reCAPTCHA v2.
  */
 
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useT } from 'trokky/i18n'
 
 export type CaptchaProvider = 'turnstile' | 'hcaptcha' | 'recaptcha'

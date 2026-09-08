@@ -1,6 +1,5 @@
 import type {
   RichTextFieldDefinition,
-  RichTextValidation,
   RichTextContent,
   RichTextValue,
   ProseMirrorDocument
@@ -12,7 +11,7 @@ import { proseMirrorToHtml } from './format-converter';
 export function validateRichTextField(
   value: RichTextValue | undefined,
   definition: RichTextFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const validation = { ...RICHTEXT_FIELD_DEFAULTS.validation, ...definition.validation };
   
@@ -142,13 +141,6 @@ export function getDefaultRichTextValue(definition: RichTextFieldDefinition): an
  */
 function isProseMirrorDocument(value: unknown): value is ProseMirrorDocument {
   return typeof value === 'object' && value !== null && (value as ProseMirrorDocument).type === 'doc';
-}
-
-/**
- * Check if value is a RichTextContent object
- */
-function isRichTextContent(value: unknown): value is RichTextContent {
-  return typeof value === 'object' && value !== null && 'html' in value && typeof (value as RichTextContent).html === 'string';
 }
 
 export function getHTMLContent(value: RichTextValue | RichTextContent | undefined): string {

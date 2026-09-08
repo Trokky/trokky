@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useT } from 'trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -167,7 +167,7 @@ export function PasskeyManager({ className = '' }: PasskeyManagerProps) {
     }
   };
 
-  const getDeviceIcon = (deviceType: string, backedUp: boolean) => {
+  const getDeviceIcon = (_deviceType: string, backedUp: boolean) => {
     if (backedUp) {
       return <CloudIcon className="w-5 h-5 text-blue-500" />;
     }

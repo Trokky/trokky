@@ -116,7 +116,6 @@ export function StudioContextProvider({
         if (mediaUrlConfig) {
           const { options } = mediaUrlConfig
           const servingMode = options.mediaConfig?.serving?.mode || 'api'
-          const apiBasePath = options.apiBasePath || '/api'
           const staticBasePath =
             options.mediaConfig?.serving?.staticBasePath || '/media'
 
@@ -158,7 +157,9 @@ export function StudioContextProvider({
     // Fetch studio config from API endpoint to get proper media serving config
     const fetchStudioConfig = async () => {
       try {
-        const response = await apiClient.get('/config/studio')
+        const response = await apiClient.get<{
+          studioConfig?: { mediaUrlGenerator?: unknown }
+        }>('/config/studio')
 
         if (
           response.success &&

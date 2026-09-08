@@ -410,6 +410,16 @@ export class ApiClient {
   }
 
   /**
+   * PATCH request helper
+   */
+  async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  /**
    * DELETE request helper
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {

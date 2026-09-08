@@ -39,7 +39,7 @@ export function executeTemplate(template: string, context: TemplateContext): Rea
     console.error('Template execution error:', error)
     return React.createElement('div', {
       className: 'p-4 text-red-600 text-sm'
-    }, `Template Error: ${error.message}`)
+    }, `Template Error: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

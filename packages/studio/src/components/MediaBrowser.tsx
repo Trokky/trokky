@@ -4,8 +4,7 @@
  * Now using global Modal component for consistency
  */
 
-import React from 'react';
-import type { MediaFieldValue, MediaType } from '../types';
+import type { MediaFieldValue, MediaType } from 'trokky/types';
 import { MediaBrowserContent } from './MediaBrowserContent';
 import { useT } from 'trokky/i18n';
 

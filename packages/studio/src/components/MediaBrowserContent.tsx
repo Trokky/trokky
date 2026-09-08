@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import type { MediaFieldValue, MediaType } from '../types'
+import type { MediaFieldValue, MediaType } from 'trokky/types'
 import { useT } from 'trokky/i18n'
 
 // Types for Studio API integration
@@ -53,6 +53,7 @@ interface MediaBrowserAPI {
   ) => Promise<any>
   deleteMedia?: (id: string) => Promise<any>
   updateMedia?: (id: string, metadata: any) => Promise<any>
+  regenerateVariants?: (id: string) => Promise<any>
 }
 
 // SVG Icons
@@ -270,8 +271,6 @@ function formatFileSize(bytes: number): string {
 export function MediaBrowserContent({
   onSelect,
   mediaTypeFilter,
-  showVariantSelector = false,
-  context,
   apiClient,
   logger,
   mediaUrlGenerator,
@@ -287,10 +286,6 @@ export function MediaBrowserContent({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 20 // Show 20 items per page (4 rows of 5)
-
-  // Cross-platform development check
-  const isDevelopment =
-    typeof window !== 'undefined' && (window as any).__TROKKY_DEV__ === true
 
   // Load media files when component mounts
   useEffect(() => {
@@ -649,7 +644,7 @@ export function MediaBrowserContent({
                               logger?.info('Regenerating variants for', {
                                 mediaId: selectedMedia.id,
                               })
-                              await apiClient.regenerateVariants(
+                              await apiClient.regenerateVariants?.(
                                 selectedMedia.id
                               )
                               // Refresh media list to get updated variants

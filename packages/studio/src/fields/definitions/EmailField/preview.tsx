@@ -3,7 +3,6 @@
  * Shows email with clickable mailto link
  */
 
-import React from 'react';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 
 export function EmailFieldPreview({ value }: FieldComponentProps) {

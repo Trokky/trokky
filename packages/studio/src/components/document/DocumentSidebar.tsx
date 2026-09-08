@@ -9,7 +9,6 @@ import {
   ClockIcon,
   UserIcon,
   TagIcon,
-  LinkIcon,
   ChevronRightIcon,
   ChevronDownIcon,
   TrashIcon,
@@ -58,7 +57,7 @@ export function DocumentSidebar() {
 
   const [relationships, setRelationships] = useState<any>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [, setDocumentUrl] = useState<string | null>(null);
   const [contributors, setContributors] = useState<Array<{id: string, username: string, role: string}>>([]);
   const [usernameCache, setUsernameCache] = useState<Record<string, string>>({});
 
@@ -308,7 +307,7 @@ export function DocumentSidebar() {
     
     try {
       // Get public URL from settings API
-      const response = await apiClient.get('/config/settings');
+      const response = await apiClient.get<{ settings?: { publicUrl?: string } }>('/config/settings');
       let publicUrl = window.location.origin; // fallback
       
       if (response.success && response.data?.settings?.publicUrl) {
@@ -510,7 +509,7 @@ export function DocumentSidebar() {
               </h4>
               <div className="flex flex-wrap gap-1">
                 {contributors.length > 0 ? (
-                  contributors.slice(0, 5).map((contributor, index) => (
+                  contributors.slice(0, 5).map((contributor) => (
                     <span
                       key={contributor.id}
                       className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"

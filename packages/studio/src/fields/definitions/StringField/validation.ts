@@ -9,7 +9,7 @@ import type { StringFieldDefinition } from './definition.js';
 export function validateStringField(
   value: string,
   definition: StringFieldDefinition,
-  context?: DocumentContext
+  _context?: DocumentContext
 ): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
