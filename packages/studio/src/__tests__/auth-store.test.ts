@@ -268,4 +268,42 @@ describe('401 handling in the API client', () => {
     expect(onUnauthorized).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+})
+
+describe('a session that ended must stay ended', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('discards a refresh that resolves after clear()', async () => {
+    const store = new AuthStore()
+    let resolveRefresh: (value: any) => void = () => {}
+    store.setRefresher(() => new Promise(resolve => { resolveRefresh = resolve }))
+    store.persist('old-token', 'old-refresh')
+
+    const pending = store.refresh()
+    store.clear()
+    resolveRefresh({ token: 'late-token', refreshToken: 'late-refresh' })
+    await pending
+
+    expect(store.getTokens().token).toBeNull()
+    expect(store.getTokens().refreshToken).toBeNull()
+    expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull()
+  })
+
+  it('does not let a late failure clear a newer session', async () => {
+    const store = new AuthStore()
+    let rejectRefresh: (reason?: unknown) => void = () => {}
+    store.setRefresher(() => new Promise((_resolve, reject) => { rejectRefresh = reject }))
+    store.persist('old-token', 'old-refresh')
+
+    const pending = store.refresh()
+    store.clear()
+    store.persist('new-token', 'new-refresh')
+    rejectRefresh(new Error('network'))
+    await pending
+
+    expect(store.getTokens().token).toBe('new-token')
+  })
 })

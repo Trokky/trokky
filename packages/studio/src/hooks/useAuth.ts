@@ -12,6 +12,7 @@ import { apiClient } from '@/services/api-client'
 import { authStore } from '@/services/auth-store'
 import { createStudioLogger } from '@/utils/logger'
 import type { User } from '@/types'
+import { clearStructureCache } from '../services/structure-service.js'
 
 const logger = createStudioLogger('useAuth')
 
@@ -109,6 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Every cached read - the current user above all - belonged to the session
     // that just ended; the next sign-in must not see the previous user's data.
     queryClient.clear()
+    // The structure service keeps its own copy outside react-query, and
+    // /config/structure is generated per user: without this the next sign-in
+    // would render the previous user's navigation and schema availability.
+    clearStructureCache()
     setAuthState(signedOutState())
   }, [queryClient, stopSessionMonitoring])
 

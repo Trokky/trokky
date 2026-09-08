@@ -220,3 +220,11 @@ export function getStructureService(): StructureService {
   }
   return structureServiceInstance
 }
+
+/**
+ * Drop the cached structure if a service exists. Safe to call when signed out,
+ * where the service was never created.
+ */
+export function clearStructureCache(): void {
+  structureServiceInstance?.clearCache()
+}

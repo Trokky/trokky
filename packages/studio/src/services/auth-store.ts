@@ -62,6 +62,8 @@ export class AuthStore {
   private listeners = new Set<(tokens: AuthTokens) => void>()
   private refresher: Refresher | null = null
   private inFlight: Promise<RefreshedSession | null> | null = null
+  /** Bumped whenever the session ends, so late async work can be discarded. */
+  private session = 0
 
   constructor() {
     this.tokens = {
@@ -99,6 +101,10 @@ export class AuthStore {
   }
 
   clear(): void {
+    // Invalidate any refresh already in flight: its response belongs to the
+    // session being ended, and persisting it would resurrect the login.
+    this.session += 1
+    this.inFlight = null
     this.tokens = { token: null, refreshToken: null }
     removeStorage(AUTH_TOKEN_KEY)
     removeStorage(REFRESH_TOKEN_KEY)
@@ -135,20 +141,26 @@ export class AuthStore {
       return null
     }
 
+    // Remember which session this refresh belongs to. A logout (or another
+    // login) bumps the counter, and a late response must then change nothing.
+    const session = this.session
+
     this.inFlight = (async () => {
       try {
-        const session = await this.refresher!(refreshToken)
-        if (session?.token) {
-          this.persist(session.token, session.refreshToken)
-          return session
+        const refreshed = await this.refresher!(refreshToken)
+        if (session !== this.session) return null
+        if (refreshed?.token) {
+          this.persist(refreshed.token, refreshed.refreshToken)
+          return refreshed
         }
         this.clear()
         return null
       } catch {
+        if (session !== this.session) return null
         this.clear()
         return null
       } finally {
-        this.inFlight = null
+        if (session === this.session) this.inFlight = null
       }
     })()
 
