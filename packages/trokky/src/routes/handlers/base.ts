@@ -399,4 +399,18 @@ export abstract class BaseRoutes {
       .replace(/^./, str => str.toUpperCase())
       .trim()
   }
+
+  protected getSearchableFields(schema: any): string[] {
+    // Basic searchable fields detection
+    const searchableFields = ['title', 'name', 'slug']
+
+    if (schema.fields) {
+      const fieldNames = Object.keys(schema.fields)
+      return fieldNames.filter(name =>
+        searchableFields.some(searchable => name.toLowerCase().includes(searchable))
+      )
+    }
+
+    return ['title']
+  }
 }

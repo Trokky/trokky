@@ -2,7 +2,18 @@
 export { TrokkyRoutes } from './routes.js'
 
 // Route handler groups
-export { BaseRoutes, AuthRoutes, DocumentRoutes, MediaRoutes } from './handlers/index.js'
+export {
+  BaseRoutes,
+  AuthRoutes,
+  DocumentRoutes,
+  MediaRoutes,
+  UserRoutes,
+  TokenRoutes,
+  WebhookRoutes,
+  AuditRoutes,
+  SearchRoutes,
+  ConfigRoutes
+} from './handlers/index.js'
 export type { RouteHandlerConfig } from './handlers/index.js'
 
 export type {
