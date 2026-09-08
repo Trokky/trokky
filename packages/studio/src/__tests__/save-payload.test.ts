@@ -122,8 +122,14 @@ describe('buildSavePayload', () => {
 
     expect(payload.subtitle).toBeNull()
     expect(payload.views).toBeNull()
-    expect(payload.gallery).toBeNull()
+    expect(payload.featured).toBeNull()
     expect(payload.seo).toBeNull()
+  })
+
+  it('should send an empty array for undefined array fields', () => {
+    const payload = buildSavePayload({ title: 'Hello' }, schema)
+
+    expect(payload.gallery).toEqual([])
   })
 
   it('should preserve falsy but meaningful values', () => {

@@ -90,7 +90,8 @@ export function buildSavePayload(
     }
 
     if (value === undefined) {
-      value = null
+      // Array fields always ship as a list: frontends map over them
+      value = fieldType === 'array' ? [] : null
     }
 
     payload[name] = value
