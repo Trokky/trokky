@@ -1,6 +1,10 @@
 // Main exports for @trokky/routes package
 export { TrokkyRoutes } from './routes.js'
 
+// Route handler groups
+export { BaseRoutes, AuthRoutes, DocumentRoutes, MediaRoutes } from './handlers/index.js'
+export type { RouteHandlerConfig } from './handlers/index.js'
+
 export type {
   // Core HTTP types
   HttpMethod,
