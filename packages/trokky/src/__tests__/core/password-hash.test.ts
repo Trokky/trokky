@@ -160,8 +160,8 @@ describe('password-hash compatibility', () => {
       expect(adapter.needsRehash(fresh)).toBe(false)
     })
 
-    it('should flag everything but bcrypt for the NodeCryptoAdapter', async () => {
-      const adapter = new NodeCryptoAdapter()
+    it('should flag everything but bcrypt at the configured cost for the NodeCryptoAdapter', async () => {
+      const adapter = new NodeCryptoAdapter({ saltRounds: 10 }) // BCRYPT_FIXTURE is cost 10
       const tagged = await new WebCryptoAdapter().hashPassword(PASSWORD)
 
       expect(adapter.needsRehash(BCRYPT_FIXTURE)).toBe(false)
@@ -271,6 +271,25 @@ describe('password-hash compatibility', () => {
       } finally {
         Object.defineProperty(globalThis, 'crypto', { value: realCrypto, configurable: true, writable: true })
       }
+    })
+
+    it('should verify a legacy untagged hash written at the configured pbkdf2Iterations', async () => {
+      const hash = makeLegacyHash(PASSWORD, 2000)
+      expect(await new WebCryptoAdapter({ pbkdf2Iterations: 2000 }).verifyPassword(PASSWORD, hash)).toBe(true)
+      expect(await new NodeCryptoAdapter({ pbkdf2Iterations: 2000 }).verifyPassword(PASSWORD, hash)).toBe(true)
+      expect(await new WebCryptoAdapter().verifyPassword(PASSWORD, hash)).toBe(false)
+    })
+
+    it('should verify a legacy hash at saltRounds up to 24 (2^24 is the ceiling)', () => {
+      expect(parsePasswordHash(`$pbkdf2-sha256$${2 ** 24}$` + 'A'.repeat(22) + '==$' + 'A'.repeat(43) + '=').kind).toBe('pbkdf2')
+      expect(parsePasswordHash(`$pbkdf2-sha256$${2 ** 24 + 1}$` + 'A'.repeat(22) + '==$' + 'A'.repeat(43) + '=').kind).toBe('unknown')
+    })
+
+    it('should flag bcrypt hashes at a different cost for rehash on the Node adapter', () => {
+      const parsed = parsePasswordHash(BCRYPT_FIXTURE)
+      expect(parsed).toEqual({ kind: 'bcrypt', cost: 10 })
+      expect(new NodeCryptoAdapter({ saltRounds: 10 }).needsRehash(BCRYPT_FIXTURE)).toBe(false)
+      expect(new NodeCryptoAdapter({ saltRounds: 12 }).needsRehash(BCRYPT_FIXTURE)).toBe(true)
     })
   })
 })

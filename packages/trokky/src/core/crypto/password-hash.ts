@@ -16,19 +16,19 @@ export const PBKDF2_LEGACY_ITERATIONS = 4096
  * configuration. A stored hash claiming billions of iterations would otherwise
  * turn every login attempt for that account into minutes of CPU.
  */
-export const PBKDF2_MAX_ITERATIONS = 10_000_000
+export const PBKDF2_MAX_ITERATIONS = 2 ** 24 // 16,777,216: covers legacy 2^saltRounds up to saltRounds=24
 export const PBKDF2_SALT_BYTES = 16
 export const PBKDF2_KEY_BYTES = 32
 /** Longest hash string we are willing to parse. Real hashes are < 120 chars. */
 const MAX_HASH_LENGTH = 512
 
 const PBKDF2_TAG = 'pbkdf2-sha256'
-const BCRYPT_PATTERN = /^\$2[aby]\$/
+const BCRYPT_PATTERN = /^\$2[aby]\$(\d{2})\$/
 
 export type ParsedPasswordHash =
   | { kind: 'pbkdf2'; iterations: number; salt: Uint8Array; dk: Uint8Array }
   | { kind: 'legacy-pbkdf2'; salt: Uint8Array; dk: Uint8Array }
-  | { kind: 'bcrypt' }
+  | { kind: 'bcrypt'; cost: number }
   | { kind: 'unknown' }
 
 function toBase64(bytes: Uint8Array): string {
@@ -95,8 +95,9 @@ export function parsePasswordHash(hash: string): ParsedPasswordHash {
     return { kind: 'unknown' }
   }
 
-  if (BCRYPT_PATTERN.test(hash)) {
-    return { kind: 'bcrypt' }
+  const bcryptMatch = BCRYPT_PATTERN.exec(hash)
+  if (bcryptMatch) {
+    return { kind: 'bcrypt', cost: Number(bcryptMatch[1]) }
   }
 
   if (hash.startsWith(`$${PBKDF2_TAG}$`)) {
@@ -106,7 +107,7 @@ export function parsePasswordHash(hash: string): ParsedPasswordHash {
       return { kind: 'unknown' }
     }
     // Strict decimal only: Number() would accept '1e5', '0x10' or ' 100000'.
-    if (!/^[1-9][0-9]{0,7}$/.test(parts[2])) {
+    if (!/^[1-9][0-9]{0,8}$/.test(parts[2])) {
       return { kind: 'unknown' }
     }
     const iterations = Number(parts[2])

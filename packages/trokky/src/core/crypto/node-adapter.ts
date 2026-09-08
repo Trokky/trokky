@@ -12,12 +12,14 @@ const require = createRequire(import.meta.url)
 
 export class NodeCryptoAdapter implements CryptoAdapter {
   private saltRounds: number
+  private pbkdf2Iterations?: number
   private bcrypt: any
   private jwt: any
   private crypto: any
 
   constructor(options: CryptoAdapterOptions = {}) {
     this.saltRounds = options.saltRounds || 12
+    this.pbkdf2Iterations = options.pbkdf2Iterations
     
     try {
       // Dynamic imports to avoid bundling issues
@@ -44,7 +46,7 @@ export class NodeCryptoAdapter implements CryptoAdapter {
       }
       // Tagged or legacy PBKDF2 hashes written by the WebCrypto adapter
       return await verifyPasswordHash(password, hash, {
-        legacyIterations: [2 ** this.saltRounds],
+        legacyIterations: [2 ** this.saltRounds, ...(this.pbkdf2Iterations ? [this.pbkdf2Iterations] : [])],
       })
     } catch (error) {
       console.error('Password verification failed:', error instanceof Error ? error.message : 'Unknown error')
@@ -53,7 +55,9 @@ export class NodeCryptoAdapter implements CryptoAdapter {
   }
 
   needsRehash(hash: string): boolean {
-    return parsePasswordHash(hash).kind !== 'bcrypt'
+    const parsed = parsePasswordHash(hash)
+    // Rehash anything that is not bcrypt at the configured cost.
+    return !(parsed.kind === 'bcrypt' && parsed.cost === this.saltRounds)
   }
 
   async generateJWT(payload: Record<string, any>, secret: string, options: JWTOptions = {}): Promise<string> {

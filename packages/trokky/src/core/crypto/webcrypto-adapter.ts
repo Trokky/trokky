@@ -28,7 +28,9 @@ export class WebCryptoAdapter implements CryptoAdapter {
       )
     }
     this.pbkdf2Iterations = iterations
-    this.legacyIterations = [2 ** (options.saltRounds ?? 12)]
+    // Also try the configured count: an untagged hash may have been written by
+    // an earlier build at a custom pbkdf2Iterations.
+    this.legacyIterations = [2 ** (options.saltRounds ?? 12), iterations]
     
     if (!crypto || !crypto.subtle) {
       throw new Error('Web Crypto API not available in this environment')
