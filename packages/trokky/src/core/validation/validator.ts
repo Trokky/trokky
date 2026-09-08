@@ -62,13 +62,16 @@ export class DocumentValidator {
   }
 
   private buildFieldSchema(fieldDef: FieldDefinition): z.ZodSchema {
+    const isOptional = !fieldDef.required
+
     switch (fieldDef.type) {
       case 'string':
-        return z.string()
-      
+        // Optional strings may be sent as null by the Studio when cleared
+        return isOptional ? z.string().nullable() : z.string()
+
       case 'number':
-        return z.number()
-      
+        return z.number().nullable()
+
       case 'boolean':
         return z.boolean()
       
@@ -100,9 +103,9 @@ export class DocumentValidator {
       
       case 'object':
         if (!fieldDef.fields) {
-          return z.record(z.unknown())
+          return isOptional ? z.record(z.unknown()).nullable() : z.record(z.unknown())
         }
-        
+
         const objectShape: Record<string, z.ZodSchema> = {}
         
         // Handle modern format: fields is a Record<string, FieldDefinition>
@@ -115,15 +118,16 @@ export class DocumentValidator {
           objectShape[propName] = propSchema
         }
         
-        return z.object(objectShape)
-      
+        return isOptional ? z.object(objectShape).nullable() : z.object(objectShape)
+
       case 'reference':
         return z.union([
           z.string(), // Still allow string IDs for backward compatibility
           z.object({
             _ref: z.string(),
             _type: z.string().optional()
-          }).passthrough() // Allow additional metadata
+          }).passthrough(), // Allow additional metadata
+          z.null() // Allow null when a reference is cleared
         ])
       
       case 'media':
@@ -154,10 +158,13 @@ export class DocumentValidator {
         // - preserveCase (for case-sensitive slugs)
         // - allowedChars (for additional characters like underscores, dots, etc.)
         //
-        // Basic validation: just ensure it's a non-empty string within length limits
-        return z.string()
-          .min(1, 'Slug cannot be empty')
-          .max((fieldDef as any).maxLength || 200, 'Slug is too long')
+        // Basic validation: just ensure it's a string within length limits
+        // Optional slugs may be empty (the slug processor can regenerate them later)
+        {
+          const maxLength = (fieldDef as any).maxLength || 200
+          const slugSchema = z.string().max(maxLength, 'Slug is too long')
+          return isOptional ? slugSchema : slugSchema.min(1, 'Slug cannot be empty')
+        }
       
       default:
         return z.unknown()

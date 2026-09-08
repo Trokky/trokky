@@ -422,6 +422,33 @@ describe('DocumentService', () => {
     it('should throw when deleting a document that does not exist', async () => {
       await expect(harness.documentService.deleteDocument('posts', 'missing-id')).rejects.toThrow()
     })
+
+    it('should not pass client-sent system fields through to storage', async () => {
+      const saveSpy = vi.spyOn(harness.dataAdapter, 'saveDocument')
+
+      await harness.documentService.saveDocument('posts', {
+        id: 'post-1',
+        title: 'Round-tripped',
+        _id: 'spoofed',
+        _collection: 'spoofed',
+        _createdAt: '1999-01-01T00:00:00Z',
+        _updatedAt: '1999-01-01T00:00:00Z',
+        _revision: 99,
+        _createdBy: 'mallory',
+        _updatedBy: 'mallory',
+        _status: 'published',
+        _type: 'posts'
+      })
+
+      const storedData = saveSpy.mock.calls[0][2] as Record<string, unknown>
+
+      expect(storedData).toEqual({
+        title: 'Round-tripped',
+        _status: 'published',
+        _type: 'posts'
+      })
+      expect(saveSpy.mock.calls[0][1]).toBe('post-1')
+    })
   })
 
   describe('validation and unknown collections', () => {

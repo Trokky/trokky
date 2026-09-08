@@ -26,6 +26,24 @@ import {
   AUDIT_OPERATIONS
 } from '../types/index.js'
 
+/** System fields that clients may send back but must never overwrite storage-managed values */
+const PRESERVED_SYSTEM_FIELDS = new Set(['_status', '_type'])
+
+/**
+ * Remove client-sent system fields (keys starting with "_") from document data.
+ * _status and _type are content-level fields and are preserved.
+ */
+function stripSystemFields(data: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key)) {
+      continue
+    }
+    result[key] = value
+  }
+  return result
+}
+
 export interface DocumentServiceDependencies {
   logger: TrokkyLogger
   auditLog: TrokkyLogger
@@ -149,7 +167,8 @@ export class DocumentService {
 
     // Generate ID if not provided
     const id = data.id || this.deps.idGenerator.generate({ prefix: collection })
-    const { id: _, ...documentData } = data
+    const { id: _, ...rest } = data
+    const documentData = stripSystemFields(rest as Record<string, unknown>)
 
     // Check if document already exists (for event emission)
     const existingDocument = await this.deps.dataStorage.getDocument(collection, id).catch(() => null)

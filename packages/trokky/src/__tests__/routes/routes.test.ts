@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TrokkyRoutes } from '../../routes/index.js'
 import { createMockCore } from '../helpers/mock-core.js'
 import type { HttpRequest } from '../../routes/types.js'
@@ -314,6 +314,64 @@ describe('TrokkyRoutes', () => {
 
       expect(response.status).toBe(200)
       expect(core.saveDocument).toHaveBeenCalled()
+    })
+
+    it('should strip client-sent system fields on create', async () => {
+      const route = routes.findRoute('POST', '/collections/article')!
+      const response = await route.handler(makeRequest({
+        method: 'POST',
+        path: '/collections/article',
+        params: { collection: 'article' },
+        body: {
+          data: {
+            title: 'New Article',
+            _createdAt: '1999-01-01T00:00:00Z',
+            _updatedAt: '1999-01-01T00:00:00Z',
+            _revision: 99,
+            _createdBy: 'mallory',
+            _id: 'spoofed',
+            _collection: 'spoofed',
+            _status: 'published'
+          }
+        },
+      }))
+
+      expect(response.status).toBe(201)
+      const savedData = vi.mocked(core.saveDocument).mock.calls[0][1] as Record<string, unknown>
+      expect(savedData).not.toHaveProperty('_createdAt')
+      expect(savedData).not.toHaveProperty('_updatedAt')
+      expect(savedData).not.toHaveProperty('_revision')
+      expect(savedData).not.toHaveProperty('_createdBy')
+      expect(savedData).not.toHaveProperty('_id')
+      expect(savedData).not.toHaveProperty('_collection')
+      expect(savedData._status).toBe('published')
+      expect(savedData.title).toBe('New Article')
+    })
+
+    it('should strip client-sent system fields on update', async () => {
+      const route = routes.findRoute('PUT', '/collections/article/doc-001')!
+      const response = await route.handler(makeRequest({
+        method: 'PUT',
+        path: '/collections/article/doc-001',
+        params: { collection: 'article', id: 'doc-001' },
+        body: {
+          data: {
+            title: 'Updated Title',
+            _createdAt: '1999-01-01T00:00:00Z',
+            _revision: 99,
+            _createdBy: 'mallory',
+            _status: 'draft'
+          }
+        },
+      }))
+
+      expect(response.status).toBe(200)
+      const savedData = vi.mocked(core.saveDocument).mock.calls[0][1] as Record<string, unknown>
+      expect(savedData._createdAt).toBeUndefined()
+      expect(savedData._revision).toBeUndefined()
+      expect(savedData._createdBy).toBeUndefined()
+      expect(savedData._status).toBe('draft')
+      expect(savedData.title).toBe('Updated Title')
     })
 
     it('should delete a document', async () => {

@@ -7,6 +7,24 @@ import type { HttpRequest, HttpResponse, RouteDefinition, CreateDocumentRequest,
 import { processSlugFields } from '../slug-processor.js'
 import { BaseRoutes } from './base.js'
 
+/** System fields that clients may send back but must never overwrite storage-managed values */
+const PRESERVED_SYSTEM_FIELDS = new Set(['_status', '_type'])
+
+/**
+ * Remove client-sent system fields (keys starting with "_") from document data.
+ * _status and _type are content-level fields and are preserved.
+ */
+function stripSystemFields<T extends Record<string, unknown>>(data: T): T {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key)) {
+      continue
+    }
+    result[key] = value
+  }
+  return result as T
+}
+
 export class DocumentRoutes extends BaseRoutes {
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
@@ -258,8 +276,11 @@ export class DocumentRoutes extends BaseRoutes {
       // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
       await this.validateSingletonCreation(collection, id)
 
+      // Strip client-sent system fields so they cannot shadow storage-managed values
+      const cleanData = stripSystemFields(data as Record<string, any>)
+
       // Process slug fields - auto-generate slugs from source fields if not provided
-      const processedData = await processSlugFields(this.core, collection, data as Record<string, any>)
+      const processedData = await processSlugFields(this.core, collection, cleanData)
 
       const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext)
       return this.successResponse({ document }, 201)
@@ -357,6 +378,9 @@ export class DocumentRoutes extends BaseRoutes {
       SecurityValidator.validateDocumentId(id)
       SecurityValidator.validateDocumentData(data)
 
+      // Strip client-sent system fields so they cannot shadow storage-managed values
+      const cleanData = stripSystemFields(data as Record<string, any>)
+
       // Get existing document to merge with updates
       // For singletons, allow upsert (create if doesn't exist)
       const schema = this.core.getSchema(collection)
@@ -369,7 +393,7 @@ export class DocumentRoutes extends BaseRoutes {
 
       // SECURITY: Check publish permission if status is being changed to/from 'published'
       // This enforces the content:publish permission for publishing/unpublishing actions
-      const newStatus = (data as Record<string, unknown>)._status as string | undefined
+      const newStatus = cleanData._status as string | undefined
       const currentStatus = existingDoc?._status as string | undefined
 
       const isPublishing = newStatus === 'published' && currentStatus !== 'published'
@@ -384,14 +408,14 @@ export class DocumentRoutes extends BaseRoutes {
       if (existingDoc) {
         const { _id, _collection, _createdAt, _updatedAt, _revision, _createdBy, _updatedBy, _createdByType, _updatedByType, ...existingData } = existingDoc
         // Preserve _status from existing document if not explicitly provided in update data
-        if (!('_status' in data) && existingDoc._status) {
-          mergedData = { ...existingData, ...data, _status: existingDoc._status }
+        if (!('_status' in cleanData) && existingDoc._status) {
+          mergedData = { ...existingData, ...cleanData, _status: existingDoc._status }
         } else {
-          mergedData = { ...existingData, ...data }
+          mergedData = { ...existingData, ...cleanData }
         }
       } else {
         // Singleton doesn't exist yet - create with provided data
-        mergedData = data
+        mergedData = cleanData
       }
 
       // Process slug fields - auto-generate slugs from source fields if not provided
