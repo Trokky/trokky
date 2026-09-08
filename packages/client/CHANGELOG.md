@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [6427d4a]
+- Updated dependencies [0c3a3e1]
+- Updated dependencies [b397497]
+  - @trokky/trokky@2.0.1
+
 ## 2.0.0
 
 ### Major Changes
