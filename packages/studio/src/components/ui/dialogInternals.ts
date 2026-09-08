@@ -8,12 +8,14 @@
 /** Stacking tokens. Keep in sync with theme.extend.zIndex in tailwind.config.js. */
 export const Z_STICKY = 40
 export const Z_OVERLAY = 50
-export const Z_TOAST = 60
-export const Z_DEBUG = 100
+export const Z_TOAST = 200
+export const Z_DEBUG = 300
 
 /**
- * Highest stacking value a dialog may take. The overlay band is 50-59 so a
- * deeply nested stack can never reach the toast layer.
+ * Highest stacking value a dialog may take. The overlay band runs from 50 to
+ * just below the toast layer, which is wide enough that a real stack never
+ * clamps: two dialogs sharing a z-index would paint in DOM order rather than
+ * the order they were opened.
  */
 export const Z_OVERLAY_MAX = Z_TOAST - 1
 

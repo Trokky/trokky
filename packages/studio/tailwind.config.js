@@ -77,8 +77,8 @@ export default {
         // Overlay layering tokens. Mirrored in src/components/ui/dialogInternals.ts.
         sticky: '40',
         overlay: '50',
-        toast: '60',
-        debug: '100',
+        toast: '200',
+        debug: '300',
       },
       maxWidth: {
         '8xl': '88rem',

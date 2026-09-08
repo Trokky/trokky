@@ -207,8 +207,11 @@ describe('stack subscriptions', () => {
     ids.forEach(id => stack.push(id))
 
     const highest = Math.max(...ids.map(id => stack.zIndexOf(id)))
-    expect(highest).toBe(Z_OVERLAY_MAX)
+    expect(highest).toBeLessThanOrEqual(Z_OVERLAY_MAX)
     expect(highest).toBeLessThan(Z_TOAST)
+    // The band is wide enough that a realistic stack never has to clamp, so
+    // two dialogs cannot end up sharing a z-index and painting out of order.
+    expect(highest).toBe(Z_OVERLAY + ids.length - 1)
   })
 })
 
@@ -577,6 +580,17 @@ describe('layering tokens at the call sites', () => {
     expect(source).not.toContain('zIndex')
   })
 
+})
+
+describe('z band headroom', () => {
+  it('gives the dialog stack far more depth than any UI reaches, still below toasts', () => {
+    const stack = createDialogStack()
+    for (let i = 0; i < 150; i++) stack.push(`d${i}`)
+    expect(stack.zIndexOf('d149')).toBeLessThan(Z_TOAST)
+    // distinct z for every realistic depth: no two dialogs tie
+    expect(stack.zIndexOf('d10')).toBeGreaterThan(stack.zIndexOf('d9'))
+    expect(stack.zIndexOf('d99')).toBeGreaterThan(stack.zIndexOf('d98'))
+  })
 })
 
 describe('background inert ownership', () => {
