@@ -227,13 +227,28 @@ export class AuthService {
             // Atomic compare-and-set: the write only applies while the stored
             // hash is still the one we verified, so a password change/reset that
             // commits in between cannot be overwritten.
+            const conditionalUpdate: Partial<UpdateUserData> = { ...loginUpdate, passwordHash: upgradedHash }
             const updated = await updateUserIf(
               user.id,
-              { ...loginUpdate, passwordHash: upgradedHash },
+              conditionalUpdate,
               { passwordHash: user.passwordHash }
             )
             if (updated) {
               loginUpdatePersisted = true
+              // Mirror the audit event updateUser would have emitted for this write
+              this.deps.logAuditEvent({
+                type: 'user_updated',
+                targetUserId: user.id,
+                username: user.username,
+                action: `User updated`,
+                timestamp: new Date().toISOString(),
+                success: true,
+                details: {
+                  updatedFields: Object.keys(conditionalUpdate),
+                  previousRole: user.role,
+                  newRole: user.role
+                }
+              })
               this.deps.logger.debug('Password hash upgraded to current format', { userId: user.id })
             } else {
               this.deps.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })

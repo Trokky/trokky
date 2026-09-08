@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TrokkyCore } from '../../core/core/engine.js'
+import type { AuditEvent } from '../../core/core/engine.js'
 import type { TrokkyConfig } from '../../core/types/index.js'
 import type { User } from '../../types/auth.js'
 import { WebCryptoAdapter } from '../../core/crypto/webcrypto-adapter.js'
@@ -113,7 +114,7 @@ function withSaveUserIf(
   return { ...dataAdapter, saveUserIf }
 }
 
-function createCore(dataAdapter: MockDataAdapter): TrokkyCore {
+function createCore(dataAdapter: MockDataAdapter, auditLogger?: (event: AuditEvent) => void): TrokkyCore {
   return new TrokkyCore(
     config,
     {
@@ -126,6 +127,7 @@ function createCore(dataAdapter: MockDataAdapter): TrokkyCore {
       enableEvents: false,
       // Injected explicitly so the test does not depend on runtime adapter detection
       cryptoAdapter: new WebCryptoAdapter(),
+      auditLogger,
     }
   )
 }
@@ -256,12 +258,29 @@ describe('TrokkyCore.authenticateUser password hash upgrade', () => {
   it('should upgrade the hash through saveUserIf when nothing changed concurrently', async () => {
     dataAdapter = createMockDataAdapter(createTestUser(LEGACY_FIXTURE))
     const conditionalAdapter = withSaveUserIf(dataAdapter)
-    core = createCore(conditionalAdapter)
+    const auditLogger = vi.fn()
+    core = createCore(conditionalAdapter, auditLogger)
 
     const result = await core.authenticateUser('admin', PASSWORD)
 
     expect(result?.type).toBe('success')
     expect(conditionalAdapter.saveUserIf).toHaveBeenCalledTimes(1)
+    // The conditional write still emits the user_updated audit event updateUser would have
+    const userUpdated = auditLogger.mock.calls
+      .map(call => call[0] as AuditEvent)
+      .filter(event => event.type === 'user_updated')
+    expect(userUpdated).toHaveLength(1)
+    expect(userUpdated[0]).toMatchObject({
+      targetUserId: 'user-001',
+      username: 'admin',
+      action: 'User updated',
+      success: true,
+      details: {
+        updatedFields: ['lastLoginAt', 'passwordHash'],
+        previousRole: 'admin',
+        newRole: 'admin'
+      }
+    })
     // No fallback write was needed: the conditional write carried lastLoginAt
     expect(dataAdapter.saveUser).not.toHaveBeenCalled()
     expect(dataAdapter.stored().passwordHash.startsWith(TAGGED_PREFIX)).toBe(true)
