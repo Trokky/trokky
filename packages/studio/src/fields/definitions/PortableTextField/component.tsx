@@ -14,6 +14,7 @@ import {
   generateKey
 } from './validation';
 import { createStudioLogger } from '../../utils/logger';
+import { Dialog } from '@/components/ui/Dialog.js';
 
 const logger = createStudioLogger('PortableTextField');
 
@@ -911,7 +912,7 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   );
   
   return (
-    <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col p-4' : 'overflow-visible'}`}>
+    <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-overlay bg-white dark:bg-gray-900 flex flex-col p-4' : 'overflow-visible'}`}>
       {/* Toolbar */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-t-lg shadow-sm">
         <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
@@ -1333,12 +1334,18 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
       
       {/* Link Dialog */}
       {showLinkDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              {t('types.portableText.linkDialog.title')}
-            </h3>
-
+        <Dialog
+          open={showLinkDialog}
+          onClose={() => {
+            setShowLinkDialog(false);
+            setLinkUrl('');
+            setLinkText('');
+          }}
+          variant="center"
+          size="sm"
+          title={t('types.portableText.linkDialog.title')}
+        >
+          <Dialog.Body>
             <div className="space-y-4">
               <div>
                 <label htmlFor="link-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1370,29 +1377,29 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLinkDialog(false);
-                  setLinkUrl('');
-                  setLinkText('');
-                }}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors"
-              >
-                {t('types.portableText.linkDialog.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateLink}
-                disabled={!linkUrl}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-              >
-                {t('types.portableText.linkDialog.add')}
-              </button>
-            </div>
-          </div>
-        </div>
+          </Dialog.Body>
+          <Dialog.Footer>
+            <button
+              type="button"
+              onClick={() => {
+                setShowLinkDialog(false);
+                setLinkUrl('');
+                setLinkText('');
+              }}
+              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors"
+            >
+              {t('types.portableText.linkDialog.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateLink}
+              disabled={!linkUrl}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+            >
+              {t('types.portableText.linkDialog.add')}
+            </button>
+          </Dialog.Footer>
+        </Dialog>
       )}
     </div>
   );

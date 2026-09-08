@@ -14,6 +14,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import Gapcursor from '@tiptap/extension-gapcursor'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
+import { Dialog } from '@/components/ui/Dialog.js'
 import {
   BoldIcon,
   ItalicIcon,
@@ -1836,12 +1837,18 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
       {/* Link Dialog Modal */}
       {showLinkDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {t('types.richtext.linkDialog.title')}
-            </h3>
-
+        <Dialog
+          open={showLinkDialog}
+          onClose={() => {
+            setShowLinkDialog(false)
+            setLinkUrl('')
+            setLinkText('')
+          }}
+          variant="center"
+          size="sm"
+          title={t('types.richtext.linkDialog.title')}
+        >
+          <Dialog.Body>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1882,33 +1889,33 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLinkDialog(false)
-                  setLinkUrl('')
-                  setLinkText('')
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
-              >
-                {t('types.richtext.linkDialog.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleLinkSubmit}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-              >
-                {linkUrl.trim() ? t('types.richtext.linkDialog.addLink') : t('types.richtext.linkDialog.removeLink')}
-              </button>
-            </div>
-          </div>
-        </div>
+          </Dialog.Body>
+          <Dialog.Footer>
+            <button
+              type="button"
+              onClick={() => {
+                setShowLinkDialog(false)
+                setLinkUrl('')
+                setLinkText('')
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+            >
+              {t('types.richtext.linkDialog.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleLinkSubmit}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+            >
+              {linkUrl.trim() ? t('types.richtext.linkDialog.addLink') : t('types.richtext.linkDialog.removeLink')}
+            </button>
+          </Dialog.Footer>
+        </Dialog>
       )}
 
       {/* Fullscreen Modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex flex-col">
+        <div className="fixed inset-0 bg-white dark:bg-gray-900 z-overlay flex flex-col">
           {/* Fullscreen Toolbar */}
           <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 flex-shrink-0">
             <div className="flex items-center justify-between">
