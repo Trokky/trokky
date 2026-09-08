@@ -1,4 +1,5 @@
 import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter.js'
+import { SecurityValidator } from '../security/validation.js'
 import { SchemaRegistry } from '../schema/registry.js'
 import { DocumentValidator } from '../validation/validator.js'
 import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
@@ -307,7 +308,16 @@ export class TrokkyCore {
       updateUser: (id, userData) => this.updateUser(id, userData),
       // Adapters that support a conditional write set updatedAt themselves
       updateUserIf: this.dataStorage.saveUserIf
-        ? (id, userData, condition) => this.dataStorage.saveUserIf!(id, userData, condition)
+        ? async (id, userData, condition) => {
+            // Same guards as updateUser(); only the write itself is conditional.
+            if (this.rateLimiter) {
+              await this.rateLimiter.checkRateLimit('updateUser')
+            }
+            if (this.securityEnabled) {
+              SecurityValidator.validateDocumentId(id)
+            }
+            return this.dataStorage.saveUserIf!(id, userData, condition)
+          }
         : undefined,
       validateAppToken: (token) => this.validateAppToken(token),
       logAuditEvent: (event) => this.logAuditEvent(event),

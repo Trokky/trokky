@@ -435,8 +435,14 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       try {
         const existingContent = await fs.readFile(filePath, 'utf8')
         existingUser = JSON.parse(existingContent)
-      } catch {
-        return null
+      } catch (error) {
+        // A missing user is a condition miss; anything else (permissions, I/O,
+        // corrupt JSON) is a storage failure and must surface as one.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return null
+        }
+        this.logger.error(`Failed to read user ${id} for conditional update`, error)
+        throw new Error(`Failed to read user: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
 
       if (existingUser.passwordHash !== condition.passwordHash) {
