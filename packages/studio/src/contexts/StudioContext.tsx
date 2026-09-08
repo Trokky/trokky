@@ -239,23 +239,6 @@ export function StudioContextProvider({
     []
   )
 
-  // Modal system (simplified - could be enhanced with a proper modal library)
-  const openModal = useCallback(
-    (component: React.ComponentType, props: any = {}) => {
-      // Dispatch event that modal system can listen to
-      window.dispatchEvent(
-        new CustomEvent('studio:openModal', {
-          detail: { component, props },
-        })
-      )
-    },
-    []
-  )
-
-  const closeModal = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('studio:closeModal'))
-  }, [])
-
   // Media browser utilities
   const showMediaBrowser = useCallback((config: MediaBrowserConfig) => {
     setMediaBrowserState({
@@ -334,8 +317,6 @@ export function StudioContextProvider({
       utils: {
         showToast,
         showConfirm,
-        openModal,
-        closeModal,
         showMediaBrowser,
       },
 
@@ -355,8 +336,6 @@ export function StudioContextProvider({
   }, [
     showToast,
     showConfirm,
-    openModal,
-    closeModal,
     showMediaBrowser,
     fieldLogger,
     mediaUrlGenerator,

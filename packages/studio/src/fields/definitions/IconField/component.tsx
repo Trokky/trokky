@@ -4,8 +4,8 @@
  */
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useT } from '@trokky/trokky/i18n';
+import { Dialog } from '@/components/ui/Dialog.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter, CustomIconDefinition } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
@@ -154,33 +154,14 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
   if (!isOpen) return null;
   if (!adapter) return null;
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
-      style={{ margin: 0, boxSizing: 'border-box' }}
+  return (
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      variant="center"
+      size="lg"
+      title={t('types.icon.selectIcon')}
     >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Modal - full screen on mobile, constrained on larger screens */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-lg sm:max-w-2xl flex flex-col h-full sm:h-auto" style={{ maxHeight: '100vh', ['--sm-max-height' as string]: '600px' }}>
-        <style>{`@media (min-width: 640px) { [style*="--sm-max-height"] { max-height: var(--sm-max-height) !important; } }`}</style>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('types.icon.selectIcon')}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
-        </div>
-
         {/* Library selector - only show if multiple libraries available */}
         {availableLibraries.length > 1 && (
           <div className="flex border-b border-gray-200 dark:border-gray-700">
@@ -277,7 +258,7 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
         </div>
 
         {/* Icons grid or Custom SVG input */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 bg-gray-50 dark:bg-gray-900/50">
+        <Dialog.Body padded={false} className="overflow-x-hidden p-2 bg-gray-50 dark:bg-gray-900/50">
           {selectedLibrary === 'custom' ? (
             // Custom SVG mode - show grid if icons available, or paste input
             <div className="h-full flex flex-col">
@@ -500,11 +481,11 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
               })}
             </div>
           )}
-        </div>
+        </Dialog.Body>
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+          <Dialog.Footer padded={false} justify="center" className="p-4">
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
@@ -522,11 +503,9 @@ function IconPickerModal({ isOpen, onClose, onSelect, availableLibraries, curren
             >
               {t('types.icon.next')}
             </button>
-          </div>
+          </Dialog.Footer>
         )}
-      </div>
-    </div>,
-    document.body
+    </Dialog>
   );
 }
 

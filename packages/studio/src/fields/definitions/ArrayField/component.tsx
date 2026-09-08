@@ -3,7 +3,7 @@ import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
 import { fieldRegistry } from '../../registry/index.js';
-import { ArrayModal } from './ArrayModal.js';
+import { FieldDrawer } from '../../components/FieldDrawer.js';
 import { getItemKey } from '@/components/document/savePayload.js';
 
 // Simple SVG icons inline to avoid external dependencies
@@ -938,12 +938,12 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     return (
       <>
         {renderTopLevelCard()}
-        <ArrayModal
+        <FieldDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          definition={arrayDefinition}
-          value={arrayValue}
-          renderContent={() => (
+          title={arrayDefinition.title || t('types.array.label')}
+          subtitle={`(${t('types.array.itemCount', { count: arrayValue.length })})`}
+        >
             <div className="space-y-4">
               {/* Add button at top of modal */}
               {!isDisabled && !isReadonly && !disableAdd && layout !== 'tags' && layout !== 'select' && (
@@ -1000,8 +1000,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                 )}
               </div>
             </div>
-          )}
-        />
+        </FieldDrawer>
       </>
     );
   }

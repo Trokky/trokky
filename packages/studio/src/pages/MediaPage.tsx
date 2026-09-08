@@ -27,6 +27,8 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { Dialog } from '@/components/ui/Dialog.js';
+import { isEscapeOwnedByDialog } from '@/components/ui/dialogInternals.js';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useApiClient } from '@/hooks/useApiClient';
 import { createStudioLogger } from '@/utils/logger';
@@ -367,6 +369,9 @@ export function MediaPage() {
 
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // The dialog stack owns Escape: the viewer is itself a Dialog and
+        // closing it here as well would also close whatever sits on top of it.
+        if (isEscapeOwnedByDialog(e)) return;
         setIsViewerOpen(false);
       } else if (e.key === 'ArrowLeft') {
         navigateViewer('prev');
@@ -1379,12 +1384,15 @@ export function MediaPage() {
 
       {/* Media Viewer Modal */}
       {isViewerOpen && selectedFile && (
-        <Modal
-          isOpen={isViewerOpen}
+        <Dialog
+          open={isViewerOpen}
           onClose={() => setIsViewerOpen(false)}
+          variant="center"
           size="xl"
+          height="tall"
+          className="overflow-hidden"
+          ariaLabel={selectedFile.metadata?.title || selectedFile.filename}
         >
-          <div className="flex flex-col -m-6 h-[calc(100dvh-2rem)] sm:h-[85dvh] overflow-hidden rounded-lg">
             {/* Header */}
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center space-x-4 min-w-0 flex-1">
@@ -1478,7 +1486,7 @@ export function MediaPage() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex flex-col md:flex-row min-h-0">
+            <Dialog.Body scroll={false} padded={false} className="flex flex-col md:flex-row">
               {/* Left section: Media preview + variants */}
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {/* Media preview */}
@@ -1673,9 +1681,8 @@ export function MediaPage() {
                   )}
                 </dl>
               </div>
-            </div>
-          </div>
-        </Modal>
+            </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Edit Modal */}

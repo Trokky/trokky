@@ -127,13 +127,16 @@ function AppContent() {
     <>
       <AppRouter />
       <SessionTimeoutWarningContainer />
-      {/* Portalled into document.body so they paint after the StudioContext
-          MediaBrowser, which shares the same z-index */}
+      {/* Portalled into document.body, above the dialog layer: toasts and
+          confirms carry the z-toast token, dialogs the z-overlay token */}
       {createPortal(
-        <>
+        // data-dialog-exempt keeps this layer out of the background-inert sweep:
+        // a toast raised while a dialog is open must stay dismissible and
+        // announceable, and it paints above the dialog on the z-toast token.
+        <div data-dialog-exempt="">
           <ToastContainer />
           <ConfirmDialogContainer />
-        </>,
+        </div>,
         document.body
       )}
     </>

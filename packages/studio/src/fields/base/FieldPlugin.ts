@@ -81,8 +81,6 @@ export interface StudioContext {
         variant?: 'default' | 'danger'
       }
     ) => Promise<boolean>
-    openModal: (component: React.ComponentType, props?: any) => void
-    closeModal: () => void
     showMediaBrowser: (
       config: import('@trokky/trokky/types/media').MediaBrowserConfig
     ) => void

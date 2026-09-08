@@ -247,14 +247,6 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
             return studioContext?.utils?.showConfirm?.(message, { title }) || false
           },
           
-          openModal: (content: ReactNode, options = {}) => {
-            studioContext?.utils?.openModal?.(() => <>{content}</>, options)
-          },
-          
-          closeModal: () => {
-            studioContext?.utils?.closeModal?.()
-          },
-          
           refresh: () => {
             window.location.reload()
           },

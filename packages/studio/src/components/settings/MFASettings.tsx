@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Dialog } from '@/components/ui/Dialog.js';
 import { apiClient } from '@/services/api-client';
 import {
   ShieldCheckIcon,
@@ -752,11 +753,18 @@ export function MFASettings({ onToast }: MFASettingsProps) {
 
       {/* Disable Dialog */}
       {showDisableDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowDisableDialog(null);
+            setDisablePassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          title={showDisableDialog === 'totp' ? t('mfa.disableDialog.authenticator') : t('mfa.disableDialog.email')}
+        >
+          <Dialog.Body>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               {t('mfa.disableDialog.enterPassword')}
             </p>
@@ -792,17 +800,24 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.disableMethod')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Regenerate Backup Codes Dialog */}
       {showRegenerateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {t('mfa.regenerateBackupCodes.title')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowRegenerateDialog(false);
+            setRegeneratePassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          title={t('mfa.regenerateBackupCodes.title')}
+        >
+          <Dialog.Body>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               {t('mfa.regenerateBackupCodes.description')}
             </p>
@@ -837,17 +852,23 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.regenerate')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Show Backup Codes Dialog (after regeneration) */}
       {showBackupCodes && backupCodes.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {t('mfa.setup.newBackupCodes')}
-            </h3>
+        <Dialog
+          open
+          onClose={() => {
+            setShowBackupCodes(false);
+            setBackupCodes([]);
+          }}
+          variant="center"
+          size="md"
+          title={t('mfa.setup.newBackupCodes')}
+        >
+          <Dialog.Body>
             <div className="space-y-4">
               <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -879,17 +900,29 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
 
       {/* Disable All MFA Dialog */}
       {showDisableAllDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
+        <Dialog
+          open
+          onClose={() => {
+            setShowDisableAllDialog(false);
+            setDisableAllPassword('');
+            setError(null);
+          }}
+          variant="center"
+          size="sm"
+          ariaLabel={t('mfa.disableDialog.all')}
+        >
+          <Dialog.Header>
+            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
               {t('mfa.disableDialog.all')}
             </h3>
+          </Dialog.Header>
+          <Dialog.Body>
             <div className="p-4 mb-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <p className="text-sm text-red-800 dark:text-red-200">
                 {t('mfa.disableDialog.allWarning')}
@@ -930,8 +963,8 @@ export function MFASettings({ onToast }: MFASettingsProps) {
                 {t('mfa.disableDialog.all')}
               </Button>
             </div>
-          </div>
-        </div>
+          </Dialog.Body>
+        </Dialog>
       )}
     </div>
   );

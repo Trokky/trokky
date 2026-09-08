@@ -253,12 +253,6 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         showConfirm: async (message: string, title?: string) => {
           return studioContext?.utils?.showConfirm?.(message, { title }) || Promise.resolve(false)
         },
-        openModal: (content: any, options = {}) => {
-          studioContext?.utils?.openModal?.(content, options)
-        },
-        closeModal: () => {
-          studioContext?.utils?.closeModal?.()
-        },
         refresh: () => window.location.reload(),
         toggleSidebar: () => contextSidebar.toggleCollapse(),
         setSidebarContent: (content: any) => contextSidebar.setContent(content)

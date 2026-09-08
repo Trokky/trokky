@@ -13,7 +13,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useT } from '@trokky/trokky/i18n';
-import { Modal } from '@/components/ui/Modal';
+import { Dialog } from '@/components/ui/Dialog.js';
 import { useApiClient } from '@/hooks/useApiClient';
 
 interface SimpleSearchModalProps {
@@ -206,10 +206,17 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
   const showEmptyState = query.length >= 2 && !isLoading && results.length === 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden w-full max-w-2xl">
+    <Dialog
+      open={isOpen}
+      onClose={handleClose}
+      variant="center"
+      size="lg"
+      className="overflow-hidden"
+      initialFocus={searchInputRef}
+      ariaLabel={t('search.placeholder')}
+    >
         {/* Search Input */}
-        <div className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="shrink-0 flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 mr-3" />
           <input
             ref={searchInputRef}
@@ -244,7 +251,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
         </div>
 
         {/* Content */}
-        <div className="h-96 overflow-y-auto">
+        <Dialog.Body padded={false} className="h-96">
           {/* Loading */}
           {isLoading && (
             <div className="p-8 text-center">
@@ -365,16 +372,13 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
               <p className="text-gray-500 dark:text-gray-400">{t('search.typeToSearch')}</p>
             </div>
           )}
-        </div>
+        </Dialog.Body>
 
         {/* Footer */}
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{t('search.pressEscape')}</span>
-            <span>{t('search.poweredBy')}</span>
-          </div>
-        </div>
-      </div>
-    </Modal>
+        <Dialog.Footer padded={false} justify="between" className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
+          <span>{t('search.pressEscape')}</span>
+          <span>{t('search.poweredBy')}</span>
+        </Dialog.Footer>
+    </Dialog>
   );
 }

@@ -9,6 +9,7 @@ import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { MediaFieldDefinition } from './definition'
 import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/trokky/types'
 import { MEDIA_FIELD_DEFAULTS } from './definition'
+import { Dialog } from '@/components/ui/Dialog.js'
 
 // Heroicons imports - using icons that are available
 import {
@@ -578,21 +579,14 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
     }
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center overflow-y-auto p-4 z-50" onClick={() => setShowUploadDialog(false)}>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto border-2 border-gray-300 dark:border-gray-600 shadow-xl" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {getDialogTitle()}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setShowUploadDialog(false)}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-          </div>
-
+      <Dialog
+        open={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        variant="center"
+        size="md"
+        title={getDialogTitle()}
+      >
+        <Dialog.Body>
           <div
             ref={dropZoneRef}
             className={`
@@ -681,17 +675,17 @@ export function MediaFieldComponent(props: MediaFieldComponentProps) {
             )}
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setShowUploadDialog(false)}
-              className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-            >
-              {t('types.media.cancel')}
-            </button>
-          </div>
-        </div>
-      </div>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <button
+            type="button"
+            onClick={() => setShowUploadDialog(false)}
+            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+          >
+            {t('types.media.cancel')}
+          </button>
+        </Dialog.Footer>
+      </Dialog>
     )
   }
 

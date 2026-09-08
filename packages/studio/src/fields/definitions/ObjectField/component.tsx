@@ -16,7 +16,7 @@ import {
 } from './validation.js';
 import { fieldRegistry } from '../../registry/FieldRegistry.js';
 import { getOrderedFields } from './definition.js';
-import { ObjectModal } from './ObjectModal.js';
+import { FieldDrawer } from '../../components/FieldDrawer.js';
 
 // ObjectField component props
 type ObjectFieldComponentProps = FieldComponentProps;
@@ -616,23 +616,28 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
       <>
         {renderTopLevelCard()}
 
-        <ObjectModal
+        <FieldDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          definition={objectDefinition}
-          value={objectValue}
-          onChange={onChange}
-          fieldId={fieldId}
-          isDisabled={isDisabled}
-          isReadonly={isReadonly}
-          studioContext={props.studioContext}
-          documentContext={props.documentContext ? {
-            ...props.documentContext,
-            nestingLevel: nestingLevel + 1
-          } : undefined}
-          visibleFields={visibleFields}
-          renderField={renderField}
-        />
+          title={objectDefinition.title || t('types.object.label')}
+          subtitle={objectDefinition.description}
+        >
+          <div className="space-y-6">
+            {visibleFields.length > 0 ? (
+              visibleFields.map(field => (
+                <div key={field.name}>
+                  {renderField(field.name, field.definition)}
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400">
+                  {t('modal.noFieldsDefined')}
+                </p>
+              </div>
+            )}
+          </div>
+        </FieldDrawer>
       </>
     );
   }

@@ -125,7 +125,7 @@ export const ToastContainer: React.FC = () => {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 space-y-2 max-w-xs w-full pointer-events-none"
+      className="fixed bottom-4 right-4 z-toast space-y-2 max-w-xs w-full pointer-events-none"
       aria-live="polite"
       aria-label={t('toast.notifications')}
     >
