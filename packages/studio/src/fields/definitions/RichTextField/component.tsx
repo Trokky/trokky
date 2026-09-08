@@ -32,7 +32,135 @@ const logger = createStudioLogger('RichTextField')
 
 type RichTextFieldComponentProps = FieldComponentProps
 
+/**
+ * Read-only rendering of a rich text value.
+ *
+ * Separate from the editor on purpose. Tiptap has no way to skip constructing an editor, so
+ * a single component with an early return still pays for StarterKit, Link, Image, Tables,
+ * CodeBlockLowlight and CharacterCount on every preview or readonly mount — roughly 3.5x the
+ * cost of rendering the stored HTML — for an editor that is never displayed.
+ */
+// Safe HTML renderer for read-only content. Shared by the view component and the editor's
+// source/preview paths, so it takes its translator rather than closing over one.
+function renderSafeHTML(
+  htmlContent: string,
+  t: (key: string) => string,
+  pasteSecurity?: Parameters<typeof sanitizePastedContent>[1]
+) {
+  if (!htmlContent || typeof htmlContent !== 'string') {
+    return (
+      <span className="text-gray-500 dark:text-gray-400 italic text-sm">
+        {t('types.richtext.noContent')}
+      </span>
+    )
+  }
+
+  // Use the same sanitizer that's used for paste operations
+  const cleanHTML = sanitizePastedContent(
+    htmlContent,
+    pasteSecurity || SECURITY_PRESETS.safe
+  )
+
+  return (
+    <div
+      className="prose prose-sm dark:prose-invert max-w-none text-gray-900 dark:text-gray-100"
+      dangerouslySetInnerHTML={{ __html: cleanHTML.sanitizedContent }}
+      style={{
+        // Apply the same styles as the editor for consistency
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+      }}
+    />
+  )
+}
+
+function RichTextView({
+  value,
+  options,
+  characterLimit,
+  t,
+  pasteSecurity,
+}: {
+  value: string | undefined
+  options: { showStats?: boolean }
+  characterLimit: number | undefined
+  t: (key: string) => string
+  pasteSecurity?: Parameters<typeof sanitizePastedContent>[1]
+}) {
+  const stats = useMemo(() => {
+    if (!value) return { words: 0, characters: 0, readTime: 0 }
+
+    // Extract text content from HTML for stats
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = value
+    const text = tempDiv.textContent || tempDiv.innerText || ''
+
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0
+    const characters = text.length
+    const readTime = Math.ceil(words / 200)
+
+    return { words, characters, readTime }
+  }, [value])
+
+  return (
+    <div className="py-2">
+      {value ? (
+        <div className="space-y-4">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+            {renderSafeHTML(value, t, pasteSecurity)}
+          </div>
+
+          {/* Stats display in read-only mode */}
+          {options.showStats && (
+            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+              <span>{stats.words} {t('types.richtext.stats.words')}</span>
+              <span>
+                {stats.characters}
+                {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
+              </span>
+              <span>{stats.readTime} {t('types.richtext.stats.minRead')}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <span className="text-gray-500 dark:text-gray-400 italic text-sm">
+          {t('types.richtext.noContent')}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Chooses between the read-only view and the editor.
+ *
+ * The branch lives here, above both, so neither component has a conditional hook and the
+ * editor's hooks only ever run when there is an editor on screen.
+ */
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
+  const { value, definition, isDisabled, isReadonly, mode } = props
+  const { t } = useT('fields')
+
+  const richtextDefinition = definition as RichTextFieldDefinition
+  const options = richtextDefinition.options || {}
+  const validation = richtextDefinition.validation || {}
+
+  if (mode === 'preview' || isReadonly || isDisabled) {
+    return (
+      <RichTextView
+        value={value as string | undefined}
+        options={options}
+        characterLimit={validation.maxLength}
+        t={t}
+        pasteSecurity={options.pasteSecurity}
+      />
+    )
+  }
+
+  return <RichTextEditorField {...props} />
+}
+
+function RichTextEditorField(props: RichTextFieldComponentProps) {
   const {
     definition,
     value,
@@ -105,54 +233,10 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   isViewModeRef.current = isViewMode
   outputFormatRef.current = options.outputFormat || 'html'
 
-  // Statistics for the read-only view. Derived from the stored value rather
-  // than the editor, and only computed in view mode.
-  const readOnlyStats = useMemo(() => {
-    if (!isViewMode || !value) return { words: 0, characters: 0, readTime: 0 }
-
-    // Extract text content from HTML for stats
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = value
-    const text = tempDiv.textContent || tempDiv.innerText || ''
-
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0
-    const characters = text.length
-    const readTime = Math.ceil(words / 200)
-
-    return { words, characters, readTime }
-  }, [value, isViewMode])
 
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark')
 
-  // Safe HTML renderer for read-only mode
-  const renderSafeHTML = (htmlContent: string) => {
-    if (!htmlContent || typeof htmlContent !== 'string') {
-      return (
-        <span className="text-gray-500 dark:text-gray-400 italic text-sm">
-          {t('types.richtext.noContent')}
-        </span>
-      )
-    }
-
-    // Use the same sanitizer that's used for paste operations
-    const cleanHTML = sanitizePastedContent(
-      htmlContent,
-      richtextDefinition.options?.pasteSecurity || SECURITY_PRESETS.safe
-    )
-
-    return (
-      <div
-        className="prose prose-sm dark:prose-invert max-w-none text-gray-900 dark:text-gray-100"
-        dangerouslySetInnerHTML={{ __html: cleanHTML.sanitizedContent }}
-        style={{
-          // Apply the same styles as the editor for consistency
-          fontSize: '0.875rem',
-          lineHeight: '1.25rem',
-        }}
-      />
-    )
-  }
 
   // Initialize Tiptap editor
   // Initialize Tiptap editor
@@ -502,37 +586,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     return (
       <div className="text-red-500 text-sm">
         {t('types.richtext.invalidConfig')}
-      </div>
-    )
-  }
-
-  // Render read-only view
-  if (isViewMode) {
-    return (
-      <div className="py-2">
-        {value ? (
-          <div className="space-y-4">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
-              {renderSafeHTML(value)}
-            </div>
-
-            {/* Stats display in read-only mode */}
-            {options.showStats && (
-              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span>{readOnlyStats.words} {t('types.richtext.stats.words')}</span>
-                <span>
-                  {readOnlyStats.characters}
-                  {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
-                </span>
-                <span>{readOnlyStats.readTime} {t('types.richtext.stats.minRead')}</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <span className="text-gray-500 dark:text-gray-400 italic text-sm">
-            {t('types.richtext.noContent')}
-          </span>
-        )}
       </div>
     )
   }
