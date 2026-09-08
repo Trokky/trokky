@@ -1,332 +1,36 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import { useEditor, type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
-import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
-import Placeholder from '@tiptap/extension-placeholder'
-import CharacterCount from '@tiptap/extension-character-count'
-import Image from '@tiptap/extension-image'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableHeaderCell from '@tiptap/extension-table-header'
-import TableCell from '@tiptap/extension-table-cell'
-import Gapcursor from '@tiptap/extension-gapcursor'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { common, createLowlight } from 'lowlight'
 import { Dialog } from '@/components/ui/Dialog.js'
 import { bodyScrollLock, isEscapeOwnedByDialog } from '@/components/ui/dialogInternals.js'
 import {
-  BoldIcon,
-  ItalicIcon,
-  UnderlineIcon,
-  StrikethroughIcon,
-  LinkIcon,
-  ListBulletIcon,
-  NumberedListIcon,
-  ArrowUturnLeftIcon,
-  ArrowUturnRightIcon,
-  ChatBubbleBottomCenterTextIcon,
   ArrowsPointingOutIcon,
   XMarkIcon,
-  PhotoIcon,
 } from '@heroicons/react/24/outline'
-
-// Simple heading icons
-const H1Icon = ({ className }: { className?: string }) => (
-  <span className={`font-bold text-base ${className || ''}`}>H1</span>
-)
-const H2Icon = ({ className }: { className?: string }) => (
-  <span className={`font-bold text-sm ${className || ''}`}>H2</span>
-)
-const H3Icon = ({ className }: { className?: string }) => (
-  <span className={`font-bold text-xs ${className || ''}`}>H3</span>
-)
-
-// Simple trash icon
-const TrashIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-    />
-  </svg>
-)
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { RichTextFieldDefinition } from './definition'
 import { createStudioLogger } from '../../../utils/logger'
 import { useT } from '@trokky/trokky/i18n'
-import type { MediaFieldValue } from '@trokky/trokky/types'
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer'
 import {
   editorToStorageFormat,
   storageToEditorFormat,
 } from './format-converter'
 import type { RichTextOutputFormat, ProseMirrorDocument } from './definition'
+import { ToolbarButton } from './ToolbarButton'
+import { SourceCodeIcon } from './icons'
+import { createRichTextExtensions } from './extensions'
+import { createPasteHandler } from './pasteHandler'
+import { RichTextFormatButtons } from './RichTextFormatButtons'
+import { ImageToolbar } from './ImageToolbar'
+import { TableToolbar } from './TableToolbar'
+import { SanitizationWarning } from './SanitizationWarning'
+import { InlineEditorSurface, FullscreenEditorSurface } from './EditorSurface'
+import { useRichTextImages } from './useRichTextImages'
 
 const logger = createStudioLogger('RichTextField')
 
 type RichTextFieldComponentProps = FieldComponentProps
-
-// Toolbar button component
-function ToolbarButton({
-  onClick,
-  isActive = false,
-  isDisabled = false,
-  icon: Icon,
-  title,
-}: {
-  onClick: () => void
-  isActive?: boolean
-  isDisabled?: boolean
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isDisabled}
-      title={title}
-      className={`
-        p-2 rounded transition-colors
-        ${
-          isActive
-            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-        }
-        ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-900 dark:hover:text-white'}
-      `}
-    >
-      <Icon className="w-4 h-4" />
-    </button>
-  )
-}
-
-// Toolbar separator
-function ToolbarSeparator() {
-  return <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-}
-
-// Table and Code icons
-const TableIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M3 3h18v18H3V3zm0 6h18m-9-6v18M3 15h18"
-    />
-  </svg>
-)
-
-const CodeIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="m7 8-4 4 4 4m10-8 4 4-4 4M14 4l-4 16"
-    />
-  </svg>
-)
-
-// Table manipulation icons
-const PlusRowIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 4v16m8-8H4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M3 12h18M3 8h18M3 16h18"
-    />
-  </svg>
-)
-
-const MinusRowIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M20 12H4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M3 12h18M3 8h18M3 16h18"
-    />
-  </svg>
-)
-
-const PlusColumnIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 4v16m8-8H4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M8 3v18M12 3v18M16 3v18"
-    />
-  </svg>
-)
-
-const MinusColumnIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M20 12H4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M8 3v18M12 3v18M16 3v18"
-    />
-  </svg>
-)
-
-const HeaderIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M3 3h18v6H3V3zM3 15h18v6H3v-6z"
-    />
-  </svg>
-)
-
-const MergeCellsIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M3 3h18v18H3V3z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 9h6v6H9V9z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M12 3v6M12 15v6M3 12h6M15 12h6"
-    />
-  </svg>
-)
-
-const SplitCellIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M3 3h18v18H3V3z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 3v18M3 12h18"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1}
-      d="M8 8h8M8 16h8"
-    />
-  </svg>
-)
-
-const SourceCodeIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-    />
-  </svg>
-)
-
-// Create lowlight instance for code syntax highlighting
-const lowlight = createLowlight(common)
 
 export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   const {
@@ -486,78 +190,9 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   }
 
   // Initialize Tiptap editor
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: (options.headingLevels || [1, 2, 3]) as any,
-        },
-        // Disable gapcursor and codeBlock from StarterKit since we add them manually
-        gapcursor: false,
-        codeBlock: false,
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class:
-            'text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300',
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg',
-        },
-        allowBase64: true,
-      }).extend({
-        addAttributes() {
-          return {
-            ...this.parent?.(),
-            'data-trokky-id': {
-              default: null,
-              parseHTML: element => element.getAttribute('data-trokky-id'),
-              renderHTML: attributes => {
-                if (!attributes['data-trokky-id']) {
-                  return {}
-                }
-                return { 'data-trokky-id': attributes['data-trokky-id'] }
-              },
-            },
-            'data-trokky-variant': {
-              default: null,
-              parseHTML: element => element.getAttribute('data-trokky-variant'),
-              renderHTML: attributes => {
-                if (!attributes['data-trokky-variant']) {
-                  return {}
-                }
-                return {
-                  'data-trokky-variant': attributes['data-trokky-variant'],
-                }
-              },
-            },
-          }
-        },
-      }),
-      Placeholder.configure({
-        placeholder: options.placeholder || 'Start typing...',
-      }),
-      Gapcursor,
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeaderCell,
-      TableCell,
-      CodeBlockLowlight.configure({
-        lowlight,
-        HTMLAttributes: {
-          class: 'hljs',
-        },
-      }),
-      ...(characterLimit
-        ? [CharacterCount.configure({ limit: characterLimit })]
-        : []),
-    ],
+  // Initialize Tiptap editor
+  const editor: Editor | null = useEditor({
+    extensions: createRichTextExtensions(options, characterLimit),
     content: (() => {
       // Get output format from options (default to 'html' for backwards compatibility)
       const outputFormat: RichTextOutputFormat = options.outputFormat || 'html'
@@ -573,65 +208,11 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     })(),
     editable: !isDisabled && !isReadonly,
     editorProps: {
-      handlePaste: (_view, event) => {
-        const clipboardData = event.clipboardData
-        if (!clipboardData) return false
-
-        const html = clipboardData.getData('text/html')
-
-        // If there's HTML content, sanitize it
-        if (html && html.trim()) {
-          event.preventDefault()
-
-          // Get paste security config from field options or use safe default
-          const pasteConfig =
-            richtextDefinition.options?.pasteSecurity || SECURITY_PRESETS.safe
-
-          // Sanitize the pasted content
-          const result = sanitizePastedContent(html, pasteConfig)
-
-          logger.debug('Paste sanitization result', {
-            originalLength: result.originalContent.length,
-            sanitizedLength: result.sanitizedContent.length,
-            wasModified: result.wasModified,
-            warningCount: result.warnings.length,
-          })
-
-          // Show warning if content was modified and warnings are enabled
-          if (
-            result.wasModified &&
-            pasteConfig.showSanitizationWarning &&
-            result.warnings.length > 0
-          ) {
-            const warningMessage = `Content was sanitized for security: ${result.warnings.slice(0, 3).join(', ')}${result.warnings.length > 3 ? '...' : ''}`
-            setSanitizationWarning(warningMessage)
-
-            // Auto-hide warning after 5 seconds
-            setTimeout(() => setSanitizationWarning(null), 5000)
-          }
-
-          // Use setTimeout to ensure the editor is ready and insert content properly
-          setTimeout(() => {
-            // Access the editor from the Tiptap instance
-            const currentEditor = editor
-            if (currentEditor && result.sanitizedContent) {
-              // Use Tiptap's insertContent command which properly handles HTML
-              currentEditor.commands.insertContent(result.sanitizedContent)
-            } else if (currentEditor) {
-              // Fallback to plain text if sanitization removed everything
-              const plainText = clipboardData.getData('text/plain')
-              if (plainText) {
-                currentEditor.commands.insertContent(plainText)
-              }
-            }
-          }, 0)
-
-          return true // Prevent default paste
-        }
-
-        // For plain text or when HTML sanitization isn't needed, allow default behavior
-        return false
-      },
+      handlePaste: createPasteHandler(
+        richtextDefinition,
+        () => editor,
+        setSanitizationWarning
+      ),
     },
     onUpdate: ({ editor }) => {
       if (isViewModeRef.current || !onChangeRef.current) return
@@ -655,7 +236,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       handleSelectionUpdate(editor)
     },
   })
-
   // Ensure editor content is synced when toggling fullscreen
   useEffect(() => {
     if (editor && value !== undefined) {
@@ -919,234 +499,20 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
     setLinkText('')
   }, [editor, linkUrl, linkText])
 
-  // Handle image selection from media browser
-  const handleImageSelected = useCallback(
-    (selectedValue: MediaFieldValue) => {
-      if (!editor || !selectedValue?.asset?._ref) {
-        return
-      }
-
-      const assetId = selectedValue.asset._ref
-      let altText = selectedValue.alt || ''
-
-      // Get the media metadata for alt text fallback
-      if (studioContext?.apiClient) {
-        studioContext.apiClient
-          .getMediaById(assetId)
-          .then(response => {
-            if (response.success && response.data?.file) {
-              const mediaFile = response.data.file
-
-              // Use metadata alt text if no alt text was provided
-              if (!selectedValue.alt) {
-                altText = mediaFile.metadata?.alt || mediaFile.filename || ''
-              }
-
-              // 🎯 NEW APPROACH: Insert image with data attributes for shortcode conversion
-              let imageUrl: string = ''
-              if (studioContext?.mediaUrlGenerator) {
-                // Generate URL for Studio display (users see real image)
-                imageUrl = studioContext.mediaUrlGenerator.getMediaUrl(
-                  assetId,
-                  selectedValue.variant && selectedValue.variant !== 'original'
-                    ? selectedValue.variant
-                    : undefined
-                )
-              } else if (studioContext?.apiClient?.getMediaUrl) {
-                // Fallback to apiClient if MediaUrlGenerator not available
-                imageUrl = studioContext.apiClient.getMediaUrl(
-                  assetId,
-                  selectedValue.variant && selectedValue.variant !== 'original'
-                    ? selectedValue.variant
-                    : undefined
-                )
-              } else {
-                // Fallback URL generation
-                imageUrl = mediaFile.url
-              }
-
-              // Insert image with special data attributes for shortcode identification
-              const imageAttrs = {
-                src: imageUrl,
-                alt: altText,
-                title: altText,
-                'data-trokky-id': assetId,
-                ...(selectedValue.variant &&
-                  selectedValue.variant !== 'original' && {
-                    'data-trokky-variant': selectedValue.variant,
-                  }),
-                // Add default styling for rich text images
-                class: 'max-w-full h-auto rounded-lg',
-              }
-
-              // Insert the image into the editor with data attributes
-              editor.chain().focus().setImage(imageAttrs).run()
-
-              logger.info('Image inserted with shortcode data', {
-                imageUrl,
-                altText,
-                assetId,
-                variant: selectedValue.variant,
-                shortcodeReady: true,
-              })
-            } else {
-              logger.error('Invalid media metadata response', response)
-            }
-          })
-          .catch(error => {
-            logger.error('Failed to load image asset', error)
-          })
-      } else {
-        logger.warn('No Studio context available for image URL resolution')
-      }
-    },
-    [editor, studioContext?.apiClient, studioContext?.mediaUrlGenerator, logger]
-  )
-
-  // Handle variant change for selected image
-  const handleVariantChange = useCallback(
-    (variantName: string) => {
-      if (!editor || !selectedImageNode) return
-
-      // Get trokky-id from existing data attributes (preferred) or extract from URL
-      const trokkyId = selectedImageNode.attrs['data-trokky-id']
-      const imageSrc = selectedImageNode.attrs.src
-      let assetId = trokkyId
-
-      // Fallback: extract from URL if no trokky-id
-      if (!assetId) {
-        const assetIdMatch = imageSrc.match(/\/media\/([^\/]+)/)
-        assetId = assetIdMatch?.[1]
-      }
-
-      if (assetId && studioContext?.mediaUrlGenerator) {
-        // Generate new URL using MediaUrlGenerator or apiClient
-        let newImageUrl: string
-        if (studioContext.mediaUrlGenerator) {
-          newImageUrl =
-            variantName === 'original'
-              ? studioContext.mediaUrlGenerator.getMediaUrl(assetId)
-              : studioContext.mediaUrlGenerator.getMediaUrl(
-                  assetId,
-                  variantName
-                )
-        } else if (studioContext.apiClient?.getMediaUrl) {
-          newImageUrl =
-            variantName === 'original'
-              ? studioContext.apiClient.getMediaUrl(assetId)
-              : studioContext.apiClient.getMediaUrl(assetId, variantName)
-        } else {
-          console.error('No URL generator available for media')
-          return
-        }
-
-        // Update image attributes including data attributes for shortcode conversion
-        const newAttrs = {
-          src: newImageUrl,
-          'data-trokky-id': assetId,
-          ...(variantName !== 'original' && {
-            'data-trokky-variant': variantName,
-          }),
-        }
-
-        // Remove variant data attribute if original is selected
-        if (
-          variantName === 'original' &&
-          selectedImageNode.attrs['data-trokky-variant']
-        ) {
-          // Need to explicitly remove the attribute
-          editor
-            .chain()
-            .focus()
-            .updateAttributes('image', {
-              ...newAttrs,
-              'data-trokky-variant': null,
-            })
-            .run()
-        } else {
-          editor.chain().focus().updateAttributes('image', newAttrs).run()
-        }
-
-        // Update the selected image node in state
-        setSelectedImageNode({
-          ...selectedImageNode,
-          attrs: {
-            ...selectedImageNode.attrs,
-            ...newAttrs,
-          },
-        })
-
-        logger.debug('Image variant changed with shortcode data', {
-          assetId,
-          variant: variantName,
-          newUrl: newImageUrl,
-          hasDataAttributes: true,
-        })
-      } else if (assetId) {
-        // Fallback to URL manipulation (legacy approach when no MediaUrlGenerator)
-        let newImageUrl: string
-        if (variantName === 'original') {
-          newImageUrl = imageSrc.replace(/\/variants\/[^\/]+/, '/file')
-        } else {
-          const variantData = availableVariants[variantName]
-          if (variantData?.url) {
-            newImageUrl = variantData.url
-          } else {
-            logger.warn(`Variant '${variantName}' not found`)
-            return
-          }
-        }
-
-        editor
-          .chain()
-          .focus()
-          .updateAttributes('image', { src: newImageUrl })
-          .run()
-        setSelectedImageNode({
-          ...selectedImageNode,
-          attrs: { ...selectedImageNode.attrs, src: newImageUrl },
-        })
-
-        logger.debug('Image variant changed (legacy URL manipulation)', {
-          assetId,
-          variant: variantName,
-          newUrl: newImageUrl,
-        })
-      } else {
-        logger.warn('No asset ID found for variant change')
-      }
-    },
-    [editor, selectedImageNode, availableVariants, logger, studioContext]
-  )
-
-  // Get current variant from image node (prefer data attributes, fallback to URL)
-  const getCurrentVariant = useCallback((imageNode: any) => {
-    // First, try to get variant from data attribute (shortcode system)
-    if (imageNode?.attrs?.['data-trokky-variant']) {
-      return imageNode.attrs['data-trokky-variant']
-    }
-
-    // Fallback: parse from URL (legacy system)
-    const imageSrc = imageNode?.attrs?.src || ''
-    if (imageSrc.includes('/variants/')) {
-      const variantMatch = imageSrc.match(/\/variants\/([^\/]+)/)
-      return variantMatch ? variantMatch[1] : 'original'
-    }
-
-    return 'original'
-  }, [])
-
-  // Handle image deletion
-  const handleDeleteImage = useCallback(() => {
-    if (!editor) return
-
-    editor.chain().focus().deleteSelection().run()
-    setShowImageToolbar(false)
-    setSelectedImageNode(null)
-    setAvailableVariants({})
-
-    logger.info('Image deleted')
-  }, [editor, logger])
+  const {
+    handleImageSelected,
+    handleVariantChange,
+    getCurrentVariant,
+    handleDeleteImage,
+  } = useRichTextImages({
+    editor,
+    studioContext,
+    selectedImageNode,
+    setSelectedImageNode,
+    availableVariants,
+    setAvailableVariants,
+    setShowImageToolbar,
+  })
 
   // Content statistics
   const stats = useMemo(() => {
@@ -1177,96 +543,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
             <div className="border border-gray-200 dark:border-gray-700 rounded-t-lg bg-gray-50 dark:bg-gray-800 p-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 flex-wrap">
-                  {/* Text formatting */}
-                  <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    isActive={editor.isActive('bold')}
+                  <RichTextFormatButtons
+                    editor={editor}
                     isDisabled={isDisabled}
-                    icon={BoldIcon}
-                    title={t('types.richtext.toolbar.bold')}
-                  />
-                  <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    isActive={editor.isActive('italic')}
-                    isDisabled={isDisabled}
-                    icon={ItalicIcon}
-                    title={t('types.richtext.toolbar.italic')}
-                  />
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleUnderline().run()
-                    }
-                    isActive={editor.isActive('underline')}
-                    isDisabled={isDisabled}
-                    icon={UnderlineIcon}
-                    title={t('types.richtext.toolbar.underline')}
-                  />
-                  <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleStrike().run()}
-                    isActive={editor.isActive('strike')}
-                    isDisabled={isDisabled}
-                    icon={StrikethroughIcon}
-                    title={t('types.richtext.toolbar.strikethrough')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* Headings */}
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleHeading({ level: 1 }).run()
-                    }
-                    isActive={editor.isActive('heading', { level: 1 })}
-                    isDisabled={isDisabled}
-                    icon={H1Icon}
-                    title={t('types.richtext.toolbar.heading1')}
-                  />
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleHeading({ level: 2 }).run()
-                    }
-                    isActive={editor.isActive('heading', { level: 2 })}
-                    isDisabled={isDisabled}
-                    icon={H2Icon}
-                    title={t('types.richtext.toolbar.heading2')}
-                  />
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleHeading({ level: 3 }).run()
-                    }
-                    isActive={editor.isActive('heading', { level: 3 })}
-                    isDisabled={isDisabled}
-                    icon={H3Icon}
-                    title={t('types.richtext.toolbar.heading3')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* Quote */}
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleBlockquote().run()
-                    }
-                    isActive={editor.isActive('blockquote')}
-                    isDisabled={isDisabled}
-                    icon={ChatBubbleBottomCenterTextIcon}
-                    title={t('types.richtext.toolbar.quote')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* Links */}
-                  <ToolbarButton
-                    onClick={openLinkDialog}
-                    isActive={editor.isActive('link')}
-                    isDisabled={isDisabled}
-                    icon={LinkIcon}
-                    title={t('types.richtext.toolbar.addLink')}
-                  />
-
-                  {/* Images */}
-                  <ToolbarButton
-                    onClick={() => {
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onOpenLinkDialog={openLinkDialog}
+                    onInsertImage={() => {
                       if (studioContext?.utils?.showMediaBrowser) {
                         studioContext.utils.showMediaBrowser({
                           onSelect: handleImageSelected,
@@ -1276,75 +559,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                         })
                       }
                     }}
-                    isActive={false}
-                    isDisabled={isDisabled}
-                    icon={PhotoIcon}
-                    title={t('types.richtext.toolbar.insertImage')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* Lists */}
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleBulletList().run()
-                    }
-                    isActive={editor.isActive('bulletList')}
-                    isDisabled={isDisabled}
-                    icon={ListBulletIcon}
-                    title={t('types.richtext.toolbar.bulletList')}
-                  />
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleOrderedList().run()
-                    }
-                    isActive={editor.isActive('orderedList')}
-                    isDisabled={isDisabled}
-                    icon={NumberedListIcon}
-                    title={t('types.richtext.toolbar.numberedList')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* Table */}
-                  <ToolbarButton
-                    onClick={() =>
-                      editor
-                        .chain()
-                        .focus()
-                        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                        .run()
-                    }
-                    isDisabled={isDisabled}
-                    icon={TableIcon}
-                    title={t('types.richtext.toolbar.insertTable')}
-                  />
-
-                  {/* Code Block */}
-                  <ToolbarButton
-                    onClick={() =>
-                      editor.chain().focus().toggleCodeBlock().run()
-                    }
-                    isActive={editor.isActive('codeBlock')}
-                    isDisabled={isDisabled}
-                    icon={CodeIcon}
-                    title={t('types.richtext.toolbar.codeBlock')}
-                  />
-
-                  <ToolbarSeparator />
-
-                  {/* History */}
-                  <ToolbarButton
-                    onClick={() => editor.chain().focus().undo().run()}
-                    isDisabled={isDisabled || !canUndo}
-                    icon={ArrowUturnLeftIcon}
-                    title={t('types.richtext.toolbar.undo')}
-                  />
-                  <ToolbarButton
-                    onClick={() => editor.chain().focus().redo().run()}
-                    isDisabled={isDisabled || !canRedo}
-                    icon={ArrowUturnRightIcon}
-                    title={t('types.richtext.toolbar.redo')}
                   />
                 </div>
 
@@ -1376,451 +590,40 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
           {/* Contextual Image Toolbar */}
           {!isReadonly && showImageToolbar && selectedImageNode && (
-            <div className="border-l border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t('types.richtext.imageToolbar.title')}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {/* Variant Selector */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600 dark:text-gray-400">
-                      {t('types.richtext.imageToolbar.variant')}
-                    </label>
-                    <select
-                      value={getCurrentVariant(selectedImageNode)}
-                      onChange={e => handleVariantChange(e.target.value)}
-                      className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={isDisabled}
-                    >
-                      <option value="original">{t('types.richtext.imageToolbar.original')}</option>
-                      {Object.entries(availableVariants).map(
-                        ([variantName, variantData]: [string, any]) => (
-                          <option key={variantName} value={variantName}>
-                            {variantName.charAt(0).toUpperCase() +
-                              variantName.slice(1)}{' '}
-                            ({variantData.width}×{variantData.height})
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={handleDeleteImage}
-                    disabled={isDisabled}
-                    className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.imageToolbar.deleteTitle')}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                    {t('types.richtext.imageToolbar.delete')}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ImageToolbar
+              className="border-l border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2"
+              currentVariant={getCurrentVariant(selectedImageNode)}
+              availableVariants={availableVariants}
+              isDisabled={isDisabled}
+              onVariantChange={handleVariantChange}
+              onDeleteImage={handleDeleteImage}
+            />
           )}
 
           {/* Contextual Table Toolbar */}
           {!isReadonly && showTableToolbar && editor && (
-            <div className="border-l border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TableIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t('types.richtext.tableToolbar.title')}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Add Row */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().addRowAfter().run()}
-                    disabled={isDisabled || !editor.can().addRowAfter()}
-                    className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.addRowAfter')}
-                  >
-                    <PlusRowIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.row')}
-                  </button>
-
-                  {/* Remove Row */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().deleteRow().run()}
-                    disabled={isDisabled || !editor.can().deleteRow()}
-                    className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.deleteRow')}
-                  >
-                    <MinusRowIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.row')}
-                  </button>
-
-                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
-
-                  {/* Add Column */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      editor.chain().focus().addColumnAfter().run()
-                    }
-                    disabled={isDisabled || !editor.can().addColumnAfter()}
-                    className="px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.addColumnAfter')}
-                  >
-                    <PlusColumnIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.col')}
-                  </button>
-
-                  {/* Remove Column */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().deleteColumn().run()}
-                    disabled={isDisabled || !editor.can().deleteColumn()}
-                    className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.deleteColumn')}
-                  >
-                    <MinusColumnIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.col')}
-                  </button>
-
-                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
-
-                  {/* Toggle Header Row */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      editor.chain().focus().toggleHeaderRow().run()
-                    }
-                    disabled={isDisabled || !editor.can().toggleHeaderRow()}
-                    className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.toggleHeaderRow')}
-                  >
-                    <HeaderIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.header')}
-                  </button>
-
-                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
-
-                  {/* Merge Cells */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().mergeCells().run()}
-                    disabled={isDisabled || !editor.can().mergeCells()}
-                    className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.mergeSelectedCells')}
-                  >
-                    <MergeCellsIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.merge')}
-                  </button>
-
-                  {/* Split Cell */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().splitCell().run()}
-                    disabled={isDisabled || !editor.can().splitCell()}
-                    className="px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.splitCell')}
-                  >
-                    <SplitCellIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.split')}
-                  </button>
-
-                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
-
-                  {/* Delete Table */}
-                  <button
-                    type="button"
-                    onClick={() => editor.chain().focus().deleteTable().run()}
-                    disabled={isDisabled || !editor.can().deleteTable()}
-                    className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.tableToolbar.deleteTable')}
-                  >
-                    <TrashIcon className="w-3 h-3" />
-                    {t('types.richtext.tableToolbar.table')}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <TableToolbar editor={editor} isDisabled={isDisabled} />
           )}
 
           {/* Sanitization Warning */}
           {sanitizationWarning && (
-            <div className="border-l border-r border-yellow-200 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <svg
-                    className="w-4 h-4 text-yellow-600 dark:text-yellow-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 15.5c-.77.833.192 2.5 1.732 2.5z"
-                    />
-                  </svg>
-                  <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                    {sanitizationWarning}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSanitizationWarning(null)}
-                  className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
-                  title={t('types.richtext.sanitization.dismissWarning')}
-                >
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <SanitizationWarning
+              warning={sanitizationWarning}
+              onDismiss={() => setSanitizationWarning(null)}
+            />
           )}
 
           {/* Editor */}
-          <div
-            className={`
-          border border-t-0 border-gray-200 dark:border-gray-700
-          ${isReadonly ? 'rounded-lg' : 'rounded-b-lg'}
-          bg-white dark:bg-gray-900
-          ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
-          >
-            <div
-              className="tiptap-editor-container relative min-h-[300px]"
-              ref={editorContainerRef}
-            >
-              <style
-                dangerouslySetInnerHTML={{
-                  __html: `
-              .tiptap-editor-container .ProseMirror h1 {
-                font-size: 1.875rem !important;
-                font-weight: 700 !important;
-                margin-bottom: 1rem !important;
-                margin-top: 0.5rem !important;
-                line-height: 1.2 !important;
-              }
-              .tiptap-editor-container .ProseMirror h2 {
-                font-size: 1.5rem !important;
-                font-weight: 600 !important;
-                margin-bottom: 0.75rem !important;
-                margin-top: 0.5rem !important;
-                line-height: 1.3 !important;
-              }
-              .tiptap-editor-container .ProseMirror h3 {
-                font-size: 1.25rem !important;
-                font-weight: 600 !important;
-                margin-bottom: 0.5rem !important;
-                margin-top: 0.5rem !important;
-                line-height: 1.4 !important;
-              }
-              .tiptap-editor-container .ProseMirror blockquote {
-                border-left: 3px solid #d1d5db !important;
-                padding-left: 1rem !important;
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-                margin-top: 0.5rem !important;
-                margin-bottom: 0.5rem !important;
-                font-style: italic !important;
-              }
-              .dark .tiptap-editor-container .ProseMirror blockquote {
-                border-left-color: #4b5563 !important;
-              }
-              .tiptap-editor-container .ProseMirror ul {
-                list-style-type: disc !important;
-                padding-left: 1.5rem !important;
-                margin-top: 0.5rem !important;
-                margin-bottom: 0.5rem !important;
-              }
-              .tiptap-editor-container .ProseMirror ol {
-                list-style-type: decimal !important;
-                padding-left: 1.5rem !important;
-                margin-top: 0.5rem !important;
-                margin-bottom: 0.5rem !important;
-              }
-              .tiptap-editor-container .ProseMirror li {
-                margin-bottom: 0.25rem !important;
-              }
-              .tiptap-editor-container .ProseMirror img {
-                max-width: 100% !important;
-                height: auto !important;
-                border-radius: 0.5rem !important;
-                margin: 0.5rem 0 !important;
-                display: block !important;
-                cursor: pointer !important;
-                transition: all 0.2s ease !important;
-              }
-              .tiptap-editor-container .ProseMirror img:hover {
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-              }
-              /* Direct image selection styles with maximum specificity */
-              img.ProseMirror-selectednode {
-                border: 4px solid #3b82f6 !important;
-                box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4) !important;
-                transform: scale(1.03) !important;
-                outline: none !important;
-                background: rgba(59, 130, 246, 0.1) !important;
-                position: relative !important;
-                z-index: 100 !important;
-              }
-
-              /* Backup selector with blue styling to match */
-              .ProseMirror img[data-selected="true"] {
-                border: 3px solid #3b82f6 !important;
-                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 4px 12px rgba(59, 130, 246, 0.2) !important;
-                transform: scale(1.02) !important;
-                outline: none !important;
-              }
-
-              /* Table Styles */
-              .tiptap-editor-container .ProseMirror table {
-                border-collapse: collapse !important;
-                table-layout: fixed !important;
-                width: 100% !important;
-                margin: 1rem 0 !important;
-                overflow: hidden !important;
-                border: 2px solid #d1d5db !important;
-                border-radius: 0.5rem !important;
-              }
-              .dark .tiptap-editor-container .ProseMirror table {
-                border-color: #4b5563 !important;
-              }
-              .tiptap-editor-container .ProseMirror td, .tiptap-editor-container .ProseMirror th {
-                min-width: 1em !important;
-                border: 1px solid #d1d5db !important;
-                padding: 0.75rem !important;
-                vertical-align: top !important;
-                box-sizing: border-box !important;
-                position: relative !important;
-                background: #ffffff !important;
-              }
-              .dark .tiptap-editor-container .ProseMirror td, .dark .tiptap-editor-container .ProseMirror th {
-                border-color: #4b5563 !important;
-                background: #1f2937 !important;
-              }
-              .tiptap-editor-container .ProseMirror th {
-                font-weight: 600 !important;
-                text-align: left !important;
-                background-color: #f9fafb !important;
-              }
-              .dark .tiptap-editor-container .ProseMirror th {
-                background-color: #374151 !important;
-              }
-              .tiptap-editor-container .ProseMirror .selectedCell:after {
-                z-index: 2 !important;
-                position: absolute !important;
-                content: "" !important;
-                left: 0 !important;
-                right: 0 !important;
-                top: 0 !important;
-                bottom: 0 !important;
-                background: rgba(59, 130, 246, 0.2) !important;
-                pointer-events: none !important;
-              }
-
-              /* Table cell content styling */
-              .tiptap-editor-container .ProseMirror td > *, .tiptap-editor-container .ProseMirror th > * {
-                margin-bottom: 0 !important;
-              }
-
-              /* Code Block Styles */
-              .tiptap-editor-container .ProseMirror pre {
-                background: #1f2937 !important;
-                color: #f9fafb !important;
-                font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace !important;
-                padding: 1rem !important;
-                border-radius: 0.5rem !important;
-                overflow-x: auto !important;
-                margin: 1rem 0 !important;
-                border: 1px solid #374151 !important;
-                font-size: 0.875rem !important;
-                line-height: 1.5 !important;
-              }
-              .dark .tiptap-editor-container .ProseMirror pre {
-                background: #0f172a !important;
-                border-color: #1e293b !important;
-              }
-              .tiptap-editor-container .ProseMirror pre code {
-                color: inherit !important;
-                padding: 0 !important;
-                background: none !important;
-                font-size: inherit !important;
-                border-radius: 0 !important;
-              }
-
-              /* Selection container styles */
-              .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode,
-              .tiptap-editor-container .ProseMirror .ProseMirror-selectednode {
-                position: relative !important;
-                margin: 8px !important;
-              }
-
-              .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before,
-              .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
-                content: '' !important;
-                position: absolute !important;
-                top: -8px !important;
-                left: -8px !important;
-                right: -8px !important;
-                bottom: -8px !important;
-                border: 2px dashed #3b82f6 !important;
-                border-radius: 1rem !important;
-                pointer-events: none !important;
-                background: rgba(59, 130, 246, 0.05) !important;
-                z-index: 9 !important;
-              }
-
-              .dark .rich-text-field .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before,
-              .dark .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
-                border-color: #60a5fa !important;
-                background: rgba(96, 165, 250, 0.05) !important;
-              }
-              .tiptap-editor-container .ProseMirror {
-                outline: none !important;
-                border: none !important;
-                box-shadow: none !important;
-                min-height: 300px !important;
-              }
-              .tiptap-editor-container {
-                min-height: 300px !important;
-              }
-              .tiptap-editor-container .ProseMirror:focus {
-                outline: none !important;
-                border: none !important;
-                box-shadow: none !important;
-              }
-            `,
-                }}
-              />
-              {!isFullscreen && (
-                <>
-                  {isSourceView ? (
-                    <textarea
-                      value={sourceCode}
-                      onChange={e => handleSourceChange(e.target.value)}
-                      className="w-full h-full p-4 font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-none resize-none focus:outline-none focus:ring-0"
-                      placeholder={t('types.richtext.source.placeholder')}
-                      disabled={isDisabled || isReadonly}
-                      spellCheck={false}
-                    />
-                  ) : (
-                    <EditorContent
-                      key="editor-content"
-                      editor={editor}
-                      className="prose prose-sm dark:prose-invert max-w-none p-4 min-h-[300px] text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-[270px] [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+          <InlineEditorSurface
+            editor={editor}
+            isSourceView={isSourceView}
+            sourceCode={sourceCode}
+            onSourceChange={handleSourceChange}
+            isDisabled={isDisabled}
+            isReadonly={isReadonly}
+            isFullscreen={isFullscreen}
+            editorContainerRef={editorContainerRef}
+          />
 
           {/* Footer with stats */}
           {options.showStats && (
@@ -1928,94 +731,13 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1 flex-wrap">
-                {/* Text formatting */}
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                  isActive={editor.isActive('bold')}
+                <RichTextFormatButtons
+                  editor={editor}
                   isDisabled={isDisabled}
-                  icon={BoldIcon}
-                  title={t('types.richtext.toolbar.bold')}
-                />
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                  isActive={editor.isActive('italic')}
-                  isDisabled={isDisabled}
-                  icon={ItalicIcon}
-                  title={t('types.richtext.toolbar.italic')}
-                />
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().toggleUnderline().run()}
-                  isActive={editor.isActive('underline')}
-                  isDisabled={isDisabled}
-                  icon={UnderlineIcon}
-                  title={t('types.richtext.toolbar.underline')}
-                />
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                  isActive={editor.isActive('strike')}
-                  isDisabled={isDisabled}
-                  icon={StrikethroughIcon}
-                  title={t('types.richtext.toolbar.strikethrough')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* Headings */}
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleHeading({ level: 1 }).run()
-                  }
-                  isActive={editor.isActive('heading', { level: 1 })}
-                  isDisabled={isDisabled}
-                  icon={H1Icon}
-                  title={t('types.richtext.toolbar.heading1')}
-                />
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleHeading({ level: 2 }).run()
-                  }
-                  isActive={editor.isActive('heading', { level: 2 })}
-                  isDisabled={isDisabled}
-                  icon={H2Icon}
-                  title={t('types.richtext.toolbar.heading2')}
-                />
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleHeading({ level: 3 }).run()
-                  }
-                  isActive={editor.isActive('heading', { level: 3 })}
-                  isDisabled={isDisabled}
-                  icon={H3Icon}
-                  title={t('types.richtext.toolbar.heading3')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* Quote */}
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleBlockquote().run()
-                  }
-                  isActive={editor.isActive('blockquote')}
-                  isDisabled={isDisabled}
-                  icon={ChatBubbleBottomCenterTextIcon}
-                  title={t('types.richtext.toolbar.quote')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* Links */}
-                <ToolbarButton
-                  onClick={openLinkDialog}
-                  isActive={editor.isActive('link')}
-                  isDisabled={isDisabled}
-                  icon={LinkIcon}
-                  title={t('types.richtext.toolbar.addLink')}
-                />
-
-                {/* Images */}
-                <ToolbarButton
-                  onClick={() => {
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  onOpenLinkDialog={openLinkDialog}
+                  onInsertImage={() => {
                     if (studioContext?.utils?.showMediaBrowser) {
                       studioContext.utils.showMediaBrowser({
                         onSelect: handleImageSelected,
@@ -2025,73 +747,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
                       })
                     }
                   }}
-                  isActive={false}
-                  isDisabled={isDisabled}
-                  icon={PhotoIcon}
-                  title={t('types.richtext.toolbar.insertImage')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* Lists */}
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleBulletList().run()
-                  }
-                  isActive={editor.isActive('bulletList')}
-                  isDisabled={isDisabled}
-                  icon={ListBulletIcon}
-                  title={t('types.richtext.toolbar.bulletList')}
-                />
-                <ToolbarButton
-                  onClick={() =>
-                    editor.chain().focus().toggleOrderedList().run()
-                  }
-                  isActive={editor.isActive('orderedList')}
-                  isDisabled={isDisabled}
-                  icon={NumberedListIcon}
-                  title={t('types.richtext.toolbar.numberedList')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* Table */}
-                <ToolbarButton
-                  onClick={() =>
-                    editor
-                      .chain()
-                      .focus()
-                      .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                      .run()
-                  }
-                  isDisabled={isDisabled}
-                  icon={TableIcon}
-                  title={t('types.richtext.toolbar.insertTable')}
-                />
-
-                {/* Code Block */}
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                  isActive={editor.isActive('codeBlock')}
-                  isDisabled={isDisabled}
-                  icon={CodeIcon}
-                  title={t('types.richtext.toolbar.codeBlock')}
-                />
-
-                <ToolbarSeparator />
-
-                {/* History */}
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().undo().run()}
-                  isDisabled={isDisabled || !canUndo}
-                  icon={ArrowUturnLeftIcon}
-                  title={t('types.richtext.toolbar.undo')}
-                />
-                <ToolbarButton
-                  onClick={() => editor.chain().focus().redo().run()}
-                  isDisabled={isDisabled || !canRedo}
-                  icon={ArrowUturnRightIcon}
-                  title={t('types.richtext.toolbar.redo')}
                 />
               </div>
 
@@ -2108,199 +763,25 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
           {/* Contextual Image Toolbar - Fullscreen */}
           {showImageToolbar && selectedImageNode && (
-            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <PhotoIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t('types.richtext.imageToolbar.title')}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {/* Variant Selector */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600 dark:text-gray-400">
-                      {t('types.richtext.imageToolbar.variant')}
-                    </label>
-                    <select
-                      value={getCurrentVariant(selectedImageNode)}
-                      onChange={e => handleVariantChange(e.target.value)}
-                      className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={isDisabled}
-                    >
-                      <option value="original">{t('types.richtext.imageToolbar.original')}</option>
-                      {Object.entries(availableVariants).map(
-                        ([variantName, variantData]: [string, any]) => (
-                          <option key={variantName} value={variantName}>
-                            {variantName.charAt(0).toUpperCase() +
-                              variantName.slice(1)}{' '}
-                            ({variantData.width}×{variantData.height})
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={handleDeleteImage}
-                    disabled={isDisabled}
-                    className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center gap-1"
-                    title={t('types.richtext.imageToolbar.deleteTitle')}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                    {t('types.richtext.imageToolbar.delete')}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ImageToolbar
+              className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2"
+              currentVariant={getCurrentVariant(selectedImageNode)}
+              availableVariants={availableVariants}
+              isDisabled={isDisabled}
+              onVariantChange={handleVariantChange}
+              onDeleteImage={handleDeleteImage}
+            />
           )}
 
           {/* Fullscreen Editor Container */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 tiptap-editor-container relative">
-              <style
-                dangerouslySetInnerHTML={{
-                  __html: `
-                  .tiptap-editor-container .ProseMirror h1 {
-                    font-size: 1.875rem !important;
-                    font-weight: 700 !important;
-                    margin-bottom: 1rem !important;
-                    margin-top: 0.5rem !important;
-                    line-height: 1.2 !important;
-                  }
-                  .tiptap-editor-container .ProseMirror h2 {
-                    font-size: 1.5rem !important;
-                    font-weight: 600 !important;
-                    margin-bottom: 0.75rem !important;
-                    margin-top: 0.5rem !important;
-                    line-height: 1.3 !important;
-                  }
-                  .tiptap-editor-container .ProseMirror h3 {
-                    font-size: 1.25rem !important;
-                    font-weight: 600 !important;
-                    margin-bottom: 0.5rem !important;
-                    margin-top: 0.5rem !important;
-                    line-height: 1.4 !important;
-                  }
-                  .tiptap-editor-container .ProseMirror blockquote {
-                    border-left: 3px solid #d1d5db !important;
-                    padding-left: 1rem !important;
-                    margin-left: 0 !important;
-                    margin-right: 0 !important;
-                    margin-top: 0.5rem !important;
-                    margin-bottom: 0.5rem !important;
-                    font-style: italic !important;
-                  }
-                  .dark .tiptap-editor-container .ProseMirror blockquote {
-                    border-left-color: #4b5563 !important;
-                  }
-                  .tiptap-editor-container .ProseMirror ul {
-                    list-style-type: disc !important;
-                    padding-left: 1.5rem !important;
-                    margin-top: 0.5rem !important;
-                    margin-bottom: 0.5rem !important;
-                  }
-                  .tiptap-editor-container .ProseMirror ol {
-                    list-style-type: decimal !important;
-                    padding-left: 1.5rem !important;
-                    margin-top: 0.5rem !important;
-                    margin-bottom: 0.5rem !important;
-                  }
-                  .tiptap-editor-container .ProseMirror li {
-                    margin-bottom: 0.25rem !important;
-                  }
-                  .tiptap-editor-container .ProseMirror img {
-                    max-width: 100% !important;
-                    height: auto !important;
-                    border-radius: 0.5rem !important;
-                    margin: 0.5rem 0 !important;
-                    display: block !important;
-                    cursor: pointer !important;
-                    transition: all 0.2s ease !important;
-                  }
-                  .tiptap-editor-container .ProseMirror img:hover {
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-                  }
-                  /* High specificity selection styles - Fullscreen */
-                  .tiptap-editor-container .ProseMirror img.ProseMirror-selectednode,
-                  .ProseMirror img.ProseMirror-selectednode {
-                    border: 4px solid #3b82f6 !important;
-                    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(59, 130, 246, 0.4) !important;
-                    transform: scale(1.03) !important;
-                    outline: none !important;
-                    transition: all 0.2s ease !important;
-                    position: relative !important;
-                    z-index: 10 !important;
-                  }
-
-                  .dark .tiptap-editor-container .ProseMirror img.ProseMirror-selectednode,
-                  .dark .ProseMirror img.ProseMirror-selectednode {
-                    border-color: #60a5fa !important;
-                    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.3), 0 4px 20px rgba(96, 165, 250, 0.5) !important;
-                  }
-
-                  /* Selection container styles - Fullscreen */
-                  .tiptap-editor-container .ProseMirror .ProseMirror-selectednode {
-                    position: relative !important;
-                    margin: 8px !important;
-                  }
-
-                  .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
-                    content: '' !important;
-                    position: absolute !important;
-                    top: -8px !important;
-                    left: -8px !important;
-                    right: -8px !important;
-                    bottom: -8px !important;
-                    border: 2px dashed #3b82f6 !important;
-                    border-radius: 1rem !important;
-                    pointer-events: none !important;
-                    background: rgba(59, 130, 246, 0.05) !important;
-                    z-index: 9 !important;
-                  }
-
-                  .dark .tiptap-editor-container .ProseMirror .ProseMirror-selectednode::before {
-                    border-color: #60a5fa !important;
-                    background: rgba(96, 165, 250, 0.05) !important;
-                  }
-                  .tiptap-editor-container .ProseMirror {
-                    outline: none !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    min-height: 100vh !important;
-                  }
-                  .tiptap-editor-container {
-                    min-height: 100vh !important;
-                  }
-                  .tiptap-editor-container .ProseMirror:focus {
-                    outline: none !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                  }
-                `,
-                }}
-              />
-              {isSourceView ? (
-                <textarea
-                  value={sourceCode}
-                  onChange={e => handleSourceChange(e.target.value)}
-                  className="absolute inset-0 w-full h-full p-8 font-mono text-sm bg-gray-900 text-gray-100 border-none resize-none focus:outline-none focus:ring-0 overflow-y-auto"
-                  placeholder={t('types.richtext.source.placeholder')}
-                  disabled={isDisabled || isReadonly}
-                  spellCheck={false}
-                />
-              ) : (
-                <EditorContent
-                  key="editor-content"
-                  editor={editor}
-                  className="prose prose-sm dark:prose-invert max-w-none p-8 absolute inset-0 overflow-y-auto text-gray-900 dark:text-gray-100 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:border-none [&_.ProseMirror]:focus:outline-none [&_.ProseMirror]:focus:border-none [&_.ProseMirror]:focus:ring-0 [&_.ProseMirror]:min-h-full [&_.ProseMirror]:text-gray-900 [&_.ProseMirror]:dark:text-gray-100"
-                />
-              )}
-            </div>
-          </div>
+          <FullscreenEditorSurface
+            editor={editor}
+            isSourceView={isSourceView}
+            sourceCode={sourceCode}
+            onSourceChange={handleSourceChange}
+            isDisabled={isDisabled}
+            isReadonly={isReadonly}
+          />
 
           {/* Fullscreen Footer with stats */}
           {options.showStats && (
