@@ -19,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && npm install --package-lock-only",
     "release": "turbo build && changeset publish",
     "setup-dev": "./scripts/setup-dev-env.sh",
     "install-hooks": "node scripts/install-git-hooks.js",
