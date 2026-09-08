@@ -24,7 +24,7 @@ export class SchemaRegistry {
   private validateAndRegisterSchema(schema: ContentSchema): void {
     try {
       // Automatically inject auto-fields for document schemas based on configuration
-      let processedSchema = this.injectAutoSlugField(schema)
+      let processedSchema = this.injectAutoSlugField(normalizeSchemaFields(schema))
       processedSchema = this.injectAutoThumbnailField(processedSchema)
       
       const validatedSchema = ContentSchemaSchema.parse(processedSchema)
@@ -254,4 +254,28 @@ export class SchemaRegistry {
   public unregisterSchema(name: string): boolean {
     return this.schemas.delete(name)
   }
+}
+
+/**
+ * Accept the array form of `fields` ([{ name, type, ... }]) at the top level of
+ * a schema and convert it to the record form keyed by field name that the
+ * engine, validator and route handlers iterate over. Record form passes through.
+ */
+export function normalizeSchemaFields(schema: ContentSchema): ContentSchema {
+  const fields = (schema as { fields?: unknown }).fields
+  if (!Array.isArray(fields)) {
+    return schema
+  }
+  const record: Record<string, unknown> = {}
+  for (const entry of fields as Array<Record<string, unknown>>) {
+    const { name, ...rest } = entry
+    if (typeof name !== 'string' || name.length === 0) {
+      throw new Error(`Schema "${schema.name}": every field in array form needs a non-empty "name"`)
+    }
+    if (name in record) {
+      throw new Error(`Schema "${schema.name}": duplicate field "${name}"`)
+    }
+    record[name] = rest
+  }
+  return { ...schema, fields: record } as ContentSchema
 }
