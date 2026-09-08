@@ -574,10 +574,13 @@ describe('responsive drawers', () => {
 })
 
 describe('layering tokens at the call sites', () => {
-  it('the permissions debug panel layers through the token, not an inline z-index', () => {
-    const source = readFileSync(join(srcDir, 'components/debug/PermissionsDebugPanel.tsx'), 'utf8')
-    expect(source).toContain('z-debug')
-    expect(source).not.toContain('zIndex')
+  it('the debug band stays reserved as a utility above toasts, not an inline z-index', () => {
+    // The permissions debug panel that used to consume this token was deleted as
+    // dead code; the band itself stays reserved so any future debug overlay keeps
+    // layering through the token rather than an inline z-index.
+    const config = readFileSync(join(srcDir, '..', 'tailwind.config.js'), 'utf8')
+    expect(config).toContain(`debug: '${Z_DEBUG}'`)
+    expect(Z_DEBUG).toBeGreaterThan(Z_TOAST)
   })
 
 })
