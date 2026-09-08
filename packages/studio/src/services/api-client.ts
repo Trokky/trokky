@@ -11,6 +11,7 @@ import type {
 } from '@/types'
 import { createStudioLogger } from '../utils/logger'
 import { storageService, STORAGE_KEYS } from '@/utils/storage'
+import { authStore, type RefreshedSession } from './auth-store'
 
 export class ApiClientError extends Error {
   constructor(
@@ -27,19 +28,44 @@ export class ApiClientError extends Error {
 export class ApiClient {
   private backendUrl: string = ''
   private capabilities: BackendCapabilities | null = null
-  private authToken: string | null = null
   private logger = createStudioLogger('ApiClient')
+  private configured = false
+
+  /**
+   * Called when a request comes back 401 and the client still holds a token.
+   * Returning true means the session was recovered and the request may be
+   * retried once. The AuthProvider installs this; the client has no refresh
+   * logic of its own.
+   */
+  onUnauthorized: (() => Promise<boolean>) | null = null
 
   constructor(backendUrl?: string) {
     if (backendUrl) {
       this.backendUrl = backendUrl
+      this.configured = true
     }
   }
 
   /**
-   * Initialize the API client with configuration
+   * Read the current session token. The auth store is the only place it lives.
+   */
+  private get authToken(): string | null {
+    return authStore.getToken()
+  }
+
+  /**
+   * Initialize the API client with configuration.
+   *
+   * Idempotent: the first call wins, so components never have to guard with
+   * `if (!apiClient.isInitialized)`. Requests self-initialize through
+   * `ensureConfigured()` if they somehow run first.
    */
   initialize(): void {
+    if (this.configured) {
+      return
+    }
+    this.configured = true
+
     // Priority order for backend URL:
     // 1. Injected backend URL from server (integrated deployment) - highest priority
     // 2. Build-time environment variable (VITE_BACKEND_URL)
@@ -81,13 +107,20 @@ export class ApiClient {
       )
     }
 
-    // Restore auth token from localStorage if available
-    this.restoreAuthToken()
-
     this.logger.info('Studio initialized', {
       backendUrl: this.backendUrl,
       hasAuthToken: !!this.authToken,
     })
+  }
+
+  /**
+   * Configure on first use, so a request that beats App's explicit call still
+   * finds a backend URL.
+   */
+  private ensureConfigured(): void {
+    if (!this.configured) {
+      this.initialize()
+    }
   }
 
   /**
@@ -158,54 +191,21 @@ export class ApiClient {
    * Set authentication token
    */
   setAuthToken(token: string): void {
-    this.authToken = token
-    try {
-      localStorage.setItem('trokky_auth_token', token)
-    } catch (error) {
-      console.warn('Failed to save auth token:', error)
-    }
+    authStore.persist(token)
   }
 
   /**
    * Clear authentication token
    */
   clearAuthToken(): void {
-    this.authToken = null
-    try {
-      localStorage.removeItem('trokky_auth_token')
-      localStorage.removeItem('trokky_refresh_token')
-    } catch (error) {
-      console.warn('Failed to clear auth token:', error)
-    }
+    authStore.clear()
   }
 
   /**
    * Store both auth token and refresh token (used after MFA verification)
    */
   async storeTokens(token: string, refreshToken?: string): Promise<void> {
-    this.setAuthToken(token)
-    if (refreshToken) {
-      try {
-        localStorage.setItem('trokky_refresh_token', refreshToken)
-      } catch (error) {
-        console.warn('Failed to save refresh token:', error)
-      }
-    }
-  }
-
-  /**
-   * Restore auth token from storage
-   */
-  restoreAuthToken(): void {
-    try {
-      const token = localStorage.getItem('trokky_auth_token')
-      if (token) {
-        this.authToken = token
-        this.logger.info('Auth token restored from localStorage')
-      }
-    } catch (error) {
-      console.warn('Failed to restore auth token:', error)
-    }
+    authStore.persist(token, refreshToken)
   }
 
   /**
@@ -214,8 +214,11 @@ export class ApiClient {
   async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    skipAuth = false
+    skipAuth = false,
+    retried = false
   ): Promise<ApiResponse<T>> {
+    this.ensureConfigured()
+
     // Check if backend URL is configured
     if (!this.backendUrl) {
       return {
@@ -268,41 +271,20 @@ export class ApiClient {
       const data = await response.json()
 
       if (!response.ok) {
-        // Handle 401 Unauthorized - try to refresh token automatically
+        // Handle 401 Unauthorized. Recovery is the AuthProvider's job via
+        // onUnauthorized; the client only retries the request, and only once,
+        // so an endpoint that keeps returning 401 cannot loop.
         if (
           response.status === 401 &&
           this.authToken &&
           !skipAuth &&
-          !endpoint.includes('/auth/validate')
+          !retried &&
+          !endpoint.includes('/auth/')
         ) {
-          try {
-            // Try to validate stored token to potentially refresh it
-            const storedToken = localStorage.getItem('trokky_auth_token')
-            if (storedToken) {
-              const validateResponse = await this.post('/auth/validate', {
-                token: storedToken,
-              })
-              if (
-                validateResponse.success &&
-                validateResponse.data &&
-                typeof validateResponse.data === 'object' &&
-                'valid' in validateResponse.data &&
-                validateResponse.data.valid &&
-                'session' in validateResponse.data &&
-                validateResponse.data.session
-              ) {
-                // Token is still valid, retry the original request
-                this.setAuthToken(storedToken)
-                return this.request(endpoint, options, skipAuth)
-              }
-            }
-          } catch (refreshError) {
-            // Token refresh failed, proceed with clearing auth
+          const recovered = (await this.onUnauthorized?.()) ?? false
+          if (recovered) {
+            return this.request<T>(endpoint, options, skipAuth, true)
           }
-
-          // Clear invalid token
-          this.clearAuthToken()
-          localStorage.removeItem('trokky_auth_token')
         }
 
         throw new ApiClientError(
@@ -337,6 +319,8 @@ export class ApiClient {
     if (endpoint.startsWith('http')) {
       return endpoint
     }
+
+    this.ensureConfigured()
 
     // Check if backendUrl is set
     if (!this.backendUrl) {
@@ -707,6 +691,7 @@ export class ApiClient {
    * Get the backend URL (useful for external URL construction)
    */
   getBackendUrl(): string {
+    this.ensureConfigured()
     return this.backendUrl
   }
 
@@ -983,3 +968,12 @@ export class ApiClient {
 
 // Singleton instance
 export const apiClient = new ApiClient()
+
+// The auth store owns the refresh mechanism but not the transport; wire the one
+// round trip it needs here, where the singleton exists.
+authStore.setRefresher(async refreshToken => {
+  const response = await apiClient.post<RefreshedSession>('/auth/refresh', {
+    refreshToken,
+  })
+  return response.success && response.data?.token ? response.data : null
+})

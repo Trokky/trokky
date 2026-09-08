@@ -216,11 +216,6 @@ export function DocumentEditor({
       setLoading(true);
       setError(null);
       
-      if (!apiClient.isInitialized) {
-        logger.debug('Initializing API client');
-        await apiClient.initialize();
-      }
-
       // Load schema
       const schemaResponse = await apiClient.getSchema(schemaName);
       logger.debug('Schema loaded', { 

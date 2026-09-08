@@ -168,10 +168,6 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
       setLoading(true);
       setError(null);
 
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-
       // Debug: Log filter parameters
       const queryParams = {
         page: currentPage,
@@ -699,10 +695,6 @@ function SingletonHandler({ schemaName, documentId, autoCreate, onCancel }: Sing
       setLoading(true);
       setError(null);
 
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
-
       const response = await apiClient.getDocument(schemaName, documentId);
       
       if (response.success && response.data) {
@@ -808,10 +800,6 @@ function ContentOverview() {
     try {
       setLoading(true);
       setError(null);
-      
-      if (!apiClient.isInitialized) {
-        await apiClient.initialize();
-      }
       
       // Use the collections endpoint that matches our demo backend
       const response = await apiClient.get<{ collections: Collection[] }>('/collections');

@@ -35,6 +35,11 @@ function getI18nConfig(): I18nConfig {
   };
 }
 
+// Configure the API client once, at import time, before any component renders
+// or any hook fires a request. `initialize()` is idempotent, so nothing
+// downstream needs to guard against an unconfigured client.
+apiClient.initialize();
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -150,8 +155,6 @@ export function App() {
   const i18nConfig = useMemo(() => getI18nConfig(), []);
 
   useEffect(() => {
-    // Initialize API client synchronously - config is already available
-    apiClient.initialize();
     const logger = createStudioLogger('App');
     logger.info('Trokky Studio started');
 

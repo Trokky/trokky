@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
+import { authStore } from '@/services/auth-store';
 import { getBasePath } from '@/utils/navigation';
 import { useT } from '@trokky/trokky/i18n';
 
@@ -33,7 +34,7 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
     const storedState = sessionStorage.getItem('oauth_state');
     if (!storedState) {
       // If token exists, the OAuth was successful - show success and trigger auth check
-      const token = localStorage.getItem('trokky_auth_token');
+      const token = authStore.getToken();
       if (token) {
         hasProcessedRef.current = true;
         setStatus('success');
@@ -151,14 +152,8 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
           const { token, refreshToken, user } = response.data;
 
           if (token && user) {
-            // Store tokens
-            localStorage.setItem('trokky_auth_token', token);
-            if (refreshToken) {
-              localStorage.setItem('trokky_refresh_token', refreshToken);
-            }
-
-            // Set token in API client
-            apiClient.setAuthToken(token);
+            // Store tokens (the auth store is the single owner of persistence)
+            authStore.persist(token, refreshToken);
 
             // Notify parent of successful login
             setStatus('success');
