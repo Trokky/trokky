@@ -329,4 +329,53 @@ describe('buildSavePayload', () => {
       expect(resolveFieldDefault({ type: 'date', default: 'now' }, getPlugin)).toBe('PLUGIN')
     })
   })
+
+  describe('unset versus cleared', () => {
+    const schema = {
+      name: 'article',
+      fields: {
+        title: { type: 'string' },
+        featured: { type: 'boolean', default: true },
+        author: { type: 'reference' },
+        tags: { type: 'array' }
+      }
+    }
+
+    it('omits a field the editor never set, so the stored value survives', () => {
+      const loaded = { title: 'A' }
+      const payload = buildSavePayload({ title: 'A' }, schema, 'draft', loaded)
+      expect(payload.title).toBe('A')
+      // featured has a schema default the editor never rendered: sending null
+      // would overwrite it in storage.
+      expect('featured' in payload).toBe(false)
+      expect('author' in payload).toBe(false)
+      expect('tags' in payload).toBe(false)
+    })
+
+    it('sends null for a field that had a value and is now gone', () => {
+      const loaded = { title: 'A', author: { _ref: 'author-1' }, featured: true }
+      const current = { title: 'A' }
+      const payload = buildSavePayload(current, schema, 'draft', loaded)
+      expect(payload.author).toBeNull()
+      expect(payload.featured).toBeNull()
+    })
+
+    it('sends an empty list for an array that had items and is now empty', () => {
+      const payload = buildSavePayload({ title: 'A' }, schema, 'draft', { title: 'A', tags: ['x'] })
+      expect(payload.tags).toEqual([])
+    })
+
+    it('still sends an explicit null the editor set', () => {
+      const payload = buildSavePayload({ title: 'A', author: null }, schema, 'draft', { title: 'A' })
+      expect(payload.author).toBeNull()
+    })
+
+    it('ships every schema field on a create, where nothing stored can be lost', () => {
+      const payload = buildSavePayload({ title: 'New' }, schema, 'draft')
+      expect(payload.title).toBe('New')
+      expect(payload.featured).toBeNull()
+      expect(payload.tags).toEqual([])
+      expect(payload._status).toBe('draft')
+    })
+  })
 })

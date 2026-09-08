@@ -180,7 +180,14 @@ export function isMissingValue(value: any): boolean {
 export function buildSavePayload(
   document: any,
   schema: any,
-  fallbackStatus: string = 'draft'
+  fallbackStatus: string = 'draft',
+  /**
+   * The document as it was loaded. Used to tell "the editor never set this"
+   * from "the editor cleared it": the first is omitted so the stored value or
+   * the schema default survives, the second sends null so the clear sticks.
+   * Omitted for a brand-new document, where nothing has a prior value.
+   */
+  initial?: any
 ): Record<string, any> {
   const payload: Record<string, any> = {}
 
@@ -205,7 +212,18 @@ export function buildSavePayload(
     }
 
     if (value === undefined) {
-      // Array fields always ship as a list: frontends map over them
+      // On an update the server merges over what it already stores, so a field
+      // the editor never set must be left out: sending null would wipe a stored
+      // value or a schema default the editor never rendered. On a create there
+      // is nothing to protect, so every schema field ships explicitly.
+      if (initial !== undefined && initial !== null) {
+        const hadValue =
+          Object.prototype.hasOwnProperty.call(initial, name) && initial[name] !== undefined
+        if (!hadValue) continue
+      }
+
+      // Cleared by the editor: say so explicitly, or the merge keeps the old
+      // value. Array fields ship as a list; frontends map over them.
       value = fieldType === 'array' ? [] : null
     }
 

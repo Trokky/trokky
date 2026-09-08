@@ -486,7 +486,13 @@ export function DocumentEditor({
       }
 
       // Build the payload from schema fields plus _status/_type only
-      const cleanDocument = buildSavePayload(currentDocument, schema, documentState);
+      const cleanDocument = buildSavePayload(
+        currentDocument,
+        schema,
+        documentState,
+        // The loaded baseline, so an untouched field is omitted rather than nulled
+        store.getState().initial
+      );
 
       let response;
       if (isNewDocument) {
