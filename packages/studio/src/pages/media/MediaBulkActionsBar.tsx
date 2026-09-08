@@ -45,7 +45,7 @@ export function MediaBulkActionsBar({
           onClick={onClearSelection}
           className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
         >
-          {t('media.clearFilters')}
+          {t('common.deselectAll')}
         </Button>
       </div>
       <div className="flex items-center space-x-2">

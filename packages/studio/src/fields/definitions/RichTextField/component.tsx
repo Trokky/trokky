@@ -471,12 +471,17 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
       if (selectedText || linkText.trim()) {
         // If there's selected text or link text provided
         if (linkText.trim() && linkText !== selectedText) {
-          // Replace selection with link text
+          // Replace the selection with the link text, then select what was just
+          // inserted before applying the mark. Without the reselect the cursor
+          // sits collapsed after the text and setLink only arms the next
+          // keystroke, so the text lands with no anchor on it.
+          const start = selection.from
           editor
             .chain()
             .focus()
             .deleteSelection()
             .insertContent(linkText)
+            .setTextSelection({ from: start, to: start + linkText.length })
             .setLink({ href: linkUrl })
             .run()
         } else {

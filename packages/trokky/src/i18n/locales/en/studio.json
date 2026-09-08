@@ -1217,6 +1217,8 @@
     "note": "Important:",
     "save": "Save",
     "delete": "Delete",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
     "edit": "Edit",
     "create": "Create",
     "add": "Add",
