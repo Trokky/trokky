@@ -102,7 +102,7 @@ export function Header({
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <header className="sticky top-0 z-sticky bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6">
         {/* Left section */}
         <div className="flex items-center space-x-4">

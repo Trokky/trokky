@@ -338,12 +338,6 @@ export interface ContextSidebarRenderContext {
     /** Show confirmation dialog */
     showConfirm: (message: string, title?: string) => Promise<boolean>
     
-    /** Open modal */
-    openModal: (content: ReactNode, options?: { title?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) => void
-    
-    /** Close current modal */
-    closeModal: () => void
-    
     /** Refresh current page/data */
     refresh: () => void
     

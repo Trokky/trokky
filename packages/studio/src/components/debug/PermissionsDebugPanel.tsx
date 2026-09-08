@@ -126,7 +126,7 @@ export function PermissionsDebugPanel({
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[9999] max-w-md"
+      className="fixed bottom-4 right-4 z-debug max-w-md"
       style={{ zIndex: 9999 }}
     >
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border-2 border-blue-500">

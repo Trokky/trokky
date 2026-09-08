@@ -127,8 +127,8 @@ function AppContent() {
     <>
       <AppRouter />
       <SessionTimeoutWarningContainer />
-      {/* Portalled into document.body so they paint after the StudioContext
-          MediaBrowser, which shares the same z-index */}
+      {/* Portalled into document.body, above the dialog layer: toasts and
+          confirms carry the z-toast token, dialogs the z-overlay token */}
       {createPortal(
         <>
           <ToastContainer />
