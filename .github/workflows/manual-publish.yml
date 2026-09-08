@@ -63,10 +63,11 @@ jobs:
           publish_workspace() {
             local dir="$1"
             local name version
-            name="$(node -p "require('./packages/${dir}/package.json').name")"
-            version="$(node -p "require('./packages/${dir}/package.json').version")"
+            read -r name version < <(node -p "const p=require('./packages/${dir}/package.json'); p.name+' '+p.version")
 
-            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            # Dry runs always exercise `npm publish --dry-run`; only real
+            # publishes skip versions that are already on the registry.
+            if [ "$INPUT_DRY_RUN" != "true" ] && npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo "Skipping ${name}@${version}: already published."
               return 0
             fi
