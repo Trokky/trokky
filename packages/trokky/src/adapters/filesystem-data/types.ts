@@ -1,3 +1,6 @@
+import type { UpdateUserData } from '../../core/index.js'
+import type { PasskeyCredential } from '../../types/index.js'
+
 export interface FilesystemDataAdapterConfig {
   /**
    * Base directory for content storage (documents)
@@ -115,6 +118,10 @@ export interface UserFile {
   profileImage?: string
   preferences?: Record<string, unknown>
   oauthProviders?: OAuthProviderFile[]
+  /** MFA enrolment state; written and read back verbatim. */
+  mfa?: UpdateUserData['mfa']
+  /** Registered WebAuthn credentials; written and read back verbatim. */
+  passkeys?: PasskeyCredential[]
   lastLoginAt?: string
   createdAt: string
   updatedAt: string

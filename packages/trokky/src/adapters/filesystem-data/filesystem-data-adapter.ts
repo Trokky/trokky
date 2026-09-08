@@ -1107,6 +1107,11 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       profileImage: userFile.profileImage,
       preferences: userFile.preferences as any,
       oauthProviders: userFile.oauthProviders as any,
+      // Written to disk by the spread in writeUserFile but previously dropped
+      // here, so every read returned a user without them: TOTP enrolment always
+      // failed with "No pending TOTP setup found" and passkeys never persisted.
+      mfa: userFile.mfa,
+      passkeys: userFile.passkeys,
       lastLoginAt: userFile.lastLoginAt,
       createdAt: userFile.createdAt,
       updatedAt: userFile.updatedAt

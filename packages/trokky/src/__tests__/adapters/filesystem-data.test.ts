@@ -389,4 +389,28 @@ describe('FilesystemDataAdapter', () => {
       expect(result).toBeNull()
     })
   })
+
+  describe('mfa and passkeys round-trip', () => {
+    it('reads back the MFA enrolment and passkeys that saveUser persisted', async () => {
+      const created = await adapter.saveUser('user-mfa', {
+        username: 'mfauser',
+        email: 'mfa@example.com',
+        passwordHash: 'hash',
+        role: 'admin',
+        permissions: [],
+        isActive: true
+      } as any)
+      expect(created.id).toBe('user-mfa')
+
+      const mfa = { enabled: false, methods: [{ type: 'totp', enabled: false, verified: false, secret: 'SECRET' }] }
+      const passkeys = [{ id: 'cred-1', publicKey: 'pk', counter: 0 }]
+      await adapter.saveUser('user-mfa', { mfa, passkeys } as any)
+
+      // Previously the write persisted these but the read mapping dropped them,
+      // so TOTP enrolment always failed with "No pending TOTP setup found".
+      const read = await adapter.getUser('user-mfa')
+      expect((read as any).mfa).toEqual(mfa)
+      expect((read as any).passkeys).toEqual(passkeys)
+    })
+  })
 })
