@@ -92,6 +92,11 @@ import {
   type OAuth2ServerConfig
 } from '../security/oauth2/index.js'
 import type { OAuth2Scope, TokenResponse } from '../types/oauth2.js'
+import { AuthService } from '../services/auth-service.js'
+import { MFAService, generateSecureSecret } from '../services/mfa-service.js'
+import { TrustedDeviceService } from '../services/trusted-device-service.js'
+import { OAuthService } from '../services/oauth-service.js'
+import { PasskeyService } from '../services/passkey-service.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -186,6 +191,13 @@ export class TrokkyCore {
 
   // Secure callbacks for sensitive operations (not logged in events)
   private userCreatedWithPasswordCallback?: (user: User, temporaryPassword: string) => Promise<void>
+
+  // Extracted domain services (authentication, MFA, trusted devices, OAuth, passkeys)
+  private authService: AuthService
+  private mfaService: MFAService
+  private trustedDeviceService: TrustedDeviceService
+  private oauthService: OAuthService
+  private passkeyService: PasskeyService
 
   // Constructor overloads for both unified and split adapters
   constructor(
@@ -290,6 +302,74 @@ export class TrokkyCore {
       this.eventBus = new TrokkyEventBus(eventBusConfig)
     }
     
+    // Initialize extracted domain services
+    this.authService = new AuthService({
+      cryptoAdapter: this.cryptoAdapter,
+      jwtSecret: this.jwtSecret,
+      config: this.config,
+      logger: this.logger,
+      getUser: (id) => this.getUser(id),
+      getUserByUsername: (username) => this.getUserByUsername(username),
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      validateAppToken: (token) => this.validateAppToken(token),
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      checkMFARequired: (userId) => this.mfaService.checkMFARequired(userId),
+      isDeviceTrusted: (userId, deviceId) => this.trustedDeviceService.isDeviceTrusted(userId, deviceId),
+      trustDevice: (userId, deviceId, deviceName, deviceOptions) =>
+        this.trustedDeviceService.trustDevice(userId, deviceId, deviceName, deviceOptions),
+      getTOTPService: (issuer) => this.mfaService.getTOTPService(issuer)
+    })
+
+    this.mfaService = new MFAService({
+      logger: this.logger,
+      eventBus: this.eventBus,
+      eventsEnabled: this.eventsEnabled,
+      getUser: (id) => this.getUser(id),
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      getSettings: () => this.getSettings(),
+      verifyPassword: (plainPassword, hashedPassword) => this.authService.verifyPassword(plainPassword, hashedPassword),
+      logAuditEvent: (event) => this.logAuditEvent(event)
+    })
+
+    this.trustedDeviceService = new TrustedDeviceService({
+      logger: this.logger,
+      getUser: (id) => this.getUser(id),
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      getSettings: () => this.getSettings()
+    })
+
+    this.oauthService = new OAuthService({
+      config: this.config,
+      logger: this.logger,
+      dataStorage: this.dataStorage,
+      getUser: (id) => this.getUser(id),
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      listUsers: (listOptions) => this.listUsers(listOptions),
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      checkMFARequired: (userId) => this.mfaService.checkMFARequired(userId),
+      isDeviceTrusted: (userId, deviceId) => this.trustedDeviceService.isDeviceTrusted(userId, deviceId),
+      issueFullTokens: (user, tokenOptions) => this.authService.issueFullTokens(user, tokenOptions),
+      generateMFAPendingToken: (user, methods) => this.authService.generateMFAPendingToken(user, methods),
+      generateMFASetupToken: (user, allowedMethods) => this.authService.generateMFASetupToken(user, allowedMethods),
+      generateAuthToken: (user, expiresIn, rememberMe) => this.authService.generateAuthToken(user, expiresIn, rememberMe),
+      verifyAuthToken: (token) => this.authService.verifyAuthToken(token)
+    })
+
+    this.passkeyService = new PasskeyService({
+      config: this.config,
+      logger: this.logger,
+      dataStorage: this.dataStorage,
+      getUser: (id) => this.getUser(id),
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      listUsers: (listOptions) => this.listUsers(listOptions),
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      checkMFARequired: (userId) => this.mfaService.checkMFARequired(userId),
+      isDeviceTrusted: (userId, deviceId) => this.trustedDeviceService.isDeviceTrusted(userId, deviceId),
+      issueFullTokens: (user, tokenOptions) => this.authService.issueFullTokens(user, tokenOptions),
+      generateMFAPendingToken: (user, methods) => this.authService.generateMFAPendingToken(user, methods),
+      generateMFASetupToken: (user, allowedMethods) => this.authService.generateMFASetupToken(user, allowedMethods)
+    })
+
     // Emit system startup event
     if (this.eventsEnabled) {
       this.eventBus.emitEvent(systemStartup('TrokkyCore')).catch(error => {
@@ -1660,7 +1740,7 @@ export class TrokkyCore {
 
   // Authentication utilities
   public async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
-    return await this.cryptoAdapter.verifyPassword(plainPassword, hashedPassword)
+    return this.authService.verifyPassword(plainPassword, hashedPassword)
   }
 
   /**
@@ -1668,7 +1748,7 @@ export class TrokkyCore {
    * Exposed publicly to ensure consistent hashing across all password operations
    */
   public async hashPassword(password: string): Promise<string> {
-    return await this.cryptoAdapter.hashPassword(password)
+    return this.authService.hashPassword(password)
   }
 
   private getDefaultPermissions(role: string): Permission[] {
@@ -1685,106 +1765,16 @@ export class TrokkyCore {
   }
 
   private checkWeakPassword(password: string): { isWeak: boolean; reason?: string } {
-    // Common weak passwords
-    const commonPasswords = [
-      'password', 'admin', 'changeme', 'changeme123', '123456', 
-      'qwerty', 'abc123', 'password123', 'admin123', 'letmein',
-      'welcome', 'monkey', 'dragon', 'master', 'secret'
-    ]
-
-    // Check if password is too short
-    if (password.length < 8) {
-      return { isWeak: true, reason: 'Password is too short (minimum 8 characters)' }
-    }
-
-    // Check for common weak passwords
-    if (commonPasswords.includes(password.toLowerCase())) {
-      return { isWeak: true, reason: 'Password is a common weak password' }
-    }
-
-    // Check for simple patterns
-    if (/^(.)\1+$/.test(password)) {
-      return { isWeak: true, reason: 'Password contains only repeated characters' }
-    }
-
-    if (/^(012|123|234|345|456|567|678|789|890|abc|def|qwe|asd|zxc)/i.test(password)) {
-      return { isWeak: true, reason: 'Password contains sequential characters' }
-    }
-
-    // Warn if password is short (8-11 characters) even if not technically weak
-    if (password.length < 12) {
-      return { isWeak: true, reason: 'Password is shorter than recommended (12+ characters)' }
-    }
-
-    // Check password complexity
-    const hasLower = /[a-z]/.test(password)
-    const hasUpper = /[A-Z]/.test(password)
-    const hasNumber = /\d/.test(password)
-    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
-
-    const complexityCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length
-
-    if (complexityCount < 3) {
-      return { isWeak: true, reason: 'Password lacks complexity (needs lowercase, uppercase, numbers, and/or symbols)' }
-    }
-
-    return { isWeak: false }
+    return this.authService.checkWeakPassword(password)
   }
 
   // JWT Token Management
   public async generateAuthToken(user: User, expiresIn: string = '24h', rememberMe?: boolean): Promise<string> {
-    const payload: Omit<UserSession, 'loginAt' | 'expiresAt'> & { rememberMe?: boolean } = {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      permissions: user.permissions,
-      rememberMe: rememberMe // Store rememberMe flag in JWT payload
-    }
-
-    return await this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn })
+    return this.authService.generateAuthToken(user, expiresIn, rememberMe)
   }
 
   public async verifyAuthToken(token: string): Promise<UserSession | null> {
-    const decoded = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret)
-
-    // Handle both standard 'userId' claim and OAuth2 'sub' claim
-    const userId = decoded?.userId || decoded?.sub
-    const username = decoded?.username
-
-    if (!decoded || !userId || !username) {
-      return null
-    }
-
-    // Fetch fresh user data from storage to get current permissions
-    try {
-      const currentUser = await this.getUser(userId)
-      if (!currentUser || !currentUser.isActive) {
-        return null // User no longer exists or is inactive
-      }
-
-      return {
-        userId,
-        username,
-        role: currentUser.role, // Use fresh role from storage
-        permissions: currentUser.permissions, // Use fresh permissions from storage
-        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
-      }
-    } catch (error) {
-      // If we can't fetch user data, fall back to JWT payload for backwards compatibility
-      if (!decoded.role || !decoded.permissions) {
-        return null
-      }
-
-      return {
-        userId,
-        username,
-        role: decoded.role,
-        permissions: decoded.permissions,
-        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
-      }
-    }
+    return this.authService.verifyAuthToken(token)
   }
 
   /**
@@ -1792,28 +1782,7 @@ export class TrokkyCore {
    * Returns a consistent UserSession interface for both token types
    */
   public async verifyAnyToken(token: string): Promise<UserSession | null> {
-    // Check if it's a JWT token (3 parts separated by dots)
-    const parts = token.split('.')
-    if (parts.length === 3) {
-      // JWT token - use existing verification
-      return await this.verifyAuthToken(token)
-    } else if (token.length === 64 && /^[a-f0-9]{64}$/.test(token)) {
-      // API token - validate and get permissions
-      const result = await this.validateAppToken(token)
-      if (result.valid && result.appToken) {
-        // Create a session-like object for API tokens
-        return {
-          userId: result.appToken.createdBy,
-          username: `api-token-${result.appToken.name}`,
-          role: 'api', // Special role for API tokens
-          permissions: result.appToken.permissions,
-          loginAt: new Date().toISOString(),
-          expiresAt: result.appToken.expiresAt
-        }
-      }
-    }
-    
-    return null
+    return this.authService.verifyAnyToken(token)
   }
 
   /**
@@ -1824,129 +1793,7 @@ export class TrokkyCore {
     password: string,
     options: { rememberMe?: boolean; deviceId?: string } = {}
   ): Promise<AuthenticationResult | null> {
-    try {
-      // Get user by username
-      const user = await this.getUserByUsername(username)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Verify password
-      const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
-      if (!isPasswordValid) {
-        return null
-      }
-
-      // Upgrade the stored hash if it uses an outdated format or work factor.
-      // Never blocks login: any failure below is logged and ignored.
-      const loginUpdate: UpdateUserData = { lastLoginAt: new Date().toISOString() }
-      if (this.cryptoAdapter.needsRehash(user.passwordHash)) {
-        try {
-          const upgradedHash = await this.hashPassword(password)
-          // Guard against a password change/reset that completed between our
-          // verify and this persist: only replace the hash we actually verified.
-          const current = await this.getUser(user.id)
-          if (current && current.passwordHash === user.passwordHash) {
-            loginUpdate.passwordHash = upgradedHash
-          } else {
-            this.logger.debug('Skipped password hash upgrade: hash changed during login', { userId: user.id })
-          }
-        } catch (error) {
-          this.logger.warn('Failed to upgrade password hash', { userId: user.id })
-        }
-      }
-
-      // Persist last login time (and upgraded hash, if any) in a single write.
-      // A storage failure here must not turn a correct password into a 401.
-      try {
-        await this.updateUser(user.id, loginUpdate)
-        if (loginUpdate.passwordHash) {
-          this.logger.debug('Password hash upgraded to current format', { userId: user.id })
-        }
-      } catch (error) {
-        this.logger.warn('Failed to persist login update', { userId: user.id })
-      }
-
-      // Check MFA requirements
-      const mfaStatus = await this.checkMFARequired(user.id)
-
-      // If MFA is required
-      if (mfaStatus.required) {
-        // Check if device is trusted (can skip MFA)
-        if (options.deviceId && mfaStatus.userHasMFA) {
-          const isTrusted = await this.isDeviceTrusted(user.id, options.deviceId)
-          if (isTrusted) {
-            // Device is trusted, issue full tokens
-            return this.issueFullTokens(user, options)
-          }
-        }
-
-        // User has MFA set up - require verification
-        if (mfaStatus.userHasMFA) {
-          // Generate MFA pending token (short-lived)
-          const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: 'MFA verification required',
-            timestamp: new Date().toISOString(),
-            success: true,
-            details: {
-              mfaRequired: true,
-              methods: mfaStatus.methods
-            }
-          })
-
-          return {
-            type: 'mfa_required',
-            requiresMFA: true,
-            mfaToken,
-            methods: mfaStatus.methods,
-            expiresIn: 300 // 5 minutes
-          }
-        }
-
-        // Org or role requires MFA but user hasn't set it up
-        if (mfaStatus.reason === 'org_required' || mfaStatus.reason === 'role_required') {
-          const setupToken = await this.generateMFASetupToken(user, mfaStatus.methods)
-
-          const message = mfaStatus.reason === 'role_required'
-            ? `Your role (${user.role}) requires MFA. Please set up multi-factor authentication.`
-            : 'Your organization requires MFA. Please set up multi-factor authentication.'
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: 'MFA setup required',
-            timestamp: new Date().toISOString(),
-            success: true,
-            details: {
-              mfaSetupRequired: true,
-              allowedMethods: mfaStatus.methods,
-              reason: mfaStatus.reason
-            }
-          })
-
-          return {
-            type: 'mfa_setup_required',
-            requiresMFASetup: true,
-            setupToken,
-            allowedMethods: mfaStatus.methods,
-            message,
-            expiresIn: 900 // 15 minutes
-          }
-        }
-      }
-
-      // No MFA required - issue full tokens
-      return this.issueFullTokens(user, options)
-    } catch (error) {
-      console.error('Authentication failed:', error instanceof Error ? error.message : 'Unknown error')
-      return null
-    }
+    return this.authService.authenticateUser(username, password, options)
   }
 
   /**
@@ -1956,71 +1803,21 @@ export class TrokkyCore {
     user: User,
     options: { rememberMe?: boolean } = {}
   ): Promise<AuthenticationSuccessResult> {
-    const securityConfig = this.config.security?.tokens
-    const tokenExpiresIn = options.rememberMe
-      ? (securityConfig?.rememberMeTtl || '7d')
-      : (securityConfig?.accessTokenTtl || '2h')
-    const refreshTokenExpiresIn = options.rememberMe
-      ? '30d'
-      : (securityConfig?.refreshTokenTtl || '7d')
-
-    const token = await this.generateAuthToken(user, tokenExpiresIn, options.rememberMe)
-    const refreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, options.rememberMe)
-
-    // Log successful login
-    this.logAuditEvent({
-      type: 'user_login',
-      userId: user.id,
-      username: user.username,
-      action: 'User authenticated successfully',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        role: user.role,
-        lastLoginAt: new Date().toISOString(),
-        rememberMe: options.rememberMe
-      }
-    })
-
-    // Get token expiration time
-    const session = await this.verifyAuthToken(token)
-    const expiresAt = session?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-
-    // Return user without password hash
-    const { passwordHash, ...safeUser } = user
-    return {
-      type: 'success',
-      user: { ...safeUser, passwordHash: '' } as User,
-      token,
-      refreshToken,
-      expiresAt
-    }
+    return this.authService.issueFullTokens(user, options)
   }
 
   /**
    * Generate MFA pending token (used when MFA verification is needed)
    */
   private async generateMFAPendingToken(user: User, methods: MFAMethodType[]): Promise<string> {
-    const payload = {
-      type: 'mfa_pending',
-      userId: user.id,
-      username: user.username,
-      mfaMethods: methods
-    }
-    return this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn: '5m' })
+    return this.authService.generateMFAPendingToken(user, methods)
   }
 
   /**
    * Generate MFA setup token (used when org requires MFA but user hasn't set it up)
    */
   private async generateMFASetupToken(user: User, allowedMethods: MFAMethodType[]): Promise<string> {
-    const payload = {
-      type: 'mfa_setup',
-      userId: user.id,
-      username: user.username,
-      allowedMethods
-    }
-    return this.cryptoAdapter.generateJWT(payload, this.jwtSecret, { expiresIn: '15m' })
+    return this.authService.generateMFASetupToken(user, allowedMethods)
   }
 
   /**
@@ -2031,41 +1828,7 @@ export class TrokkyCore {
     mfaToken: string,
     options: { rememberMe?: boolean; trustDevice?: boolean; deviceId?: string; deviceName?: string } = {}
   ): Promise<AuthenticationSuccessResult | null> {
-    try {
-      // Verify MFA pending token
-      const payload = await this.cryptoAdapter.verifyJWT(mfaToken, this.jwtSecret) as {
-        type: string
-        userId: string
-        username: string
-      } | null
-
-      if (!payload || payload.type !== 'mfa_pending') {
-        return null
-      }
-
-      // Get user
-      const user = await this.getUser(payload.userId)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Trust device if requested
-      if (options.trustDevice && options.deviceId) {
-        await this.trustDevice(
-          user.id,
-          options.deviceId,
-          options.deviceName || 'Unknown Device'
-        )
-      }
-
-      // Issue full tokens
-      return this.issueFullTokens(user, options)
-    } catch (error) {
-      this.logger.error('MFA authentication completion failed', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return null
-    }
+    return this.authService.completeMFAAuthentication(mfaToken, options)
   }
 
   /**
@@ -2076,26 +1839,7 @@ export class TrokkyCore {
     username: string
     allowedMethods: MFAMethodType[]
   } | null> {
-    try {
-      const payload = await this.cryptoAdapter.verifyJWT(setupToken, this.jwtSecret) as {
-        type: string
-        userId: string
-        username: string
-        allowedMethods: MFAMethodType[]
-      } | null
-
-      if (!payload || payload.type !== 'mfa_setup') {
-        return null
-      }
-
-      return {
-        userId: payload.userId,
-        username: payload.username,
-        allowedMethods: payload.allowedMethods
-      }
-    } catch {
-      return null
-    }
+    return this.authService.verifyMFASetupToken(setupToken)
   }
 
   /**
@@ -2108,34 +1852,7 @@ export class TrokkyCore {
     mfaMethods?: MFAMethodType[]
     allowedMethods?: MFAMethodType[]
   } | null> {
-    try {
-      const payload = await this.cryptoAdapter.verifyJWT(token, this.jwtSecret) as {
-        type: string
-        userId: string
-        username: string
-        mfaMethods?: MFAMethodType[]
-        allowedMethods?: MFAMethodType[]
-      } | null
-
-      if (!payload) {
-        return null
-      }
-
-      // Validate it's an MFA token type
-      if (payload.type !== 'mfa_pending' && payload.type !== 'mfa_setup') {
-        return null
-      }
-
-      return {
-        type: payload.type as 'mfa_pending' | 'mfa_setup',
-        userId: payload.userId,
-        username: payload.username,
-        mfaMethods: payload.mfaMethods,
-        allowedMethods: payload.allowedMethods
-      }
-    } catch {
-      return null
-    }
+    return this.authService.verifyMFAToken(token)
   }
 
   /**
@@ -2146,45 +1863,7 @@ export class TrokkyCore {
     setupToken: string,
     options: { rememberMe?: boolean } = {}
   ): Promise<AuthenticationSuccessResult | null> {
-    try {
-      // Verify MFA setup token
-      const payload = await this.cryptoAdapter.verifyJWT(setupToken, this.jwtSecret) as {
-        type: string
-        userId: string
-        username: string
-      } | null
-
-      if (!payload || payload.type !== 'mfa_setup') {
-        return null
-      }
-
-      // Get user
-      const user = await this.getUser(payload.userId)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Verify user now has MFA enabled
-      if (!user.mfa?.enabled || !user.mfa.methods?.some(m => m.enabled && m.verified)) {
-        this.logger.warn('MFA setup completion attempted but MFA not enabled', {
-          userId: user.id
-        })
-        return null
-      }
-
-      this.logger.info('MFA setup completed, issuing auth tokens', {
-        userId: user.id,
-        username: user.username
-      })
-
-      // Issue full tokens
-      return this.issueFullTokens(user, options)
-    } catch (error) {
-      this.logger.error('MFA setup completion failed', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return null
-    }
+    return this.authService.completeMFASetupAndLogin(setupToken, options)
   }
 
   /**
@@ -2195,76 +1874,11 @@ export class TrokkyCore {
     valid: boolean
     remainingCodes: string[]
   }> {
-    const user = await this.getUser(userId)
-    if (!user || !user.mfa?.backupCodes) {
-      return { valid: false, remainingCodes: [] }
-    }
-
-    const totpService = this.getTOTPService()
-    const result = totpService.verifyBackupCode(user.mfa.backupCodes, code)
-
-    if (result.valid) {
-      // Update user with remaining codes
-      await this.updateUser(userId, {
-        mfa: {
-          ...user.mfa,
-          backupCodes: result.remainingCodes
-        }
-      } as UpdateUserData)
-
-      this.logger.info('Backup code used', {
-        userId,
-        remainingCodes: result.remainingCodes.length
-      })
-    }
-
-    return result
+    return this.authService.verifyBackupCode(userId, code)
   }
 
   public async refreshAuthToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: User; expiresAt: string } | null> {
-    try {
-      // Verify the refresh token
-      const session = await this.verifyAuthToken(refreshToken)
-      if (!session) {
-        return null
-      }
-
-      // Get the user
-      const user = await this.getUser(session.userId)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Extract rememberMe flag from the refresh token payload
-      const decoded = await this.cryptoAdapter.verifyJWT(refreshToken, this.jwtSecret)
-      const rememberMe = decoded?.rememberMe === true
-
-      // Generate new tokens preserving the rememberMe state
-      const securityConfig = this.config.security?.tokens
-      const tokenExpiresIn = rememberMe
-        ? (securityConfig?.rememberMeTtl || '7d')
-        : (securityConfig?.accessTokenTtl || '2h')
-      const refreshTokenExpiresIn = rememberMe
-        ? '30d'
-        : (securityConfig?.refreshTokenTtl || '7d')
-
-      const newToken = await this.generateAuthToken(user, tokenExpiresIn, rememberMe)
-      const newRefreshToken = await this.generateAuthToken(user, refreshTokenExpiresIn, rememberMe)
-
-      // Get the new token's expiration time
-      const newSession = await this.verifyAuthToken(newToken)
-      const expiresAt = newSession?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-
-      return {
-        token: newToken,
-        refreshToken: newRefreshToken,
-        user,
-        expiresAt
-      }
-    } catch (error) {
-      this.logger.error('Failed to refresh auth token', { error: error instanceof Error ? error.message : String(error) })
-      return null
-    }
+    return this.authService.refreshAuthToken(refreshToken)
   }
 
   // ==========================================================================
@@ -2278,53 +1892,7 @@ export class TrokkyCore {
     userId: string,
     provider: OAuthProvider
   ): Promise<User> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found')
-    }
-
-    // Check if this provider is already linked to another user
-    const existingUser = await this.getUserByOAuthProvider(
-      provider.provider,
-      provider.providerId
-    )
-    if (existingUser && existingUser.id !== userId) {
-      throw new InvalidInputError(
-        'This account is already linked to another user'
-      )
-    }
-
-    // Check if user already has this provider linked
-    const existingProviders = user.oauthProviders || []
-    const alreadyLinked = existingProviders.some(
-      (p) => p.provider === provider.provider
-    )
-    if (alreadyLinked) {
-      throw new InvalidInputError(
-        `${provider.provider} account is already linked`
-      )
-    }
-
-    // Add the provider
-    const updatedProviders = [...existingProviders, provider]
-    const updatedUser = await this.updateUser(userId, {
-      oauthProviders: updatedProviders,
-    } as any)
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      userId: user.id,
-      username: user.username,
-      action: `Linked ${provider.provider} OAuth account`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        provider: provider.provider,
-        providerEmail: provider.email,
-      },
-    })
-
-    return updatedUser
+    return this.oauthService.linkOAuthProvider(userId, provider)
   }
 
   /**
@@ -2334,41 +1902,7 @@ export class TrokkyCore {
     userId: string,
     providerName: OAuthProviderType
   ): Promise<User> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found')
-    }
-
-    const existingProviders = user.oauthProviders || []
-    const providerToRemove = existingProviders.find(
-      (p) => p.provider === providerName
-    )
-
-    if (!providerToRemove) {
-      throw new InvalidInputError(`${providerName} account is not linked`)
-    }
-
-    // Remove the provider
-    const updatedProviders = existingProviders.filter(
-      (p) => p.provider !== providerName
-    )
-    const updatedUser = await this.updateUser(userId, {
-      oauthProviders: updatedProviders,
-    } as any)
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      userId: user.id,
-      username: user.username,
-      action: `Unlinked ${providerName} OAuth account`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        provider: providerName,
-      },
-    })
-
-    return updatedUser
+    return this.oauthService.unlinkOAuthProvider(userId, providerName)
   }
 
   /**
@@ -2381,151 +1915,7 @@ export class TrokkyCore {
     providerId: string,
     options?: { deviceId?: string }
   ): Promise<AuthenticationResult | null> {
-    try {
-      // Find user by OAuth provider
-      const user = await this.getUserByOAuthProvider(providerName, providerId)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Update last login time and lastUsedAt for the OAuth provider
-      const now = new Date().toISOString()
-      const updatedProviders = (user.oauthProviders || []).map((p) =>
-        p.provider === providerName && p.providerId === providerId
-          ? { ...p, lastUsedAt: now }
-          : p
-      )
-
-      await this.updateUser(user.id, {
-        lastLoginAt: now,
-        oauthProviders: updatedProviders,
-      } as any)
-
-      // Check MFA requirements (same as regular login)
-      const mfaStatus = await this.checkMFARequired(user.id)
-
-      if (mfaStatus.required) {
-        // User has MFA set up - check if device is trusted first
-        if (mfaStatus.userHasMFA) {
-          // Check if device is trusted (can skip MFA)
-          if (options?.deviceId) {
-            const isTrusted = await this.isDeviceTrusted(user.id, options.deviceId)
-            if (isTrusted) {
-              this.logger.info('OAuth login - skipping MFA for trusted device', {
-                userId: user.id,
-                provider: providerName,
-                deviceId: options.deviceId.substring(0, 8) + '...',
-              })
-              // Device is trusted, issue full tokens (skip MFA)
-              return this.issueFullTokens(user, {})
-            }
-          }
-
-          const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: `OAuth login - MFA verification required`,
-            timestamp: now,
-            success: true,
-            details: {
-              mfaRequired: true,
-              methods: mfaStatus.methods,
-              provider: providerName,
-            },
-          })
-
-          return {
-            type: 'mfa_required',
-            requiresMFA: true,
-            mfaToken,
-            methods: mfaStatus.methods,
-            expiresIn: 300, // 5 minutes
-          }
-        }
-
-        // Org/role requires MFA but user hasn't set it up
-        if (mfaStatus.reason === 'org_required' || mfaStatus.reason === 'role_required') {
-          const setupToken = await this.generateMFASetupToken(user, mfaStatus.methods)
-
-          const message = mfaStatus.reason === 'role_required'
-            ? `Your role (${user.role}) requires MFA. Please set up multi-factor authentication.`
-            : 'Your organization requires MFA. Please set up multi-factor authentication.'
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: `OAuth login - MFA setup required`,
-            timestamp: now,
-            success: true,
-            details: {
-              mfaSetupRequired: true,
-              allowedMethods: mfaStatus.methods,
-              reason: mfaStatus.reason,
-              provider: providerName,
-            },
-          })
-
-          return {
-            type: 'mfa_setup_required',
-            requiresMFASetup: true,
-            setupToken,
-            allowedMethods: mfaStatus.methods,
-            message,
-            expiresIn: 900, // 15 minutes
-          }
-        }
-      }
-
-      // No MFA required - generate full tokens
-      const securityConfig = this.config.security?.tokens
-      const tokenExpiresIn = securityConfig?.accessTokenTtl || '2h'
-      const refreshTokenExpiresIn = securityConfig?.refreshTokenTtl || '7d'
-
-      const token = await this.generateAuthToken(user, tokenExpiresIn, false)
-      const refreshToken = await this.generateAuthToken(
-        user,
-        refreshTokenExpiresIn,
-        false
-      )
-
-      // Log successful login
-      this.logAuditEvent({
-        type: 'user_login',
-        userId: user.id,
-        username: user.username,
-        action: `User authenticated via ${providerName} OAuth`,
-        timestamp: now,
-        success: true,
-        details: {
-          role: user.role,
-          provider: providerName,
-        },
-      })
-
-      // Return user without password hash
-      const { passwordHash, ...safeUser } = user
-
-      // Get token expiration time
-      const session = await this.verifyAuthToken(token)
-
-      return {
-        type: 'success',
-        user: { ...safeUser, passwordHash: '' } as User,
-        token,
-        refreshToken,
-        expiresAt: session?.expiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      }
-    } catch (error) {
-      this.logger.error('OAuth authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-        provider: providerName,
-      })
-      return null
-    }
+    return this.oauthService.authenticateWithOAuth(providerName, providerId, options)
   }
 
   /**
@@ -2535,51 +1925,21 @@ export class TrokkyCore {
     providerName: OAuthProviderType,
     providerId: string
   ): Promise<User | null> {
-    // First try storage adapter method if available
-    if (this.dataStorage.getUserByOAuthProvider) {
-      return this.dataStorage.getUserByOAuthProvider(providerName, providerId)
-    }
-
-    // Fallback: list all users and search (inefficient, but works as fallback)
-    this.logger.warn(
-      'getUserByOAuthProvider not implemented in storage adapter, using fallback'
-    )
-    const users = await this.listUsers({ limit: 10000 })
-    for (const user of users) {
-      const provider = (user.oauthProviders || []).find(
-        (p) => p.provider === providerName && p.providerId === providerId
-      )
-      if (provider) {
-        return user
-      }
-    }
-    return null
+    return this.oauthService.getUserByOAuthProvider(providerName, providerId)
   }
 
   /**
    * Check if OAuth is configured for a provider
    */
   public isOAuthConfigured(providerName: OAuthProviderType): boolean {
-    if (providerName === 'google') {
-      const config = this.config.oauth?.google
-      return !!(config?.clientId && config?.clientSecret && config?.redirectUri)
-    }
-    return false
+    return this.oauthService.isOAuthConfigured(providerName)
   }
 
   /**
    * Get OAuth configuration for a provider
    */
   public getOAuthConfig(providerName: OAuthProviderType): Record<string, string> | null {
-    if (providerName === 'google' && this.isOAuthConfigured('google')) {
-      const config = this.config.oauth!.google!
-      return {
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        redirectUri: config.redirectUri,
-      }
-    }
-    return null
+    return this.oauthService.getOAuthConfig(providerName)
   }
 
   // ==========================================================================
@@ -2590,49 +1950,21 @@ export class TrokkyCore {
    * Check if passkey authentication is configured
    */
   public isPasskeyConfigured(): boolean {
-    const config = this.config.security?.passkey
-    // Debug logging
-    this.logger.debug('isPasskeyConfigured check', {
-      hasSecurityConfig: !!this.config.security,
-      hasPasskeyConfig: !!config,
-      passkeyEnabled: config?.enabled,
-      passkeyRpId: config?.rpId,
-      passkeyOrigin: config?.origin,
-    })
-    return !!(config?.enabled && config?.rpId && config?.origin)
+    return this.passkeyService.isPasskeyConfigured()
   }
 
   /**
    * Get passkey configuration
    */
   public getPasskeyConfig(): import('../../types/index.js').PasskeyConfig | null {
-    if (!this.isPasskeyConfigured()) return null
-    return this.config.security!.passkey!
+    return this.passkeyService.getPasskeyConfig()
   }
 
   /**
    * Find a user by passkey credential ID
    */
   public async getUserByPasskeyCredentialId(credentialId: string): Promise<User | null> {
-    // First try storage adapter method if available
-    if ((this.dataStorage as any).getUserByPasskeyCredentialId) {
-      return (this.dataStorage as any).getUserByPasskeyCredentialId(credentialId)
-    }
-
-    // Fallback: list all users and search (inefficient, but works as fallback)
-    this.logger.warn(
-      'getUserByPasskeyCredentialId not implemented in storage adapter, using fallback'
-    )
-    const users = await this.listUsers({ limit: 10000 })
-    for (const user of users) {
-      const credential = (user.passkeys || []).find(
-        (p) => p.id === credentialId
-      )
-      if (credential) {
-        return user
-      }
-    }
-    return null
+    return this.passkeyService.getUserByPasskeyCredentialId(credentialId)
   }
 
   /**
@@ -2642,76 +1974,14 @@ export class TrokkyCore {
     userId: string,
     credential: import('../../types/index.js').PasskeyCredential
   ): Promise<User> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found')
-    }
-
-    // Check if credential ID already exists for this user
-    const existingPasskeys = user.passkeys || []
-    const alreadyExists = existingPasskeys.some((p) => p.id === credential.id)
-    if (alreadyExists) {
-      throw new InvalidInputError('Passkey credential already registered')
-    }
-
-    // Add the credential
-    const updatedPasskeys = [...existingPasskeys, credential]
-    const updatedUser = await this.updateUser(userId, {
-      passkeys: updatedPasskeys,
-    } as any)
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      targetUserId: userId,
-      username: user.username,
-      action: 'Passkey credential added',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        credentialId: credential.id,
-        friendlyName: credential.friendlyName,
-        deviceType: credential.deviceType,
-      },
-    })
-
-    return updatedUser
+    return this.passkeyService.addPasskeyToUser(userId, credential)
   }
 
   /**
    * Remove a passkey credential from a user
    */
   public async removePasskeyFromUser(userId: string, credentialId: string): Promise<User> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found')
-    }
-
-    const existingPasskeys = user.passkeys || []
-    const credentialToRemove = existingPasskeys.find((p) => p.id === credentialId)
-
-    if (!credentialToRemove) {
-      throw new InvalidInputError('Passkey credential not found')
-    }
-
-    const updatedPasskeys = existingPasskeys.filter((p) => p.id !== credentialId)
-    const updatedUser = await this.updateUser(userId, {
-      passkeys: updatedPasskeys,
-    } as any)
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      targetUserId: userId,
-      username: user.username,
-      action: 'Passkey credential removed',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        credentialId,
-        friendlyName: credentialToRemove.friendlyName,
-      },
-    })
-
-    return updatedUser
+    return this.passkeyService.removePasskeyFromUser(userId, credentialId)
   }
 
   /**
@@ -2722,31 +1992,7 @@ export class TrokkyCore {
     credentialId: string,
     updates: Partial<import('../../types/index.js').PasskeyCredential>
   ): Promise<User> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found')
-    }
-
-    const existingPasskeys = user.passkeys || []
-    const credentialIndex = existingPasskeys.findIndex((p) => p.id === credentialId)
-
-    if (credentialIndex === -1) {
-      throw new InvalidInputError('Passkey credential not found')
-    }
-
-    // Update the credential
-    const updatedCredential = {
-      ...existingPasskeys[credentialIndex],
-      ...updates,
-    }
-    const updatedPasskeys = [...existingPasskeys]
-    updatedPasskeys[credentialIndex] = updatedCredential
-
-    const updatedUser = await this.updateUser(userId, {
-      passkeys: updatedPasskeys,
-    } as any)
-
-    return updatedUser
+    return this.passkeyService.updateUserPasskey(userId, credentialId, updates)
   }
 
   /**
@@ -2758,108 +2004,7 @@ export class TrokkyCore {
     credentialId: string,
     options?: { deviceId?: string }
   ): Promise<AuthenticationResult | null> {
-    try {
-      const user = await this.getUser(userId)
-      if (!user || !user.isActive) {
-        return null
-      }
-
-      // Update last login time and lastUsedAt for the passkey
-      const now = new Date().toISOString()
-      const updatedPasskeys = (user.passkeys || []).map((p) =>
-        p.id === credentialId ? { ...p, lastUsedAt: now } : p
-      )
-
-      await this.updateUser(user.id, {
-        lastLoginAt: now,
-        passkeys: updatedPasskeys,
-      } as any)
-
-      // Check MFA requirements (same as regular login)
-      const mfaStatus = await this.checkMFARequired(user.id)
-
-      if (mfaStatus.required) {
-        // User has MFA set up - check if device is trusted first
-        if (mfaStatus.userHasMFA) {
-          // Check if device is trusted (can skip MFA)
-          if (options?.deviceId) {
-            const isTrusted = await this.isDeviceTrusted(user.id, options.deviceId)
-            if (isTrusted) {
-              this.logger.info('Passkey login - skipping MFA for trusted device', {
-                userId: user.id,
-                credentialId: credentialId.substring(0, 8) + '...',
-                deviceId: options.deviceId.substring(0, 8) + '...',
-              })
-              // Device is trusted, issue full tokens (skip MFA)
-              return this.issueFullTokens(user, {})
-            }
-          }
-
-          const mfaToken = await this.generateMFAPendingToken(user, mfaStatus.methods)
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: 'Passkey login - MFA verification required',
-            timestamp: now,
-            success: true,
-            details: {
-              mfaRequired: true,
-              methods: mfaStatus.methods,
-              authMethod: 'passkey',
-            },
-          })
-
-          return {
-            type: 'mfa_required',
-            requiresMFA: true,
-            mfaToken,
-            methods: mfaStatus.methods,
-            expiresIn: 300, // 5 minutes
-          }
-        }
-
-        // Org/role requires MFA but user hasn't set it up
-        if (mfaStatus.reason === 'org_required' || mfaStatus.reason === 'role_required') {
-          const setupToken = await this.generateMFASetupToken(user, mfaStatus.methods)
-
-          const message = mfaStatus.reason === 'role_required'
-            ? `Your role (${user.role}) requires MFA. Please set up multi-factor authentication.`
-            : 'Your organization requires MFA. Please set up multi-factor authentication.'
-
-          this.logAuditEvent({
-            type: 'user_login',
-            userId: user.id,
-            username: user.username,
-            action: 'Passkey login - MFA setup required',
-            timestamp: now,
-            success: true,
-            details: {
-              mfaSetupRequired: true,
-              allowedMethods: mfaStatus.methods,
-              reason: mfaStatus.reason,
-              authMethod: 'passkey',
-            },
-          })
-
-          return {
-            type: 'mfa_setup_required',
-            requiresMFASetup: true,
-            setupToken,
-            allowedMethods: mfaStatus.methods,
-            message,
-            expiresIn: 900, // 15 minutes
-          }
-        }
-      }
-
-      // No MFA required - issue full tokens
-      return this.issueFullTokens(user, {})
-    } catch (error) {
-      this.logger.error('Passkey authentication failed', error)
-      return null
-    }
+    return this.passkeyService.authenticateWithPasskey(userId, credentialId, options)
   }
 
   // ==========================================================================
@@ -2947,19 +2092,14 @@ export class TrokkyCore {
    * Creates one with a default issuer (can be overridden via settings)
    */
   private getTOTPService(issuer?: string): TOTPService {
-    // Default issuer - can be configured via settings
-    return new TOTPService({ issuer: issuer || 'Trokky' })
+    return this.mfaService.getTOTPService(issuer)
   }
 
   /**
    * Get the Email OTP service instance
    */
   private getEmailOTPService(): EmailOTPService {
-    return new EmailOTPService({
-      codeLength: 6,
-      expiryMinutes: 10,
-      maxAttempts: 5
-    })
+    return this.mfaService.getEmailOTPService()
   }
 
   /**
@@ -2972,60 +2112,7 @@ export class TrokkyCore {
     reason: 'user_enabled' | 'org_required' | 'role_required' | 'not_required'
     userHasMFA: boolean
   }> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Check if user has MFA enabled
-    const userHasMFA = user.mfa?.enabled === true && (user.mfa.methods?.length ?? 0) > 0
-    const userMethods = user.mfa?.methods?.filter(m => m.enabled && m.verified).map(m => m.type) || []
-
-    // Check organization-level MFA requirement
-    const settings = await this.getSettings()
-    const orgRequiresMFA = settings?.mfaRequired === true
-
-    // Check role-based MFA enforcement
-    const enforcedRoles = settings?.mfaEnforcedRoles || []
-    const roleRequiresMFA = user.role !== 'api' && enforcedRoles.includes(user.role as any)
-
-    if (userHasMFA) {
-      return {
-        required: true,
-        methods: userMethods,
-        reason: 'user_enabled',
-        userHasMFA: true
-      }
-    }
-
-    if (orgRequiresMFA) {
-      // Org requires MFA but user hasn't set it up yet
-      const allowedMethods = settings?.mfaAllowedMethods || ['totp', 'email']
-      return {
-        required: true,
-        methods: allowedMethods,
-        reason: 'org_required',
-        userHasMFA: false
-      }
-    }
-
-    if (roleRequiresMFA) {
-      // User's role requires MFA but user hasn't set it up yet
-      const allowedMethods = settings?.mfaAllowedMethods || ['totp', 'email']
-      return {
-        required: true,
-        methods: allowedMethods,
-        reason: 'role_required',
-        userHasMFA: false
-      }
-    }
-
-    return {
-      required: false,
-      methods: [],
-      reason: 'not_required',
-      userHasMFA: false
-    }
+    return this.mfaService.checkMFARequired(userId)
   }
 
   /**
@@ -3043,39 +2130,7 @@ export class TrokkyCore {
    * Returns QR code and secret for authenticator app
    */
   public async initializeTOTPSetup(userId: string): Promise<TOTPSecretResult> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Get issuer from settings or use default
-    const settings = await this.getSettings()
-    const issuer = settings?.studioTitle || settings?.organizationName || 'Trokky'
-    const totpService = this.getTOTPService(issuer)
-    const result = await totpService.generateSecret(user.email || user.username)
-
-    // Store the secret temporarily in user preferences (unverified)
-    const pendingTOTP: MFAMethod = {
-      type: 'totp',
-      enabled: false,
-      verified: false,
-      secret: result.secret // Will be encrypted by storage adapter
-    }
-
-    // Update user with pending TOTP setup
-    const currentMFA = user.mfa || { enabled: false, methods: [] }
-    const existingMethods = (currentMFA.methods || []).filter(m => m.type !== 'totp')
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...currentMFA,
-        methods: [...existingMethods, pendingTOTP]
-      }
-    } as UpdateUserData)
-
-    this.logger.info('TOTP setup initialized', { userId })
-
-    return result
+    return this.mfaService.initializeTOTPSetup(userId)
   }
 
   /**
@@ -3086,74 +2141,7 @@ export class TrokkyCore {
     enabled: boolean
     backupCodes?: string[]
   }> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Find pending TOTP method
-    const pendingTOTP = user.mfa?.methods?.find(m => m.type === 'totp' && !m.verified)
-    if (!pendingTOTP || !pendingTOTP.secret) {
-      throw new InvalidInputError('No pending TOTP setup found. Call initializeTOTPSetup first.', 'totp')
-    }
-
-    // Verify the code
-    const totpService = this.getTOTPService()
-    const isValid = totpService.verifyCode(pendingTOTP.secret, code)
-
-    if (!isValid) {
-      throw new InvalidInputError('Invalid TOTP code', 'code')
-    }
-
-    // Update TOTP method as verified and enabled
-    const verifiedTOTP: MFAMethod = {
-      ...pendingTOTP,
-      enabled: true,
-      verified: true,
-      verifiedAt: new Date().toISOString()
-    }
-
-    const currentMFA = user.mfa || { enabled: false, methods: [] }
-    const otherMethods = (currentMFA.methods || []).filter(m => m.type !== 'totp')
-
-    // Generate backup codes only if this is the first MFA method
-    let backupCodes: string[] | undefined
-    let hashedBackupCodes = currentMFA.backupCodes
-    let backupCodesGeneratedAt = currentMFA.backupCodesGeneratedAt
-
-    if (!hashedBackupCodes || hashedBackupCodes.length === 0) {
-      backupCodes = totpService.generateBackupCodes(10)
-      hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
-      backupCodesGeneratedAt = new Date().toISOString()
-    }
-
-    await this.updateUser(userId, {
-      mfa: {
-        enabled: true,
-        methods: [...otherMethods, verifiedTOTP],
-        backupCodes: hashedBackupCodes,
-        backupCodesGeneratedAt,
-        trustedDevices: currentMFA.trustedDevices || []
-      }
-    } as UpdateUserData)
-
-    this.logger.info('TOTP enabled for user', { userId })
-
-    // Log audit event
-    this.logAuditEvent({
-      type: 'user_updated',
-      userId,
-      username: user.username,
-      action: 'MFA TOTP enabled',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: { mfaMethod: 'totp' }
-    })
-
-    return {
-      enabled: true,
-      backupCodes // Return plain codes - user must save them
-    }
+    return this.mfaService.verifyAndEnableTOTP(userId, code)
   }
 
   /**
@@ -3161,51 +2149,7 @@ export class TrokkyCore {
    * Sends verification code to user's email
    */
   public async initializeEmailOTPSetup(userId: string): Promise<{ expiresIn: number }> {
-    const user = await this.getUser(userId)
-    if (!user || !user.email) {
-      throw new InvalidInputError('User not found or has no email', 'userId')
-    }
-
-    const emailService = this.getEmailOTPService()
-    const result = emailService.generateCode()
-
-    // Store the OTP in user preferences
-    const storedOTP: StoredEmailOTP = emailService.createStoredOTP(result)
-
-    // Store in user preferences for later verification
-    const currentPreferences = user.preferences || {}
-    await this.updateUser(userId, {
-      preferences: {
-        ...currentPreferences,
-        _pendingEmailOTP: storedOTP
-      }
-    } as UpdateUserData)
-
-    // Emit event for email notification
-    if (this.eventsEnabled) {
-      this.eventBus.emitEvent({
-        type: 'user.mfa_otp_requested',
-        source: 'trokky-core',
-        data: {
-          userId,
-          email: user.email,
-          firstName: user.firstName,
-          otpCode: result.code,
-          expiryMinutes: 10,
-          purpose: 'MFA setup',
-        },
-      }).catch(error => {
-        this.logger.warn('Failed to emit MFA OTP event', error)
-      })
-    }
-
-    this.logger.info('Email OTP generated for MFA setup', {
-      userId,
-      email: user.email,
-      expiresAt: result.expiresAt
-    })
-
-    return { expiresIn: 10 * 60 } // 10 minutes in seconds
+    return this.mfaService.initializeEmailOTPSetup(userId)
   }
 
   /**
@@ -3215,84 +2159,7 @@ export class TrokkyCore {
     enabled: boolean
     backupCodes?: string[]
   }> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Get stored OTP from preferences
-    const storedOTP = user.preferences?._pendingEmailOTP as StoredEmailOTP | undefined
-    if (!storedOTP) {
-      throw new InvalidInputError('No pending email OTP found. Call initializeEmailOTPSetup first.', 'emailOtp')
-    }
-
-    // Verify the code
-    const emailService = this.getEmailOTPService()
-    const verificationResult = emailService.verifyCode(code, storedOTP)
-
-    if (!verificationResult.valid) {
-      if (verificationResult.expired) {
-        throw new InvalidInputError('Email OTP has expired', 'code')
-      }
-      if (verificationResult.maxAttemptsExceeded) {
-        throw new InvalidInputError('Maximum verification attempts exceeded', 'code')
-      }
-
-      // Update attempt count
-      const updatedOTP = emailService.incrementAttempts(storedOTP)
-      await this.updateUser(userId, {
-        preferences: {
-          ...user.preferences,
-          _pendingEmailOTP: updatedOTP
-        }
-      } as UpdateUserData)
-
-      throw new InvalidInputError(
-        `Invalid code. ${verificationResult.attemptsRemaining} attempts remaining.`,
-        'code'
-      )
-    }
-
-    // Create verified email MFA method
-    const emailMethod: MFAMethod = {
-      type: 'email',
-      enabled: true,
-      verified: true,
-      verifiedAt: new Date().toISOString()
-    }
-
-    const currentMFA = user.mfa || { enabled: false, methods: [] }
-    const otherMethods = (currentMFA.methods || []).filter(m => m.type !== 'email')
-
-    // Generate backup codes if this is the first MFA method
-    let backupCodes: string[] | undefined
-    let hashedBackupCodes = currentMFA.backupCodes
-    let backupCodesGeneratedAt = currentMFA.backupCodesGeneratedAt
-
-    if (!hashedBackupCodes || hashedBackupCodes.length === 0) {
-      const totpService = this.getTOTPService()
-      backupCodes = totpService.generateBackupCodes(10)
-      hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
-      backupCodesGeneratedAt = new Date().toISOString()
-    }
-
-    // Remove pending OTP and update MFA config
-    const { _pendingEmailOTP, ...cleanPreferences } = user.preferences || {}
-
-    await this.updateUser(userId, {
-      preferences: cleanPreferences,
-      mfa: {
-        enabled: true,
-        methods: [...otherMethods, emailMethod],
-        backupCodes: hashedBackupCodes,
-        backupCodesGeneratedAt,
-        trustedDevices: currentMFA.trustedDevices || []
-      }
-    } as UpdateUserData)
-
-    this.logger.info('Email OTP enabled for user', { userId })
-
-    return { enabled: true, backupCodes }
+    return this.mfaService.verifyAndEnableEmailOTP(userId, code)
   }
 
   /**
@@ -3304,133 +2171,14 @@ export class TrokkyCore {
     code: string,
     method: 'totp' | 'email' | 'backup'
   ): Promise<boolean> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    if (method === 'totp') {
-      const totpMethod = user.mfa?.methods?.find(m => m.type === 'totp' && m.enabled && m.verified)
-      if (!totpMethod?.secret) {
-        throw new InvalidInputError('TOTP not configured for this user', 'method')
-      }
-
-      const totpService = this.getTOTPService()
-      return totpService.verifyCode(totpMethod.secret, code)
-    }
-
-    if (method === 'backup') {
-      const hashedCodes = user.mfa?.backupCodes || []
-      if (hashedCodes.length === 0) {
-        throw new InvalidInputError('No backup codes available', 'method')
-      }
-
-      const totpService = this.getTOTPService()
-      const result = totpService.verifyBackupCode(hashedCodes, code)
-
-      if (result.valid) {
-        // Update user with remaining backup codes
-        await this.updateUser(userId, {
-          mfa: {
-            ...user.mfa!,
-            backupCodes: result.remainingCodes
-          }
-        } as UpdateUserData)
-
-        this.logger.info('Backup code used', {
-          userId,
-          remainingCodes: result.remainingCodes.length
-        })
-      }
-
-      return result.valid
-    }
-
-    if (method === 'email') {
-      // Email OTP verification during login
-      const storedOTP = user.preferences?._loginEmailOTP as StoredEmailOTP | undefined
-      if (!storedOTP) {
-        throw new InvalidInputError('No email OTP sent. Call sendMFAEmailOTP first.', 'method')
-      }
-
-      const emailService = this.getEmailOTPService()
-      const result = emailService.verifyCode(code, storedOTP)
-
-      if (result.valid) {
-        // Clear the OTP
-        const { _loginEmailOTP, ...cleanPreferences } = user.preferences || {}
-        await this.updateUser(userId, {
-          preferences: cleanPreferences
-        } as UpdateUserData)
-      } else if (!result.expired && !result.maxAttemptsExceeded) {
-        // Update attempt count
-        const updatedOTP = emailService.incrementAttempts(storedOTP)
-        await this.updateUser(userId, {
-          preferences: {
-            ...user.preferences,
-            _loginEmailOTP: updatedOTP
-          }
-        } as UpdateUserData)
-      }
-
-      return result.valid
-    }
-
-    return false
+    return this.mfaService.verifyMFACode(userId, code, method)
   }
 
   /**
    * Send Email OTP for MFA verification during login
    */
   public async sendMFAEmailOTP(userId: string): Promise<{ expiresIn: number }> {
-    const user = await this.getUser(userId)
-    if (!user || !user.email) {
-      throw new InvalidInputError('User not found or has no email', 'userId')
-    }
-
-    // Check if email MFA is enabled for this user
-    const emailMethod = user.mfa?.methods?.find(m => m.type === 'email' && m.enabled && m.verified)
-    if (!emailMethod) {
-      throw new InvalidInputError('Email MFA not enabled for this user', 'method')
-    }
-
-    const emailService = this.getEmailOTPService()
-    const result = emailService.generateCode()
-    const storedOTP = emailService.createStoredOTP(result)
-
-    // Store for verification
-    await this.updateUser(userId, {
-      preferences: {
-        ...user.preferences,
-        _loginEmailOTP: storedOTP
-      }
-    } as UpdateUserData)
-
-    // Emit event for email notification
-    if (this.eventsEnabled) {
-      this.eventBus.emitEvent({
-        type: 'user.mfa_otp_requested',
-        source: 'trokky-core',
-        data: {
-          userId,
-          email: user.email,
-          firstName: user.firstName,
-          otpCode: result.code,
-          expiryMinutes: 10,
-          purpose: 'login verification',
-        },
-      }).catch(error => {
-        this.logger.warn('Failed to emit MFA OTP event', error)
-      })
-    }
-
-    this.logger.info('Login email OTP generated', {
-      userId,
-      email: user.email,
-      expiresAt: result.expiresAt
-    })
-
-    return { expiresIn: 10 * 60 }
+    return this.mfaService.sendMFAEmailOTP(userId)
   }
 
   /**
@@ -3442,53 +2190,7 @@ export class TrokkyCore {
     method: MFAMethodType,
     password: string
   ): Promise<void> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Verify password
-    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
-    if (!isPasswordValid) {
-      throw new InvalidInputError('Invalid password', 'password')
-    }
-
-    // Check if this is the last MFA method
-    const enabledMethods = user.mfa?.methods?.filter(m => m.enabled && m.verified) || []
-    if (enabledMethods.length <= 1 && enabledMethods[0]?.type === method) {
-      // Check if org requires MFA
-      const settings = await this.getSettings()
-      if (settings?.mfaRequired) {
-        throw new InvalidInputError(
-          'Cannot disable last MFA method when organization requires MFA',
-          'method'
-        )
-      }
-    }
-
-    // Remove the method
-    const updatedMethods = (user.mfa?.methods || []).filter(m => m.type !== method)
-    const stillHasMFA = updatedMethods.some(m => m.enabled && m.verified)
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa!,
-        enabled: stillHasMFA,
-        methods: updatedMethods
-      }
-    } as UpdateUserData)
-
-    this.logger.info('MFA method disabled', { userId, method })
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      userId,
-      username: user.username,
-      action: `MFA ${method} disabled`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: { mfaMethod: method }
-    })
+    return this.mfaService.disableMFAMethod(userId, method, password)
   }
 
   /**
@@ -3496,48 +2198,7 @@ export class TrokkyCore {
    * Requires password verification
    */
   public async disableAllMFA(userId: string, password: string): Promise<void> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Verify password
-    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
-    if (!isPasswordValid) {
-      throw new InvalidInputError('Invalid password', 'password')
-    }
-
-    // Check if org requires MFA
-    const settings = await this.getSettings()
-    if (settings?.mfaRequired) {
-      throw new InvalidInputError(
-        'Cannot disable MFA when organization requires MFA',
-        'mfa'
-      )
-    }
-
-    // Completely reset MFA
-    await this.updateUser(userId, {
-      mfa: {
-        enabled: false,
-        methods: [],
-        backupCodes: [],
-        backupCodesGeneratedAt: undefined,
-        trustedDevices: []
-      }
-    } as UpdateUserData)
-
-    this.logger.info('All MFA disabled for user', { userId })
-
-    this.logAuditEvent({
-      type: 'user_updated',
-      userId,
-      username: user.username,
-      action: 'All MFA disabled',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: { mfaDisabled: true }
-    })
+    return this.mfaService.disableAllMFA(userId, password)
   }
 
   /**
@@ -3545,37 +2206,7 @@ export class TrokkyCore {
    * Requires password verification
    */
   public async regenerateBackupCodes(userId: string, password: string): Promise<string[]> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Verify password
-    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
-    if (!isPasswordValid) {
-      throw new InvalidInputError('Invalid password', 'password')
-    }
-
-    // Check if user has MFA enabled
-    if (!user.mfa?.enabled) {
-      throw new InvalidInputError('MFA is not enabled', 'mfa')
-    }
-
-    const totpService = this.getTOTPService()
-    const backupCodes = totpService.generateBackupCodes(10)
-    const hashedBackupCodes = backupCodes.map(c => totpService.hashBackupCode(c))
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa,
-        backupCodes: hashedBackupCodes,
-        backupCodesGeneratedAt: new Date().toISOString()
-      }
-    } as UpdateUserData)
-
-    this.logger.info('Backup codes regenerated', { userId })
-
-    return backupCodes
+    return this.mfaService.regenerateBackupCodes(userId, password)
   }
 
   /**
@@ -3587,138 +2218,35 @@ export class TrokkyCore {
     deviceName: string,
     options?: { ipAddress?: string; userAgent?: string }
   ): Promise<TrustedDevice> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Get trust duration from settings
-    const settings = await this.getSettings()
-    const trustDays = settings?.mfaTrustDeviceDays ?? 30
-
-    const trustedDevice: TrustedDevice = {
-      id: deviceId,
-      name: deviceName,
-      trustedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + trustDays * 24 * 60 * 60 * 1000).toISOString(),
-      lastUsedAt: new Date().toISOString(),
-      ipAddress: options?.ipAddress,
-      userAgent: options?.userAgent
-    }
-
-    const currentDevices = user.mfa?.trustedDevices || []
-    // Remove existing device with same ID if present
-    const otherDevices = currentDevices.filter(d => d.id !== deviceId)
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa!,
-        trustedDevices: [...otherDevices, trustedDevice]
-      }
-    } as UpdateUserData)
-
-    this.logger.info('Device trusted', { userId, deviceId, deviceName })
-
-    return trustedDevice
+    return this.trustedDeviceService.trustDevice(userId, deviceId, deviceName, options)
   }
 
   /**
    * Check if a device is trusted for MFA bypass
    */
   public async isDeviceTrusted(userId: string, deviceId: string): Promise<boolean> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      return false
-    }
-
-    const device = user.mfa?.trustedDevices?.find(d => d.id === deviceId)
-    if (!device) {
-      return false
-    }
-
-    // Check if trust has expired
-    if (new Date(device.expiresAt) < new Date()) {
-      // Clean up expired device
-      const updatedDevices = (user.mfa?.trustedDevices || []).filter(d => d.id !== deviceId)
-      await this.updateUser(userId, {
-        mfa: {
-          ...user.mfa!,
-          trustedDevices: updatedDevices
-        }
-      } as UpdateUserData)
-      return false
-    }
-
-    // Update last used time
-    const updatedDevices = (user.mfa?.trustedDevices || []).map(d =>
-      d.id === deviceId ? { ...d, lastUsedAt: new Date().toISOString() } : d
-    )
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa!,
-        trustedDevices: updatedDevices
-      }
-    } as UpdateUserData)
-
-    return true
+    return this.trustedDeviceService.isDeviceTrusted(userId, deviceId)
   }
 
   /**
    * Revoke trust for a specific device
    */
   public async revokeTrustedDevice(userId: string, deviceId: string): Promise<void> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    const updatedDevices = (user.mfa?.trustedDevices || []).filter(d => d.id !== deviceId)
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa!,
-        trustedDevices: updatedDevices
-      }
-    } as UpdateUserData)
-
-    this.logger.info('Device trust revoked', { userId, deviceId })
+    return this.trustedDeviceService.revokeTrustedDevice(userId, deviceId)
   }
 
   /**
    * Revoke trust for all devices
    */
   public async revokeAllTrustedDevices(userId: string): Promise<void> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    await this.updateUser(userId, {
-      mfa: {
-        ...user.mfa!,
-        trustedDevices: []
-      }
-    } as UpdateUserData)
-
-    this.logger.info('All device trust revoked', { userId })
+    return this.trustedDeviceService.revokeAllTrustedDevices(userId)
   }
 
   /**
    * Get list of trusted devices for a user
    */
   public async getTrustedDevices(userId: string): Promise<TrustedDevice[]> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    // Filter out expired devices
-    const now = new Date()
-    const validDevices = (user.mfa?.trustedDevices || []).filter(
-      d => new Date(d.expiresAt) > now
-    )
-
-    return validDevices
+    return this.trustedDeviceService.getTrustedDevices(userId)
   }
 
   /**
@@ -3726,46 +2254,7 @@ export class TrokkyCore {
    * Removes all MFA configuration
    */
   public async adminResetUserMFA(adminUserId: string, targetUserId: string): Promise<void> {
-    // Verify admin has permission
-    const admin = await this.getUser(adminUserId)
-    if (!admin || admin.role !== 'admin') {
-      throw new InvalidInputError('Unauthorized: Admin access required', 'adminUserId')
-    }
-
-    const targetUser = await this.getUser(targetUserId)
-    if (!targetUser) {
-      throw new InvalidInputError('Target user not found', 'targetUserId')
-    }
-
-    // Reset MFA configuration
-    await this.updateUser(targetUserId, {
-      mfa: {
-        enabled: false,
-        methods: [],
-        backupCodes: [],
-        trustedDevices: []
-      }
-    } as UpdateUserData)
-
-    this.logger.warn('Admin reset MFA for user', {
-      adminUserId,
-      adminUsername: admin.username,
-      targetUserId,
-      targetUsername: targetUser.username
-    })
-
-    this.logAuditEvent({
-      type: 'admin_access',
-      userId: adminUserId,
-      targetUserId,
-      username: admin.username,
-      action: 'Admin reset MFA for user',
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        targetUsername: targetUser.username
-      }
-    })
+    return this.mfaService.adminResetUserMFA(adminUserId, targetUserId)
   }
 
   /**
@@ -3778,42 +2267,11 @@ export class TrokkyCore {
     backupCodesGeneratedAt?: string
     trustedDevicesCount: number
   }> {
-    const user = await this.getUser(userId)
-    if (!user) {
-      throw new InvalidInputError('User not found', 'userId')
-    }
-
-    const mfa = user.mfa || { enabled: false, methods: [] }
-
-    return {
-      enabled: mfa.enabled,
-      methods: (mfa.methods || []).map(m => ({
-        type: m.type,
-        enabled: m.enabled,
-        verified: m.verified,
-        verifiedAt: m.verifiedAt
-      })),
-      backupCodesRemaining: (mfa.backupCodes || []).length,
-      backupCodesGeneratedAt: mfa.backupCodesGeneratedAt,
-      trustedDevicesCount: (mfa.trustedDevices || []).filter(
-        d => new Date(d.expiresAt) > new Date()
-      ).length
-    }
+    return this.mfaService.getMFAStatus(userId)
   }
 
   private generateSecureSecret(): string {
-    // Generate a cryptographically secure random secret using crypto adapter
-    // This will be called during initialization, but we need to create a temporary adapter
-    const tempAdapter = detectCryptoAdapter()
-    const secret = tempAdapter.generateSecureRandom(64)
-    
-    // Warn if using generated secret (should use environment variable in production)
-    const isTestEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
-    if (!isTestEnv) {
-      console.warn('⚠️  Using auto-generated JWT secret. Set TROKKY_JWT_SECRET environment variable for production.')
-    }
-    
-    return secret
+    return generateSecureSecret()
   }
 
   public logAuditEvent(event: AuditEvent): void {

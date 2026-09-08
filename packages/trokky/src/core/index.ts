@@ -1,6 +1,13 @@
 // Core engine
 export { TrokkyCore, type TrokkyCoreOptions, type AuditEvent } from './core/engine.js'
 
+// Domain services extracted from the engine
+export { AuthService, type AuthServiceDependencies } from './services/auth-service.js'
+export { MFAService, type MFAServiceDependencies, type MFARequirement } from './services/mfa-service.js'
+export { TrustedDeviceService, type TrustedDeviceServiceDependencies } from './services/trusted-device-service.js'
+export { OAuthService, type OAuthServiceDependencies } from './services/oauth-service.js'
+export { PasskeyService, type PasskeyServiceDependencies } from './services/passkey-service.js'
+
 // Crypto adapters (types only - use core.hashPassword() and core.verifyPassword() for operations)
 export {
   type CryptoAdapter,
