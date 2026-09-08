@@ -68,6 +68,8 @@ import type {
 export interface RoutesConfig {
   core: TrokkyCore
   basePath?: string
+  /** Path the routes are actually mounted on (set by the integration at mount time) */
+  mountedApiPath?: string
   corsOptions?: CorsOptions
   rateLimiting?: RateLimitOptions
   authentication?: AuthenticationOptions

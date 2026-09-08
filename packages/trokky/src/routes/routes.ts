@@ -229,6 +229,14 @@ export class TrokkyRoutes extends BaseRoutes {
     return Array.from(this.routes.values())
   }
 
+  /**
+   * Record the path the API router is mounted on so the OpenAPI spec can
+   * advertise the real API prefix instead of the default '/api'.
+   */
+  public setMountedApiPath(path: string): void {
+    this.config.mountedApiPath = path
+  }
+
   public getApiRoutes(): RouteDefinition[] {
     return Array.from(this.routes.values()).filter(route =>
       !this.isStaticRoute(route.path)
@@ -461,7 +469,12 @@ export class TrokkyRoutes extends BaseRoutes {
         version: '2.0.0',
         description: 'REST API for Trokky content management system'
       },
-      servers: [{ url: basePath || '/api', description: 'API base path' }],
+      servers: [
+        {
+          url: this.config.mountedApiPath || basePath || '/api',
+          description: 'API base path'
+        }
+      ],
       paths,
       components: {
         securitySchemes: {

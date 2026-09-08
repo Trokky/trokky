@@ -244,4 +244,78 @@ describe('Express Integration', () => {
       expect(res.status).toBeLessThan(500)
     })
   })
+
+  describe('OpenAPI spec', () => {
+    it('should report the default mount path in servers[0].url', async () => {
+      const res = await request(app).get('/api/openapi.json')
+
+      expect(res.status).toBe(200)
+      expect(res.body.servers[0].url).toBe('/api')
+    })
+  })
+})
+
+describe('Express Integration with a custom apiPath', () => {
+  let customApp: express.Express
+  let customTrokky: any
+  let customTempDir: string
+
+  beforeAll(async () => {
+    customTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'trokky-apipath-'))
+
+    customApp = express()
+
+    customTrokky = await TrokkyExpress.create({
+      schemas: [
+        {
+          name: 'article',
+          title: 'Article',
+          type: 'document' as const,
+          fields: [{ name: 'title', type: 'string' }],
+        },
+      ],
+      storage: {
+        data: {
+          adapter: 'filesystem-data',
+          options: {
+            contentDir: path.join(customTempDir, 'content'),
+            usersDir: path.join(customTempDir, 'users'),
+            tokensDir: path.join(customTempDir, 'tokens'),
+            webhooksDir: path.join(customTempDir, 'webhooks'),
+            settingsDir: path.join(customTempDir, 'settings'),
+          },
+        },
+        media: {
+          adapter: 'filesystem-media',
+          options: {
+            mediaDir: path.join(customTempDir, 'media'),
+          },
+        },
+      },
+      security: {
+        adminUser: {
+          username: 'admin',
+          email: 'admin@test.com',
+          password: 'TestPassword123!',
+        },
+      },
+    })
+
+    customTrokky.mount(customApp, {
+      apiPath: '/backend/api',
+      studioPath: '/studio',
+    })
+  }, 30000)
+
+  afterAll(async () => {
+    if (customTrokky?.cleanup) customTrokky.cleanup()
+    await fs.remove(customTempDir)
+  })
+
+  it('should expose the mounted apiPath as servers[0].url in the OpenAPI spec', async () => {
+    const res = await request(customApp).get('/backend/api/openapi.json')
+
+    expect(res.status).toBe(200)
+    expect(res.body.servers[0].url).toBe('/backend/api')
+  })
 })
