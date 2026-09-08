@@ -1,66 +1,13 @@
 /**
  * Media Browser Component
  * Lightweight media selection modal for field components
- * Now using global Modal component for consistency
+ * Built on the shared Dialog primitive
  */
 
-import { useEffect } from 'react';
 import type { MediaFieldValue, MediaType } from '@trokky/trokky/types';
 import { MediaBrowserContent } from './MediaBrowserContent';
+import { Dialog } from './ui/Dialog.js';
 import { useT } from '@trokky/trokky/i18n';
-
-// Custom modal component with proper backdrop
-const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {
-  // Handle Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-center justify-center p-4">
-        {/* Full screen backdrop */}
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" 
-          onClick={onClose}
-        />
-        
-        {/* Modal content */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-[calc(100dvh-2rem)] sm:h-[calc(100dvh-4rem)] md:h-[85dvh] flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
-          {title && (
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-              <div className="flex-1">
-                {title}
-              </div>
-              <button
-                onClick={onClose}
-                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
-                aria-label={closeLabel}
-              >
-                <span className="sr-only">{closeLabel}</span>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
-          <div className="flex-1 overflow-hidden min-h-0">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // API client interface (matching StudioContext.apiClient structure)
 interface MediaBrowserAPI {
@@ -131,28 +78,32 @@ export function MediaBrowser({
   const closeLabel = t('mediaBrowser.close');
 
   return (
-    <CustomModal
-      isOpen={isOpen}
+    <Dialog
+      open={isOpen}
       onClose={onClose}
-      title={
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">{t('mediaBrowser.title')}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {getModalSubtitle()}
-          </p>
-        </div>
-      }
-      closeLabel={closeLabel}
+      variant="center"
+      size="xl"
+      height="fill"
+      className="overflow-hidden"
+      ariaLabel={closeLabel}
     >
-      <MediaBrowserContent
-        onSelect={handleSelect}
-        mediaTypeFilter={mediaTypeFilter}
-        showVariantSelector={showVariantSelector}
-        context={context}
-        apiClient={apiClient}
-        logger={logger}
-        mediaUrlGenerator={mediaUrlGenerator}
-      />
-    </CustomModal>
+      <Dialog.Header padded={false} className="px-4 py-3">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">{t('mediaBrowser.title')}</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {getModalSubtitle()}
+        </p>
+      </Dialog.Header>
+      <Dialog.Body scroll={false} padded={false}>
+        <MediaBrowserContent
+          onSelect={handleSelect}
+          mediaTypeFilter={mediaTypeFilter}
+          showVariantSelector={showVariantSelector}
+          context={context}
+          apiClient={apiClient}
+          logger={logger}
+          mediaUrlGenerator={mediaUrlGenerator}
+        />
+      </Dialog.Body>
+    </Dialog>
   );
 }
