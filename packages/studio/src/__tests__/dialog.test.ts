@@ -22,6 +22,7 @@ import {
   setBackgroundInert,
   shouldRestoreFocus,
   watchBreakpoint,
+  INERT_EXEMPT_ATTR,
 } from '../components/ui/dialogInternals.js'
 
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -574,5 +575,76 @@ describe('layering tokens at the call sites', () => {
     const source = readFileSync(join(srcDir, 'components/debug/PermissionsDebugPanel.tsx'), 'utf8')
     expect(source).toContain('z-debug')
     expect(source).not.toContain('zIndex')
+  })
+
+})
+
+describe('background inert ownership', () => {
+  let host: HTMLElement
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    host = document.createElement('div')
+    document.body.appendChild(host)
+  })
+
+  afterEach(() => {
+    setBackgroundInert(false)
+    document.body.innerHTML = ''
+  })
+
+  it('exempts the notification layer so toasts stay usable', () => {
+    const toasts = document.createElement('div')
+    toasts.setAttribute(INERT_EXEMPT_ATTR, '')
+    document.body.appendChild(toasts)
+
+    setBackgroundInert(true)
+
+    expect(host.hasAttribute('inert')).toBe(true)
+    expect(toasts.hasAttribute('inert')).toBe(false)
+    expect(toasts.getAttribute('aria-hidden')).toBeNull()
+  })
+
+  it('restores the previous aria-hidden instead of removing it', () => {
+    host.setAttribute('aria-hidden', 'false')
+    setBackgroundInert(true)
+    expect(host.getAttribute('aria-hidden')).toBe('true')
+
+    setBackgroundInert(false)
+    expect(host.getAttribute('aria-hidden')).toBe('false')
+  })
+
+  it('leaves an inert attribute it did not set', () => {
+    host.setAttribute('inert', '')
+    setBackgroundInert(true)
+    setBackgroundInert(false)
+    expect(host.hasAttribute('inert')).toBe(true)
+  })
+
+  it('still makes an element inert when it was already aria-hidden', () => {
+    host.setAttribute('aria-hidden', 'true')
+    setBackgroundInert(true)
+    expect(host.hasAttribute('inert')).toBe(true)
+  })
+
+  it('covers a body child added while a dialog is open', async () => {
+    setBackgroundInert(true)
+    const late = document.createElement('div')
+    document.body.appendChild(late)
+
+    // MutationObserver callbacks are microtasks
+    await Promise.resolve()
+    expect(late.hasAttribute('inert')).toBe(true)
+
+    setBackgroundInert(false)
+    expect(late.hasAttribute('inert')).toBe(false)
+  })
+
+  it('restores a child that was detached while inert', () => {
+    setBackgroundInert(true)
+    host.remove()
+    setBackgroundInert(false)
+    expect(host.hasAttribute('inert')).toBe(false)
+    expect(host.hasAttribute('aria-hidden')).toBe(false)
   })
 })

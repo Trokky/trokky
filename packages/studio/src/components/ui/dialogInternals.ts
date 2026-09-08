@@ -259,33 +259,83 @@ export function acquireEscapeListener(): () => void {
 export const INERT_MARKER = 'data-dialog-inert'
 
 /**
+ * Opts a body child out of being made inert. The notification layer carries it:
+ * toasts sit above dialogs and must stay dismissible and announceable.
+ */
+export const INERT_EXEMPT_ATTR = 'data-dialog-exempt'
+
+/** What an element looked like before we made it inert, so we can put it back. */
+interface InertRecord {
+  hadInert: boolean
+  previousAriaHidden: string | null
+}
+
+/**
+ * Elements this module made inert, with their prior state. Keyed by the node
+ * itself so a child detached while a dialog is open is still restored.
+ */
+const inertRecords = new Map<Element, InertRecord>()
+let inertObserver: MutationObserver | null = null
+
+function isExemptFromInert(child: Element): boolean {
+  return child.id === OVERLAY_ROOT_ID || child.hasAttribute(INERT_EXEMPT_ATTR)
+}
+
+function makeInert(child: Element): void {
+  if (isExemptFromInert(child) || inertRecords.has(child)) return
+  inertRecords.set(child, {
+    hadInert: child.hasAttribute('inert'),
+    previousAriaHidden: child.getAttribute('aria-hidden'),
+  })
+  child.setAttribute(INERT_MARKER, '')
+  child.setAttribute('inert', '')
+  child.setAttribute('aria-hidden', 'true')
+}
+
+function restoreInert(child: Element, record: InertRecord): void {
+  child.removeAttribute(INERT_MARKER)
+  // Only clear `inert` if we are the ones who set it.
+  if (!record.hadInert) child.removeAttribute('inert')
+  if (record.previousAriaHidden === null) {
+    child.removeAttribute('aria-hidden')
+  } else {
+    child.setAttribute('aria-hidden', record.previousAriaHidden)
+  }
+}
+
+/**
  * Makes everything outside the overlay root inert while a dialog is open.
  *
  * `aria-modal` alone does not stop a screen reader's virtual cursor in every
  * browser, so the page behind gets `inert` (with an `aria-hidden` fallback for
- * engines that do not support it yet).
+ * engines that do not support it yet). Children added while a dialog is open
+ * are covered too, because React portals mount into the body at any time.
  */
 export function setBackgroundInert(inert: boolean, root?: HTMLElement | null): void {
   const container = root ?? (typeof document === 'undefined' ? null : document.body)
   if (!container) return
 
   if (inert) {
-    Array.from(container.children).forEach(child => {
-      if (child.id === OVERLAY_ROOT_ID) return
-      if (child.hasAttribute(INERT_MARKER)) return
-      if (child.hasAttribute('inert') || child.getAttribute('aria-hidden') === 'true') return
-      child.setAttribute(INERT_MARKER, '')
-      child.setAttribute('inert', '')
-      child.setAttribute('aria-hidden', 'true')
-    })
+    Array.from(container.children).forEach(makeInert)
+
+    if (!inertObserver && typeof MutationObserver !== 'undefined') {
+      inertObserver = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach(node => {
+            if (node instanceof Element) makeInert(node)
+          })
+        }
+      })
+      inertObserver.observe(container, { childList: true })
+    }
     return
   }
 
-  Array.from(container.querySelectorAll(`[${INERT_MARKER}]`)).forEach(child => {
-    child.removeAttribute(INERT_MARKER)
-    child.removeAttribute('inert')
-    child.removeAttribute('aria-hidden')
-  })
+  inertObserver?.disconnect()
+  inertObserver = null
+  // Map.forEach yields (value, key), so the record comes before the element.
+  inertRecords.forEach((record, child) => restoreInert(child, record))
+  inertRecords.clear()
 }
 
 let inertHolders = 0
