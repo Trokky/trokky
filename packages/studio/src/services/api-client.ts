@@ -294,7 +294,9 @@ export class ApiClient extends HttpClient {
    * Transform media object to include constructed URLs
    */
   private transformMediaObject(media: any): any {
-    return transformMediaObject(this.backendUrl, media)
+    return transformMediaObject(this.backendUrl, media, (assetRef, variant) =>
+      this.getMediaUrl(assetRef, variant)
+    )
   }
 
   /**

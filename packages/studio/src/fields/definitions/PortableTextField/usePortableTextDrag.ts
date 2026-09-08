@@ -16,23 +16,35 @@ interface UsePortableTextDragOptions {
   blocksToRender: PortableTextBlock[];
   moveBlockToPosition: (blockKey: string, targetIndex: number) => void;
   fieldId?: string;
+  dragState: DragState
+  setDragState: React.Dispatch<React.SetStateAction<DragState>>
 }
 
 /**
  * Reordering blocks by dragging: which block is in flight, where it would
  * land, and the drop that commits the move.
  */
-export function usePortableTextDrag({
-  blocksToRender,
-  moveBlockToPosition,
-  fieldId,
-}: UsePortableTextDragOptions) {
-  const [dragState, setDragState] = useState<DragState>({
+/**
+ * The drag state itself is owned by the component and declared before its
+ * read-only early return, exactly where it sat before this file existed: a hook
+ * behind a conditional return changes the hook sequence for that branch.
+ */
+export function useDragState() {
+  return useState<DragState>({
     isDragging: false,
     draggedBlockKey: null,
     dragOverBlockKey: null,
     dragPosition: null
   });
+}
+
+export function usePortableTextDrag({
+  blocksToRender,
+  moveBlockToPosition,
+  fieldId,
+  dragState,
+  setDragState,
+}: UsePortableTextDragOptions) {
   // Drag and drop handlers
   const handleDragStart = useCallback((e: React.DragEvent, blockKey: string) => {
     logger.debug('Drag start', { fieldId, blockKey });

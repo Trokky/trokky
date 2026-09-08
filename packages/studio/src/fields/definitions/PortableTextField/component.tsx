@@ -15,7 +15,7 @@ import { PortableTextToolbar } from './PortableTextToolbar';
 import { PortableTextBlockRow } from './PortableTextBlockRow';
 import { usePortableTextBlocks } from './usePortableTextBlocks';
 import { usePortableTextPaste } from './usePortableTextPaste';
-import { usePortableTextDrag } from './usePortableTextDrag';
+import { usePortableTextDrag, useDragState } from './usePortableTextDrag';
 
 type PortableTextFieldComponentProps = FieldComponentProps;
 
@@ -55,6 +55,10 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const blockMenuRef = useRef<HTMLDivElement>(null);
   
+  // Declared here, before the read-only return below, because that is where it
+  // lived before the split; moving it after would change the hook sequence.
+  const [dragState, setDragState] = useDragState();
+
   const contentStats = useMemo(() => 
     getPortableTextStats(sanitizedValue),
     [sanitizedValue]
@@ -145,7 +149,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   });
 
   const {
-    dragState,
     handleDragStart,
     handleDragOver,
     handleDragLeave,
@@ -155,6 +158,8 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     blocksToRender,
     moveBlockToPosition,
     fieldId,
+    dragState,
+    setDragState,
   });
 
   

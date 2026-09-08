@@ -28,20 +28,27 @@ export function buildMediaUrl(
 /**
  * Transform media object to include constructed URLs
  */
-export function transformMediaObject(backendUrl: string, media: any): any {
+export function transformMediaObject(
+  backendUrl: string,
+  media: any,
+  // The client passes its own getMediaUrl so an override still decides the URL.
+  // Calling buildMediaUrl directly here would bypass that extension point.
+  urlFor: (assetRef: string, variant?: string) => string = (assetRef, variant) =>
+    buildMediaUrl(backendUrl, assetRef, variant)
+): any {
   if (!media || !media.id) {
     return media
   }
 
   return {
     ...media,
-    url: buildMediaUrl(backendUrl, media.id), // Original file URL
+    url: urlFor(media.id), // Original file URL
     // Add variant URLs if they exist
     ...(media.variants && {
       variants: Object.keys(media.variants).reduce((acc, variantName) => {
         acc[variantName] = {
           ...media.variants[variantName],
-          url: buildMediaUrl(backendUrl, media.id, variantName),
+          url: urlFor(media.id, variantName),
         }
         return acc
       }, {} as any),
