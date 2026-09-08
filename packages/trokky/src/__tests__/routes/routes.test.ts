@@ -448,5 +448,53 @@ describe('TrokkyRoutes', () => {
       expect(slug).not.toMatch(/^-/)
       expect(slug).not.toMatch(/-$/)
     })
+
+    describe('uniqueness with documents listed by `id`', () => {
+      const slugSchema = {
+        name: 'article',
+        fields: {
+          title: { type: 'string' },
+          slug: { type: 'slug', source: 'title', unique: true }
+        }
+      }
+
+      function makeSlugCore(docs: Array<Record<string, unknown>>) {
+        return {
+          getSchema: vi.fn(() => slugSchema),
+          listDocuments: vi.fn(async (_collection: string, options?: { filter?: Record<string, unknown> }) => {
+            const slugFilter = options?.filter?.slug
+            return slugFilter === undefined ? docs : docs.filter(doc => doc.slug === slugFilter)
+          })
+        }
+      }
+
+      it('should keep the slug unchanged when updating a document with its own slug', async () => {
+        const { processSlugFields } = await import('../../routes/slug-processor.js')
+        const slugCore = makeSlugCore([{ id: 'doc-1', title: 'Hello World', slug: 'hello-world' }])
+
+        const result = await processSlugFields(
+          slugCore as any,
+          'article',
+          { title: 'Hello World', slug: 'hello-world' },
+          'doc-1'
+        )
+
+        expect(result.slug).toBe('hello-world')
+      })
+
+      it('should generate a variant when another document already uses the slug', async () => {
+        const { processSlugFields } = await import('../../routes/slug-processor.js')
+        const slugCore = makeSlugCore([{ id: 'doc-2', title: 'Hello World', slug: 'hello-world' }])
+
+        const result = await processSlugFields(
+          slugCore as any,
+          'article',
+          { title: 'Hello World', slug: 'hello-world' },
+          'doc-1'
+        )
+
+        expect(result.slug).toBe('hello-world-2')
+      })
+    })
   })
 })

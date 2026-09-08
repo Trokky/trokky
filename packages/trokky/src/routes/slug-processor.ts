@@ -182,6 +182,15 @@ export function findAutoGenerateSlugFields(schema: ContentSchema): SlugFieldConf
 }
 
 /**
+ * Get a document's id, supporting adapters that return `id` and/or `_id`
+ */
+function getDocId(doc: unknown): string | undefined {
+  const record = doc as Record<string, unknown> | null | undefined
+  const id = record?.id ?? record?._id
+  return typeof id === 'string' ? id : undefined
+}
+
+/**
  * Check if a slug is unique within a collection
  *
  * @requires Storage adapter must support filtering by arbitrary fields via listDocuments
@@ -198,7 +207,7 @@ async function isSlugUnique(
 
   // Filter out the current document if updating
   const conflictingDocs = excludeId
-    ? documents.filter(doc => doc._id !== excludeId)
+    ? documents.filter(doc => getDocId(doc) !== excludeId)
     : documents
 
   return conflictingDocs.length === 0
@@ -249,7 +258,7 @@ async function generateUniqueSlug(
   existingNumbers.add(1) // Base slug (no suffix) counts as "1"
 
   for (const doc of allDocs) {
-    if (excludeId && doc._id === excludeId) continue
+    if (excludeId && getDocId(doc) === excludeId) continue
 
     const docSlug = (doc as Record<string, any>).slug
     if (typeof docSlug !== 'string') continue
