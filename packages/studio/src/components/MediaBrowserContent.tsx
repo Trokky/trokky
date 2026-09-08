@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react'
 import type { MediaFieldValue, MediaType } from '@trokky/trokky/types'
 import { useT } from '@trokky/trokky/i18n'
 import { formatFileSize } from '@/utils/format'
+import { getBestPreviewVariant } from '@/utils/media'
 
 // Types for Studio API integration
 interface MediaFile {
@@ -219,19 +220,6 @@ function getMediaTypeIcon(mediaType: string): React.ReactElement {
         </svg>
       )
   }
-}
-
-// Helper function to get the best available variant for preview
-function getBestPreviewVariant(media: MediaFile): string | undefined {
-  // For image media with variants, prefer thumbnail > small > original
-  if (media.metadata?.imageVariants) {
-    const variants = media.metadata.imageVariants
-    if (variants.thumbnail) return 'thumbnail'
-    if (variants.small) return 'small'
-    // If no small variants, use original (undefined means original)
-  }
-  // For non-image media or media without variants, use original
-  return undefined
 }
 
 // Helper function to get media URL using the new MediaUrlGenerator
