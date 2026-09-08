@@ -49,6 +49,99 @@ export function isIncompleteArrayItem(item: any): boolean {
   return false
 }
 
+/** Property carrying the editor-side stable identity of an array item. */
+export const ITEM_KEY = '_key'
+
+/** Keys that must never reach an object literal built from user data. */
+const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+
+/** True when the key may be written into a payload object. */
+export function isSafeKey(key: string): boolean {
+  return !DANGEROUS_KEYS.includes(key)
+}
+
+let itemKeyCounter = 0
+
+/** Generate a stable identity for a new array item. */
+export function createItemKey(): string {
+  const cryptoApi = (globalThis as any)?.crypto
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID()
+  }
+  itemKeyCounter += 1
+  return `k${Date.now().toString(36)}-${itemKeyCounter}`
+}
+
+/**
+ * Attach a stable `_key` to every object living in an array, recursively.
+ * Values that already carry a key are left untouched, and untouched subtrees
+ * keep their identity so the caller can rely on reference equality.
+ */
+export function ensureItemKeys(value: any): any {
+  if (Array.isArray(value)) {
+    let changed = false
+    const next = value.map(item => {
+      let processed = ensureItemKeys(item)
+      if (
+        processed &&
+        typeof processed === 'object' &&
+        !Array.isArray(processed) &&
+        !processed[ITEM_KEY]
+      ) {
+        processed = { ...processed, [ITEM_KEY]: createItemKey() }
+      }
+      if (processed !== item) changed = true
+      return processed
+    })
+    return changed ? next : value
+  }
+
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    let changed = false
+    const next: Record<string, any> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      const processed = ensureItemKeys(entry)
+      if (processed !== entry) changed = true
+      next[key] = processed
+    }
+    return changed ? next : value
+  }
+
+  return value
+}
+
+/**
+ * The React key for an array item: its stable `_key` when it has one, and a
+ * positional fallback for primitives, which carry no identity of their own.
+ */
+export function getItemKey(item: any, index: number): string {
+  if (item && typeof item === 'object' && !Array.isArray(item) && item[ITEM_KEY]) {
+    return String(item[ITEM_KEY])
+  }
+  return `idx-${index}`
+}
+
+/**
+ * Remove editor-only `_key` markers and prototype-polluting keys from a value.
+ * Applied at save time only: the editor keeps the keys while the form is open.
+ */
+export function stripItemKeys(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(stripItemKeys)
+  }
+
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const next: Record<string, any> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      if (key === ITEM_KEY || !isSafeKey(key)) continue
+      next[key] = stripItemKeys(entry)
+    }
+    return next
+  }
+
+  return value
+}
+
 /** Value that counts as "not provided" for required-field checks. */
 export function isMissingValue(value: any): boolean {
   if (value === undefined || value === null) return true
@@ -94,7 +187,9 @@ export function buildSavePayload(
       value = fieldType === 'array' ? [] : null
     }
 
-    payload[name] = value
+    if (!isSafeKey(name)) continue
+
+    payload[name] = stripItemKeys(value)
   }
 
   // Editor-managed, set by the publish/unpublish transition. Kept even when the

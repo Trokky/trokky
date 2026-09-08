@@ -4,6 +4,7 @@ import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
 import { fieldRegistry } from '../../registry/index.js';
 import { ArrayModal } from './ArrayModal.js';
+import { getItemKey } from '@/components/document/savePayload.js';
 
 // Simple SVG icons inline to avoid external dependencies
 const PlusIcon = ({ className }: { className?: string }) => (
@@ -73,7 +74,9 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [newItemInput, setNewItemInput] = useState('');
-  const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
+  // Per-item state is keyed by the item's stable `_key`, so it follows the item
+  // across reorders and removals instead of sticking to a position
+  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Tag autocomplete state
@@ -364,10 +367,11 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
   const renderItem = (item: any, index: number) => {
     // Access the 'of' property from the raw definition since it's not in the TypeScript interface
     const itemDefinition = (arrayDefinition as any).of;
-    
+    const itemKey = getItemKey(item, index);
+
     if (!itemDefinition) {
       return (
-        <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
+        <div key={itemKey} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
           <span className="text-red-700 dark:text-red-400 text-sm">{t('types.array.missingDefinition')}</span>
         </div>
       );
@@ -397,7 +401,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     
     if (!fieldPlugin) {
       return (
-        <div key={index} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
+        <div key={itemKey} className="p-3 border border-red-200 dark:border-red-700 rounded bg-red-50 dark:bg-red-900/20">
           <span className="text-red-700 dark:text-red-400 text-sm">{t('types.array.unknownType', { type: adjustedItemDefinition.type })}</span>
           <div className="text-xs text-red-600 dark:text-red-400 mt-1">
             {t('types.array.availableTypes', { types: fieldRegistry.getTypes().join(', ') })}
@@ -407,7 +411,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     }
 
     const FieldComponent = fieldPlugin.component;
-    const itemHasError = !!itemErrors[index];
+    const itemHasError = !!itemErrors[itemKey];
     const isDropTarget = dropTargetIndex === index && draggedIndex !== index;
     const showDropAbove = isDropTarget && draggedIndex !== null && draggedIndex > index;
     const showDropBelow = isDropTarget && draggedIndex !== null && draggedIndex < index;
@@ -416,7 +420,7 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
     const itemPreview = getItemPreview(item, itemDefinition);
 
     return (
-      <div key={index}>
+      <div key={itemKey}>
         {/* Drop zone indicator - above item */}
         {showDropAbove && (
           <div className="h-10 bg-gray-100 dark:bg-gray-700/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg mb-3" />
@@ -592,11 +596,11 @@ export function ArrayFieldComponent(props: FieldComponentProps) {
                 onValidationChange={(result) => {
                   // Handle nested field validation
                   if (!result.isValid) {
-                    setItemErrors(prev => ({ ...prev, [index]: result.errors[0] || 'Validation failed' }));
+                    setItemErrors(prev => ({ ...prev, [itemKey]: result.errors[0] || 'Validation failed' }));
                   } else {
                     setItemErrors(prev => {
                       const newErrors = { ...prev };
-                      delete newErrors[index];
+                      delete newErrors[itemKey];
                       return newErrors;
                     });
                   }

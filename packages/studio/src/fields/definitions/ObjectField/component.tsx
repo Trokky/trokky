@@ -72,16 +72,18 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     }
   }, [options.layout, options.tabs, activeTab]);
   
-  // Get field-specific collapse state
+  // Get field-specific collapse state. The map is local to this instance and
+  // keyed by section only: an array item keeps its collapse state when the
+  // array is reordered and its fieldId (the index) changes.
   const getCollapseState = (key: string): boolean => {
     // Default to collapsed for nested objects (better UX for arrays)
     // User can set options.collapsed = false to start expanded
     const defaultCollapsed = options.collapsed ?? true;
-    return collapseState[`${fieldId}.${key}`] ?? defaultCollapsed;
+    return collapseState[key] ?? defaultCollapsed;
   };
   
   const setCollapseStateForKey = (key: string, collapsed: boolean) => {
-    setCollapseState(prev => ({ ...prev, [`${fieldId}.${key}`]: collapsed }));
+    setCollapseState(prev => ({ ...prev, [key]: collapsed }));
   };
   
   // Calculate metadata

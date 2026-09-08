@@ -6,6 +6,7 @@
 
 import { createContext, useContext, ReactNode } from 'react';
 import type { DocumentState } from './DocumentStates';
+import type { DocumentPath } from './documentStore.js';
 
 export interface DocumentEditorContextType {
   // Document data
@@ -18,6 +19,8 @@ export interface DocumentEditorContextType {
   isNewDocument: boolean;
   hasUnsavedChanges: boolean;
   hasValidationErrors: boolean;
+  /** Validation errors from the store, keyed by field path. */
+  errors: Record<string, string>;
   isReadOnly: boolean; // User doesn't have write permission
   hasPublishPermission: boolean; // User has permission to publish/unpublish
 
@@ -32,6 +35,8 @@ export interface DocumentEditorContextType {
 
   // Actions
   onDocumentChange: (updates: any) => void;
+  /** Re-run validation for one field subtree, typically on blur. */
+  onFieldBlur: (path: DocumentPath) => void;
   onStateChange: (newState: DocumentState) => void;
   onModeChange: (mode: 'form' | 'preview') => void;
   onSave: () => Promise<void>;

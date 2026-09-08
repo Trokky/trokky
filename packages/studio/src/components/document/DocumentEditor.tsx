@@ -5,8 +5,8 @@
  * Designed to be extensible and support multiple editing modes.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { createStudioLogger } from '@/utils/logger';
 import { apiClient, ApiClientError } from '@/services/api-client';
@@ -19,9 +19,11 @@ import { useT } from '@trokky/trokky/i18n';
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
 import { DocumentStates, type DocumentState } from './DocumentStates';
 import { DocumentForm, evaluateConditional } from './DocumentForm';
-import { buildSavePayload, getSchemaFieldEntries, isMissingValue } from './savePayload';
+import { buildSavePayload } from './savePayload';
+import { collectValidationErrors, useDocumentStore } from './documentStore.js';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
+import { fieldRegistry } from '@/fields/registry/index.js';
 
 const logger = createStudioLogger('DocumentEditor');
 
@@ -112,8 +114,9 @@ export function DocumentEditor({
     isNewDocument 
   });
 
-  // Core editor state
-  const [document, setDocument] = useState<any>(null);
+  // Core editor state: one form-state model for the document being edited
+  const store = useDocumentStore();
+  const document = store.document;
   const [schema, setSchema] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,11 +125,80 @@ export function DocumentEditor({
   
   // Document state management
   const [documentState, setDocumentState] = useState<DocumentState>('draft');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedChanges = store.isDirty;
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
 
   // Mobile sidebar state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Set right before a navigation the editor performs itself (save redirect,
+  // confirmed cancel) so the unsaved-changes guard does not prompt twice.
+  const skipNavigationBlockRef = useRef(false);
+
+  // Field plugins own their validation rules; the store walks the schema and
+  // asks them, skipping fields hidden by conditional visibility.
+  const validationOptions = useMemo(() => ({
+    getPlugin: (type: string) => fieldRegistry.get(type) as any,
+    isVisible: (fieldDefinition: any, values: Record<string, any>) =>
+      evaluateConditional(fieldDefinition, values || {}).visible
+  }), []);
+
+  // Warn before a full page unload while there are unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+      return '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Block in-app navigation while there are unsaved changes
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (skipNavigationBlockRef.current) {
+      skipNavigationBlockRef.current = false;
+      return false;
+    }
+    return hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname;
+  });
+
+  const blockerRef = useRef(blocker);
+  blockerRef.current = blocker;
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+
+    let cancelled = false;
+    const ask = async () => {
+      const confirmed = studioContext?.utils?.showConfirm
+        ? await studioContext.utils.showConfirm(
+            'You have unsaved changes. Are you sure you want to leave?',
+            {
+              title: 'Unsaved Changes',
+              confirmText: 'Discard Changes',
+              cancelText: 'Keep Editing',
+              variant: 'danger'
+            }
+          )
+        : window.confirm('You have unsaved changes. Are you sure you want to leave?');
+
+      if (cancelled) return;
+      if (confirmed) {
+        blockerRef.current.proceed?.();
+      } else {
+        blockerRef.current.reset?.();
+      }
+    };
+
+    void ask();
+    return () => {
+      cancelled = true;
+    };
+  }, [blocker.state, studioContext]);
 
   // Load schema and document on mount
   useEffect(() => {
@@ -184,7 +256,7 @@ export function DocumentEditor({
         
         if (docResponse.success && docResponse.data && docResponse.data.document) {
           const actualDocument = docResponse.data.document;
-          setDocument(actualDocument);
+          store.load(actualDocument);
           
           // Set document state based on document data
           const state = determineDocumentState(actualDocument);
@@ -200,7 +272,7 @@ export function DocumentEditor({
           // Initialize as new document but with the specific ID
           const newDoc = initializeNewDocument(actualSchema);
           newDoc.id = documentId; // Set the specific singleton ID
-          setDocument(newDoc);
+          store.load(newDoc);
           setDocumentState('draft');
           logger.debug('Singleton document initialized', { documentId });
           
@@ -212,7 +284,7 @@ export function DocumentEditor({
         const newDoc = duplicateData
           ? { ...initializeNewDocument(actualSchema), ...duplicateData }
           : initializeNewDocument(actualSchema);
-        setDocument(newDoc);
+        store.load(newDoc);
         setDocumentState('draft');
         logger.debug('New document initialized', { isDuplicate: !!duplicateData });
       }
@@ -282,14 +354,34 @@ export function DocumentEditor({
     return 'draft';
   };
 
+  // Field edits land in the store one path at a time. `_updatedAt` is the
+  // server's business and is no longer stamped on every keystroke.
   const handleDocumentChange = useCallback((updates: any) => {
-    setDocument((prev: any) => ({
-      ...prev,
-      ...updates,
-      _updatedAt: new Date().toISOString()
-    }));
-    setHasUnsavedChanges(true);
-  }, []);
+    if (!updates || typeof updates !== 'object') return;
+    Object.entries(updates).forEach(([name, value]) => {
+      store.setValue([name], value);
+    });
+  }, [store.setValue]);
+
+  // Blur re-validates just the field that was left, keeping every other error
+  const handleFieldBlur = useCallback((path: (string | number)[]) => {
+    if (!schema || path.length === 0) return;
+
+    const { current, errors } = store.getState();
+    const fieldErrors = collectValidationErrors(current, schema, {
+      ...validationOptions,
+      rootPath: path
+    });
+
+    const root = String(path[0]);
+    const next: Record<string, string> = {};
+    for (const [key, message] of Object.entries(errors)) {
+      if (key === root || key.startsWith(`${root}.`) || key.startsWith(`${root}[`)) continue;
+      next[key] = message;
+    }
+    Object.assign(next, fieldErrors);
+    store.setErrors(next);
+  }, [schema, store.getState, store.setErrors, validationOptions]);
 
   const handleValidationChange = useCallback((hasErrors: boolean) => {
     setHasValidationErrors(hasErrors);
@@ -318,27 +410,21 @@ export function DocumentEditor({
 
     try {
       // Apply state change to document using _status as single source of truth
-      const updatedDocument = {
-        ...document,
-        _status: newState, // Use _status instead of _state
-        _updatedAt: new Date().toISOString()
-      };
+      store.setValue(['_status'], newState);
 
       // Add publishedAt timestamp for published documents
       if (newState === 'published') {
-        updatedDocument.publishedAt = new Date().toISOString();
+        store.setValue(['publishedAt'], new Date().toISOString());
       } else if (newState === 'draft') {
         // Remove publishedAt when reverting to draft
-        updatedDocument.publishedAt = null;
+        store.setValue(['publishedAt'], null);
       }
 
-      // Remove legacy fields to avoid confusion
-      delete updatedDocument._state;
-      delete updatedDocument.published;
+      // Drop legacy fields to avoid confusion
+      store.setValue(['_state'], undefined);
+      store.setValue(['published'], undefined);
 
-      setDocument(updatedDocument);
       setDocumentState(newState);
-      setHasUnsavedChanges(true);
 
       logger.info('Document state changed', {
         schema: schemaName,
@@ -350,10 +436,11 @@ export function DocumentEditor({
       logger.error('Failed to change document state', err);
       alert('Failed to change document state');
     }
-  }, [documentState, document, schemaName, documentId, hasPublishPermission, showToast, t]);
+  }, [documentState, store.setValue, schemaName, documentId, hasPublishPermission, showToast, t]);
 
   const handleSave = useCallback(async () => {
-    if (!document || !schema) return;
+    const currentDocument = store.getState().current;
+    if (!currentDocument || !schema) return;
     
     // Check if user has write permission
     if (!hasWritePermission) {
@@ -364,22 +451,21 @@ export function DocumentEditor({
     try {
       setSaving(true);
       setError(null);
+      store.setStatus('saving');
 
-      // Trigger field validation first, then wait briefly for UI to update
-      // The DocumentForm will show inline validation errors
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Basic validation check
-      const validation = validateDocument(document, schema);
-      if (!validation.isValid) {
-        logger.warn('Document validation failed - check inline field errors', { errors: validation.errors });
-        showToast(validation.errors.join(', '), 'error');
+      // Validate the whole document from the store, one errors map for the form
+      const validationErrors = collectValidationErrors(currentDocument, schema, validationOptions);
+      store.setErrors(validationErrors);
+      if (Object.keys(validationErrors).length > 0) {
+        logger.warn('Document validation failed - check inline field errors', { errors: validationErrors });
+        showToast(Object.values(validationErrors).join(', '), 'error');
+        store.setStatus('error');
         setSaving(false);
         return;
       }
 
       // Build the payload from schema fields plus _status/_type only
-      const cleanDocument = buildSavePayload(document, schema, documentState);
+      const cleanDocument = buildSavePayload(currentDocument, schema, documentState);
 
       let response;
       if (isNewDocument) {
@@ -399,8 +485,7 @@ export function DocumentEditor({
           savedDocumentData: savedDoc
         });
         
-        setDocument(savedDoc);
-        setHasUnsavedChanges(false);
+        store.markSaved(savedDoc);
 
         // Show success toast
         showToast('Saved', 'success');
@@ -410,6 +495,7 @@ export function DocumentEditor({
 
         // Redirect to edit mode if it was a new document
         if (isNewDocument) {
+          skipNavigationBlockRef.current = true;
           navigate(`/content/${schemaName}/${savedDoc.id || savedDoc._id}`);
         } else {
           // For existing documents, ensure the UI refreshes
@@ -421,19 +507,21 @@ export function DocumentEditor({
         logger.error('Save failed with API error', {
           error: response.error,
           fullResponse: response,
-          documentData: document
+          documentData: currentDocument
         });
+        store.setStatus('error');
         showToast(formatSaveError(errorMessage, (response.error as any)?.details), 'error');
       }
     } catch (err) {
       logger.error('Failed to save document', err);
       const errorMessage = err instanceof ApiClientError ? err.message : 'Failed to save document';
       const details = err instanceof ApiClientError ? err.details : undefined;
+      store.setStatus('error');
       showToast(formatSaveError(errorMessage, details), 'error');
     } finally {
       setSaving(false);
     }
-  }, [document, schema, isNewDocument, schemaName, documentId, documentState, onSave, navigate, hasWritePermission, showToast]);
+  }, [schema, isNewDocument, schemaName, documentId, documentState, onSave, navigate, hasWritePermission, showToast, store.getState, store.setErrors, store.setStatus, store.markSaved, validationOptions]);
 
   const handleCancel = useCallback(async () => {
     if (hasUnsavedChanges) {
@@ -451,37 +539,9 @@ export function DocumentEditor({
       }
     }
 
+    skipNavigationBlockRef.current = true;
     onCancel?.() || navigate(`/content/${schemaName}`);
   }, [hasUnsavedChanges, onCancel, navigate, schemaName, studioContext]);
-
-  const validateDocument = (doc: any, schema: any) => {
-    const errors: string[] = [];
-
-    getSchemaFieldEntries(schema).forEach(({ name, definition }) => {
-      if (!definition?.required) return;
-
-      // Hidden / conditionally invisible fields are never required
-      const conditionalResult = evaluateConditional(
-        {
-          name,
-          conditional: definition.conditional,
-          hidden: definition.hidden
-        },
-        doc || {}
-      );
-      if (!conditionalResult.visible) return;
-
-      if (isMissingValue(doc ? doc[name] : undefined)) {
-        errors.push(`${definition.title || name} is required`);
-      }
-    });
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  };
-
 
   // Prepare editor context value
   const editorContextValue = useMemo(() => ({
@@ -492,6 +552,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
+    errors: store.errors,
     isReadOnly: !hasWritePermission, // Set read-only when user lacks write permission
     hasPublishPermission, // User has permission to publish/unpublish
     isMobileSidebarOpen,
@@ -500,6 +561,7 @@ export function DocumentEditor({
     saving,
     error,
     onDocumentChange: handleDocumentChange,
+    onFieldBlur: handleFieldBlur,
     onStateChange: handleStateChange,
     onModeChange: setCurrentMode,
     onSave: handleSave,
@@ -513,6 +575,7 @@ export function DocumentEditor({
     isNewDocument,
     hasUnsavedChanges,
     hasValidationErrors,
+    store.errors,
     hasWritePermission,
     hasPublishPermission,
     isMobileSidebarOpen,
@@ -520,6 +583,7 @@ export function DocumentEditor({
     saving,
     error,
     handleDocumentChange,
+    handleFieldBlur,
     handleStateChange,
     handleSave,
     handleCancel,

@@ -4,14 +4,13 @@
  * Handles schema-driven form rendering and field interactions
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { FieldRenderer } from '../../fields/index';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { useT } from '@trokky/trokky/i18n';
-import { isMissingValue } from './savePayload';
 
 const logger = createStudioLogger('DocumentForm');
 
@@ -135,73 +134,15 @@ export function DocumentForm() {
   const {
     schema,
     document,
+    errors,
     onDocumentChange,
+    onFieldBlur,
     onValidationChange,
-    saving,
     isNewDocument,
     isReadOnly
   } = useDocumentEditor();
 
   const studioContext = useStudioContext();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  // Define validateField function first
-  const validateField = useCallback((field: any, value: any): string | null => {
-    const fieldTitle = field.title || field.name;
-
-    // Required field validation (0 and false are valid values, not missing)
-    if (field.required && isMissingValue(value)) {
-      return `${fieldTitle} is required`;
-    }
-
-    // Skip further validation if value is empty and not required
-    if (value === undefined || value === null || value === '') {
-      return null;
-    }
-
-    // String validation
-    if (field.type === 'string') {
-      if (field.maxLength && value.length > field.maxLength) {
-        return `${fieldTitle} must be ${field.maxLength} characters or less`;
-      }
-      if (field.minLength && value.length < field.minLength) {
-        return `${fieldTitle} must be at least ${field.minLength} characters`;
-      }
-    }
-
-    // Email validation
-    if (field.type === 'email' || (field.type === 'string' && field.name === 'email')) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(value)) {
-        return `${fieldTitle} must be a valid email address`;
-      }
-    }
-
-    // Number validation
-    if (field.type === 'number') {
-      const numValue = Number(value);
-      if (isNaN(numValue)) {
-        return `${fieldTitle} must be a valid number`;
-      }
-      if (field.min !== undefined && numValue < field.min) {
-        return `${fieldTitle} must be at least ${field.min}`;
-      }
-      if (field.max !== undefined && numValue > field.max) {
-        return `${fieldTitle} must be no more than ${field.max}`;
-      }
-    }
-
-    // URL validation
-    if (field.type === 'url') {
-      try {
-        new URL(value);
-      } catch {
-        return `${fieldTitle} must be a valid URL`;
-      }
-    }
-
-    return null;
-  }, []);
 
   // Define getFieldsArray function
   const getFieldsArray = useCallback((fields: any): any[] => {
@@ -243,80 +184,29 @@ export function DocumentForm() {
     return [];
   }, []);
 
-  // Validate all fields (called from parent when saving)
-  const validateAllFields = useCallback((fieldsArray: any[]): boolean => {
-    const errors: Record<string, string> = {};
-    let hasErrors = false;
-
-    fieldsArray.forEach(field => {
-      const value = document?.[field.name];
-      const error = validateField(field, value);
-      if (error) {
-        errors[field.name] = error;
-        hasErrors = true;
-      }
-    });
-
-    setFieldErrors(errors);
-    return !hasErrors;
-  }, [document, validateField]);
-
-  // Validate all fields when saving starts
-  useEffect(() => {
-    if (saving && schema && document) {
-      const fieldsArray = getFieldsArray(schema.fields);
-      // Filter to only validate visible fields
-      const visibleFieldsForValidation = fieldsArray.filter(field => {
-        const conditionalResult = evaluateConditional(
-          {
-            name: field.name,
-            conditional: field.conditional,
-            hidden: field.hidden
-          },
-          document
-        );
-        return conditionalResult.visible;
-      });
-      validateAllFields(visibleFieldsForValidation);
-    }
-  }, [saving, schema, document, getFieldsArray, validateAllFields]);
-
   // Notify parent component about validation errors
   useEffect(() => {
-    const hasErrors = Object.keys(fieldErrors).length > 0;
-    onValidationChange(hasErrors);
-  }, [fieldErrors, onValidationChange]);
+    onValidationChange(Object.keys(errors).length > 0);
+  }, [errors, onValidationChange]);
 
+  // The store clears the error for a path as soon as its value changes
   const handleFieldChange = useCallback((fieldName: string, value: any) => {
     onDocumentChange({ [fieldName]: value });
-    
-    // Clear field error when user starts typing
-    if (fieldErrors[fieldName]) {
-      setFieldErrors(prev => {
-        const updated = { ...prev };
-        delete updated[fieldName];
-        return updated;
-      });
-    }
-  }, [onDocumentChange, fieldErrors, isReadOnly]);
+  }, [onDocumentChange]);
 
-  const handleFieldBlur = useCallback((fieldName: string, field: any) => {
-    const value = document?.[fieldName];
-    const error = validateField(field, value);
-    
-    if (error) {
-      setFieldErrors(prev => ({
-        ...prev,
-        [fieldName]: error
-      }));
-    } else {
-      setFieldErrors(prev => {
-        const updated = { ...prev };
-        delete updated[fieldName];
-        return updated;
-      });
-    }
-  }, [document, validateField, isReadOnly]);
+  const handleFieldBlur = useCallback((fieldName: string) => {
+    onFieldBlur([fieldName]);
+  }, [onFieldBlur]);
+
+  // An error on a nested path (an array item, an object member) is surfaced on
+  // the top-level field that owns it
+  const getFieldError = useCallback((fieldName: string): string | undefined => {
+    if (errors[fieldName]) return errors[fieldName];
+    const nested = Object.keys(errors).find(
+      key => key.startsWith(`${fieldName}.`) || key.startsWith(`${fieldName}[`)
+    );
+    return nested ? errors[nested] : undefined;
+  }, [errors]);
 
   // Create document context for field rendering
   const documentContext = useMemo(() => {
@@ -333,7 +223,7 @@ export function DocumentForm() {
 
   const renderField = useCallback((field: any) => {
     const value = document?.[field.name];
-    const error = fieldErrors[field.name];
+    const error = getFieldError(field.name);
 
     // Use FieldRenderer for all field types (same as FieldsDemo)
     return (
@@ -342,7 +232,7 @@ export function DocumentForm() {
         fieldId={field.name}
         value={value}
         onChange={isReadOnly ? () => {} : (newValue: any) => handleFieldChange(field.name, newValue)}
-        onBlur={isReadOnly ? () => {} : () => handleFieldBlur(field.name, field)}
+        onBlur={isReadOnly ? () => {} : () => handleFieldBlur(field.name)}
         definition={field}
         hasError={!!error}
         error={error}
@@ -353,7 +243,7 @@ export function DocumentForm() {
         documentContext={documentContext}
       />
     );
-  }, [document, fieldErrors, handleFieldChange, handleFieldBlur, studioContext, documentContext, isReadOnly]);
+  }, [document, getFieldError, handleFieldChange, handleFieldBlur, studioContext, documentContext, isReadOnly]);
 
   const renderFormSection = (fields: any[]) => {
     return (
