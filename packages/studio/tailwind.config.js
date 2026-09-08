@@ -78,7 +78,6 @@ export default {
         sticky: '40',
         overlay: '50',
         toast: '200',
-        debug: '300',
       },
       maxWidth: {
         '8xl': '88rem',

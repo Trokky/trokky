@@ -9,6 +9,11 @@
 export const Z_STICKY = 40
 export const Z_OVERLAY = 50
 export const Z_TOAST = 200
+/**
+ * Reserved above the toast layer. No component uses it today (the debug panel
+ * that did was deleted); kept so a future always-on-top overlay has a home and
+ * the band's top is documented rather than invented ad hoc.
+ */
 export const Z_DEBUG = 300
 
 /**

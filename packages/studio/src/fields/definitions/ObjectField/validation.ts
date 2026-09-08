@@ -177,9 +177,9 @@ export function validateObjectFieldItem(
  * Evaluate conditional visibility for a field
  */
 export function evaluateConditional(
-  fieldDefinition: any, // Using any here since we're working with NestedFieldDefinition
+  fieldDefinition: any, // NestedFieldDefinition, loosely typed on purpose
   objectValues: Record<string, any>
-): any {
+): { visible: boolean; reason: string; evaluatedFields: string[] } {
   // Handle function-based hidden property
   if (typeof fieldDefinition.hidden === 'function') {
     try {

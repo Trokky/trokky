@@ -47,10 +47,13 @@ export function formatDate(date: string | Date, format: 'short' | 'long' | 'rela
 export function formatFileSize(bytes: number | undefined | null): string {
   if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return 'Unknown size';
   if (bytes === 0) return '0 B';
-  
+  // Math.log of a negative is NaN, which would index the table out of range
+  if (bytes < 0) return 'Unknown size';
+
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  // Clamp so a petabyte-scale number cannot index past the table
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }

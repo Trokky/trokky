@@ -565,6 +565,10 @@ export class ApiClient {
       headers['Authorization'] = `Bearer ${this.authToken}`
     }
 
+    // Same transport as every other request, including `credentials`. A
+    // credentialed cross-origin request needs the API to reflect the Origin
+    // rather than answer `*`; verified against the deployments, which reflect
+    // it and allow the Authorization header on the media preflight.
     const response = await fetch(this.buildUrl(`/media/${id}/file`), {
       headers,
       credentials: 'include',
