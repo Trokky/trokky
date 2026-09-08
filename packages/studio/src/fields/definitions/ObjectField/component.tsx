@@ -25,13 +25,18 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   const { t } = useT('fields');
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly } = props;
 
-  // Type guard for object field definition
-  if (definition.type !== 'object') {
-    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
-  }
-  
   const objectDefinition = definition as ObjectFieldDefinition;
   const options = objectDefinition.options || {};
+
+  // The hooks below run before the invalid-definition early return, so they
+  // must tolerate a definition that carries no `fields` map
+  const safeDefinition = useMemo(
+    () =>
+      objectDefinition.fields
+        ? objectDefinition
+        : { ...objectDefinition, fields: {} },
+    [objectDefinition]
+  );
 
   // Ensure value is always an object, with prototype-polluting keys stripped
   const objectValue = useMemo(() => {
@@ -87,9 +92,9 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   };
   
   // Calculate metadata
-  const metadata = useMemo(() => 
-    getObjectMetadata(objectValue, objectDefinition), 
-    [objectValue, objectDefinition]
+  const metadata = useMemo(() =>
+    getObjectMetadata(objectValue, safeDefinition),
+    [objectValue, safeDefinition]
   );
   
   // Object operations
@@ -132,7 +137,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
   
   // Get ordered fields and filter visible ones based on conditional logic
   const visibleFields = useMemo(() => {
-    const orderedFields = getOrderedFields(objectDefinition);
+    const orderedFields = getOrderedFields(safeDefinition);
     
     return orderedFields.filter(({ name, definition: fieldDef }) => {
       const conditionalResult = evaluateConditional(
@@ -145,7 +150,7 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
       );
       return conditionalResult.visible;
     });
-  }, [objectDefinition, objectValue]);
+  }, [safeDefinition, objectValue]);
   
   // Render individual field
   const renderField = useCallback((fieldName: string, fieldDef: NestedFieldDefinition, className: string = '') => {
@@ -608,7 +613,14 @@ export function ObjectFieldComponent(props: ObjectFieldComponentProps) {
     
     return classes.join(' ');
   }, [options.layout, isDisabled, isReadonly, hasError]);
-  
+
+  // All hooks are declared above this point (rules of hooks)
+
+  // Type guard for object field definition
+  if (definition.type !== 'object') {
+    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
+  }
+
   // Conditional render based on nesting level
   if (isTopLevel) {
     // Top-level: Show collapsed card + modal

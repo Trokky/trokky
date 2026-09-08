@@ -70,17 +70,9 @@ export function ColorFieldComponent({
 }: FieldComponentProps) {
   const { t } = useT('fields')
 
-  // Defensive coding - ensure definition exists
-  if (!definition) {
-    console.error('ColorFieldComponent: definition is undefined')
-    return (
-      <div className="text-red-500">{t('errors.definitionMissing')}</div>
-    )
-  }
-
-  const colorDef = definition as ColorFieldDefinition
-  const options = { ...COLOR_FIELD_DEFAULTS, ...(colorDef.options || {}) }
-  const validation = colorDef.validation || {}
+  const colorDef = definition as ColorFieldDefinition | undefined
+  const options = { ...COLOR_FIELD_DEFAULTS, ...(colorDef?.options || {}) }
+  const validation = colorDef?.validation || {}
 
   // State
   const [showPicker, setShowPicker] = useState(false)
@@ -172,6 +164,16 @@ export function ColorFieldComponent({
   }, [value])
 
   const isInteractive = !isDisabled && !isReadonly
+
+  // All hooks are declared above this point (rules of hooks)
+
+  // Defensive coding - ensure definition exists
+  if (!definition) {
+    console.error('ColorFieldComponent: definition is undefined')
+    return (
+      <div className="text-red-500">{t('errors.definitionMissing')}</div>
+    )
+  }
 
   return (
     <div className="space-y-2">

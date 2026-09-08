@@ -16,6 +16,25 @@ import { createStudioLogger } from '../../../utils/logger';
 
 const logger = createStudioLogger('PortableTextField');
 
+/**
+ * The first text node under `root`, at whatever depth the render nests it.
+ * The block row puts the block's text directly inside the contenteditable
+ * element, but a wrapping span would be just as valid, so this looks for the
+ * node instead of assuming a depth.
+ */
+function findFirstTextNode(root: Node): Text | null {
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      return child as Text;
+    }
+    const nested = findFirstTextNode(child);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
+}
+
 interface UsePortableTextBlocksOptions {
   normalizedContent: PortableTextContent;
   onChange?: (value: unknown) => void;
@@ -121,26 +140,36 @@ export function usePortableTextBlocks({
         return;
       }
 
-      // The text node is inside a span, which is the first child.
-      const textNode = editableDiv.firstChild?.firstChild;
+      // The block's text may be the direct child of the editable element or
+      // nested in a wrapper, so look the text node up rather than assume.
+      const textNode = findFirstTextNode(editableDiv);
+      const newSelection = window.getSelection ? window.getSelection() : null;
 
-      if (textNode && window.getSelection) {
-        const newSelection = window.getSelection();
-        if (newSelection) {
-          try {
-            const newRange = document.createRange();
-            const safeOffset = Math.min(offset, textNode.textContent?.length || 0);
-            newRange.setStart(textNode, safeOffset);
-            newRange.setEnd(textNode, safeOffset);
-            newSelection.removeAllRanges();
-            newSelection.addRange(newRange);
-          } catch (e) {
-            // Fallback to focus
-            editableDiv.focus();
-          }
+      if (!newSelection) {
+        editableDiv.focus();
+        return;
+      }
+
+      try {
+        const newRange = document.createRange();
+
+        if (textNode) {
+          const safeOffset = Math.min(offset, textNode.textContent?.length || 0);
+          newRange.setStart(textNode, safeOffset);
+          newRange.setEnd(textNode, safeOffset);
+        } else {
+          // Empty block: there is no text node to put the caret in, so focus
+          // the element and collapse the range at its start so the caret is
+          // real and the next keystroke lands in the block.
+          editableDiv.focus();
+          newRange.setStart(editableDiv, 0);
+          newRange.setEnd(editableDiv, 0);
         }
-      } else {
-        // If no text node (e.g., empty block), just focus the div.
+
+        newSelection.removeAllRanges();
+        newSelection.addRange(newRange);
+      } catch (e) {
+        // Fallback to focus
         editableDiv.focus();
       }
     });

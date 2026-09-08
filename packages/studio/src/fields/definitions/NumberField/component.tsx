@@ -22,39 +22,14 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
   const displayMode = numberDefinition.options?.displayMode || 'input';
   const showValue = numberDefinition.options?.showValue !== false; // Default true for slider
 
-  // Read-only mode: render as display text
-  if (isReadonly && !isDisabled) {
-    const numValue = typeof value === 'number' ? value : parseFormattedNumber(String(value || ''), numberDefinition);
-    
-    // Handle empty values
-    if (value === null || value === undefined || value === '') {
-      return (
-        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
-          {t('types.number.noValue')}
-        </div>
-      );
-    }
-
-    // Display formatted number
-    if (numValue !== null && isFinite(numValue)) {
-      const formattedValue = autoFormat ? formatNumber(numValue, numberDefinition) : numValue.toString();
-      return (
-        <div className="text-gray-900 dark:text-gray-100 text-sm py-2 font-mono">
-          {formattedValue}
-        </div>
-      );
-    } else {
-      // Display raw value if it can't be parsed as a number
-      return (
-        <div className="text-gray-500 dark:text-gray-400 text-sm py-2 font-mono">
-          {String(value)}
-        </div>
-      );
-    }
-  }
-  
   // Update display value when prop value changes
   useEffect(() => {
+    // Read-only mode does not render the input, so the display state is not
+    // maintained there (it was not before this hook was hoisted either)
+    if (isReadonly && !isDisabled) {
+      return;
+    }
+
     const valueChanged = lastValueRef.current !== value;
     lastValueRef.current = value;
 
@@ -87,8 +62,41 @@ export function NumberFieldComponent(props: NumberFieldComponentProps) {
     } else {
       setDisplayValue(String(value));
     }
-  }, [value, numberDefinition, isFocused, autoFormat]);
-  
+  }, [value, numberDefinition, isFocused, autoFormat, isReadonly, isDisabled]);
+
+  // All hooks are declared above this point (rules of hooks)
+
+  // Read-only mode: render as display text
+  if (isReadonly && !isDisabled) {
+    const numValue = typeof value === 'number' ? value : parseFormattedNumber(String(value || ''), numberDefinition);
+
+    // Handle empty values
+    if (value === null || value === undefined || value === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2">
+          {t('types.number.noValue')}
+        </div>
+      );
+    }
+
+    // Display formatted number
+    if (numValue !== null && isFinite(numValue)) {
+      const formattedValue = autoFormat ? formatNumber(numValue, numberDefinition) : numValue.toString();
+      return (
+        <div className="text-gray-900 dark:text-gray-100 text-sm py-2 font-mono">
+          {formattedValue}
+        </div>
+      );
+    } else {
+      // Display raw value if it can't be parsed as a number
+      return (
+        <div className="text-gray-500 dark:text-gray-400 text-sm py-2 font-mono">
+          {String(value)}
+        </div>
+      );
+    }
+  }
+
   const enhancedDefinition = {
     ...numberDefinition,
     options: {

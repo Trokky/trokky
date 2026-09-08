@@ -32,27 +32,6 @@ export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
   const options = textareaDefinition.options || {};
   const validation = textareaDefinition.validation || {};
 
-  // Read-only mode: render as display text
-  if (isReadonly && !isDisabled) {
-    const displayValue = (value as string) || '';
-    
-    // Handle empty values
-    if (!displayValue || displayValue.trim() === '') {
-      return (
-        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2 min-h-[80px] flex items-start">
-          {t('noValue')}
-        </div>
-      );
-    }
-
-    // Display multiline text with preserved formatting
-    return (
-      <div className="text-gray-900 dark:text-gray-100 text-sm py-2 whitespace-pre-wrap border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-gray-50 dark:bg-gray-800 min-h-[80px]">
-        {displayValue}
-      </div>
-    );
-  }
-
   // Auto-resize functionality
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -70,8 +49,33 @@ export function TextareaFieldComponent(props: TextareaFieldComponentProps) {
 
   // Adjust height on mount and value changes
   useEffect(() => {
+    // In read-only mode the textarea is not rendered, so the ref is null and
+    // adjustHeight is a no-op
     adjustHeight();
-  }, [value]);
+  }, [value, isReadonly, isDisabled]);
+
+  // All hooks are declared above this point (rules of hooks)
+
+  // Read-only mode: render as display text
+  if (isReadonly && !isDisabled) {
+    const displayValue = (value as string) || '';
+
+    // Handle empty values
+    if (!displayValue || displayValue.trim() === '') {
+      return (
+        <div className="text-gray-400 dark:text-gray-500 italic text-sm py-2 min-h-[80px] flex items-start">
+          {t('noValue')}
+        </div>
+      );
+    }
+
+    // Display multiline text with preserved formatting
+    return (
+      <div className="text-gray-900 dark:text-gray-100 text-sm py-2 whitespace-pre-wrap border border-gray-300 dark:border-gray-600 rounded-lg px-3 bg-gray-50 dark:bg-gray-800 min-h-[80px]">
+        {displayValue}
+      </div>
+    );
+  }
 
   // Handle value changes
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {

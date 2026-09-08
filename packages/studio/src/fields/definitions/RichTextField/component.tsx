@@ -47,14 +47,8 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
   const { t } = useT('fields')
 
-  if (definition.type !== 'richtext') {
-    return (
-      <div className="text-red-500 text-sm">
-        {t('types.richtext.invalidConfig')}
-      </div>
-    )
-  }
-
+  // Read defensively: the hooks below run before the type guard further down,
+  // so a definition of the wrong type must not throw on the way there.
   const richtextDefinition = definition as RichTextFieldDefinition
   const options = richtextDefinition.options || {}
   const validation = richtextDefinition.validation || {}
@@ -111,6 +105,23 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
   isViewModeRef.current = isViewMode
   outputFormatRef.current = options.outputFormat || 'html'
 
+  // Statistics for the read-only view. Derived from the stored value rather
+  // than the editor, and only computed in view mode.
+  const readOnlyStats = useMemo(() => {
+    if (!isViewMode || !value) return { words: 0, characters: 0, readTime: 0 }
+
+    // Extract text content from HTML for stats
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = value
+    const text = tempDiv.textContent || tempDiv.innerText || ''
+
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0
+    const characters = text.length
+    const readTime = Math.ceil(words / 200)
+
+    return { words, characters, readTime }
+  }, [value, isViewMode])
+
   // Check if we're in dark mode
   const isDarkMode = document.documentElement.classList.contains('dark')
 
@@ -140,52 +151,6 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
           lineHeight: '1.25rem',
         }}
       />
-    )
-  }
-
-  // Render read-only view
-  if (isViewMode) {
-    const stats = useMemo(() => {
-      if (!value) return { words: 0, characters: 0, readTime: 0 }
-
-      // Extract text content from HTML for stats
-      const tempDiv = document.createElement('div')
-      tempDiv.innerHTML = value
-      const text = tempDiv.textContent || tempDiv.innerText || ''
-
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0
-      const characters = text.length
-      const readTime = Math.ceil(words / 200)
-
-      return { words, characters, readTime }
-    }, [value])
-
-    return (
-      <div className="py-2">
-        {value ? (
-          <div className="space-y-4">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
-              {renderSafeHTML(value)}
-            </div>
-
-            {/* Stats display in read-only mode */}
-            {options.showStats && (
-              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span>{stats.words} {t('types.richtext.stats.words')}</span>
-                <span>
-                  {stats.characters}
-                  {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
-                </span>
-                <span>{stats.readTime} {t('types.richtext.stats.minRead')}</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <span className="text-gray-500 dark:text-gray-400 italic text-sm">
-            {t('types.richtext.noContent')}
-          </span>
-        )}
-      </div>
     )
   }
 
@@ -531,6 +496,46 @@ export function RichTextFieldComponent(props: RichTextFieldComponentProps) {
 
     return { words, characters, readTime }
   }, [editor?.state.doc, editor?.storage.characterCount])
+
+  // All hooks are declared above this point (rules of hooks)
+  if (definition.type !== 'richtext') {
+    return (
+      <div className="text-red-500 text-sm">
+        {t('types.richtext.invalidConfig')}
+      </div>
+    )
+  }
+
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        {value ? (
+          <div className="space-y-4">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+              {renderSafeHTML(value)}
+            </div>
+
+            {/* Stats display in read-only mode */}
+            {options.showStats && (
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <span>{readOnlyStats.words} {t('types.richtext.stats.words')}</span>
+                <span>
+                  {readOnlyStats.characters}
+                  {characterLimit ? ` / ${characterLimit}` : ''} {t('types.richtext.stats.characters')}
+                </span>
+                <span>{readOnlyStats.readTime} {t('types.richtext.stats.minRead')}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">
+            {t('types.richtext.noContent')}
+          </span>
+        )}
+      </div>
+    )
+  }
 
   if (!editor) {
     return <div>{t('types.richtext.loadingEditor')}</div>

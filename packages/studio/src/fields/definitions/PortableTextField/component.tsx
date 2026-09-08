@@ -23,10 +23,8 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const { definition, value, onChange, hasError, fieldId, isDisabled, isReadonly, mode } = props;
   const { t } = useT('fields');
 
-  if (definition.type !== 'portable') {
-    return <div className="text-red-500 text-sm">{t('errors.invalidFieldConfig', { type: 'portable' })}</div>;
-  }
-  
+  // Read defensively: the hooks below run before the type guard further down,
+  // so a definition of the wrong type must not throw on the way there.
   const portableDefinition = definition as PortableTextFieldDefinition;
   const options = portableDefinition.options || {};
   const validation = portableDefinition.validation || {};
@@ -55,8 +53,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const blockMenuRef = useRef<HTMLDivElement>(null);
   
-  // Declared here, before the read-only return below, because that is where it
-  // lived before the split; moving it after would change the hook sequence.
   const [dragState, setDragState] = useDragState();
 
   const contentStats = useMemo(() => 
@@ -65,45 +61,6 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
   );
 
 
-  // Render read-only view
-  if (isViewMode) {
-    return (
-      <div className="py-2">
-        {normalizedContent.blocks && normalizedContent.blocks.length > 0 ? (
-          <div className="space-y-4">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
-              <PortableTextRenderer blocks={normalizedContent.blocks} />
-            </div>
-
-            
-            {/* Stats display in read-only mode */}
-            {(options.showBlockCount || options.showCharacterCount || options.showWordCount) && (
-              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                {options.showBlockCount && (
-                  <span>
-                    <span className="font-medium">{t('types.portableText.blocks')}</span> {contentStats.blocks}
-                  </span>
-                )}
-                {options.showCharacterCount && (
-                  <span>
-                    <span className="font-medium">{t('types.portableText.characters')}</span> {contentStats.characters}
-                  </span>
-                )}
-                {options.showWordCount && (
-                  <span>
-                    <span className="font-medium">{t('types.portableText.words')}</span> {contentStats.words}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          <span className="text-gray-500 dark:text-gray-400 italic text-sm">{t('types.portableText.noContent')}</span>
-        )}
-      </div>
-    );
-  }
-  
   // Close block menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -217,7 +174,49 @@ export function PortableTextFieldComponent(props: PortableTextFieldComponentProp
     setLinkUrl('');
     setLinkText('');
   }, [linkUrl, linkText, selectedBlockKey, blocksToRender, updateContent]);
-  
+
+  // All hooks are declared above this point (rules of hooks)
+  if (definition.type !== 'portable') {
+    return <div className="text-red-500 text-sm">{t('errors.invalidFieldConfig', { type: 'portable' })}</div>;
+  }
+
+  // Render read-only view
+  if (isViewMode) {
+    return (
+      <div className="py-2">
+        {normalizedContent.blocks && normalizedContent.blocks.length > 0 ? (
+          <div className="space-y-4">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+              <PortableTextRenderer blocks={normalizedContent.blocks} />
+            </div>
+
+            {/* Stats display in read-only mode */}
+            {(options.showBlockCount || options.showCharacterCount || options.showWordCount) && (
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                {options.showBlockCount && (
+                  <span>
+                    <span className="font-medium">{t('types.portableText.blocks')}</span> {contentStats.blocks}
+                  </span>
+                )}
+                {options.showCharacterCount && (
+                  <span>
+                    <span className="font-medium">{t('types.portableText.characters')}</span> {contentStats.characters}
+                  </span>
+                )}
+                {options.showWordCount && (
+                  <span>
+                    <span className="font-medium">{t('types.portableText.words')}</span> {contentStats.words}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-gray-500 dark:text-gray-400 italic text-sm">{t('types.portableText.noContent')}</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`portable-text-field ${isFullscreen ? 'fixed inset-0 z-overlay bg-white dark:bg-gray-900 flex flex-col p-4' : 'overflow-visible'}`}>

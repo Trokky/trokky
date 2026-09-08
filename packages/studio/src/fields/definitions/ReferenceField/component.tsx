@@ -58,10 +58,6 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   const { t } = useT('fields');
   const { definition, value, onChange, hasError, isDisabled, isReadonly, studioContext, isArrayItem, excludeIds = [] } = props;
 
-  if (definition.type !== 'reference') {
-    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
-  }
-  
   const referenceDefinition = definition as ReferenceFieldDefinition;
   const options = referenceDefinition.options || {};
   const validation = referenceDefinition.validation || {};
@@ -107,6 +103,9 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
 
   // Load all document types for universal references
   useEffect(() => {
+    // Not a reference field: the component bails out below and never used to
+    // reach this effect
+    if (definition.type !== 'reference') return;
     if (!isUniversalReference) return;
 
     let mounted = true;
@@ -149,7 +148,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       mounted = false;
       abortController.abort();
     };
-  }, [isUniversalReference]);
+  }, [isUniversalReference, definition.type]);
 
   // Target type structure
   interface TargetType {
@@ -195,6 +194,10 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   
   // Resolve references to display names
   useEffect(() => {
+    // Not a reference field: the component bails out below and never used to
+    // reach this effect
+    if (definition.type !== 'reference') return;
+
     const resolveReferences = async () => {
       // Filter out empty placeholder references (from array add item) before resolving
       const referencesToResolve = normalizedReferences.filter(ref =>
@@ -264,7 +267,7 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
     };
 
     resolveReferences();
-  }, [normalizedReferences, props.studioContext?.apiClient, targetTypes]);
+  }, [normalizedReferences, props.studioContext?.apiClient, targetTypes, definition.type]);
   
   // Reference operations
   const operations: ReferenceOperations = useMemo(() => ({
@@ -468,13 +471,17 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
   
   // Auto-load initial results when dropdown opens
   useEffect(() => {
+    // Not a reference field: the component bails out below and never used to
+    // reach this effect
+    if (definition.type !== 'reference') return;
+
     if (isSearchOpen && !hasLoadedInitial && searchResults.length === 0 && !isLoading) {
       // Load initial documents when dropdown first opens
       setHasLoadedInitial(true);
       const types = selectedTypeFilter ? [selectedTypeFilter] : targetTypes.map(t => t.type);
       operations.searchDocuments('', types); // Empty query loads all
     }
-  }, [isSearchOpen, hasLoadedInitial, searchResults.length, isLoading, selectedTypeFilter, targetTypes, operations]);
+  }, [isSearchOpen, hasLoadedInitial, searchResults.length, isLoading, selectedTypeFilter, targetTypes, operations, definition.type]);
 
   // Optimized search handler with improved debouncing
   const handleSearch = useCallback((query: string) => {
@@ -565,7 +572,13 @@ export function ReferenceFieldComponent(props: ReferenceFieldComponentProps) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isSearchOpen]);
-  
+
+  // All hooks are declared above this point (rules of hooks)
+
+  if (definition.type !== 'reference') {
+    return <div className="text-red-500 text-sm">{t('types.object.invalidConfig')}</div>;
+  }
+
   // Render single reference item
   const renderReferenceItem = (ref: ReferenceValue) => {
     const displayValue = getReferenceDisplayValue(ref, options.displayField);
