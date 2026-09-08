@@ -348,6 +348,26 @@ describe('TrokkyRoutes', () => {
       expect(savedData.title).toBe('New Article')
     })
 
+    it('leaves system-looking keys INSIDE field values untouched', async () => {
+      const route = routes.findRoute('POST', '/collections/article')!
+      const featuredImage = { _type: 'media', asset: { _ref: 'img-1', _type: 'mediaAsset' } }
+      const gallery = [{ _key: 'k1', _type: 'reference', _ref: 'doc-1' }]
+
+      const response = await route.handler(makeRequest({
+        method: 'POST',
+        path: '/collections/article',
+        params: { collection: 'article' },
+        body: { data: { title: 'With media', featuredImage, gallery, _createdAt: 'spoofed' } },
+      }))
+
+      expect(response.status).toBe(201)
+      const savedData = vi.mocked(core.saveDocument).mock.calls[0][1] as Record<string, unknown>
+      // Stripping is top level only: nested _ref/_type/_key are content, not metadata.
+      expect(savedData.featuredImage).toEqual(featuredImage)
+      expect(savedData.gallery).toEqual(gallery)
+      expect(savedData).not.toHaveProperty('_createdAt')
+    })
+
     it('should strip client-sent system fields on update', async () => {
       const route = routes.findRoute('PUT', '/collections/article/doc-001')!
       const response = await route.handler(makeRequest({

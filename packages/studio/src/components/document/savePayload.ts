@@ -84,9 +84,9 @@ export function buildSavePayload(
       }
     }
 
-    // Strip incomplete placeholder items from top-level array fields
+    // Strip empty slots and incomplete placeholder items from top-level array fields
     if (fieldType === 'array' && Array.isArray(value)) {
-      value = value.filter(item => !isIncompleteArrayItem(item))
+      value = value.filter(item => item !== null && item !== undefined && !isIncompleteArrayItem(item))
     }
 
     if (value === undefined) {

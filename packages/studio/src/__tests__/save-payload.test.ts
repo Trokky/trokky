@@ -209,4 +209,22 @@ describe('buildSavePayload', () => {
       expect('publishedAt' in payload).toBe(false)
     })
   })
+
+  describe('array cleaning', () => {
+    const schema = { name: 'article', fields: { gallery: { type: 'array' } } }
+
+    it('drops null and undefined slots left in a stored array', () => {
+      const payload = buildSavePayload({ gallery: ['a', null, 'b', undefined] }, schema)
+      expect(payload.gallery).toEqual(['a', 'b'])
+    })
+
+    it('keeps complete media and reference items with their nested keys', () => {
+      const gallery = [
+        { _type: 'media', asset: { _ref: 'img-1', _type: 'mediaAsset' } },
+        { _type: 'reference', _ref: 'doc-1' }
+      ]
+      const payload = buildSavePayload({ gallery }, schema)
+      expect(payload.gallery).toEqual(gallery)
+    })
+  })
 })
