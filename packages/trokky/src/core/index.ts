@@ -7,6 +7,12 @@ export { MFAService, type MFAServiceDependencies, type MFARequirement } from './
 export { TrustedDeviceService, type TrustedDeviceServiceDependencies } from './services/trusted-device-service.js'
 export { OAuthService, type OAuthServiceDependencies } from './services/oauth-service.js'
 export { PasskeyService, type PasskeyServiceDependencies } from './services/passkey-service.js'
+export { UserService, type UserServiceDependencies } from './services/user-service.js'
+export { TokenService, type TokenServiceDependencies } from './services/token-service.js'
+export { DocumentService, type DocumentServiceDependencies } from './services/document-service.js'
+export { MediaService, type MediaServiceDependencies } from './services/media-service.js'
+export { CaptchaService, type CaptchaServiceDependencies } from './services/captcha-service.js'
+export { OAuth2ServerService, type OAuth2ServerServiceDependencies } from './services/oauth2-server-service.js'
 
 // Crypto adapters (types only - use core.hashPassword() and core.verifyPassword() for operations)
 export {

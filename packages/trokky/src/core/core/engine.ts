@@ -1,20 +1,13 @@
 import { detectCryptoAdapter, type CryptoAdapter, type CryptoAdapterOptions } from '../crypto/adapter.js'
-import { createHash, timingSafeEqual } from 'crypto'
 import { SchemaRegistry } from '../schema/registry.js'
 import { DocumentValidator } from '../validation/validator.js'
-import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter, RateLimitConfig } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
 import { createLogger } from '../utils/logger.js'
-import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig, type ProcessedImageVariant } from '../media/image-processor.js'
+import { createImageProcessor, type ImageProcessor, type ImageProcessorConfig } from '../media/image-processor.js'
 import { TrokkyEventBus, type EventBusConfig, MemoryEventStorage } from '../events/index.js'
 import { 
-  documentCreated,
-  documentUpdated, 
-  documentDeleted,
-  mediaUploaded,
   mediaUpdated,
-  mediaDeleted,
   userCreated,
   userUpdated,
   userDeleted,
@@ -25,15 +18,8 @@ import {
   systemShutdown,
   systemError,
   actorFromUser,
-  actorFromAppToken,
-  extractDocumentChanges
+  actorFromAppToken
 } from '../events/index.js'
-import { 
-  SchemaNotFoundError, 
-  DocumentNotFoundError, 
-  ValidationError,
-  InvalidInputError
-} from '../errors/index.js'
 import {
   TrokkyConfig,
   StorageAdapter,
@@ -44,7 +30,6 @@ import {
   DocumentData,
   ListOptions,
   MediaFile,
-  MediaMetadata,
   ContentSchema,
   ValidationResult,
   User,
@@ -59,7 +44,6 @@ import {
   AuditContext,
   AUDIT_ACTOR_TYPES,
   AuditLog,
-  AUDIT_OPERATIONS,
   OAuthProvider,
   OAuthProviderType,
   // MFA types
@@ -81,7 +65,6 @@ import {
   type StoredEmailOTP
 } from '../security/mfa/index.js'
 import {
-  createCaptchaProvider,
   type CaptchaProvider,
   type CaptchaProviderType,
   type CaptchaProtectedEndpoint,
@@ -97,6 +80,12 @@ import { MFAService, generateSecureSecret } from '../services/mfa-service.js'
 import { TrustedDeviceService } from '../services/trusted-device-service.js'
 import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
+import { UserService } from '../services/user-service.js'
+import { TokenService } from '../services/token-service.js'
+import { DocumentService } from '../services/document-service.js'
+import { MediaService } from '../services/media-service.js'
+import { CaptchaService } from '../services/captcha-service.js'
+import { OAuth2ServerService } from '../services/oauth2-server-service.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -178,7 +167,6 @@ export class TrokkyCore {
   private cryptoAdapter: CryptoAdapter
   private imageProcessor!: ImageProcessor // Initialized in init() method
   private imageProcessorConfig: ImageProcessorConfig
-  private captchaProvider: CaptchaProvider | null = null
   private logger = createLogger('core', 'TrokkyCore')
   private auditLog = createLogger('core', 'Audit')
   
@@ -198,6 +186,12 @@ export class TrokkyCore {
   private trustedDeviceService: TrustedDeviceService
   private oauthService: OAuthService
   private passkeyService: PasskeyService
+  private userService: UserService
+  private tokenService: TokenService
+  private documentService: DocumentService
+  private mediaService: MediaService
+  private captchaService: CaptchaService
+  private oauth2ServerService: OAuth2ServerService
 
   // Constructor overloads for both unified and split adapters
   constructor(
@@ -368,6 +362,68 @@ export class TrokkyCore {
       issueFullTokens: (user, tokenOptions) => this.authService.issueFullTokens(user, tokenOptions),
       generateMFAPendingToken: (user, methods) => this.authService.generateMFAPendingToken(user, methods),
       generateMFASetupToken: (user, allowedMethods) => this.authService.generateMFASetupToken(user, allowedMethods)
+    })
+
+    this.userService = new UserService({
+      logger: this.logger,
+      dataStorage: this.dataStorage,
+      idGenerator: this.idGenerator,
+      rateLimiter: this.rateLimiter,
+      securityEnabled: this.securityEnabled,
+      eventBus: this.eventBus,
+      hashPassword: (password) => this.hashPassword(password),
+      checkWeakPassword: (password) => this.checkWeakPassword(password),
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      getUserCreatedWithPasswordCallback: () => this.userCreatedWithPasswordCallback
+    })
+
+    this.tokenService = new TokenService({
+      dataStorage: this.dataStorage,
+      idGenerator: this.idGenerator,
+      cryptoAdapter: this.cryptoAdapter,
+      rateLimiter: this.rateLimiter,
+      securityEnabled: this.securityEnabled,
+      logAuditEvent: (event) => this.logAuditEvent(event)
+    })
+
+    this.documentService = new DocumentService({
+      logger: this.logger,
+      auditLog: this.auditLog,
+      dataStorage: this.dataStorage,
+      schemas: this.schemas,
+      idGenerator: this.idGenerator,
+      rateLimiter: this.rateLimiter,
+      securityEnabled: this.securityEnabled,
+      eventBus: this.eventBus,
+      eventsEnabled: this.eventsEnabled,
+      validateDocument: (collection, data) => this.validateDocument(collection, data)
+    })
+
+    this.mediaService = new MediaService({
+      config: this.config,
+      logger: this.logger,
+      mediaStorage: this.mediaStorage,
+      idGenerator: this.idGenerator,
+      rateLimiter: this.rateLimiter,
+      securityEnabled: this.securityEnabled,
+      eventBus: this.eventBus,
+      eventsEnabled: this.eventsEnabled,
+      getImageProcessor: () => this.imageProcessor
+    })
+
+    this.captchaService = new CaptchaService({
+      config: this.config,
+      logger: this.logger
+    })
+
+    this.oauth2ServerService = new OAuth2ServerService({
+      logger: this.logger,
+      cryptoAdapter: this.cryptoAdapter,
+      jwtSecret: this.jwtSecret,
+      getOAuth2Server: () => this.oauth2Server,
+      getOAuth2Options: () => this.options.oauth2,
+      getUser: (id) => this.getUser(id),
+      updateUser: (id, userData) => this.updateUser(id, userData)
     })
 
     // Emit system startup event
@@ -549,271 +605,35 @@ export class TrokkyCore {
     }
   }
 
-  // Helper method to create audit logs
-  private async createAuditLog(
-    documentId: string,
-    collection: string,
-    operation: keyof typeof AUDIT_OPERATIONS,
-    auditContext?: AuditContext,
-    changes?: {
-      before?: Record<string, unknown>
-      after?: Record<string, unknown>
-      fields?: string[]
-    },
-    revision?: number
-  ): Promise<void> {
-    // Only create audit logs if the adapter supports it and we have audit context
-    if (!this.dataStorage.createAuditLog || !auditContext) {
-      return
-    }
-
-    try {
-      await this.dataStorage.createAuditLog({
-        documentId,
-        collection,
-        operation: AUDIT_OPERATIONS[operation],
-        actorId: auditContext.userId,
-        actorType: auditContext.userType,
-        actorUsername: auditContext.username,
-        changes,
-        timestamp: new Date(),
-        revision: revision || 1,
-        ipAddress: auditContext.ipAddress,
-        userAgent: auditContext.userAgent,
-        sessionId: undefined, // Could be added later if needed
-        metadata: undefined // Could be added later for additional context
-      })
-
-      this.auditLog.info('Audit log created', {
-        documentId,
-        collection,
-        operation: AUDIT_OPERATIONS[operation],
-        actorId: auditContext.userId,
-        actorType: auditContext.userType
-      })
-    } catch (error) {
-      this.logger.warn('Failed to create audit log', { 
-        error, 
-        documentId, 
-        collection, 
-        operation 
-      })
-    }
-  }
-
   // Document operations
   public async getDocument<T extends Record<string, unknown> = Record<string, unknown>>(
-    collection: string, 
+    collection: string,
     id: string
   ): Promise<(Document & T) | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getDocument')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    const document = await this.dataStorage.getDocument(collection, id)
-    return document as (Document & T) | null
+    return this.documentService.getDocument<T>(collection, id)
   }
 
   public async saveDocument<T extends Record<string, unknown> = Record<string, unknown>>(
-    collection: string, 
+    collection: string,
     data: DocumentData & T & { id?: string },
     auditContext?: AuditContext
   ): Promise<Document & T> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('saveDocument')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-      SecurityValidator.validateDocumentData(data)
-      
-      if (data.id) {
-        SecurityValidator.validateDocumentId(data.id)
-      }
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    // Validate document against schema
-    const validation = this.validateDocument(collection, data)
-    if (!validation.valid) {
-      throw new ValidationError('Document validation failed', validation.errors)
-    }
-
-    // Generate ID if not provided
-    const id = data.id || this.idGenerator.generate({ prefix: collection })
-    const { id: _, ...documentData } = data
-
-    // Check if document already exists (for event emission)
-    const existingDocument = await this.dataStorage.getDocument(collection, id).catch(() => null)
-    
-    const savedDocument = await this.dataStorage.saveDocument(collection, id, documentData, auditContext)
-    
-    // Create audit log entry
-    if (existingDocument) {
-      // Document was updated
-      const changes = extractDocumentChanges(savedDocument, existingDocument)
-      await this.createAuditLog(
-        id,
-        collection,
-        'UPDATE',
-        auditContext,
-        {
-          before: existingDocument as unknown as Record<string, unknown>,
-          after: savedDocument as unknown as Record<string, unknown>,
-          fields: changes
-        },
-        savedDocument._revision
-      )
-    } else {
-      // Document was created
-      await this.createAuditLog(
-        id,
-        collection,
-        'CREATE',
-        auditContext,
-        {
-          after: savedDocument as unknown as Record<string, unknown>
-        },
-        savedDocument._revision
-      )
-    }
-    
-    // Emit document event
-    if (this.eventsEnabled) {
-      try {
-        if (existingDocument) {
-          // Document updated
-          const changes = extractDocumentChanges(savedDocument, existingDocument)
-          await this.eventBus.emitEvent(documentUpdated(
-            collection,
-            savedDocument,
-            existingDocument,
-            changes
-          ))
-        } else {
-          // Document created
-          await this.eventBus.emitEvent(documentCreated(
-            collection,
-            savedDocument
-          ))
-        }
-      } catch (error) {
-        this.logger.warn('Failed to emit document event', { 
-          error, 
-          collection,
-          documentId: id,
-          operation: existingDocument ? 'update' : 'create'
-        })
-      }
-    }
-    
-    return savedDocument as Document & T
+    return this.documentService.saveDocument<T>(collection, data, auditContext)
   }
 
   public async listDocuments<T extends Record<string, unknown> = Record<string, unknown>>(
-    collection: string, 
+    collection: string,
     options?: ListOptions
   ): Promise<(Document & T)[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('listDocuments')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    const sanitizedOptions = this.securityEnabled 
-      ? SecurityValidator.sanitizeListOptions(options)
-      : options
-
-    const documents = await this.dataStorage.listDocuments(collection, sanitizedOptions)
-    return documents as (Document & T)[]
+    return this.documentService.listDocuments<T>(collection, options)
   }
 
   public async countDocuments(collection: string, filter?: Record<string, unknown>): Promise<number> {
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    if (this.dataStorage.countDocuments) {
-      return this.dataStorage.countDocuments(collection, filter)
-    }
-
-    // Fallback: list and count
-    const documents = await this.dataStorage.listDocuments(collection, { filter })
-    return documents.length
+    return this.documentService.countDocuments(collection, filter)
   }
 
   public async deleteDocument(collection: string, id: string, auditContext?: AuditContext): Promise<void> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('deleteDocument')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    // Check if document exists
-    const existingDocument = await this.dataStorage.getDocument(collection, id)
-    if (!existingDocument) {
-      throw new DocumentNotFoundError(collection, id)
-    }
-
-    await this.dataStorage.deleteDocument(collection, id)
-    
-    // Create audit log entry
-    await this.createAuditLog(
-      id,
-      collection,
-      'DELETE',
-      auditContext,
-      {
-        before: existingDocument as unknown as Record<string, unknown>
-      },
-      existingDocument._revision
-    )
-    
-    // Emit document deleted event
-    if (this.eventsEnabled) {
-      try {
-        await this.eventBus.emitEvent(documentDeleted(
-          collection,
-          id,
-          existingDocument
-        ))
-      } catch (error) {
-        this.logger.warn('Failed to emit document deleted event', { 
-          error, 
-          collection,
-          documentId: id
-        })
-      }
-    }
+    return this.documentService.deleteDocument(collection, id, auditContext)
   }
 
   // ==========================================================================
@@ -824,411 +644,50 @@ export class TrokkyCore {
    * Get audit logs for a specific document
    */
   public async getDocumentAuditLogs(documentId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getDocumentAuditLogs')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(documentId)
-    }
-
-    // Only allow access if adapter supports audit logs
-    if (!this.dataStorage.getDocumentAuditLogs) {
-      throw new Error('Audit logs not supported by storage adapter')
-    }
-
-    return await this.dataStorage.getDocumentAuditLogs(documentId, options)
+    return this.documentService.getDocumentAuditLogs(documentId, options)
   }
 
   /**
    * Get audit logs for a collection
    */
   public async getCollectionAuditLogs(collection: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getCollectionAuditLogs')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateCollectionName(collection)
-    }
-
-    if (!this.schemas.hasSchema(collection)) {
-      throw new SchemaNotFoundError(collection)
-    }
-
-    // Only allow access if adapter supports audit logs
-    if (!this.dataStorage.getCollectionAuditLogs) {
-      throw new Error('Audit logs not supported by storage adapter')
-    }
-
-    return await this.dataStorage.getCollectionAuditLogs(collection, options)
+    return this.documentService.getCollectionAuditLogs(collection, options)
   }
 
   /**
    * Get audit logs for a specific actor
    */
   public async getActorAuditLogs(actorId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getActorAuditLogs')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(actorId) // Reuse document ID validation for actor ID
-    }
-
-    // Only allow access if adapter supports audit logs
-    if (!this.dataStorage.getActorAuditLogs) {
-      throw new Error('Audit logs not supported by storage adapter')
-    }
-
-    return await this.dataStorage.getActorAuditLogs(actorId, options)
+    return this.documentService.getActorAuditLogs(actorId, options)
   }
 
   // Media operations
   public async uploadMedia(file: File): Promise<MediaFile> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('uploadMedia')
-    }
-
-    let sanitizedFilename = file.name
-    if (this.securityEnabled) {
-      sanitizedFilename = this.validateAndSanitizeMediaFile(file)
-    }
-
-    const metadata: MediaMetadata = {
-      id: this.idGenerator.generate({ prefix: 'media' }),
-      filename: sanitizedFilename,
-      contentType: file.type,
-      size: file.size,
-      extension: this.getFileExtension(sanitizedFilename)
-    }
-
-    // Upload to storage first
-    const mediaFile = await this.mediaStorage.uploadFile(file, metadata)
-
-    // Process image if it's an image file
-    if (file.type.startsWith('image/')) {
-      try {
-        const processedImage = await this.imageProcessor.processImage(file, {
-          id: metadata.id,
-          filename: metadata.filename,
-          path: metadata.filename // Use filename as fallback since we don't have the full path here
-        })
-
-        // Save variant files directly to storage without creating separate MediaFile records
-        const savedVariants: Record<string, any> = {}
-        for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
-          if (variantData.buffer) {
-            try {
-              // Save variant file directly using storage adapter's variant support
-              if (this.mediaStorage.saveVariantFile) {
-                const variantPath = await this.mediaStorage.saveVariantFile(
-                  metadata.id, 
-                  variantName, 
-                  variantData.buffer, 
-                  variantData.format
-                )
-                
-                // Store variant info without URL - let frontend handle URL construction
-                savedVariants[variantName] = {
-                  width: variantData.width,
-                  height: variantData.height,
-                  format: variantData.format,
-                  size: variantData.size
-                }
-
-                this.logger.info('Variant file saved directly', { 
-                  parentId: metadata.id, 
-                  variantName,
-                  path: variantPath
-                })
-              } else {
-                // Fallback: just store metadata without physical files for now
-                savedVariants[variantName] = {
-                  url: variantData.url,
-                  width: variantData.width,
-                  height: variantData.height,
-                  format: variantData.format,
-                  size: variantData.size
-                }
-                this.logger.warn('Storage adapter does not support variant files - storing metadata only', {
-                  parentId: metadata.id,
-                  variantName
-                })
-              }
-            } catch (variantError) {
-              this.logger.warn('Failed to save variant file', {
-                parentId: metadata.id,
-                variantName,
-                error: variantError instanceof Error ? variantError.message : 'Unknown error'
-              })
-            }
-          }
-        }
-
-        // Store processed image metadata in the media file
-        mediaFile.metadata = {
-          ...mediaFile.metadata,
-          imageVariants: savedVariants,
-          originalDimensions: {
-            width: processedImage.original.width,
-            height: processedImage.original.height
-          }
-        }
-
-        // Save the updated metadata back to storage
-        try {
-          if (this.mediaStorage.updateFile) {
-            await this.mediaStorage.updateFile(mediaFile.id, mediaFile.metadata)
-          }
-          this.logger.info('Image variants metadata saved', { 
-            fileId: metadata.id, 
-            variantCount: Object.keys(processedImage.variants).length 
-          })
-        } catch (updateError) {
-          this.logger.warn('Failed to save image variants metadata', { 
-            fileId: metadata.id, 
-            error: updateError instanceof Error ? updateError.message : 'Unknown error' 
-          })
-        }
-      } catch (error) {
-        // Log error but don't fail the upload - image processing is optional
-        this.logger.warn('Image processing failed', { 
-          fileId: metadata.id, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        })
-      }
-    }
-
-    // Emit media uploaded event
-    if (this.eventsEnabled) {
-      try {
-        await this.eventBus.emitEvent(mediaUploaded(mediaFile))
-      } catch (error) {
-        this.logger.warn('Failed to emit media uploaded event', { 
-          error, 
-          fileId: mediaFile.id
-        })
-      }
-    }
-
-    return mediaFile
+    return this.mediaService.uploadMedia(file)
   }
 
   public async getMedia(id: string): Promise<MediaFile | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getMedia')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    return await this.mediaStorage.getFile(id)
+    return this.mediaService.getMedia(id)
   }
 
   public async updateMedia(id: string, metadata: Record<string, any>): Promise<MediaFile> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('updateMedia')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // Check if media exists first
-    const existingMedia = await this.mediaStorage.getFile(id)
-    if (!existingMedia) {
-      throw new DocumentNotFoundError('media', id)
-    }
-
-    // Use the storage adapter's updateFile method if available
-    if (!this.mediaStorage.updateFile) {
-      throw new Error('Media update not supported by storage adapter')
-    }
-    
-    return await this.mediaStorage.updateFile(id, metadata)
+    return this.mediaService.updateMedia(id, metadata)
   }
 
   public async getMediaContent(id: string): Promise<ArrayBuffer | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getMediaContent')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    return await this.mediaStorage.getFileContent(id)
+    return this.mediaService.getMediaContent(id)
   }
 
   public async listMedia(options?: { limit?: number; offset?: number }): Promise<MediaListResult> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('listMedia')
-    }
-
-    // Use the storage adapter's listMedia method if available
-    if (!this.mediaStorage.listMedia) {
-      throw new Error('Media listing not supported by storage adapter')
-    }
-
-    return await this.mediaStorage.listMedia(options || {})
+    return this.mediaService.listMedia(options)
   }
 
   public async deleteMedia(id: string): Promise<void> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('deleteMedia')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // Check if media exists
-    const existingMedia = await this.mediaStorage.getFile(id)
-    if (!existingMedia) {
-      throw new DocumentNotFoundError('media', id)
-    }
-
-    // Delete image variants if it's an image
-    if (existingMedia.contentType.startsWith('image/')) {
-      try {
-        await this.imageProcessor.deleteImage(id)
-      } catch (error) {
-        // Log error but don't fail the deletion - variants cleanup is optional
-        this.logger.warn('Image variants cleanup failed', { 
-          fileId: id, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        })
-      }
-    }
-
-    await this.mediaStorage.deleteFile(id)
-    
-    // Emit media deleted event
-    if (this.eventsEnabled) {
-      try {
-        await this.eventBus.emitEvent(mediaDeleted(id, existingMedia))
-      } catch (error) {
-        this.logger.warn('Failed to emit media deleted event', { 
-          error, 
-          fileId: id
-        })
-      }
-    }
+    return this.mediaService.deleteMedia(id)
   }
 
   public async regenerateMediaVariants(id: string): Promise<MediaFile> {
-    try {
-      await this.rateLimiter?.checkRateLimit('regenerateMediaVariants')
-
-      // Get the existing media file
-      const mediaFile = await this.mediaStorage.getFile(id)
-      if (!mediaFile) {
-        throw new Error(`Media file with id ${id} not found`)
-      }
-
-      // Check if it's an image file
-      if (!mediaFile.contentType.startsWith('image/')) {
-        throw new InvalidInputError('Variant regeneration is only supported for image files', 'contentType')
-      }
-
-      this.logger.info('Starting variant regeneration', { id, filename: mediaFile.filename })
-
-      // Get the original file content
-      const fileContent = await this.mediaStorage.getFileContent(id)
-      if (!fileContent) {
-        throw new Error('Unable to read original file content')
-      }
-
-      // Convert ArrayBuffer to File object for image processing
-      const file = new File([new Uint8Array(fileContent)], mediaFile.filename, {
-        type: mediaFile.contentType
-      })
-
-      // Process the image to generate new variants
-      const processedImage = await this.imageProcessor.processImage(file, {
-        id: mediaFile.id,
-        filename: mediaFile.filename,
-        path: (mediaFile.metadata as any)?.path || mediaFile.filename
-      })
-
-      // Delete existing variants first
-      if (this.mediaStorage.deleteVariantFiles) {
-        try {
-          await this.mediaStorage.deleteVariantFiles(id)
-          this.logger.info('Existing variants deleted', { id })
-        } catch (deleteError) {
-          this.logger.warn('Failed to delete existing variants', { id, error: deleteError })
-        }
-      }
-
-      // Save new variant files
-      const savedVariants: Record<string, any> = {}
-      for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
-        if (variantData.buffer) {
-          try {
-            if (this.mediaStorage.saveVariantFile) {
-              const variantPath = await this.mediaStorage.saveVariantFile(
-                id, 
-                variantName, 
-                variantData.buffer, 
-                variantData.format
-              )
-              
-              // Store variant info without URL - let frontend handle URL construction
-              savedVariants[variantName] = {
-                width: variantData.width,
-                height: variantData.height,
-                format: variantData.format,
-                size: variantData.size
-              }
-
-              this.logger.info('New variant saved', { 
-                parentId: id, 
-                variantName,
-                path: variantPath
-              })
-            }
-          } catch (variantError) {
-            this.logger.warn('Failed to save new variant', {
-              parentId: id,
-              variantName,
-              error: variantError instanceof Error ? variantError.message : 'Unknown error'
-            })
-          }
-        }
-      }
-
-      // Update metadata with new variants
-      const updatedMetadata = {
-        ...mediaFile.metadata,
-        imageVariants: savedVariants,
-        originalDimensions: {
-          width: processedImage.original.width,
-          height: processedImage.original.height
-        }
-      }
-
-      // Save updated metadata
-      const updatedMediaFile = await this.mediaStorage.updateFile?.(id, updatedMetadata)
-      if (!updatedMediaFile) {
-        throw new Error('Failed to update media file metadata')
-      }
-      
-      this.logger.info('Variants regenerated successfully', { 
-        id, 
-        variantCount: Object.keys(savedVariants).length 
-      })
-
-      return updatedMediaFile
-    } catch (error) {
-      this.logger.error('Failed to regenerate variants', { 
-        id, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      })
-      throw error
-    }
+    return this.mediaService.regenerateMediaVariants(id)
   }
 
   // Schema operations
@@ -1246,11 +705,11 @@ export class TrokkyCore {
 
   // Image processing operations
   public getImageUrl(imageId: string, variantName?: string): string {
-    return this.imageProcessor.getImageUrl(imageId, variantName)
+    return this.mediaService.getImageUrl(imageId, variantName)
   }
 
   public async getImageProcessor(): Promise<ImageProcessor> {
-    return this.imageProcessor
+    return this.mediaService.getImageProcessor()
   }
 
   /**
@@ -1303,439 +762,65 @@ export class TrokkyCore {
 
   // Utility methods
   private validateAndSanitizeMediaFile(file: File): string {
-    // Use configuration or fall back to defaults
-    const mediaValidation = this.config.media?.validation
-    const maxSize = mediaValidation?.maxFileSize || (100 * 1024 * 1024) // 100MB default
-    const allowedTypes = mediaValidation?.allowedTypes || [
-      // Images
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-      // Video
-      'video/mp4', 'video/webm', 'video/mov', 'video/avi',
-      // Audio - comprehensive list to match AudioField and Routes
-      'audio/mpeg',       // MP3 (primary MIME type)
-      'audio/mp3',        // MP3 (alternative MIME type)
-      'audio/wav',        // WAV
-      'audio/wave',       // WAV (alternative MIME type)
-      'audio/ogg',        // OGG
-      'audio/aac',        // AAC
-      'audio/mp4',        // M4A (MP4 audio)
-      'audio/x-m4a',      // M4A (alternative MIME type)
-      'audio/flac',       // FLAC
-      'audio/webm',       // WebM audio
-      // Documents
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      // Text
-      'text/plain', 'text/csv',
-      'application/json'
-    ]
-
-    if (file.size > maxSize) {
-      throw new InvalidInputError(`File too large (max ${maxSize / 1024 / 1024}MB)`, 'file')
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      throw new InvalidInputError(`File type not allowed: ${file.type}`, 'file')
-    }
-
-    // Sanitize filename instead of rejecting it
-    const sanitizedName = this.sanitizeFilename(file.name)
-    if (sanitizedName !== file.name) {
-      this.logger.debug('Filename sanitized', { 
-        original: file.name, 
-        sanitized: sanitizedName 
-      })
-    }
-    
-    return sanitizedName
+    return this.mediaService.validateAndSanitizeMediaFile(file)
   }
 
   private sanitizeFilename(filename: string): string {
-    // Extract extension first
-    const lastDot = filename.lastIndexOf('.')
-    const name = lastDot > 0 ? filename.substring(0, lastDot) : filename
-    const extension = lastDot > 0 ? filename.substring(lastDot) : ''
-    
-    // Sanitize the name part
-    let sanitized = name
-      // Replace accented characters with ASCII equivalents
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      // Replace spaces and special characters with hyphens
-      .replace(/[^a-zA-Z0-9._-]/g, '-')
-      // Remove multiple consecutive hyphens
-      .replace(/-+/g, '-')
-      // Remove leading/trailing hyphens
-      .replace(/^-+|-+$/g, '')
-      // Ensure it's not empty
-      || 'file'
-    
-    // Sanitize extension (keep dots, letters, numbers only)
-    const sanitizedExtension = extension.replace(/[^.a-zA-Z0-9]/g, '')
-    
-    // Limit total length to 255 characters (filesystem limit)
-    const maxNameLength = 255 - sanitizedExtension.length
-    if (sanitized.length > maxNameLength) {
-      sanitized = sanitized.substring(0, maxNameLength)
-    }
-    
-    return sanitized + sanitizedExtension
+    return this.mediaService.sanitizeFilename(filename)
   }
 
   private getFileExtension(filename: string): string {
-    const parts = filename.split('.')
-    return parts.length > 1 ? parts.pop()! : ''
+    return this.mediaService.getFileExtension(filename)
   }
 
   // User management operations (system entities)
   public async createUser(userData: CreateUserData): Promise<User> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('createUser')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateEmail(userData.email)
-      SecurityValidator.validateUsername(userData.username)
-    }
-
-    // User operations are handled by data storage adapter
-
-    // Check if user already exists (use generic error message to prevent enumeration)
-    const existingUserByEmail = await this.getUserByEmail(userData.email)
-    if (existingUserByEmail) {
-      throw new Error('User registration failed. Please check your details.')
-    }
-
-    const existingUserByUsername = await this.getUserByUsername(userData.username)
-    if (existingUserByUsername) {
-      throw new Error('User registration failed. Please check your details.')
-    }
-
-    // Hash password before saving
-    const passwordHash = await this.hashPassword(userData.password)
-    
-    const userId = this.idGenerator.generate({ prefix: 'user' })
-    const now = new Date().toISOString()
-    
-    const userToSave: Partial<User> = {
-      username: userData.username,
-      email: userData.email,
-      passwordHash,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      role: userData.role,
-      permissions: userData.permissions || this.getDefaultPermissions(userData.role),
-      isActive: userData.isActive ?? true,
-      profileImage: userData.profileImage,
-      preferences: userData.preferences || {},
-      createdAt: now,
-      updatedAt: now
-    }
-
-    const createdUser = await this.dataStorage.saveUser(userId, userToSave)
-    
-    // Log audit event
-    this.logAuditEvent({
-      type: 'user_created',
-      targetUserId: userId,
-      username: userData.username,
-      action: `User created with role: ${userData.role}`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        email: userData.email,
-        role: userData.role,
-        permissions: userData.permissions || this.getDefaultPermissions(userData.role)
-      }
-    })
-
-    // Emit user.created event (WITHOUT password for security)
-    await this.events.emitEvent({
-      type: 'user.created',
-      source: 'api',
-      data: {
-        user: createdUser,
-        userId: createdUser.id,
-      },
-    })
-
-    // Securely send password via callback (not logged in events)
-    if (this.userCreatedWithPasswordCallback) {
-      try {
-        await this.userCreatedWithPasswordCallback(createdUser, userData.password)
-      } catch (error) {
-        this.logger.warn('User created callback failed (non-blocking)', error)
-      }
-    }
-
-    return createdUser
+    return this.userService.createUser(userData)
   }
 
   public async getUser(id: string): Promise<User | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getUser')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // User operations are handled by data storage adapter
-    return await this.dataStorage.getUser(id)
+    return this.userService.getUser(id)
   }
 
   public async getUserByUsername(username: string): Promise<User | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getUserByUsername')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateUsername(username)
-    }
-
-    // User operations are handled by data storage adapter
-    return await this.dataStorage.getUserByUsername(username)
+    return this.userService.getUserByUsername(username)
   }
 
   public async getUserByEmail(email: string): Promise<User | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getUserByEmail')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateEmail(email)
-    }
-
-    // User operations are handled by data storage adapter
-    return await this.dataStorage.getUserByEmail(email)
+    return this.userService.getUserByEmail(email)
   }
 
   public async updateUser(id: string, userData: UpdateUserData): Promise<User> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('updateUser')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-      if (userData.email) SecurityValidator.validateEmail(userData.email)
-      if (userData.username) SecurityValidator.validateUsername(userData.username)
-    }
-
-    // User operations are handled by data storage adapter
-
-    const existingUser = await this.getUser(id)
-    if (!existingUser) {
-      throw new DocumentNotFoundError('users', id)
-    }
-
-    const updatedUserData: Partial<User> = {
-      ...userData,
-      updatedAt: new Date().toISOString()
-    }
-
-    const updatedUser = await this.dataStorage.saveUser(id, updatedUserData)
-    
-    // Log audit event
-    this.logAuditEvent({
-      type: 'user_updated',
-      targetUserId: id,
-      username: existingUser.username,
-      action: `User updated`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        updatedFields: Object.keys(userData),
-        previousRole: existingUser.role,
-        newRole: userData.role || existingUser.role
-      }
-    })
-    
-    return updatedUser
+    return this.userService.updateUser(id, userData)
   }
 
   public async listUsers(options?: UserListOptions): Promise<User[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('listUsers')
-    }
-
-    // User operations are handled by data storage adapter
-    return await this.dataStorage.listUsers(options)
+    return this.userService.listUsers(options)
   }
 
   public async deleteUser(id: string): Promise<void> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('deleteUser')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // User operations are handled by data storage adapter
-
-    const existingUser = await this.getUser(id)
-    if (!existingUser) {
-      throw new DocumentNotFoundError('users', id)
-    }
-
-    await this.dataStorage.deleteUser(id)
-    
-    // Log audit event
-    this.logAuditEvent({
-      type: 'user_deleted',
-      targetUserId: id,
-      username: existingUser.username,
-      action: `User deleted`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        email: existingUser.email,
-        role: existingUser.role
-      }
-    })
+    return this.userService.deleteUser(id)
   }
 
   // App Token management operations
   public async listAppTokens(options?: AppTokenListOptions): Promise<AppToken[]> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('listAppTokens')
-    }
-
-    // App token operations are handled by data storage adapter
-    return await this.dataStorage.listAppTokens(options)
+    return this.tokenService.listAppTokens(options)
   }
 
   public async createAppToken(tokenData: CreateAppTokenData, createdBy: string): Promise<AppTokenCreationResult> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('createAppToken')
-    }
-
-    // App token operations are handled by data storage adapter
-
-    try {
-      // Generate token and hash using SHA256 (fast) - bcrypt is unnecessary for API tokens
-      // API tokens are long random strings, not user-chosen passwords, so SHA256 is secure
-      const token = this.cryptoAdapter.generateSecureRandom(32)
-      const tokenHash = createHash('sha256').update(token).digest('hex')
-      
-      const now = new Date().toISOString()
-      const tokenId = this.idGenerator.generate()
-      
-      const appToken: AppToken = {
-        id: tokenId,
-        name: tokenData.name,
-        description: tokenData.description,
-        tokenHash,
-        permissions: tokenData.permissions,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-        createdBy,
-        lastUsedAt: undefined,
-        expiresAt: tokenData.expiresAt
-      }
-
-      const savedToken = await this.dataStorage.saveAppToken(tokenId, appToken)
-      
-      return {
-        success: true,
-        token, // Plain text token (only returned once)
-        appToken: savedToken
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create app token'
-      }
-    }
+    return this.tokenService.createAppToken(tokenData, createdBy)
   }
 
   public async getAppToken(id: string): Promise<AppToken | null> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('getAppToken')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // App token operations are handled by data storage adapter
-    return await this.dataStorage.getAppToken(id)
+    return this.tokenService.getAppToken(id)
   }
 
   public async validateAppToken(token: string): Promise<{ valid: boolean; appToken?: AppToken; error?: string }> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('validateAppToken')
-    }
-
-    try {
-      // Hash the provided token with SHA256 for comparison
-      const providedHash = createHash('sha256').update(token).digest('hex')
-
-      // Get all active app tokens and check if any match the hash
-      const tokens = await this.dataStorage.listAppTokens({ isActive: true })
-
-      for (const appToken of tokens) {
-        // Use constant-time comparison to prevent timing attacks
-        if (appToken.tokenHash && appToken.tokenHash.length === providedHash.length) {
-          const storedBuffer = Buffer.from(appToken.tokenHash, 'hex')
-          const providedBuffer = Buffer.from(providedHash, 'hex')
-          if (timingSafeEqual(storedBuffer, providedBuffer)) {
-            // Update last used timestamp and usage count
-            const updatedToken: AppToken = {
-              ...appToken,
-              lastUsedAt: new Date().toISOString(),
-              usageCount: (appToken.usageCount || 0) + 1
-            }
-
-            await this.dataStorage.saveAppToken(appToken.id, updatedToken)
-
-            return { valid: true, appToken: updatedToken }
-          }
-        }
-      }
-      
-      return { valid: false, error: 'Invalid app token' }
-    } catch (error) {
-      return { 
-        valid: false, 
-        error: error instanceof Error ? error.message : 'App token validation failed' 
-      }
-    }
+    return this.tokenService.validateAppToken(token)
   }
 
   public async deleteAppToken(id: string): Promise<void> {
-    if (this.rateLimiter) {
-      await this.rateLimiter.checkRateLimit('deleteAppToken')
-    }
-
-    if (this.securityEnabled) {
-      SecurityValidator.validateDocumentId(id)
-    }
-
-    // App token operations are handled by data storage adapter
-
-    const existingToken = await this.getAppToken(id)
-    if (!existingToken) {
-      throw new DocumentNotFoundError('tokens', id)
-    }
-
-    await this.dataStorage.deleteAppToken(id)
-    
-    // Log audit event
-    this.logAuditEvent({
-      type: 'app_token_deleted',
-      targetTokenId: id,
-      tokenName: existingToken.name,
-      action: `App token deleted`,
-      timestamp: new Date().toISOString(),
-      success: true,
-      details: {
-        permissions: existingToken.permissions,
-        createdBy: existingToken.createdBy
-      }
-    })
+    return this.tokenService.deleteAppToken(id)
   }
 
   // Authentication utilities
@@ -1752,16 +837,7 @@ export class TrokkyCore {
   }
 
   private getDefaultPermissions(role: string): Permission[] {
-    switch (role) {
-      case 'admin':
-        return ['content:read', 'content:write', 'content:delete', 'users:read', 'users:write', 'settings:read', 'settings:write', 'media:upload', 'media:delete', 'studio:access']
-      case 'editor':
-        return ['content:read', 'content:write', 'media:upload', 'studio:access']
-      case 'viewer':
-        return ['content:read', 'studio:access']
-      default:
-        return ['content:read', 'studio:access']
-    }
+    return this.userService.getDefaultPermissions(role)
   }
 
   private checkWeakPassword(password: string): { isWeak: boolean; reason?: string } {
@@ -2016,30 +1092,14 @@ export class TrokkyCore {
    * @private
    */
   private getCaptchaProvider(): CaptchaProvider | null {
-    if (this.captchaProvider) return this.captchaProvider
-
-    const config = this.config.captcha
-    if (!config?.siteKey || !config?.secretKey) return null
-
-    try {
-      this.captchaProvider = createCaptchaProvider(config.provider, {
-        siteKey: config.siteKey,
-        secretKey: config.secretKey,
-        options: config.options,
-      })
-      return this.captchaProvider
-    } catch (error) {
-      this.logger.error('Failed to create CAPTCHA provider', error)
-      return null
-    }
+    return this.captchaService.getCaptchaProvider()
   }
 
   /**
    * Check if CAPTCHA is configured
    */
   public isCaptchaConfigured(): boolean {
-    const config = this.config.captcha
-    return !!(config?.siteKey && config?.secretKey && config?.provider)
+    return this.captchaService.isCaptchaConfigured()
   }
 
   /**
@@ -2047,11 +1107,7 @@ export class TrokkyCore {
    * @param endpoint - The endpoint to check ('login', 'passwordResetRequest', 'passwordResetVerify')
    */
   public isCaptchaRequiredFor(endpoint: CaptchaProtectedEndpoint): boolean {
-    if (!this.isCaptchaConfigured()) return false
-    const protectedEndpoints = this.config.captcha?.protectedEndpoints
-    // Default: all endpoints are protected if no specific config
-    if (!protectedEndpoints) return true
-    return protectedEndpoints[endpoint] ?? true
+    return this.captchaService.isCaptchaRequiredFor(endpoint)
   }
 
   /**
@@ -2059,13 +1115,7 @@ export class TrokkyCore {
    * Returns public config (site key, provider, options) - never the secret key
    */
   public getCaptchaConfig(): { provider: CaptchaProviderType; siteKey: string; options?: Record<string, unknown> } | null {
-    if (!this.isCaptchaConfigured()) return null
-    const config = this.config.captcha!
-    return {
-      provider: config.provider,
-      siteKey: config.siteKey,
-      options: config.options,
-    }
+    return this.captchaService.getCaptchaConfig()
   }
 
   /**
@@ -2074,13 +1124,7 @@ export class TrokkyCore {
    * @param remoteIp - Optional client IP address for verification
    */
   public async verifyCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerificationResult> {
-    const provider = this.getCaptchaProvider()
-    if (!provider) {
-      this.logger.warn('CAPTCHA verification called but no provider configured')
-      // Fail open if not configured - allows systems without CAPTCHA to work
-      return { success: true }
-    }
-    return provider.verify(token, remoteIp)
+    return this.captchaService.verifyCaptcha(token, remoteIp)
   }
 
   // ==========================================================================
@@ -2299,74 +1343,7 @@ export class TrokkyCore {
 
   // Development utility: Setup admin user from environment variables
   public async setupAdminFromEnv(): Promise<User | null> {
-    const adminEmail = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_EMAIL : undefined)
-    const adminPassword = (typeof process !== 'undefined' ? process.env?.TROKKY_ADMIN_PASSWORD : undefined)
-    
-    // Only proceed if environment variables are set
-    if (!adminEmail || !adminPassword) {
-      return null
-    }
-
-    // Check if any users exist
-    try {
-      const existingUsers = await this.listUsers({ limit: 1 })
-      if (existingUsers.length > 0) {
-        // Users already exist, don't create admin
-        return null
-      }
-    } catch (error) {
-      // If user operations aren't supported, skip
-      if (error instanceof Error && error.message.includes('not supported by storage adapter')) {
-        return null
-      }
-      throw error
-    }
-
-    // Create admin user from environment variables
-    const adminUser = await this.createUser({
-      username: 'admin',
-      email: adminEmail,
-      password: adminPassword,
-      firstName: 'Admin',
-      lastName: 'User',
-      role: 'admin',
-      permissions: ['content:read', 'content:write', 'content:delete', 'users:read', 'users:write', 'settings:read', 'settings:write', 'media:upload', 'media:delete', 'studio:access'],
-      isActive: true,
-      preferences: {
-        theme: 'dark',
-        language: 'en'
-      }
-    })
-
-    // Log admin creation with security warning
-    const envName = (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined)
-    if (envName !== 'test') {
-      console.log('🔧 Admin user created from environment variables')
-      console.log(`   Email: ${adminEmail}`)
-      console.log('   Username: admin')
-      
-      // Enhanced password strength warnings
-      const isWeakPassword = this.checkWeakPassword(adminPassword)
-      if (isWeakPassword.isWeak) {
-        console.warn('')
-        console.warn('🚨 SECURITY WARNING: Weak admin password detected!')
-        console.warn(`   Reason: ${isWeakPassword.reason}`)
-        console.warn('   Please use a strong password with:')
-        console.warn('   • At least 12 characters')
-        console.warn('   • Mixed case letters (A-z)')
-        console.warn('   • Numbers (0-9)')
-        console.warn('   • Special characters (!@#$%^&*)')
-        console.warn('   • No common words or patterns')
-        if (envName === 'production') {
-          console.warn('🔥 CRITICAL: Change this password immediately in production!')
-        }
-      } else {
-        console.log('✅ Password strength check passed')
-      }
-      console.log('')
-    }
-
-    return adminUser
+    return this.userService.setupAdminFromEnv()
   }
 
   // ============================================
@@ -2378,7 +1355,7 @@ export class TrokkyCore {
    * Returns null if OAuth2 is not enabled
    */
   public getOAuth2Server(): OAuth2AuthorizationServer | null {
-    return this.oauth2Server
+    return this.oauth2ServerService.getOAuth2Server()
   }
 
   /**
@@ -2394,55 +1371,7 @@ export class TrokkyCore {
     refreshToken?: string
     expiresIn: number
   }> {
-    const accessTokenTtl = this.options.oauth2?.accessTokenTtl ?? 3600
-    const refreshTokenTtl = this.options.oauth2?.refreshTokenTtl ?? 2592000
-    const includeRefreshToken = scopes.includes('offline_access')
-
-    // Convert OAuth2 scopes to permissions for the token payload
-    const permissions = this.oauth2Server?.scopesToPermissions(scopes) || []
-
-    // Generate access token
-    const accessTokenPayload = {
-      sub: user.id,
-      type: 'oauth2_access',
-      clientId,
-      scopes,
-      permissions,
-      username: user.username,
-      email: user.email,
-      role: user.role
-    }
-
-    const accessToken = await this.cryptoAdapter.generateJWT(accessTokenPayload, this.jwtSecret, {
-      expiresIn: accessTokenTtl
-    })
-
-    let refreshToken: string | undefined
-    if (includeRefreshToken) {
-      const refreshTokenPayload = {
-        sub: user.id,
-        type: 'oauth2_refresh',
-        clientId,
-        scopes
-      }
-
-      refreshToken = await this.cryptoAdapter.generateJWT(refreshTokenPayload, this.jwtSecret, {
-        expiresIn: refreshTokenTtl
-      })
-    }
-
-    this.logger.info('OAuth2 tokens generated', {
-      userId: user.id,
-      clientId,
-      scopes,
-      includeRefreshToken
-    })
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: accessTokenTtl
-    }
+    return this.oauth2ServerService.generateOAuth2Tokens(user, scopes, clientId)
   }
 
   /**
@@ -2454,68 +1383,7 @@ export class TrokkyCore {
     clientId: string,
     requestedScope?: string
   ): Promise<TokenResponse | null> {
-    try {
-      // Verify refresh token
-      const payload = await this.cryptoAdapter.verifyJWT(refreshToken, this.jwtSecret) as {
-        sub: string
-        type: string
-        clientId: string
-        scopes: OAuth2Scope[]
-      } | null
-
-      if (!payload) {
-        this.logger.warn('Invalid refresh token')
-        return null
-      }
-
-      // Validate token type and client
-      if (payload.type !== 'oauth2_refresh') {
-        this.logger.warn('Invalid token type for refresh', { type: payload.type })
-        return null
-      }
-
-      if (payload.clientId !== clientId) {
-        this.logger.warn('Client ID mismatch for refresh', {
-          expected: payload.clientId,
-          received: clientId
-        })
-        return null
-      }
-
-      // Get user to ensure they still exist and are active
-      const user = await this.getUser(payload.sub)
-      if (!user || !user.isActive) {
-        this.logger.warn('User not found or inactive for refresh', { userId: payload.sub })
-        return null
-      }
-
-      // Determine scopes - can only narrow, not expand
-      let scopes = payload.scopes
-      if (requestedScope) {
-        const requestedScopes = requestedScope.split(' ').filter(Boolean) as OAuth2Scope[]
-        scopes = requestedScopes.filter(s => payload.scopes.includes(s))
-      }
-
-      // Generate new tokens
-      const tokens = await this.generateOAuth2Tokens(user, scopes, clientId)
-
-      this.logger.info('OAuth2 token refreshed', {
-        userId: user.id,
-        clientId,
-        scopes
-      })
-
-      return {
-        access_token: tokens.accessToken,
-        token_type: 'Bearer',
-        expires_in: tokens.expiresIn,
-        refresh_token: tokens.refreshToken,
-        scope: scopes.join(' ')
-      }
-    } catch (error) {
-      this.logger.warn('OAuth2 token refresh failed', { error })
-      return null
-    }
+    return this.oauth2ServerService.refreshOAuth2Token(refreshToken, clientId, requestedScope)
   }
 
   // ============================================
@@ -2531,57 +1399,7 @@ export class TrokkyCore {
     clientId: string,
     requestedScopes: OAuth2Scope[]
   ): Promise<{ hasConsent: boolean; consentedScopes: OAuth2Scope[] }> {
-    try {
-      const user = await this.getUser(userId)
-      if (!user) {
-        this.logger.debug('getUserConsent: user not found', { userId })
-        return { hasConsent: false, consentedScopes: [] }
-      }
-
-      this.logger.debug('getUserConsent: checking consent', {
-        userId,
-        clientId,
-        requestedScopes,
-        userPreferences: user.preferences
-      })
-
-      // Get consents from user preferences
-      const consents = (user.preferences?._oauth2Consents || {}) as Record<string, {
-        scopes: OAuth2Scope[]
-        grantedAt: string
-        expiresAt?: string
-      }>
-
-      const consent = consents[clientId]
-      if (!consent) {
-        this.logger.debug('getUserConsent: no consent found for client', { clientId, consents })
-        return { hasConsent: false, consentedScopes: [] }
-      }
-
-      // Check if consent has expired
-      if (consent.expiresAt && new Date(consent.expiresAt) < new Date()) {
-        this.logger.debug('getUserConsent: consent expired', { consent })
-        return { hasConsent: false, consentedScopes: [] }
-      }
-
-      // Check if all requested scopes are already consented
-      const consentedScopes = consent.scopes || []
-      const hasAllScopes = requestedScopes.every(scope => consentedScopes.includes(scope))
-
-      this.logger.debug('getUserConsent: result', {
-        hasAllScopes,
-        consentedScopes,
-        requestedScopes
-      })
-
-      return {
-        hasConsent: hasAllScopes,
-        consentedScopes
-      }
-    } catch (error) {
-      this.logger.warn('Failed to check user consent', { error, userId, clientId })
-      return { hasConsent: false, consentedScopes: [] }
-    }
+    return this.oauth2ServerService.getUserConsent(userId, clientId, requestedScopes)
   }
 
   /**
@@ -2594,107 +1412,14 @@ export class TrokkyCore {
     scopes: OAuth2Scope[],
     expiresInDays?: number
   ): Promise<boolean> {
-    try {
-      this.logger.info('saveUserConsent: starting', { userId, clientId, scopes })
-
-      const user = await this.getUser(userId)
-      if (!user) {
-        this.logger.warn('Cannot save consent - user not found', { userId })
-        return false
-      }
-
-      // Get existing consents
-      const currentPreferences = user.preferences || {}
-      const existingConsents = (currentPreferences._oauth2Consents || {}) as Record<string, {
-        scopes: OAuth2Scope[]
-        grantedAt: string
-        expiresAt?: string
-      }>
-
-      this.logger.debug('saveUserConsent: existing state', {
-        currentPreferences,
-        existingConsents
-      })
-
-      // Merge scopes if consent already exists
-      const existingConsent = existingConsents[clientId]
-      const mergedScopes = existingConsent
-        ? [...new Set([...existingConsent.scopes, ...scopes])] as OAuth2Scope[]
-        : scopes
-
-      // Calculate expiry (default: 365 days, or never if not specified)
-      const expiresAt = expiresInDays
-        ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString()
-        : undefined
-
-      // Update consents
-      const updatedConsents = {
-        ...existingConsents,
-        [clientId]: {
-          scopes: mergedScopes,
-          grantedAt: new Date().toISOString(),
-          expiresAt
-        }
-      }
-
-      const newPreferences = {
-        ...currentPreferences,
-        _oauth2Consents: updatedConsents
-      }
-
-      this.logger.debug('saveUserConsent: saving new preferences', { newPreferences })
-
-      // Save to user preferences
-      await this.updateUser(userId, {
-        preferences: newPreferences
-      })
-
-      this.logger.info('User consent saved successfully', {
-        userId,
-        clientId,
-        scopes: mergedScopes
-      })
-
-      return true
-    } catch (error) {
-      this.logger.error('Failed to save user consent', { error, userId, clientId })
-      return false
-    }
+    return this.oauth2ServerService.saveUserConsent(userId, clientId, scopes, expiresInDays)
   }
 
   /**
    * Revoke user consent for a client
    */
   public async revokeUserConsent(userId: string, clientId: string): Promise<boolean> {
-    try {
-      const user = await this.getUser(userId)
-      if (!user) {
-        return false
-      }
-
-      const currentPreferences = user.preferences || {}
-      const existingConsents = (currentPreferences._oauth2Consents || {}) as Record<string, unknown>
-
-      if (!existingConsents[clientId]) {
-        return true // Already revoked
-      }
-
-      // Remove the consent for this client
-      const { [clientId]: _removed, ...remainingConsents } = existingConsents
-
-      await this.updateUser(userId, {
-        preferences: {
-          ...currentPreferences,
-          _oauth2Consents: remainingConsents
-        }
-      })
-
-      this.logger.info('User consent revoked', { userId, clientId })
-      return true
-    } catch (error) {
-      this.logger.error('Failed to revoke user consent', { error, userId, clientId })
-      return false
-    }
+    return this.oauth2ServerService.revokeUserConsent(userId, clientId)
   }
 
   // Rate limiter cleanup (call periodically)
