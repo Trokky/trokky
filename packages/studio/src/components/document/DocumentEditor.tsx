@@ -18,7 +18,8 @@ import { useT } from '@trokky/trokky/i18n';
 // Document editor context and components
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
 import { DocumentStates, type DocumentState } from './DocumentStates';
-import { DocumentForm } from './DocumentForm';
+import { DocumentForm, evaluateConditional } from './DocumentForm';
+import { buildSavePayload, getSchemaFieldEntries, isMissingValue } from './savePayload';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
 
@@ -33,6 +34,19 @@ function getSchemaDisplayName(schemaName?: string, schema?: any): string {
   
   // Fallback to formatted schema name
   return schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
+}
+
+// Append server-provided field paths to a validation error message
+function formatSaveError(message: string, details?: any): string {
+  if (!Array.isArray(details) || details.length === 0) return message;
+
+  const fields = details
+    .map((detail: any) => detail?.field)
+    .filter((field: any) => typeof field === 'string' && field.length > 0);
+
+  if (fields.length === 0) return message;
+
+  return `${message}: ${fields.join(', ')}`;
 }
 
 export interface DocumentEditorProps {
@@ -359,52 +373,13 @@ export function DocumentEditor({
       const validation = validateDocument(document, schema);
       if (!validation.isValid) {
         logger.warn('Document validation failed - check inline field errors', { errors: validation.errors });
+        showToast(validation.errors.join(', '), 'error');
         setSaving(false);
         return;
       }
 
-      // Clean document data before sending to API - remove frontend-only fields and ensure _status is set
-      const cleanDocument = { ...document };
-      delete cleanDocument._state; // Remove legacy frontend state field
-
-      // Ensure _status is properly set based on current document state
-      if (!cleanDocument._status) {
-        cleanDocument._status = documentState || 'draft';
-      }
-
-      // Ensure all schema fields are present and type-compatible
-      // This prevents old field values from persisting when schema types change
-      if (schema?.fields) {
-        for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-          const value = cleanDocument[fieldName];
-          const fieldType = (fieldDef as any).type;
-
-          // Check for type mismatches and clear incompatible values
-          if (value !== undefined && value !== null) {
-            const isArray = Array.isArray(value);
-            const isObject = typeof value === 'object' && !isArray;
-
-            // Clear if schema expects object but got array, or vice versa
-            if ((fieldType === 'object' && isArray) ||
-                (fieldType === 'array' && isObject)) {
-              // Use appropriate empty value for the expected type
-              cleanDocument[fieldName] = fieldType === 'object' ? {} : [];
-            }
-          }
-
-          // Only add missing fields if they are object or array type
-          // (to override potentially incompatible stored values)
-          // Don't add scalar fields - they will use stored values
-          if (!(fieldName in cleanDocument)) {
-            if (fieldType === 'object') {
-              cleanDocument[fieldName] = {};
-            } else if (fieldType === 'array') {
-              cleanDocument[fieldName] = [];
-            }
-            // Don't add scalar fields - let the backend merge with existing
-          }
-        }
-      }
+      // Build the payload from schema fields plus _status/_type only
+      const cleanDocument = buildSavePayload(document, schema, documentState);
 
       let response;
       if (isNewDocument) {
@@ -443,17 +418,18 @@ export function DocumentEditor({
       } else {
         // Handle API error response without throwing
         const errorMessage = response.error?.message || 'Failed to save document';
-        logger.error('Save failed with API error', { 
-          error: response.error, 
+        logger.error('Save failed with API error', {
+          error: response.error,
           fullResponse: response,
-          documentData: document 
+          documentData: document
         });
-        showToast(errorMessage, 'error');
+        showToast(formatSaveError(errorMessage, (response.error as any)?.details), 'error');
       }
     } catch (err) {
       logger.error('Failed to save document', err);
       const errorMessage = err instanceof ApiClientError ? err.message : 'Failed to save document';
-      showToast(errorMessage, 'error');
+      const details = err instanceof ApiClientError ? err.details : undefined;
+      showToast(formatSaveError(errorMessage, details), 'error');
     } finally {
       setSaving(false);
     }
@@ -481,22 +457,24 @@ export function DocumentEditor({
   const validateDocument = (doc: any, schema: any) => {
     const errors: string[] = [];
 
-    if (schema.fields) {
-      // Handle both object and array field formats
-      if (Array.isArray(schema.fields)) {
-        schema.fields.forEach((field: any) => {
-          if (field.required && (!doc[field.name] || doc[field.name] === '')) {
-            errors.push(`${field.title || field.name} is required`);
-          }
-        });
-      } else if (typeof schema.fields === 'object') {
-        Object.entries(schema.fields).forEach(([fieldName, field]: [string, any]) => {
-          if (field.required && (!doc[fieldName] || doc[fieldName] === '')) {
-            errors.push(`${field.title || fieldName} is required`);
-          }
-        });
+    getSchemaFieldEntries(schema).forEach(({ name, definition }) => {
+      if (!definition?.required) return;
+
+      // Hidden / conditionally invisible fields are never required
+      const conditionalResult = evaluateConditional(
+        {
+          name,
+          conditional: definition.conditional,
+          hidden: definition.hidden
+        },
+        doc || {}
+      );
+      if (!conditionalResult.visible) return;
+
+      if (isMissingValue(doc ? doc[name] : undefined)) {
+        errors.push(`${definition.title || name} is required`);
       }
-    }
+    });
 
     return {
       isValid: errors.length === 0,
@@ -548,7 +526,11 @@ export function DocumentEditor({
     handleValidationChange
   ]);
 
-  if (loading) {
+  // Wait for the current user to resolve before rendering the form, otherwise
+  // fields are created in read-only mode with a no-op onChange
+  const permissionsLoading = !permissions?.user;
+
+  if (loading || permissionsLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">

@@ -11,6 +11,7 @@ import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { createStudioLogger } from '@/utils/logger';
 import { useT } from '@trokky/trokky/i18n';
+import { isMissingValue } from './savePayload';
 
 const logger = createStudioLogger('DocumentForm');
 
@@ -63,7 +64,7 @@ function evaluateCondition(actualValue: any, expectedValue: any, operator: strin
   }
 }
 
-function evaluateConditional(
+export function evaluateConditional(
   fieldDefinition: any,
   documentValues: Record<string, any>
 ): { visible: boolean; reason: string; evaluatedFields: string[] } {
@@ -148,13 +149,13 @@ export function DocumentForm() {
   const validateField = useCallback((field: any, value: any): string | null => {
     const fieldTitle = field.title || field.name;
 
-    // Required field validation
-    if (field.required && (!value || value === '' || (Array.isArray(value) && value.length === 0))) {
+    // Required field validation (0 and false are valid values, not missing)
+    if (field.required && isMissingValue(value)) {
       return `${fieldTitle} is required`;
     }
 
     // Skip further validation if value is empty and not required
-    if (!value || value === '') {
+    if (value === undefined || value === null || value === '') {
       return null;
     }
 
@@ -248,7 +249,7 @@ export function DocumentForm() {
     let hasErrors = false;
 
     fieldsArray.forEach(field => {
-      const value = document[field.name];
+      const value = document?.[field.name];
       const error = validateField(field, value);
       if (error) {
         errors[field.name] = error;
@@ -286,25 +287,6 @@ export function DocumentForm() {
     onValidationChange(hasErrors);
   }, [fieldErrors, onValidationChange]);
 
-  if (!schema || !document) {
-    logger.debug('Waiting for schema or document to load', {
-      hasSchema: !!schema,
-      hasDocument: !!document
-    });
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">
-          {t('documentEditor.loadingForm')}
-        </div>
-      </div>
-    );
-  }
-
-  logger.debug('Schema loaded successfully', { 
-    schemaName: schema.name, 
-    fieldsType: typeof schema.fields
-  });
-
   const handleFieldChange = useCallback((fieldName: string, value: any) => {
     onDocumentChange({ [fieldName]: value });
     
@@ -319,7 +301,7 @@ export function DocumentForm() {
   }, [onDocumentChange, fieldErrors, isReadOnly]);
 
   const handleFieldBlur = useCallback((fieldName: string, field: any) => {
-    const value = document[fieldName];
+    const value = document?.[fieldName];
     const error = validateField(field, value);
     
     if (error) {
@@ -350,7 +332,7 @@ export function DocumentForm() {
   }, [schema, document, documentId, isNewDocument]);
 
   const renderField = useCallback((field: any) => {
-    const value = document[field.name];
+    const value = document?.[field.name];
     const error = fieldErrors[field.name];
 
     // Use FieldRenderer for all field types (same as FieldsDemo)
@@ -365,6 +347,7 @@ export function DocumentForm() {
         hasError={!!error}
         error={error}
         mode="edit"
+        isDisabled={isReadOnly}
         disabled={isReadOnly}
         studioContext={studioContext || undefined}
         documentContext={documentContext}
@@ -380,7 +363,7 @@ export function DocumentForm() {
     );
   };
 
-  const fieldsArray = useMemo(() => getFieldsArray(schema.fields), [schema.fields, getFieldsArray]);
+  const fieldsArray = useMemo(() => getFieldsArray(schema?.fields), [schema?.fields, getFieldsArray]);
 
   // Filter fields based on conditional visibility
   const visibleFields = useMemo(() => {
@@ -405,6 +388,26 @@ export function DocumentForm() {
       return conditionalResult.visible;
     });
   }, [fieldsArray, document]);
+
+  // All hooks are declared above this point (rules of hooks)
+  if (!schema || !document) {
+    logger.debug('Waiting for schema or document to load', {
+      hasSchema: !!schema,
+      hasDocument: !!document
+    });
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">
+          {t('documentEditor.loadingForm')}
+        </div>
+      </div>
+    );
+  }
+
+  logger.debug('Schema loaded successfully', {
+    schemaName: schema.name,
+    fieldsType: typeof schema.fields
+  });
 
   return (
     <div className="flex-1 overflow-auto">
