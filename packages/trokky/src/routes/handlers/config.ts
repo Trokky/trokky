@@ -4,6 +4,7 @@
 
 import { InvalidInputError } from '../../core/index.js'
 import type { HttpRequest, HttpResponse, RouteDefinition } from '../types.js'
+import { isSingletonSchema } from '../../core/schema/singleton.js'
 import { BaseRoutes } from './base.js'
 
 export class ConfigRoutes extends BaseRoutes {
@@ -108,7 +109,10 @@ export class ConfigRoutes extends BaseRoutes {
           const schema = schemaMap.get(item.schemaType)
           return {
             ...item,
-            schemaTitle: schema?.title || item.schemaType
+            schemaTitle: schema?.title || item.schemaType,
+            // A custom structure may list a singleton schema. Tell the Studio, so it does not
+            // offer a Create the server will reject once the one document exists.
+            schemaIsSingleton: isSingletonSchema(schema)
           }
         } else if (item.type === 'group' && item.items) {
           return {
@@ -448,20 +452,36 @@ export class ConfigRoutes extends BaseRoutes {
 
     // Create basic structure based on schemas and user permissions
     for (const schema of schemas) {
-      if (this.shouldIncludeSchemaInStructure(schema, user)) {
+      if (!this.shouldIncludeSchemaInStructure(schema, user)) {
+        continue
+      }
+
+      // A singleton schema must not be offered as a list: the Studio would show a Create
+      // button whose save the server rejects once the one document exists.
+      if (isSingletonSchema(schema)) {
         items.push({
-          type: 'documentList',
+          type: 'singleton',
           title: this.formatSchemaTitle(schema.name),
           schemaType: schema.name,
+          documentId: schema.name,
           icon: this.getSchemaIcon(schema),
-          defaultOrdering: [{ field: '_updatedAt', direction: 'desc' }],
-          options: {
-            pageSize: 25,
-            searchable: true,
-            searchFields: this.getSearchableFields(schema)
-          }
+          options: { autoCreate: true }
         })
+        continue
       }
+
+      items.push({
+        type: 'documentList',
+        title: this.formatSchemaTitle(schema.name),
+        schemaType: schema.name,
+        icon: this.getSchemaIcon(schema),
+        defaultOrdering: [{ field: '_updatedAt', direction: 'desc' }],
+        options: {
+          pageSize: 25,
+          searchable: true,
+          searchFields: this.getSearchableFields(schema)
+        }
+      })
     }
 
     // Add admin-only sections

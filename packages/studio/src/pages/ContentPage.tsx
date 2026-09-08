@@ -17,6 +17,7 @@ import { useStructureItem } from '@/hooks/useStructure';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import { usePermissions } from '@/hooks/usePermissions';
+import { isSingletonStructureItem } from '@/utils/singleton';
 import type { Document } from '@/types';
 import { DocumentEditor } from '@/components/document';
 
@@ -57,7 +58,7 @@ export function ContentPage() {
   // Handle document editing
   if (documentId) {
     // Prevent creation of new singleton documents only
-    if (documentId === 'new' && structureItem.item?.type === 'singleton') {
+    if (documentId === 'new' && isSingletonStructureItem(structureItem.item)) {
       return <NoCreateRedirect schemaName={schemaName!} />;
     }
     
@@ -502,7 +503,7 @@ function ContentListPage({ schemaName }: { schemaName: string }) {
             </p>
           </div>
           {/* Create button - only for regular collections, not singletons */}
-          {structureItem?.item?.type !== 'singleton' && (
+          {!isSingletonStructureItem(structureItem?.item) && (
             <Button onClick={() => navigate(`/content/${schemaName}/new`)}>
               <PlusIcon className="h-4 w-4 mr-2" />
               {t('content.create', { type: getSchemaDisplayName(schemaName) })}

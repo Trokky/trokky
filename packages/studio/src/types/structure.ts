@@ -48,10 +48,21 @@ export interface BaseStructureItem {
 
 export interface DocumentListItem extends BaseStructureItem {
   type: 'documentList'
-  
+
   /** Schema type to display */
   schemaType: string
-  
+
+  /** Schema title, filled in by the server */
+  schemaTitle?: string
+
+  /**
+   * Whether the schema declares itself a singleton, filled in by the server.
+   *
+   * A custom structure may present a singleton schema as a list. The server still enforces
+   * one document, so the Studio must not offer to create a second.
+   */
+  schemaIsSingleton?: boolean
+
   /** Optional filter query (basic for now) */
   filter?: Record<string, any>
   

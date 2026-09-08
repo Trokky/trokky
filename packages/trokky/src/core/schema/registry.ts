@@ -1,4 +1,5 @@
 import { ContentSchema, ContentSchemaSchema, TrokkyConfig } from '../types/index.js'
+import { isSingletonSchema } from './singleton.js'
 
 export class SchemaRegistry {
   private schemas: Map<string, ContentSchema> = new Map()
@@ -104,7 +105,7 @@ export class SchemaRegistry {
 
     // Skip singletons if configured to do so (default: true)
     const skipSingletons = autoThumbnailConfig.skipSingletons !== false
-    if (skipSingletons && schema.singleton === true) {
+    if (skipSingletons && isSingletonSchema(schema)) {
       return schema
     }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import fs from 'fs-extra'
@@ -323,5 +323,74 @@ describe('Express Integration with a custom apiPath', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.servers[0].url).toBe('/backend/api')
+  })
+})
+
+describe('singleton consistency at boot', () => {
+  let bootTempDir: string
+
+  const createWith = (structure: any, schemas: any[]) =>
+    TrokkyExpress.create({
+      schemas,
+      storage: {
+        data: {
+          adapter: 'filesystem-data',
+          options: {
+            contentDir: path.join(bootTempDir, 'content'),
+            usersDir: path.join(bootTempDir, 'users'),
+            tokensDir: path.join(bootTempDir, 'tokens'),
+            webhooksDir: path.join(bootTempDir, 'webhooks'),
+            settingsDir: path.join(bootTempDir, 'settings'),
+          },
+        },
+        media: {
+          adapter: 'filesystem-media',
+          options: { mediaDir: path.join(bootTempDir, 'media') },
+        },
+      },
+      security: {
+        adminUser: {
+          username: 'admin',
+          email: 'admin@test.com',
+          password: 'TestPassword123!',
+        },
+      },
+      studio: { structure },
+    } as any)
+
+  const settingsSchema = (extra: Record<string, unknown> = {}) => ({
+    name: 'settings',
+    title: 'Settings',
+    type: 'document' as const,
+    fields: [{ name: 'title', type: 'string' }],
+    ...extra,
+  })
+
+  beforeEach(async () => {
+    bootTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'trokky-boot-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(bootTempDir, { recursive: true, force: true })
+  })
+
+  it('should refuse to start when the structure calls a collection a singleton and its schema does not', async () => {
+    const structure = {
+      items: [{ type: 'singleton', title: 'Settings', schemaType: 'settings', documentId: 'settings' }],
+    }
+
+    await expect(createWith(structure, [settingsSchema()])).rejects.toThrow(
+      /Structure and schemas disagree about singletons[\s\S]*'settings'/
+    )
+  })
+
+  it('should start when the schema declares the singleton', async () => {
+    const structure = {
+      items: [{ type: 'singleton', title: 'Settings', schemaType: 'settings', documentId: 'settings' }],
+    }
+
+    const trokky = await createWith(structure, [settingsSchema({ singleton: true })])
+    expect(trokky).toBeDefined()
+    if (trokky?.cleanup) trokky.cleanup()
   })
 })

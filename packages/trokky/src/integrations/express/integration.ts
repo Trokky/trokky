@@ -17,6 +17,7 @@ import type {
   StorageConfig,
 } from './config.js'
 import { withDefaults } from './config.js'
+import { assertSingletonConsistency } from '../../core/schema/singleton.js'
 
 /**
  * Main Express integration class for Trokky CMS
@@ -592,6 +593,11 @@ export class TrokkyExpress {
       integration.config.studioConfig = resolvedStudioConfig
       integration.config.structureConfig = resolvedStructureConfig
 
+      // Fail now if the structure presents collections as singletons that their schemas do
+      // not declare. Left alone the mismatch is invisible until a restore regenerates those
+      // documents' ids and the structure ends up pointing at documents that no longer exist.
+      await assertResolvedStructureConsistency(resolvedStructureConfig, core, fullConfig, logger)
+
       const result = await integration.createIntegration()
 
       // Debug: Check result.core before and after assignment
@@ -780,5 +786,47 @@ export class TrokkyExpress {
       result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
     return result
+  }
+}
+
+/**
+ * Run the singleton consistency check against the structure a project actually configured.
+ *
+ * The structure may be a plain object or a function of the request context; at startup there
+ * is no user, so it is resolved the same way the create and read paths resolve it. A structure
+ * that cannot be resolved here is skipped rather than fatal — only a genuine disagreement
+ * between structure and schemas stops the server.
+ */
+async function assertResolvedStructureConsistency(
+  structureConfig: any,
+  core: TrokkyCore,
+  config: any,
+  logger: { warn: (message: string, data?: any) => void }
+): Promise<void> {
+  if (!structureConfig) return
+
+  const schemas = core.getAllSchemas()
+  let structure: any
+
+  try {
+    structure =
+      typeof structureConfig === 'function'
+        ? await Promise.resolve(structureConfig({ user: null, schemas, core, config }))
+        : structureConfig
+  } catch (error) {
+    logger.warn('Could not resolve structure to check singleton consistency', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return
+  }
+
+  try {
+    assertSingletonConsistency(structure, schemas, message => logger.warn(message))
+  } catch (error) {
+    // The core is already initialised at this point. This stops its rate-limiter sweep and
+    // OAuth2 cleanup intervals; the event storage keeps its own interval, so a host that
+    // catches this error rather than exiting still has handles open.
+    core.cleanup?.()
+    throw error
   }
 }

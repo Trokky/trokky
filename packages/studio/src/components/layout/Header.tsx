@@ -24,6 +24,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MEDIA_PERMISSIONS, SETTINGS_PERMISSIONS, USER_PERMISSIONS, TOKEN_PERMISSIONS, WEBHOOK_PERMISSIONS, SETTINGS_MENU_PERMISSIONS } from '@/constants/permissions';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { useDocumentTypes } from '@/hooks/useStructure';
+import { isSingletonStructureItem } from '@/utils/singleton';
 import { useGlobalSearch } from '@/hooks/useSearch';
 import { SimpleSearchModal } from '@/components/SimpleSearchModal';
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal';
@@ -54,6 +55,10 @@ export function Header({
 
   // Get available document types for create dropdown (excluding singletons)
   const { documentTypes, loading: typesLoading } = useDocumentTypes();
+
+  // A custom structure may list a singleton schema; the server marks those and still enforces
+  // one document, so they must not appear as something to create.
+  const creatableTypes = documentTypes.filter(docType => !isSingletonStructureItem(docType));
 
 
   // Get branding from StudioContext
@@ -180,12 +185,12 @@ export function Header({
             {createMenuOpen && !typesLoading && (
               <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                 {/* Regular document types only */}
-                {documentTypes.length > 0 ? (
+                {creatableTypes.length > 0 ? (
                   <div className="px-3 py-2">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                       {t('header.createNewDocument')}
                     </div>
-                    {documentTypes.map((docType) => (
+                    {creatableTypes.map((docType) => (
                       <button
                         key={docType.schemaType || docType.id}
                         onClick={() => handleCreateDocument(docType.schemaType)}

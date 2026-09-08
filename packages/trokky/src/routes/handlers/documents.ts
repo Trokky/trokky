@@ -5,6 +5,7 @@
 import { SecurityValidator, InvalidInputError, expandDocumentReferences, parseExpandParam } from '../../core/index.js'
 import type { HttpRequest, HttpResponse, RouteDefinition, CreateDocumentRequest, UpdateDocumentRequest } from '../types.js'
 import { processSlugFields } from '../slug-processor.js'
+import { isSingletonSchema, collectStructureSingletons } from '../../core/schema/singleton.js'
 import { BaseRoutes } from './base.js'
 
 /** System fields that clients may send back but must never overwrite storage-managed values */
@@ -384,7 +385,7 @@ export class DocumentRoutes extends BaseRoutes {
       // Get existing document to merge with updates
       // For singletons, allow upsert (create if doesn't exist)
       const schema = this.core.getSchema(collection)
-      const isSingleton = schema?.singleton === true
+      const isSingleton = isSingletonSchema(schema)
 
       const existingDoc = await this.core.getDocument(collection, id)
       if (!existingDoc && !isSingleton) {
@@ -576,87 +577,105 @@ export class DocumentRoutes extends BaseRoutes {
   }
 
   /**
-   * Attempt to auto-create a singleton document if it matches known singleton patterns
+   * Auto-create a singleton document the first time it is read.
+   *
+   * The schema decides whether the collection is a singleton. The structure only decides
+   * which document id that singleton lives under, and whether auto-creation is wanted at
+   * all; without a structure entry the id defaults to the collection name.
    */
   private async tryAutoCreateSingleton(collection: string, documentId: string): Promise<any | null> {
     try {
-      // Get the custom structure function to check for singletons
-      const customStructure = this.getCustomStructureFunction()
-      
-      let isSingleton = false
-      let singletonConfig: any = null
-      
-      if (customStructure && typeof customStructure === 'function') {
-        // Execute structure function to get singleton info
-        const user = null // TODO: Get current user from auth context
-        const schemas = this.core.getAllSchemas()
-        const context = { user, schemas, core: this.core, config: this.config }
-        
-        const structure = await Promise.resolve(customStructure(context))
-        
-        // Find if this collection/documentId combo is a singleton
-        const findSingleton = (items: any[]): any => {
-          for (const item of items) {
-            if (item.type === 'singleton' && 
-                item.schemaType === collection && 
-                (item.documentId === documentId || item.schemaType === documentId)) {
-              return item
-            } else if (item.items && Array.isArray(item.items)) {
-              const found = findSingleton(item.items)
-              if (found) return found
-            }
-          }
-          return null
-        }
-        
-        singletonConfig = findSingleton(structure.items || [])
-        isSingleton = !!singletonConfig
-      } else {
-        // Fallback: check common singleton patterns
-        const singletonPatterns = [
-          { collection: 'homePage', documentId: 'home' },
-          { collection: 'settings', documentId: 'site-settings' },
-          { collection: 'config', documentId: 'main' },
-          { collection: 'siteSettings', documentId: 'main' }
-        ]
-        
-        isSingleton = singletonPatterns.some(pattern => 
-          pattern.collection === collection && pattern.documentId === documentId
-        )
+      if (!isSingletonSchema(this.core.getSchema(collection))) {
+        return null
       }
-      
-      if (isSingleton) {
-        this.logger.info('Auto-creating singleton document', { 
-          collection, 
+
+      // A structure may carry more than one entry for a collection; prefer the one that names
+      // the requested id so each entry's own document stays reachable.
+      const entries = (await this.resolveStructureSingletons()).filter(
+        candidate => candidate.collection === collection
+      )
+      const entry = entries.find(candidate => candidate.documentId === documentId) ?? entries[0]
+
+      // Only the singleton's own document is conjured up; any other id stays a 404.
+      const singletonId = entry?.documentId ?? collection
+      if (documentId !== singletonId) {
+        return null
+      }
+
+      if (entry && !entry.autoCreate) {
+        this.logger.debug('Singleton auto-creation disabled by structure', { collection, documentId })
+        return null
+      }
+
+      // Never conjure up a second document. A singleton whose stored document sits under a
+      // different id than the structure asks for would otherwise gain an empty duplicate on
+      // the first read, which is the invariant the create guard exists to protect.
+      const existingDocuments = await this.core.listDocuments(collection, { limit: 1 })
+      if (existingDocuments && existingDocuments.length > 0) {
+        this.logger.warn('Not auto-creating singleton: the collection already holds a document', {
+          collection,
           documentId,
-          autoCreate: singletonConfig?.options?.autoCreate !== false
+          existingDocument: existingDocuments[0].id
         })
-        
-        // Create the singleton document with sensible defaults
-        const singletonData = {
-          id: documentId,
-          _type: collection,
-          title: this.formatSchemaTitle(collection),
-          slug: documentId, // Use documentId as slug for singletons
-          ...this.getDefaultSingletonData(collection, documentId)
-        }
-        
-        // Auto-created singleton uses system context
-        const systemContext: any = {
-          userId: 'system',
-          userType: 'SYSTEM',
-          username: 'system'
-        }
-        const document = await this.core.saveDocument(collection, singletonData, systemContext)
-        this.logger.info('Singleton document auto-created', { collection, documentId })
-        
-        return document
+        return null
       }
-      
-      return null
+
+      this.logger.info('Auto-creating singleton document', { collection, documentId })
+
+      // Create the singleton document with sensible defaults
+      const singletonData = {
+        id: documentId,
+        _type: collection,
+        title: this.formatSchemaTitle(collection),
+        slug: documentId, // Use documentId as slug for singletons
+        ...this.getDefaultSingletonData(collection, documentId)
+      }
+
+      // Auto-created singleton uses system context
+      const systemContext: any = {
+        userId: 'system',
+        userType: 'SYSTEM',
+        username: 'system'
+      }
+      const document = await this.core.saveDocument(collection, singletonData, systemContext)
+      this.logger.info('Singleton document auto-created', { collection, documentId })
+
+      return document
     } catch (error) {
       this.logger.error('Failed to auto-create singleton', { collection, documentId, error })
       return null
+    }
+  }
+
+  /**
+   * Resolve the project's structure and collect its singleton entries.
+   *
+   * The structure is only consulted for presentation details — which id a singleton lives
+   * under and whether to auto-create it — never to decide whether a collection is one.
+   * A structure that cannot be resolved yields no entries rather than an error, so reads
+   * keep working on the schema alone.
+   */
+  private async resolveStructureSingletons(): Promise<ReturnType<typeof collectStructureSingletons>> {
+    try {
+      const customStructure = this.getCustomStructureFunction()
+      if (!customStructure) return []
+
+      if (typeof customStructure === 'function') {
+        const context = {
+          user: null,
+          schemas: this.core.getAllSchemas(),
+          core: this.core,
+          config: this.config
+        }
+        return collectStructureSingletons(await Promise.resolve(customStructure(context)))
+      }
+
+      return collectStructureSingletons(customStructure)
+    } catch (error) {
+      this.logger.warn('Failed to resolve structure for singleton lookup', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
     }
   }
 
@@ -665,71 +684,24 @@ export class DocumentRoutes extends BaseRoutes {
    */
   private async validateSingletonCreation(collection: string, requestedId?: string): Promise<void> {
     try {
-      // Get the custom structure function to check for singletons
-      const customStructure = this.getCustomStructureFunction()
-      
-      let isSingleton = false
-      let singletonDocumentId: string | null = null
-      
-      if (customStructure && typeof customStructure === 'function') {
-        // Execute structure function to get singleton info
-        const user = null // TODO: Get current user from auth context
-        const schemas = this.core.getAllSchemas()
-        const context = { user, schemas, core: this.core, config: this.config }
-        
-        const structure = await Promise.resolve(customStructure(context))
-        
-        // Find if this collection is a singleton
-        const findSingleton = (items: any[]): any => {
-          for (const item of items) {
-            if (item.type === 'singleton' && item.schemaType === collection) {
-              return item
-            } else if (item.items && Array.isArray(item.items)) {
-              const found = findSingleton(item.items)
-              if (found) return found
-            }
-          }
-          return null
-        }
-        
-        const singletonConfig = findSingleton(structure.items || [])
-        if (singletonConfig) {
-          isSingleton = true
-          singletonDocumentId = singletonConfig.documentId || collection
-        }
-      } else {
-        // Fallback: check common singleton patterns
-        const singletonPatterns = [
-          { collection: 'homePage', documentId: 'home' },
-          { collection: 'settings', documentId: 'site-settings' },
-          { collection: 'config', documentId: 'main' },
-          { collection: 'siteSettings', documentId: 'main' }
-        ]
-        
-        const pattern = singletonPatterns.find(p => p.collection === collection)
-        if (pattern) {
-          isSingleton = true
-          singletonDocumentId = pattern.documentId
-        }
+      if (!isSingletonSchema(this.core.getSchema(collection))) {
+        return
       }
-      
-      if (isSingleton && singletonDocumentId) {
-        // Check if a singleton document already exists for this collection
-        const existingDocuments = await this.core.listDocuments(collection, { limit: 1 })
-        
-        if (existingDocuments && existingDocuments.length > 0) {
-          this.logger.warn('Attempted to create duplicate singleton document', {
-            collection,
-            requestedId,
-            singletonDocumentId,
-            existingDocument: existingDocuments[0].id
-          })
-          
-          throw new InvalidInputError(
-            `Singleton document already exists for collection '${collection}'. Only one document is allowed.`,
-            'singleton_duplicate'
-          )
-        }
+
+      // Check if a singleton document already exists for this collection
+      const existingDocuments = await this.core.listDocuments(collection, { limit: 1 })
+
+      if (existingDocuments && existingDocuments.length > 0) {
+        this.logger.warn('Attempted to create duplicate singleton document', {
+          collection,
+          requestedId,
+          existingDocument: existingDocuments[0].id
+        })
+
+        throw new InvalidInputError(
+          `Singleton document already exists for collection '${collection}'. Only one document is allowed.`,
+          'singleton_duplicate'
+        )
       }
     } catch (error) {
       // Re-throw InvalidInputError as-is, wrap other errors
