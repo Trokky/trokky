@@ -13,6 +13,17 @@ import { createStudioLogger } from '../utils/logger'
 import { storageService, STORAGE_KEYS } from '@/utils/storage'
 import { authStore, type RefreshedSession } from './auth-store'
 
+/**
+ * Endpoints where a 401 must not trigger recovery: asking the session owner to
+ * refresh in response to a failing refresh (or validate, or login) would loop.
+ */
+const NON_RECOVERABLE_ENDPOINTS = [
+  '/auth/refresh',
+  '/auth/validate',
+  '/auth/login',
+  '/auth/logout',
+]
+
 export class ApiClientError extends Error {
   constructor(
     message: string,
@@ -279,7 +290,7 @@ export class ApiClient {
           this.authToken &&
           !skipAuth &&
           !retried &&
-          !endpoint.includes('/auth/')
+          !NON_RECOVERABLE_ENDPOINTS.some(path => endpoint.includes(path))
         ) {
           const recovered = (await this.onUnauthorized?.()) ?? false
           if (recovered) {
