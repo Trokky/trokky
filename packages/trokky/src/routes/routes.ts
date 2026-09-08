@@ -229,14 +229,6 @@ export class TrokkyRoutes extends BaseRoutes {
     return Array.from(this.routes.values())
   }
 
-  /**
-   * Record the path the API router is mounted on so the OpenAPI spec can
-   * advertise the real API prefix instead of the default '/api'.
-   */
-  public setMountedApiPath(path: string): void {
-    this.config.mountedApiPath = path
-  }
-
   public getApiRoutes(): RouteDefinition[] {
     return Array.from(this.routes.values()).filter(route =>
       !this.isStaticRoute(route.path)
@@ -350,8 +342,12 @@ export class TrokkyRoutes extends BaseRoutes {
     }
   }
 
-  private async getOpenApiSpec(_request: HttpRequest): Promise<HttpResponse> {
+  private async getOpenApiSpec(request: HttpRequest): Promise<HttpResponse> {
     const basePath = this.config.basePath || ''
+    // Derive the advertised API prefix from the request itself so the spec is
+    // correct whatever path the router was actually mounted on.
+    const requestPath = request.url.split('?')[0]
+    const serverUrl = requestPath.replace(/\/openapi\.json$/, '') || '/'
     const routes = this.getApiRoutes()
 
     const paths: Record<string, Record<string, unknown>> = {}
@@ -469,12 +465,7 @@ export class TrokkyRoutes extends BaseRoutes {
         version: '2.0.0',
         description: 'REST API for Trokky content management system'
       },
-      servers: [
-        {
-          url: this.config.mountedApiPath || basePath || '/api',
-          description: 'API base path'
-        }
-      ],
+      servers: [{ url: serverUrl, description: 'API base path' }],
       paths,
       components: {
         securitySchemes: {

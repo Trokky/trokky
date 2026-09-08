@@ -84,7 +84,6 @@ export class TrokkyExpress {
       // Store the mounted paths for Studio config and external access
       this.mountedApiPath = apiPath
       this.mountedStudioPath = studioPath
-      this.routes.setMountedApiPath(apiPath)
 
       // Update Studio config with correct apiBasePath if Studio is enabled
       if (this.config.studio?.enabled && this.studioConfig) {

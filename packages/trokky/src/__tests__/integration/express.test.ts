@@ -10,6 +10,7 @@ import '../../adapters/filesystem-data/index.js'
 import '../../adapters/filesystem-media/index.js'
 
 import { TrokkyExpress } from '../../integrations/express/index.js'
+import type { ExpressIntegration } from '../../integrations/express/types.js'
 
 describe('Express Integration', () => {
   let app: express.Express
@@ -257,7 +258,7 @@ describe('Express Integration', () => {
 
 describe('Express Integration with a custom apiPath', () => {
   let customApp: express.Express
-  let customTrokky: any
+  let customTrokky: ExpressIntegration
   let customTempDir: string
 
   beforeAll(async () => {
@@ -308,7 +309,6 @@ describe('Express Integration with a custom apiPath', () => {
   }, 30000)
 
   afterAll(async () => {
-    if (customTrokky?.cleanup) customTrokky.cleanup()
     await fs.remove(customTempDir)
   })
 

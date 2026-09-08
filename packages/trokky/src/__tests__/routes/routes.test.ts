@@ -73,6 +73,32 @@ describe('TrokkyRoutes', () => {
     })
   })
 
+  describe('openapi spec', () => {
+    it('should derive servers[0].url from the request mount prefix', async () => {
+      const route = routes.findRoute('GET', '/openapi.json')!
+      const response = await route.handler(makeRequest({
+        path: '/openapi.json',
+        url: '/custom/prefix/openapi.json',
+      }))
+
+      expect(response.status).toBe(200)
+      const body = response.body as { servers: Array<{ url: string }> }
+      expect(body.servers[0].url).toBe('/custom/prefix')
+    })
+
+    it('should report a root server url when mounted at the root', async () => {
+      const route = routes.findRoute('GET', '/openapi.json')!
+      const response = await route.handler(makeRequest({
+        path: '/openapi.json',
+        url: '/openapi.json?x=1',
+      }))
+
+      expect(response.status).toBe(200)
+      const body = response.body as { servers: Array<{ url: string }> }
+      expect(body.servers[0].url).toBe('/')
+    })
+  })
+
   describe('authentication - login', () => {
     it('should return success with token on valid login', async () => {
       const route = routes.findRoute('POST', '/auth/login')!
