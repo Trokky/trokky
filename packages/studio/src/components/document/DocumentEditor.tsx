@@ -19,7 +19,7 @@ import { useT } from '@trokky/trokky/i18n';
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';
 import { DocumentStates, type DocumentState } from './DocumentStates';
 import { DocumentForm, evaluateConditional } from './DocumentForm';
-import { buildSavePayload } from './savePayload';
+import { buildSavePayload, resolveFieldDefault } from './savePayload';
 import { collectValidationErrors, useDocumentStore } from './documentStore.js';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentSidebar } from './DocumentSidebar';
@@ -319,19 +319,8 @@ export function DocumentEditor({
       }
     }
 
-    // Initialize default values from schema. The field plugin resolves the
-    // default when it can, so sentinels such as a date field's 'now' become a
-    // real value instead of reaching the document as a literal string.
-    const resolveDefault = (field: any) => {
-      const plugin = fieldRegistry.get(field.type);
-      if (!plugin || typeof plugin.getDefaultValue !== 'function') return field.default;
-      try {
-        const resolved = plugin.getDefaultValue(field);
-        return resolved === undefined ? field.default : resolved;
-      } catch {
-        return field.default;
-      }
-    };
+    const resolveDefault = (field: any) =>
+      resolveFieldDefault(field, type => fieldRegistry.get(type));
 
     if (schema.fields) {
       // Handle both object and array field formats

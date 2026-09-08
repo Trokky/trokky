@@ -49,8 +49,14 @@ export function isIncompleteArrayItem(item: any): boolean {
   return false
 }
 
-/** Property carrying the editor-side stable identity of an array item. */
-export const ITEM_KEY = '_key'
+/**
+ * Property carrying the editor-side stable identity of an array item.
+ *
+ * Deliberately NOT `_key`: `_key` is real content for portable text, where
+ * blocks, spans and markDefs carry their own `_key` and a span's `marks[]`
+ * points at a markDef by it. Stripping those would silently break every link.
+ */
+export const ITEM_KEY = '__trokkyItemKey'
 
 /** Keys that must never reach an object literal built from user data. */
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
@@ -122,7 +128,8 @@ export function getItemKey(item: any, index: number): string {
 }
 
 /**
- * Remove editor-only `_key` markers and prototype-polluting keys from a value.
+ * Remove the editor-only item markers and prototype-polluting keys from a value.
+ * Content keys such as portable text's `_key` are left untouched.
  * Applied at save time only: the editor keeps the keys while the form is open.
  */
 export function stripItemKeys(value: any): any {
@@ -206,4 +213,36 @@ export function buildSavePayload(
   }
 
   return payload
+}
+
+/**
+ * Schema `default` values that a field plugin should turn into a real value
+ * (a date field's "now" must not reach the document as the literal string).
+ */
+const DEFAULT_SENTINELS = new Set(['now', 'today'])
+
+/**
+ * Resolve a schema-declared default for a new document.
+ *
+ * The declared value is used verbatim. Only a known sentinel is handed to the
+ * field plugin, because most plugins ignore `default` and return their own
+ * empty value ('' for a string, false for a boolean, 'untitled' for a slug),
+ * which would silently override what the schema author wrote.
+ */
+export function resolveFieldDefault(
+  field: { type?: string; default?: any },
+  getPlugin: (type: string) => { getDefaultValue?: (field: any) => any } | undefined
+): any {
+  const declared = field?.default
+  if (typeof declared !== 'string' || !DEFAULT_SENTINELS.has(declared)) {
+    return declared
+  }
+  const plugin = field.type ? getPlugin(field.type) : undefined
+  if (!plugin || typeof plugin.getDefaultValue !== 'function') return declared
+  try {
+    const resolved = plugin.getDefaultValue(field)
+    return resolved === undefined ? declared : resolved
+  } catch {
+    return declared
+  }
 }

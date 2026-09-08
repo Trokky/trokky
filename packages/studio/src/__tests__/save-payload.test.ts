@@ -4,6 +4,8 @@ import {
   getSchemaFieldEntries,
   isIncompleteArrayItem,
   isMissingValue,
+  ITEM_KEY,
+  resolveFieldDefault,
 } from '../components/document/savePayload'
 
 const schema = {
@@ -225,6 +227,74 @@ describe('buildSavePayload', () => {
       ]
       const payload = buildSavePayload({ gallery }, schema)
       expect(payload.gallery).toEqual(gallery)
+    })
+  })
+
+  describe('portable text content keys survive a save', () => {
+    // `_key` is content for portable text: a span's marks[] points at a markDef
+    // by it. The editor's own item marker must never collide with it.
+    const schema = { name: 'page', fields: { body: { type: 'portable' } } }
+    const body = {
+      blocks: [
+        {
+          _type: 'block',
+          _key: 'b1',
+          children: [{ _type: 'span', _key: 's1', text: 'see this', marks: ['link1'] }],
+          markDefs: [{ _key: 'link1', _type: 'link', href: 'https://example.org' }]
+        }
+      ]
+    }
+
+    it('keeps every _key so link associations stay intact', () => {
+      const payload = buildSavePayload({ body }, schema)
+      expect(payload.body).toEqual(body)
+      const block = (payload.body as any).blocks[0]
+      expect(block.markDefs[0]._key).toBe('link1')
+      expect(block.children[0].marks).toContain(block.markDefs[0]._key)
+    })
+
+    it('still removes the editor-only item marker at every depth', () => {
+      const withMarkers = {
+        blocks: [{ _type: 'block', _key: 'b1', [ITEM_KEY]: 'editor-1', children: [] }]
+      }
+      const payload = buildSavePayload({ body: withMarkers }, schema)
+      const block = (payload.body as any).blocks[0]
+      expect(block._key).toBe('b1')
+      expect(ITEM_KEY in block).toBe(false)
+    })
+  })
+
+  describe('schema defaults for a new document', () => {
+    // Most plugins ignore `default` and return their own empty value, so the
+    // declared default must win; only sentinels go to the plugin.
+    const plugins: Record<string, any> = {
+      string: { getDefaultValue: () => '' },
+      boolean: { getDefaultValue: () => false },
+      slug: { getDefaultValue: () => 'untitled' },
+      number: { getDefaultValue: () => '' },
+      date: { getDefaultValue: () => '2026-09-08' },
+      broken: { getDefaultValue: () => { throw new Error('boom') } }
+    }
+    const getPlugin = (type: string) => plugins[type]
+
+    it('uses the schema-declared default verbatim', () => {
+      expect(resolveFieldDefault({ type: 'string', default: 'Hello' }, getPlugin)).toBe('Hello')
+      expect(resolveFieldDefault({ type: 'boolean', default: true }, getPlugin)).toBe(true)
+      expect(resolveFieldDefault({ type: 'slug', default: 'my-slug' }, getPlugin)).toBe('my-slug')
+      expect(resolveFieldDefault({ type: 'number', default: 5 }, getPlugin)).toBe(5)
+    })
+
+    it('resolves a sentinel through the plugin', () => {
+      expect(resolveFieldDefault({ type: 'date', default: 'now' }, getPlugin)).toBe('2026-09-08')
+    })
+
+    it('falls back to the sentinel when the plugin is missing or throws', () => {
+      expect(resolveFieldDefault({ type: 'nope', default: 'now' }, getPlugin)).toBe('now')
+      expect(resolveFieldDefault({ type: 'broken', default: 'now' }, getPlugin)).toBe('now')
+    })
+
+    it('leaves an undeclared default undefined', () => {
+      expect(resolveFieldDefault({ type: 'string' }, getPlugin)).toBeUndefined()
     })
   })
 })
