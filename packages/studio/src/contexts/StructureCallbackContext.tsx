@@ -337,7 +337,7 @@ export function StructureCallbackProvider({ children }: StructureCallbackProvide
             let timeoutId: NodeJS.Timeout
             return ((...args: any[]) => {
               clearTimeout(timeoutId)
-              timeoutId = setTimeout(() => func.apply(null, args), delay)
+              timeoutId = setTimeout(() => func(...args), delay)
             }) as T
           },
           

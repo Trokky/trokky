@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
 
+// QueryBuilder needs an HttpClient and CacheManager; the chaining tests never touch them.
+const mockHttp = {} as never
+const mockCache = {} as never
+
 describe('Client exports', () => {
   it('should export TrokkyClient', async () => {
     const mod = await import('../index.js')
@@ -40,56 +44,56 @@ describe('Client exports', () => {
 describe('QueryBuilder', () => {
   it('should create a query builder with collection', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article')
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article')
     expect(qb).toBeDefined()
   })
 
   it('should support chainable filter (where)', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article')
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article')
       .where('status', 'published')
     expect(qb).toBeDefined()
   })
 
   it('should support chainable limit', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').limit(10)
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').limit(10)
     expect(qb).toBeDefined()
   })
 
   it('should support chainable offset', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').offset(20)
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').offset(20)
     expect(qb).toBeDefined()
   })
 
   it('should support chainable sort', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').sort({ createdAt: 'desc' })
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').sort({ createdAt: 'desc' })
     expect(qb).toBeDefined()
   })
 
   it('should support published() filter', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').published()
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').published()
     expect(qb).toBeDefined()
   })
 
   it('should support draft() filter', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').draft()
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').draft()
     expect(qb).toBeDefined()
   })
 
   it('should support search', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article').search('keyword')
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article').search('keyword')
     expect(qb).toBeDefined()
   })
 
   it('should support full chain', async () => {
     const { QueryBuilder } = await import('../query/builder.js')
-    const qb = new QueryBuilder('article')
+    const qb = new QueryBuilder(mockHttp, mockCache, 'article')
       .published()
       .where('category', 'tech')
       .sort({ createdAt: 'desc' })
@@ -142,7 +146,7 @@ describe('HttpClient', () => {
     const { HttpClient } = await import('../http/client.js')
     const client = new HttpClient({
       baseUrl: 'http://localhost:3000/api',
-      authToken: 'test-token',
+      token: 'test-token',
     })
     expect(client).toBeDefined()
   })

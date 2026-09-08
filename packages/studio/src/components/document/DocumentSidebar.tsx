@@ -106,7 +106,7 @@ export function DocumentSidebar() {
         for (const log of auditLogs) {
           if (log.actorId && !contributorMap.has(log.actorId)) {
             // Try to resolve username
-            let username = log.actorUsername || await resolveUsername(log.actorId);
+            const username = log.actorUsername || await resolveUsername(log.actorId);
             const role = log.actorId === document?._createdBy ? 'Creator' : 'Editor';
             contributorMap.set(log.actorId, { id: log.actorId, username, role });
           }

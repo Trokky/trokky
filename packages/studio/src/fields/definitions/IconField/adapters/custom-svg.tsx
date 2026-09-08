@@ -134,7 +134,7 @@ export const customSvgAdapter: IconLibraryAdapter = {
 
   searchIcons(query: string, options?: { style?: string; category?: string }): IconMeta[] {
     const normalizedQuery = query.toLowerCase().trim();
-    let icons = this.getIcons(options) as (IconMeta & { path: string })[];
+    const icons = this.getIcons(options) as (IconMeta & { path: string })[];
 
     return icons.filter(icon => {
       const nameMatch = icon.name.toLowerCase().includes(normalizedQuery);

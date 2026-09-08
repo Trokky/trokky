@@ -389,7 +389,7 @@ export const heroiconsAdapter: IconLibraryAdapter = {
       return heroiconsAdapter.getIcons(options);
     }
 
-    let icons = heroiconsAdapter.getIcons(options);
+    const icons = heroiconsAdapter.getIcons(options);
 
     return icons.filter(icon => {
       // Search in name

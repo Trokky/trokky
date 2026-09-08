@@ -580,7 +580,7 @@ export class FilesystemAdapter implements StorageAdapter {
       const jsonFiles = files.filter(file => file.endsWith('.json'))
 
 
-      let mediaFiles: MediaFile[] = []
+      const mediaFiles: MediaFile[] = []
 
       // Read all media metadata files
       for (const file of jsonFiles) {
