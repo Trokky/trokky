@@ -319,19 +319,32 @@ export function DocumentEditor({
       }
     }
 
-    // Initialize default values from schema
+    // Initialize default values from schema. The field plugin resolves the
+    // default when it can, so sentinels such as a date field's 'now' become a
+    // real value instead of reaching the document as a literal string.
+    const resolveDefault = (field: any) => {
+      const plugin = fieldRegistry.get(field.type);
+      if (!plugin || typeof plugin.getDefaultValue !== 'function') return field.default;
+      try {
+        const resolved = plugin.getDefaultValue(field);
+        return resolved === undefined ? field.default : resolved;
+      } catch {
+        return field.default;
+      }
+    };
+
     if (schema.fields) {
       // Handle both object and array field formats
       if (Array.isArray(schema.fields)) {
         schema.fields.forEach((field: any) => {
           if (field.default !== undefined) {
-            doc[field.name] = field.default;
+            doc[field.name] = resolveDefault(field);
           }
         });
       } else if (typeof schema.fields === 'object') {
         Object.entries(schema.fields).forEach(([fieldName, field]: [string, any]) => {
           if (field.default !== undefined) {
-            doc[fieldName] = field.default;
+            doc[fieldName] = resolveDefault({ name: fieldName, ...field });
           }
         });
       }
