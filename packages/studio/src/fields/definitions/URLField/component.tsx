@@ -1,7 +1,7 @@
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { URLFieldDefinition } from './definition.js';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 // URL field component props
 type URLFieldComponentProps = FieldComponentProps;

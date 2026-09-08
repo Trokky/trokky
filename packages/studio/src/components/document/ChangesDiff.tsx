@@ -10,7 +10,7 @@ import {
   EyeIcon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 interface ChangesDiffProps {
   before?: Record<string, unknown>;

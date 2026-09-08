@@ -11,7 +11,7 @@ import {
 import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('StatsWidget');
 

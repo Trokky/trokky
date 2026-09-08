@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { useApiClient } from '@/hooks/useApiClient';
 import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { Document } from '@/types';
 
 export type GridCardSize = 'small' | 'medium' | 'large';

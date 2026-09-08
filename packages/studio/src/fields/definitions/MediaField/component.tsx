@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { useT } from 'trokky/i18n'
+import { useT } from '@trokky/trokky/i18n'
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { MediaFieldDefinition } from './definition'
-import type { MediaFieldValue, MediaType, MediaAsset } from 'trokky/types'
+import type { MediaFieldValue, MediaType, MediaAsset } from '@trokky/trokky/types'
 import { MEDIA_FIELD_DEFAULTS } from './definition'
 
 // Heroicons imports - using icons that are available

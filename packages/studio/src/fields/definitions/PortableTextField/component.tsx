@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect, KeyboardEvent } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin';
 import type {
   PortableTextFieldDefinition,

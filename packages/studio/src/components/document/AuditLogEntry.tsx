@@ -16,7 +16,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { ChangesDiff } from './ChangesDiff';
 import { createStudioLogger } from '@/utils/logger';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('AuditLogEntry');
 

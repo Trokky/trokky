@@ -1,10 +1,10 @@
 import type { FieldPlugin, BaseFieldDefinition, ValidationResult } from '../../base/index.js';
-import type { SlugifyOptions } from 'trokky/types';
+import type { SlugifyOptions } from '@trokky/trokky/types';
 import { SlugFieldComponent } from './component.js';
 import { SlugFieldPreview } from './preview.js';
 
 // Re-export types from @trokky/types for consumers
-export type { SlugifyOptions, SlugFieldValue } from 'trokky/types';
+export type { SlugifyOptions, SlugFieldValue } from '@trokky/trokky/types';
 
 export interface SlugFieldDefinition extends BaseFieldDefinition {
   type: 'slug';

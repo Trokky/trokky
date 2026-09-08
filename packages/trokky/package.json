@@ -1,5 +1,5 @@
 {
-  "name": "trokky",
+  "name": "@trokky/trokky",
   "version": "2.0.0",
   "description": "Modern, composable Content Management System - Server package",
   "type": "module",
@@ -124,8 +124,12 @@
   "bugs": {
     "url": "https://github.com/trokky/trokky/issues"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "peerDependencies": {
-    "@trokky/studio": "*",
+    "@trokky/studio": "^2.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {

@@ -11,8 +11,6 @@
   "scripts": {
     "build": "turbo build",
     "dev": "cd examples/demo && npm run dev:full",
-    "docs:dev": "cd docs && npm run dev",
-    "docs:build": "cd docs && npm run build",
     "dev:packages": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",

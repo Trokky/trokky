@@ -60,8 +60,8 @@ const TrashIcon = ({ className }: { className?: string }) => (
 import type { FieldComponentProps } from '../../base/FieldPlugin'
 import type { RichTextFieldDefinition } from './definition'
 import { createStudioLogger } from '../../utils/logger'
-import { useT } from 'trokky/i18n'
-import type { MediaFieldValue } from 'trokky/types'
+import { useT } from '@trokky/trokky/i18n'
+import type { MediaFieldValue } from '@trokky/trokky/types'
 import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer'
 import {
   editorToStorageFormat,

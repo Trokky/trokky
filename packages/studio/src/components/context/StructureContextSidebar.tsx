@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { useStructureItem } from '@/hooks/useStructure';
 import { apiClient } from '@/services/api-client';
 import { useApiClient } from '@/hooks/useApiClient';

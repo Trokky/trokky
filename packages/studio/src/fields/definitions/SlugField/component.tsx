@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { SlugFieldDefinition } from './index.js';
 import { defaultSlugify, getSourceValue } from './index.js';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 // Use generic FieldComponentProps to match plugin interface
 type SlugFieldComponentProps = FieldComponentProps;

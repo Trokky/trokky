@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/utils/cn';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 interface ContextSidebarProps {
   defaultWidth?: number;

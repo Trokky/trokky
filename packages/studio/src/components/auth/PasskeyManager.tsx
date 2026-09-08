@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';

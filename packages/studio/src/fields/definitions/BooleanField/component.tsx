@@ -1,4 +1,4 @@
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { BooleanFieldDefinition } from './definition.js';
 import { convertToBoolean } from './validation.js';

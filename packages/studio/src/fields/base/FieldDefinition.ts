@@ -17,4 +17,4 @@ export type {
   BaseFieldValue,
   ValidationState,
   DocumentContext
-} from 'trokky/types';
+} from '@trokky/trokky/types';

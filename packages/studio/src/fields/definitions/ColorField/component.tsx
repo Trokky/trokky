@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useT } from 'trokky/i18n'
+import { useT } from '@trokky/trokky/i18n'
 import type { FieldComponentProps } from '../../base/index.js'
 import type { ColorFieldDefinition } from './definition.js'
 import { COLOR_FIELD_DEFAULTS } from './definition.js'

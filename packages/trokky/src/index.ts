@@ -5,10 +5,10 @@
  *
  * @example
  * ```typescript
- * import { TrokkyExpress } from 'trokky/express'
- * import 'trokky/adapters/filesystem-data'
- * import 'trokky/adapters/filesystem-media'
- * import type { BaseDocument } from 'trokky/types'
+ * import { TrokkyExpress } from '@trokky/trokky/express'
+ * import '@trokky/trokky/adapters/filesystem-data'
+ * import '@trokky/trokky/adapters/filesystem-media'
+ * import type { BaseDocument } from '@trokky/trokky/types'
  * ```
  */
 

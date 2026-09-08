@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import {
   MagnifyingGlassIcon,
   PlusIcon,

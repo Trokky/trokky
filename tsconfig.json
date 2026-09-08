@@ -15,9 +15,9 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "trokky": ["./packages/trokky/src"],
-      "trokky/express": ["./packages/trokky/src/integrations/express"],
-      "trokky/*": ["./packages/trokky/src/*"],
+      "@trokky/trokky": ["./packages/trokky/src"],
+      "@trokky/trokky/express": ["./packages/trokky/src/integrations/express"],
+      "@trokky/trokky/*": ["./packages/trokky/src/*"],
       "@trokky/studio": ["./packages/studio/src"],
       "@trokky/client": ["./packages/client/src"]
     }

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition, ArrayOperations } from './definition.js';
 import { fieldRegistry } from '../../registry/index.js';

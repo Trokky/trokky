@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { useT } from 'trokky/i18n'
+import { useT } from '@trokky/trokky/i18n'
 import {
   ChevronDownIcon,
   ChevronRightIcon,

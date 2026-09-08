@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { useT } from 'trokky/i18n'
+import { useT } from '@trokky/trokky/i18n'
 
 export type CaptchaProvider = 'turnstile' | 'hcaptcha' | 'recaptcha'
 

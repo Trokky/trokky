@@ -13,7 +13,7 @@ import { apiClient, ApiClientError } from '@/services/api-client';
 import { useStructureContextSidebar } from '@/hooks/useStructureContextSidebar';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 // Document editor context and components
 import { DocumentEditorProvider, useDocumentEditor } from './DocumentEditorContext';

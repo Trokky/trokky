@@ -19,7 +19,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { WEBHOOK_PERMISSIONS } from '@/constants/permissions';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 const logger = createStudioLogger('WebhookManagement');
 

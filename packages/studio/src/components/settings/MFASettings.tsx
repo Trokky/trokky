@@ -16,7 +16,7 @@ import {
   ExclamationTriangleIcon,
   ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 type MFAMethodType = 'totp' | 'email';
 

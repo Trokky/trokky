@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { DocumentStates, type DocumentState } from './DocumentStates';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 export function DocumentHeader() {
   const { t } = useT('studio');

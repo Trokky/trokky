@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/index.js';
 import type { DateFieldDefinition } from './definition.js';
 import { DATE_FIELD_DEFAULTS } from './definition.js';

@@ -1,6 +1,6 @@
 {
   "name": "@trokky/client",
-  "version": "0.1.13",
+  "version": "2.0.0",
   "description": "TypeScript-native client SDK for Trokky CMS with type generation and shortcode support",
   "keywords": [
     "cms",
@@ -72,8 +72,8 @@
   },
   "dependencies": {
     "@faker-js/faker": "^8.0.0",
-    "commander": "^11.0.0",
-    "trokky": "^2.0.0"
+    "@trokky/trokky": "^2.0.0",
+    "commander": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -5,7 +5,7 @@
  * Inspired by Sanity's @sanity/image-url builder
  */
 
-import type { MediaFieldValue } from 'trokky/types'
+import type { MediaFieldValue } from '@trokky/trokky/types'
 
 export interface ImageUrlBuilderOptions {
   /** Base URL for media API */

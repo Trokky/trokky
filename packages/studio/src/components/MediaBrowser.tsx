@@ -4,9 +4,9 @@
  * Now using global Modal component for consistency
  */
 
-import type { MediaFieldValue, MediaType } from 'trokky/types';
+import type { MediaFieldValue, MediaType } from '@trokky/trokky/types';
 import { MediaBrowserContent } from './MediaBrowserContent';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 // Custom modal component with proper backdrop
 const CustomModal = ({ isOpen, onClose, title, children, closeLabel }: any) => {

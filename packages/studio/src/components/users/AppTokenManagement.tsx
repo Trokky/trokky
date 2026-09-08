@@ -16,7 +16,7 @@ import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { TOKEN_PERMISSIONS } from '@/constants/permissions';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { AppToken, Permission } from '@/types';
 
 const logger = createStudioLogger('AppTokenManagement');

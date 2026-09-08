@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import { FieldWrapper } from '../../components/FieldWrapper.js';
 import type {

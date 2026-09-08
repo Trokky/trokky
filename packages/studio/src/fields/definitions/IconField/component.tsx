@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter, CustomIconDefinition } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';

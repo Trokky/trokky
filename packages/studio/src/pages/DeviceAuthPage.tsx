@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { CheckCircleIcon, XCircleIcon, ComputerDesktopIcon } from '@heroicons/react/24/outline';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 
 interface DeviceCodeInfo {
   clientId: string;

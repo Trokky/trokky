@@ -1,5 +1,5 @@
 import React from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { ArrayFieldDefinition } from './definition.js';
 

@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import type { ObjectFieldDefinition, NestedFieldDefinition } from './definition.js';
 
 interface ObjectModalProps {

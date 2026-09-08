@@ -10,7 +10,7 @@ Trokky is a monorepo with 3 packages:
 
 | Package | Published as | Description |
 |---|---|---|
-| `packages/trokky/` | `trokky` | CMS server: engine, routes, adapters, mail, i18n, Express integration |
+| `packages/trokky/` | `@trokky/trokky` | CMS server: engine, routes, adapters, mail, i18n, Express integration |
 | `packages/studio/` | `@trokky/studio` | React admin UI and field system (25+ field types) |
 | `packages/client/` | `@trokky/client` | Frontend SDK: HTTP client, query builder, type generation |
 
@@ -20,9 +20,9 @@ The CLI is a separate Go project at [github.com/Trokky/cli](https://github.com/T
 
 ```typescript
 import express from 'express'
-import { TrokkyExpress } from 'trokky/express'
-import 'trokky/adapters/filesystem-data'
-import 'trokky/adapters/filesystem-media'
+import { TrokkyExpress } from '@trokky/trokky/express'
+import '@trokky/trokky/adapters/filesystem-data'
+import '@trokky/trokky/adapters/filesystem-media'
 
 const app = express()
 
@@ -64,20 +64,20 @@ The server package uses subpath exports for clean, targeted imports:
 
 ```typescript
 // Server setup
-import { TrokkyExpress } from 'trokky/express'
-import 'trokky/adapters/filesystem-data'
-import 'trokky/adapters/filesystem-media'
+import { TrokkyExpress } from '@trokky/trokky/express'
+import '@trokky/trokky/adapters/filesystem-data'
+import '@trokky/trokky/adapters/filesystem-media'
 
 // Types
-import type { BaseDocument, User } from 'trokky/types'
-import type { MediaAsset } from 'trokky/types/media'
+import type { BaseDocument, User } from '@trokky/trokky/types'
+import type { MediaAsset } from '@trokky/trokky/types/media'
 
 // Mail
-import { MailService } from 'trokky'
-import { SMTPMailAdapter } from 'trokky/mail/smtp'
+import { MailService } from '@trokky/trokky'
+import { SMTPMailAdapter } from '@trokky/trokky/mail/smtp'
 
 // Structure
-import { StructureBuilder } from 'trokky/structure'
+import { StructureBuilder } from '@trokky/trokky/structure'
 
 // Client SDK (separate package)
 import { TrokkyClient } from '@trokky/client'
@@ -89,9 +89,9 @@ Storage is split into data (structured) and media (files), each using the adapte
 
 | Adapter | Import | Description |
 |---|---|---|
-| Filesystem Data | `trokky/adapters/filesystem-data` | File-based JSON storage, Git-friendly |
-| Filesystem Media | `trokky/adapters/filesystem-media` | Local file storage for media |
-| PostgreSQL Data | `trokky/adapters/postgres-data` | PostgreSQL for structured data |
+| Filesystem Data | `@trokky/trokky/adapters/filesystem-data` | File-based JSON storage, Git-friendly |
+| Filesystem Media | `@trokky/trokky/adapters/filesystem-media` | Local file storage for media |
+| PostgreSQL Data | `@trokky/trokky/adapters/postgres-data` | PostgreSQL for structured data |
 
 Adapters self-register on import via `registerAdapter()`.
 

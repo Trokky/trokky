@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useT } from 'trokky/i18n';
+import { useT } from '@trokky/trokky/i18n';
 import { StringFieldComponent } from '../StringField/component.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { PasswordFieldDefinition } from './definition.js';

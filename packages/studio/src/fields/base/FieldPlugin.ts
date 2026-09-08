@@ -14,10 +14,10 @@ import type {
   DocumentContext,
   FieldCategory,
   FieldPluginSource
-} from 'trokky/types'
+} from '@trokky/trokky/types'
 
 // Re-export FieldPluginSource for backwards compatibility
-export type { FieldPluginSource } from 'trokky/types'
+export type { FieldPluginSource } from '@trokky/trokky/types'
 
 // Studio context interface for field access to Studio capabilities
 export interface StudioContext {
@@ -84,7 +84,7 @@ export interface StudioContext {
     openModal: (component: React.ComponentType, props?: any) => void
     closeModal: () => void
     showMediaBrowser: (
-      config: import('trokky/types/media').MediaBrowserConfig
+      config: import('@trokky/trokky/types/media').MediaBrowserConfig
     ) => void
   }
 

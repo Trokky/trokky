@@ -4,7 +4,7 @@
  */
 
 import type { BaseFieldDefinition, BaseValidation, BaseFieldOptions } from '../../base/FieldDefinition.js';
-import type { MediaAssetReference, MediaFieldValue, MediaType } from 'trokky/types';
+import type { MediaAssetReference, MediaFieldValue, MediaType } from '@trokky/trokky/types';
 
 // Re-export for backward compatibility
 export type { MediaAssetReference, MediaFieldValue, MediaType };
