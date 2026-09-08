@@ -42,6 +42,16 @@ const schemas: ContentSchema[] = [
     }
   },
   {
+    name: 'strict',
+    type: 'document',
+    title: 'Strict',
+    fields: {
+      count: { type: 'number', required: true },
+      owner: { type: 'reference', required: true, to: 'authors' },
+      note: { type: 'string' }
+    }
+  },
+  {
     name: 'flags',
     type: 'document',
     title: 'Flags',
@@ -156,5 +166,36 @@ describe('DocumentValidator', () => {
     })
 
     expect(result.valid).toBe(true)
+  })
+
+  describe('required fields reject null', () => {
+    it('rejects null for a required number but accepts it for an optional one', () => {
+      const strict = validator.validateDocument('strict', {
+        count: null,
+        owner: { _ref: 'author-1', _type: 'reference' }
+      })
+      expect(strict.valid).toBe(false)
+      expect(fieldErrors(strict, 'count').length).toBeGreaterThan(0)
+
+      const optional = validator.validateDocument('articles', { title: 'Post', views: null })
+      expect(optional.valid).toBe(true)
+    })
+
+    it('rejects null for a required reference but accepts it for an optional one', () => {
+      const strict = validator.validateDocument('strict', { count: 1, owner: null })
+      expect(strict.valid).toBe(false)
+      expect(fieldErrors(strict, 'owner').length).toBeGreaterThan(0)
+
+      const optional = validator.validateDocument('articles', { title: 'Post', author: null })
+      expect(optional.valid).toBe(true)
+    })
+
+    it('accepts real values for the required number and reference', () => {
+      const result = validator.validateDocument('strict', {
+        count: 0,
+        owner: { _ref: 'author-1', _type: 'reference' }
+      })
+      expect(result.valid).toBe(true)
+    })
   })
 })

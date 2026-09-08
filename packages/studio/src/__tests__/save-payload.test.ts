@@ -187,4 +187,26 @@ describe('buildSavePayload', () => {
 
     expect(payload).toEqual({ title: 'Hi', _status: 'draft', _type: 'page' })
   })
+
+  describe('editor-managed publishedAt', () => {
+    const schema = { name: 'article', fields: { title: { type: 'string' } } }
+
+    it('keeps publishedAt even though the schema does not declare it', () => {
+      const payload = buildSavePayload(
+        { title: 'A', publishedAt: '2026-01-01T00:00:00.000Z', _status: 'published' },
+        schema
+      )
+      expect(payload.publishedAt).toBe('2026-01-01T00:00:00.000Z')
+    })
+
+    it('sends null when the document was reverted to draft', () => {
+      const payload = buildSavePayload({ title: 'A', publishedAt: null, _status: 'draft' }, schema)
+      expect(payload.publishedAt).toBeNull()
+    })
+
+    it('omits publishedAt entirely when the document never had one', () => {
+      const payload = buildSavePayload({ title: 'A' }, schema)
+      expect('publishedAt' in payload).toBe(false)
+    })
+  })
 })

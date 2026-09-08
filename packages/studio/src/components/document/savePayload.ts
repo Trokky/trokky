@@ -97,6 +97,12 @@ export function buildSavePayload(
     payload[name] = value
   }
 
+  // Editor-managed, set by the publish/unpublish transition. Kept even when the
+  // schema does not declare it, otherwise publishing would not record its time.
+  if (!('publishedAt' in payload) && document && 'publishedAt' in document) {
+    payload.publishedAt = document.publishedAt ?? null
+  }
+
   payload._status = document?._status || fallbackStatus || 'draft'
 
   const type = document?._type || schema?.name

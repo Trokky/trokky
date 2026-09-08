@@ -96,9 +96,11 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
 
     const isEmpty = !value || value.trim() === '';
 
-    // Only react to a user editing the source field, or to an empty slug once
-    // the user has interacted with this field
-    if (!sourceEditedByUser && !(isEmpty && hasInteracted)) {
+    // React to a user editing the source field, to an empty slug once the user
+    // has interacted with this field, or to a brand-new document whose slug is
+    // still empty (hydrating an existing document must stay silent).
+    const isNewDocumentNeedingSlug = isEmpty && documentContext?.isNewDocument === true;
+    if (!sourceEditedByUser && !(isEmpty && hasInteracted) && !isNewDocumentNeedingSlug) {
       return;
     }
 

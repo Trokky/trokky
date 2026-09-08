@@ -11,6 +11,12 @@ export type SchemaAction = 'read' | 'write' | 'delete' | 'publish'
 interface UsePermissionsReturn {
   /** Current user, or null while loading / unauthenticated */
   user: User | null
+  /** True while the current user is still being fetched */
+  loading: boolean
+  /** Error from the last user lookup, or null */
+  error: string | null
+  /** Re-run the user lookup after a failure */
+  refetch: () => void
   hasPermission: (permission: Permission) => boolean
   /** Check a global (non schema-scoped) permission by name */
   hasGlobalPermission: (permission: string) => boolean
@@ -39,7 +45,7 @@ interface UsePermissionsReturn {
 }
 
 export function usePermissions(): UsePermissionsReturn {
-  const { user } = useCurrentUser()
+  const { user, loading, error, refetch} = useCurrentUser()
 
   const userPermissions = user?.permissions || []
 
@@ -161,6 +167,9 @@ export function usePermissions(): UsePermissionsReturn {
 
   return {
     user,
+    loading,
+    error,
+    refetch,
     hasPermission,
     hasGlobalPermission,
     hasAnyPermission,

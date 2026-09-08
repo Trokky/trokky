@@ -527,8 +527,9 @@ export function DocumentEditor({
   ]);
 
   // Wait for the current user to resolve before rendering the form, otherwise
-  // fields are created in read-only mode with a no-op onChange
-  const permissionsLoading = !permissions?.user;
+  // fields are created in read-only mode with a no-op onChange. A failed lookup
+  // must not hold the editor on the spinner: render read-only instead.
+  const permissionsLoading = permissions?.loading === true;
 
   if (loading || permissionsLoading) {
     return (

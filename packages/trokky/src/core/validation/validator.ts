@@ -71,7 +71,8 @@ export class DocumentValidator {
         return isOptional ? z.string().nullable() : z.string()
 
       case 'number':
-        return z.number().nullable()
+        // Optional numbers may be sent as null by the Studio when cleared
+        return isOptional ? z.number().nullable() : z.number()
 
       case 'boolean':
         return z.boolean()
@@ -122,15 +123,17 @@ export class DocumentValidator {
         
         return isOptional ? z.object(objectShape).nullable() : z.object(objectShape)
 
-      case 'reference':
-        return z.union([
+      case 'reference': {
+        const referenceValue = z.union([
           z.string(), // Still allow string IDs for backward compatibility
           z.object({
             _ref: z.string(),
             _type: z.string().optional()
-          }).passthrough(), // Allow additional metadata
-          z.null() // Allow null when a reference is cleared
+          }).passthrough() // Allow additional metadata
         ])
+        // Only an optional reference may be cleared to null
+        return isOptional ? referenceValue.nullable() : referenceValue
+      }
       
       case 'media':
         // Media fields can be either a string ID, a complex object with asset reference, or null (when removed)
