@@ -540,6 +540,36 @@ export class ApiClient {
   }
 
   /**
+   * Download a media file's bytes.
+   *
+   * Callers used to reach for a bare `fetch('/api/media/<id>/file')`, which
+   * hardcoded the API path and sent no credentials. This goes through the
+   * configured backend URL and the session token like every other request.
+   */
+  async downloadMediaFile(id: string): Promise<Blob> {
+    this.ensureConfigured()
+
+    const headers: Record<string, string> = {}
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+
+    const response = await fetch(this.buildUrl(`/media/${id}/file`), {
+      headers,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      throw new ApiClientError(
+        `HTTP ${response.status}: ${response.statusText}`,
+        response.status
+      )
+    }
+
+    return response.blob()
+  }
+
+  /**
    * Upload media file
    */
   async uploadMedia(

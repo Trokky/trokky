@@ -9,7 +9,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useStudioContext } from '@/contexts/StudioContext';
-import { useApiClient } from '@/hooks/useApiClient';
+import { apiClient } from '@/services/api-client';
 import { getSmartDocumentTitle, getDocumentValue } from '@/utils/documentTitle';
 import { useT } from '@trokky/trokky/i18n';
 import type { Document } from '@/types';
@@ -58,7 +58,6 @@ export function GridView({
   const { t } = useT('studio');
   const navigate = useNavigate();
   const studioContext = useStudioContext();
-  const apiClient = useApiClient();
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
   
   const getColumnsClass = () => {

@@ -12,6 +12,7 @@ import { usePermissions } from './usePermissions'
 import { useStudioContext } from '@/contexts/StudioContext'
 import { apiClient } from '@/services/api-client'
 import { createStudioLogger } from '@/utils/logger'
+import { formatFileSize } from '@/utils/format'
 import { WidgetRenderer } from '@/components/context-sidebar/WidgetRenderer'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 
@@ -282,8 +283,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
         },
         downloadFile: async (mediaId: string) => {
           try {
-            const response = await fetch(`/api/media/${mediaId}/file`)
-            return await response.blob()
+            return await apiClient.downloadMediaFile(mediaId)
           } catch (error) {
             logger.error('File download failed', error)
             throw error
@@ -306,12 +306,7 @@ export function useStructureContextSidebar(options: StructureContextSidebarOptio
           if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
           return `${Math.floor(minutes / 1440)}d ago`
         },
-        formatFileSize: (bytes: number) => {
-          const sizes = ['B', 'KB', 'MB', 'GB']
-          if (bytes === 0) return '0 B'
-          const i = Math.floor(Math.log(bytes) / Math.log(1024))
-          return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
-        },
+        formatFileSize,
         generateSlug: (text: string) => {
           return text
             .toLowerCase()

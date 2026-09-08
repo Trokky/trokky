@@ -1,3 +1,5 @@
+import type { ApiClient } from '../../services/api-client.js'
+
 /**
  * Field plugin system interfaces
  * Based on proven legacy architecture from Trokky v1
@@ -21,35 +23,13 @@ export type { FieldPluginSource } from '@trokky/trokky/types'
 
 // Studio context interface for field access to Studio capabilities
 export interface StudioContext {
-  // API client for Studio operations
-  apiClient: {
-    // Document operations
-    getDocuments: (type: string, params?: any) => Promise<any>
-    getDocument: (type: string, id?: string) => Promise<any>
-    createDocument: (type: string, document: any) => Promise<any>
-    updateDocument: (type: string, id: string, document: any) => Promise<any>
-    deleteDocument: (type: string, id: string) => Promise<any>
-
-    // Media operations
-    getMedia: (options?: any) => Promise<any>
-    getMediaById: (id: string) => Promise<any>
-    getMediaUrl?: (assetRef: string, variant?: string) => string
-    uploadMedia: (
-      file: File,
-      collection?: string,
-      metadata?: any
-    ) => Promise<any>
-    deleteMedia: (id: string) => Promise<any>
-    updateMedia: (id: string, metadata: any) => Promise<any>
-
-    // Schema operations
-    getSchemas: () => Promise<any>
-    getSchema: (id: string) => Promise<any>
-
-    // Generic HTTP methods
-    get: (endpoint: string, options?: any) => Promise<any>
-    post: (endpoint: string, options?: any) => Promise<any>
-  }
+  /**
+   * The Studio API client itself, not a hand-bound subset of it. Fields used to
+   * get a structural copy whose signatures had drifted from the class
+   * (uploadMedia lost its metadata argument, getMediaUrl was missing entirely),
+   * so the type said one thing and the runtime did another.
+   */
+  apiClient: ApiClient
 
   // Authentication and user context
   auth: {

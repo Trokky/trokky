@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useApiClient } from './useApiClient'
+import { apiClient } from '../services/api-client'
 import { createStructureService } from '../services/structure-service'
 import type { 
   StudioStructure, 
@@ -16,12 +16,11 @@ import type {
  * Hook for managing structure state
  */
 export function useStructure(options?: StructureGenerationOptions) {
-  const client = useApiClient()
   const [structure, setStructure] = useState<StudioStructure | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const structureService = createStructureService(client)
+  const structureService = createStructureService(apiClient)
 
   const loadStructure = useCallback(async () => {
     try {
@@ -71,12 +70,11 @@ export function useStructure(options?: StructureGenerationOptions) {
  */
 export function useNavigation(options?: StructureGenerationOptions) {
   const location = useLocation()
-  const client = useApiClient()
   const [navigation, setNavigation] = useState<NavigationTree | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const structureService = createStructureService(client)
+  const structureService = createStructureService(apiClient)
 
   const loadNavigation = useCallback(async () => {
     try {
@@ -115,12 +113,11 @@ export function useNavigation(options?: StructureGenerationOptions) {
  * Hook for getting structure item by schema type
  */
 export function useStructureItem(schemaType: string) {
-  const client = useApiClient()
   const [item, setItem] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const structureService = createStructureService(client)
+  const structureService = createStructureService(apiClient)
 
   useEffect(() => {
     async function loadItem() {
@@ -154,13 +151,12 @@ export function useStructureItem(schemaType: string) {
  * Hook for getting all document types from structure
  */
 export function useDocumentTypes() {
-  const client = useApiClient()
   const [documentTypes, setDocumentTypes] = useState<any[]>([])
   const [singletonTypes, setSingletonTypes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const structureService = createStructureService(client)
+  const structureService = createStructureService(apiClient)
 
   useEffect(() => {
     async function loadTypes() {

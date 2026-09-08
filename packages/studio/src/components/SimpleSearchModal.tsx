@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useT } from '@trokky/trokky/i18n';
 import { Dialog } from '@/components/ui/Dialog.js';
-import { useApiClient } from '@/hooks/useApiClient';
+import { apiClient } from '@/services/api-client';
 
 interface SimpleSearchModalProps {
   isOpen: boolean;
@@ -85,7 +85,7 @@ export function SimpleSearchModal({ isOpen, onClose }: SimpleSearchModalProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
-  const client = useApiClient();
+  const client = apiClient;
 
   // Load recent searches and cleanup
   useEffect(() => {

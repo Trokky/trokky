@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useApiClient } from './useApiClient';
+import { apiClient } from '../services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import type { Permission } from '@/types';
 
@@ -21,7 +21,6 @@ interface SchemaItem {
  * Hook to generate dynamic schema permissions from API structure
  */
 export function useDynamicPermissions() {
-  const client = useApiClient();
   const [schemas, setSchemas] = useState<SchemaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +32,7 @@ export function useDynamicPermissions() {
         setLoading(true);
         setError(null);
         
-        const response = await client.get<{ structure?: { items?: any[] } }>('/config/structure');
+        const response = await apiClient.get<{ structure?: { items?: any[] } }>('/config/structure');
         
         if (response.success && response.data?.structure?.items) {
           const items = response.data.structure.items;
@@ -70,7 +69,7 @@ export function useDynamicPermissions() {
     }
 
     fetchSchemas();
-  }, [client]);
+  }, []);
 
   // Generate dynamic permissions from schemas
   const dynamicPermissions = useMemo((): PermissionItem[] => {

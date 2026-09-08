@@ -30,7 +30,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Dialog } from '@/components/ui/Dialog.js';
 import { isEscapeOwnedByDialog } from '@/components/ui/dialogInternals.js';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { useApiClient } from '@/hooks/useApiClient';
+import { apiClient } from '@/services/api-client';
 import { createStudioLogger } from '@/utils/logger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MEDIA_PERMISSIONS } from '@/constants/permissions';
@@ -137,7 +137,6 @@ export function MediaPage() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
-  const apiClient = useApiClient();
   const logger = createStudioLogger('MediaPage');
   const [searchParams, setSearchParams] = useSearchParams();
 

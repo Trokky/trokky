@@ -146,17 +146,12 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
         const collection = documentContext?.schema || 'default';
         const excludeId = documentContext?.documentId;
         
-        const queryParams = new URLSearchParams({
-          slug: slugToCheck,
-          collection: collection
-        });
-        
-        // Only add excludeId if it's a real document ID (not 'new')
-        if (excludeId && excludeId !== 'new') {
-          queryParams.append('excludeId', excludeId);
-        }
-
-        const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
+        // Only pass excludeId if it's a real document ID (not 'new')
+        const response = await studioContext.apiClient.checkSlugUniqueness(
+          slugToCheck,
+          collection,
+          excludeId && excludeId !== 'new' ? excludeId : undefined
+        );
         
         if (response.success && response.data) {
           const isUnique = response.data.unique;
@@ -302,17 +297,12 @@ export function SlugFieldComponent(props: SlugFieldComponentProps) {
             const collection = documentContext?.schema || 'default';
             const excludeId = documentContext?.documentId;
             
-            const queryParams = new URLSearchParams({
-              slug: candidateSlug,
-              collection: collection
-            });
-            
-            if (excludeId && excludeId !== 'new') {
-              queryParams.append('excludeId', excludeId);
-            }
-
-            const response = await studioContext.apiClient.get(`/slugs/check-unique?${queryParams}`);
-            return response.success && response.data?.unique;
+            const response = await studioContext.apiClient.checkSlugUniqueness(
+              candidateSlug,
+              collection,
+              excludeId && excludeId !== 'new' ? excludeId : undefined
+            );
+            return response.success && !!response.data?.unique;
           } catch {
             return true; // If check fails, assume it's unique
           }

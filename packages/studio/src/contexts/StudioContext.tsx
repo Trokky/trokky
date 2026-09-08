@@ -12,6 +12,7 @@ import React, {
   useState,
 } from 'react'
 import { apiClient } from '@/services/api-client'
+import { authStore } from '@/services/auth-store'
 import { createStudioLogger } from '@/utils/logger'
 import type { StudioContext } from '../fields/index'
 import type { MediaBrowserConfig } from '@trokky/trokky/types/media'
@@ -257,31 +258,8 @@ export function StudioContextProvider({
   // Create the studio context value
   const studioContext = useMemo((): StudioContext => {
     return {
-      apiClient: {
-        // Document operations
-        getDocuments: apiClient.getDocuments.bind(apiClient),
-        getDocument: (type: string, id?: string) =>
-          apiClient.getDocument(type, id || ''),
-        createDocument: apiClient.createDocument.bind(apiClient),
-        updateDocument: apiClient.updateDocument.bind(apiClient),
-        deleteDocument: apiClient.deleteDocument.bind(apiClient),
-
-        // Media operations
-        getMedia: apiClient.getMedia.bind(apiClient),
-        getMediaById: apiClient.getMediaFile.bind(apiClient),
-        uploadMedia: (file: File, metadata?: any) =>
-          apiClient.uploadMedia(file, metadata),
-        deleteMedia: apiClient.deleteMedia.bind(apiClient),
-        updateMedia: apiClient.updateMedia.bind(apiClient),
-
-        // Schema operations
-        getSchemas: apiClient.getSchemas.bind(apiClient),
-        getSchema: apiClient.getSchema.bind(apiClient),
-
-        // Generic HTTP methods
-        get: apiClient.get.bind(apiClient),
-        post: apiClient.post.bind(apiClient),
-      },
+      // The client itself: one path to the API, with the real signatures.
+      apiClient,
 
       auth: {
         getCurrentUser: () => {
@@ -303,7 +281,8 @@ export function StudioContextProvider({
           return userData.permissions?.includes(permission) || false
         },
         getAccessToken: () => {
-          return localStorage.getItem('accessToken')
+          // The auth store is the only owner of the session token.
+          return authStore.getToken()
         },
       },
 
