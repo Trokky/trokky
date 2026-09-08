@@ -93,6 +93,10 @@ export class FallbackCryptoAdapter implements CryptoAdapter {
     }
   }
 
+  needsRehash(hash: string): boolean {
+    return !hash.startsWith('fallback:')
+  }
+
   async generateJWT(payload: Record<string, any>, secret: string, options: JWTOptions = {}): Promise<string> {
     // Log warning on first use
     if ((typeof process === 'undefined') || process.env?.NODE_ENV !== 'test') {

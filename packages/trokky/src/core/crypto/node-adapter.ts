@@ -5,6 +5,7 @@
 
 import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
 import { createRequire } from 'module'
+import { parsePasswordHash, verifyPasswordHash } from './password-hash.js'
 
 // Use createRequire for dynamic loading in ES modules
 const require = createRequire(import.meta.url)
@@ -38,11 +39,19 @@ export class NodeCryptoAdapter implements CryptoAdapter {
 
   async verifyPassword(password: string, hash: string): Promise<boolean> {
     try {
-      return await this.bcrypt.compare(password, hash)
+      if (parsePasswordHash(hash).kind === 'bcrypt') {
+        return await this.bcrypt.compare(password, hash)
+      }
+      // Tagged or legacy PBKDF2 hashes written by the WebCrypto adapter
+      return await verifyPasswordHash(password, hash)
     } catch (error) {
       console.error('Password verification failed:', error instanceof Error ? error.message : 'Unknown error')
       return false
     }
+  }
+
+  needsRehash(hash: string): boolean {
+    return parsePasswordHash(hash).kind !== 'bcrypt'
   }
 
   async generateJWT(payload: Record<string, any>, secret: string, options: JWTOptions = {}): Promise<string> {

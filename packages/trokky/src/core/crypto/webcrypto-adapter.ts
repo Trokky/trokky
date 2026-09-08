@@ -4,6 +4,12 @@
  */
 
 import type { CryptoAdapter, JWTOptions, CryptoAdapterOptions } from './adapter.js'
+import {
+  PBKDF2_DEFAULT_ITERATIONS,
+  hashPasswordPbkdf2,
+  pbkdf2NeedsRehash,
+  verifyPasswordHash,
+} from './password-hash.js'
 
 export class WebCryptoAdapter implements CryptoAdapter {
   private pbkdf2Iterations: number
@@ -12,7 +18,7 @@ export class WebCryptoAdapter implements CryptoAdapter {
     // PBKDF2 needs a high iteration count for security.
     // bcrypt's saltRounds=12 means 2^12=4096 iterations, but PBKDF2 requires
     // much higher counts. Default to 100,000 per OWASP recommendations.
-    this.pbkdf2Iterations = options.pbkdf2Iterations ?? 100_000
+    this.pbkdf2Iterations = options.pbkdf2Iterations ?? PBKDF2_DEFAULT_ITERATIONS
     
     if (!crypto || !crypto.subtle) {
       throw new Error('Web Crypto API not available in this environment')
@@ -21,96 +27,18 @@ export class WebCryptoAdapter implements CryptoAdapter {
 
   async hashPassword(password: string): Promise<string> {
     try {
-      // Generate a random salt
-      const salt = crypto.getRandomValues(new Uint8Array(16))
-      
-      // Encode password as UTF-8
-      const passwordBuffer = new TextEncoder().encode(password)
-      
-      // Import password as key material
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        passwordBuffer,
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-      )
-      
-      // Derive key using PBKDF2
-      const derivedKey = await crypto.subtle.deriveBits(
-        {
-          name: 'PBKDF2',
-          salt: salt,
-          iterations: this.pbkdf2Iterations, // 2^12 = 4096 iterations by default
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        256 // 32 bytes
-      )
-      
-      // Combine salt and derived key
-      const hashBuffer = new Uint8Array(salt.length + derivedKey.byteLength)
-      hashBuffer.set(salt)
-      hashBuffer.set(new Uint8Array(derivedKey), salt.length)
-      
-      // Return base64 encoded hash
-      return this.bufferToBase64(hashBuffer)
+      return await hashPasswordPbkdf2(password, this.pbkdf2Iterations)
     } catch (error) {
       throw new Error(`Failed to hash password: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   async verifyPassword(password: string, hash: string): Promise<boolean> {
-    try {
-      // Decode the hash
-      const hashBuffer = this.base64ToBuffer(hash)
-      
-      // Extract salt (first 16 bytes) and stored hash
-      const salt = hashBuffer.slice(0, 16)
-      const storedHash = hashBuffer.slice(16)
-      
-      // Encode password as UTF-8
-      const passwordBuffer = new TextEncoder().encode(password)
-      
-      // Import password as key material
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        passwordBuffer,
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-      )
-      
-      // Derive key using same parameters
-      const derivedKey = await crypto.subtle.deriveBits(
-        {
-          name: 'PBKDF2',
-          salt: salt,
-          iterations: this.pbkdf2Iterations,
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        256
-      )
-      
-      // Compare derived key with stored hash
-      const derivedArray = new Uint8Array(derivedKey)
-      
-      // Constant-time comparison
-      if (derivedArray.length !== storedHash.length) {
-        return false
-      }
-      
-      let result = 0
-      for (let i = 0; i < derivedArray.length; i++) {
-        result |= derivedArray[i] ^ storedHash[i]
-      }
-      
-      return result === 0
-    } catch (error) {
-      console.error('Password verification failed:', error instanceof Error ? error.message : 'Unknown error')
-      return false
-    }
+    return verifyPasswordHash(password, hash)
+  }
+
+  needsRehash(hash: string): boolean {
+    return pbkdf2NeedsRehash(hash, this.pbkdf2Iterations)
   }
 
   async generateJWT(payload: Record<string, any>, secret: string, options: JWTOptions = {}): Promise<string> {
@@ -241,15 +169,6 @@ export class WebCryptoAdapter implements CryptoAdapter {
 
   private base64UrlDecodeToBuffer(data: string): Uint8Array {
     const decoded = this.base64UrlDecode(data)
-    return new Uint8Array(decoded.split('').map(char => char.charCodeAt(0)))
-  }
-
-  private bufferToBase64(buffer: Uint8Array): string {
-    return btoa(String.fromCharCode(...buffer))
-  }
-
-  private base64ToBuffer(base64: string): Uint8Array {
-    const decoded = atob(base64)
     return new Uint8Array(decoded.split('').map(char => char.charCodeAt(0)))
   }
 

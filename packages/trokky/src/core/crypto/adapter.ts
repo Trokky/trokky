@@ -15,7 +15,13 @@ export interface CryptoAdapter {
    * Verify a password against its hash
    */
   verifyPassword(password: string, hash: string): Promise<boolean>
-  
+
+  /**
+   * Whether a stored hash uses an outdated format or work factor and should be
+   * re-hashed the next time the password is successfully verified.
+   */
+  needsRehash(hash: string): boolean
+
   /**
    * Generate a JWT token
    */
@@ -50,8 +56,15 @@ export interface CryptoAdapterOptions {
   saltRounds?: number
 
   /**
-   * PBKDF2 iteration count for WebCrypto adapter (default: 100,000)
+   * PBKDF2 iteration count for WebCrypto adapter (default: 100,000 per OWASP).
    * Only used when WebCryptoAdapter is selected.
+   *
+   * New hashes are written in the versioned format
+   * `$pbkdf2-sha256$<iterations>$<base64 salt>$<base64 dk>`, so the iteration
+   * count is stored alongside each hash and verification always uses the value
+   * the hash was created with. Changing this value therefore does not invalidate
+   * existing hashes; it only affects newly created ones and makes older hashes
+   * report `needsRehash() === true`.
    */
   pbkdf2Iterations?: number
 }
