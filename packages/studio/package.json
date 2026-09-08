@@ -79,10 +79,6 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./integrated": {
-      "import": "./dist/integrated/index.js",
-      "types": "./dist/integrated/index.d.ts"
-    },
     "./standalone": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"

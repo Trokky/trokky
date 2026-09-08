@@ -6,7 +6,8 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Shared with manual-publish.yml so two publishes never race the registry.
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:

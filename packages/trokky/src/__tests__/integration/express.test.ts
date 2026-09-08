@@ -312,6 +312,12 @@ describe('Express Integration with a custom apiPath', () => {
     await fs.remove(customTempDir)
   })
 
+  it('should tolerate a trailing slash on the openapi path', async () => {
+    const res = await request(customApp).get('/backend/api/openapi.json/')
+    expect(res.status).toBe(200)
+    expect(res.body.servers[0].url).toBe('/backend/api')
+  })
+
   it('should expose the mounted apiPath as servers[0].url in the OpenAPI spec', async () => {
     const res = await request(customApp).get('/backend/api/openapi.json')
 

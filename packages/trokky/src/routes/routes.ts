@@ -346,8 +346,15 @@ export class TrokkyRoutes extends BaseRoutes {
     const basePath = this.config.basePath || ''
     // Derive the advertised API prefix from the request itself so the spec is
     // correct whatever path the router was actually mounted on.
-    const requestPath = request.url.split('?')[0]
-    const serverUrl = requestPath.replace(/\/openapi\.json$/, '') || '/'
+    // Parse against a dummy origin so an absolute request target
+    // (GET http://attacker.example/api/openapi.json) yields only its pathname.
+    let requestPath: string
+    try {
+      requestPath = new URL(request.url, 'http://localhost').pathname
+    } catch {
+      requestPath = '/'
+    }
+    const serverUrl = requestPath.replace(/\/openapi\.json\/?$/i, '') || '/'
     const routes = this.getApiRoutes()
 
     const paths: Record<string, Record<string, unknown>> = {}

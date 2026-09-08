@@ -86,6 +86,30 @@ describe('TrokkyRoutes', () => {
       expect(body.servers[0].url).toBe('/custom/prefix')
     })
 
+    it('should never advertise an origin taken from an absolute request target', async () => {
+      const route = routes.findRoute('GET', '/openapi.json')!
+      const response = await route.handler(makeRequest({
+        path: '/openapi.json',
+        url: 'http://attacker.example/backend/api/openapi.json',
+      }))
+
+      expect(response.status).toBe(200)
+      const body = response.body as { servers: Array<{ url: string }> }
+      expect(body.servers[0].url).toBe('/backend/api')
+    })
+
+    it('should tolerate a trailing slash and mixed case on the openapi path', async () => {
+      const route = routes.findRoute('GET', '/openapi.json')!
+      const response = await route.handler(makeRequest({
+        path: '/openapi.json',
+        url: '/backend/api/OpenAPI.json/',
+      }))
+
+      expect(response.status).toBe(200)
+      const body = response.body as { servers: Array<{ url: string }> }
+      expect(body.servers[0].url).toBe('/backend/api')
+    })
+
     it('should report a root server url when mounted at the root', async () => {
       const route = routes.findRoute('GET', '/openapi.json')!
       const response = await route.handler(makeRequest({
