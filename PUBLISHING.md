@@ -46,16 +46,10 @@ are published with `access: restricted`
 
 ### Consumer setup
 
-Consumers need an `.npmrc` pointing the scope at GitHub Packages and a token with
-`read:packages`:
-
-```
-@trokky:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-```
+None. The packages are published to the public npm registry under the `@trokky`
+organization, so they install with no registry configuration and no token:
 
 ```bash
-export NODE_AUTH_TOKEN=<github token with read:packages>
 npm install @trokky/trokky @trokky/studio @trokky/client
 ```
 

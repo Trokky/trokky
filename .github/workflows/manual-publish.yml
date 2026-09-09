@@ -40,21 +40,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://npm.pkg.github.com'
+          registry-url: 'https://registry.npmjs.org'
           scope: '@trokky'
           cache: npm
 
       - name: Install Dependencies
         run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build Packages
         run: npm run build
 
       - name: Publish Selected Package
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           INPUT_PACKAGE: ${{ inputs.package }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |

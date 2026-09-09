@@ -4,7 +4,7 @@
 # Default values
 PACKAGE ?= 
 VERSION_TYPE ?= patch
-GITHUB_REGISTRY = https://npm.pkg.github.com
+NPM_REGISTRY = https://registry.npmjs.org
 ORG = trokky
 
 # Colors for output
@@ -24,7 +24,7 @@ help:
 	@echo "  publish-all                      Publish all packages"
 	@echo "  replace-version PACKAGE=<name>   Replace existing version (same version number)"
 	@echo "  version PACKAGE=<name>           Bump version for a package"
-	@echo "  check-auth                       Check GitHub Packages authentication"
+	@echo "  check-auth                       Check npm registry authentication"
 	@echo "  list-packages                    List all available packages"
 	@echo "  clean PACKAGE=<name>             Clean build artifacts for a package"
 	@echo "  clean-all                        Clean build artifacts for all packages"
@@ -45,7 +45,7 @@ check-auth:
 	@if [ -z "$$NODE_AUTH_TOKEN" ]; then \
 		echo "$(RED)ERROR: NODE_AUTH_TOKEN not set$(NC)"; \
 		echo "$(YELLOW)Set it in your shell:$(NC)"; \
-		echo "export NODE_AUTH_TOKEN=your_github_token_here"; \
+		echo "export NODE_AUTH_TOKEN=your_npm_token_here"; \
 		exit 1; \
 	else \
 		echo "$(GREEN)✓ NODE_AUTH_TOKEN is set$(NC)"; \
@@ -100,13 +100,12 @@ build: validate-package
 		npm run build && \
 		echo "$(GREEN)✓ Built $(PACKAGE)$(NC)"
 
-# Configure npm for GitHub Packages
+# Configure npm for the public npm registry
 .PHONY: configure-npm
 configure-npm: validate-package check-auth
-	@echo "$(BLUE)Configuring npm for GitHub Packages...$(NC)"
+	@echo "$(BLUE)Configuring npm for the public registry...$(NC)"
 	@cd packages/$(PACKAGE) && \
-		echo "registry=$(GITHUB_REGISTRY)/@$(ORG)" > .npmrc && \
-		echo "//npm.pkg.github.com/:_authToken=\$${NODE_AUTH_TOKEN}" >> .npmrc && \
+		echo "//registry.npmjs.org/:_authToken=\$${NODE_AUTH_TOKEN}" > .npmrc && \
 		echo "$(GREEN)✓ Configured npm for $(PACKAGE)$(NC)"
 
 # Bump version for a package
