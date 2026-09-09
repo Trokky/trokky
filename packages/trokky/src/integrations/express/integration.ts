@@ -17,7 +17,7 @@ import type {
   StorageConfig,
 } from './config.js'
 import { withDefaults } from './config.js'
-import { assertSingletonConsistency } from '../../core/schema/singleton.js'
+import { assertSingletonConsistency, checkSingletonStoredIds } from '../../core/schema/singleton.js'
 
 /**
  * Main Express integration class for Trokky CMS
@@ -828,5 +828,17 @@ async function assertResolvedStructureConsistency(
     // catches this error rather than exiting still has handles open.
     core.cleanup?.()
     throw error
+  }
+
+  // Only once structure and schemas agree, compare what the structure names against what storage
+  // actually holds. This one reads data rather than source, so it warns and never stops the boot —
+  // see `checkSingletonStoredIds`. Its own failures are swallowed there, but the call is guarded
+  // anyway: nothing about a startup advisory should be able to take the server down.
+  try {
+    await checkSingletonStoredIds(structure, schemas, core, message => logger.warn(message))
+  } catch (error) {
+    logger.warn('Could not check singleton stored document ids', {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }

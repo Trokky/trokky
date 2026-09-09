@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   isSingletonSchema,
   collectStructureSingletons,
   findSingletonConsistencyIssues,
   assertSingletonConsistency,
+  checkSingletonStoredIds,
 } from '../../core/schema/singleton.js'
 
 const schema = (name: string, extra: Record<string, unknown> = {}) =>
@@ -171,5 +172,162 @@ describe('assertSingletonConsistency', () => {
     expect(() => assertSingletonConsistency(structure, schemas)).toThrow(/actualites/)
     expect(() => assertSingletonConsistency(structure, schemas)).toThrow(/documentation/)
     expect(() => assertSingletonConsistency(structure, schemas)).not.toThrow(/'settings'/)
+  })
+})
+
+describe('checkSingletonStoredIds', () => {
+  const singletonStructure = (extra: Record<string, unknown> = {}) => ({
+    items: [{ type: 'singleton', schemaType: 'homepage', documentId: 'home', ...extra }],
+  })
+  const homepageSchemas = [schema('homepage', { singleton: true })]
+
+  const reader = (documents: any[]) => ({
+    listDocuments: vi.fn(async () => documents),
+  })
+
+  it('should say nothing when the stored id matches the id the structure names', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      homepageSchemas,
+      reader([{ id: 'home' }]),
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('should warn once naming the collection, the expected id and the stored id', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      homepageSchemas,
+      reader([{ id: 'homepage' }]),
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([{ collection: 'homepage', expectedId: 'home', actualId: 'homepage' }])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('homepage')
+    expect(warnings[0]).toContain("'home'")
+  })
+
+  it('should read only one document per singleton', async () => {
+    const source = reader([{ id: 'home' }])
+    await checkSingletonStoredIds(singletonStructure(), homepageSchemas, source)
+
+    expect(source.listDocuments).toHaveBeenCalledWith('homepage', { limit: 1 })
+  })
+
+  it('should compare against the collection name when the entry names no documentId', async () => {
+    const warnings: string[] = []
+    const structure = { items: [{ type: 'singleton', schemaType: 'homepage' }] }
+
+    await checkSingletonStoredIds(structure, homepageSchemas, reader([{ id: 'homepage' }]), m =>
+      warnings.push(m)
+    )
+    expect(warnings).toEqual([])
+  })
+
+  it('should say nothing about an empty collection', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      homepageSchemas,
+      reader([]),
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('should warn rather than reject when the collection cannot be read', async () => {
+    const warnings: string[] = []
+    const source = {
+      listDocuments: vi.fn(async () => {
+        throw new Error('adapter offline')
+      }),
+    }
+
+    const issues = await checkSingletonStoredIds(singletonStructure(), homepageSchemas, source, m =>
+      warnings.push(m)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('adapter offline')
+  })
+
+  it('should keep checking the remaining singletons after one fails to read', async () => {
+    const warnings: string[] = []
+    const structure = {
+      items: [
+        { type: 'singleton', schemaType: 'homepage', documentId: 'home' },
+        { type: 'singleton', schemaType: 'settings' },
+      ],
+    }
+    const source = {
+      listDocuments: vi.fn(async (collection: string) => {
+        if (collection === 'homepage') throw new Error('adapter offline')
+        return [{ id: 'site-settings' }]
+      }),
+    }
+
+    const issues = await checkSingletonStoredIds(
+      structure,
+      [schema('homepage', { singleton: true }), schema('settings', { singleton: true })],
+      source,
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([
+      { collection: 'settings', expectedId: 'settings', actualId: 'site-settings' },
+    ])
+    expect(warnings).toHaveLength(2)
+  })
+
+  it('should leave a structure singleton whose schema is not one to the existing check', async () => {
+    // assertSingletonConsistency already fails the boot for this; reporting it a second time as a
+    // stored-id warning would bury the message that actually tells the developer what to fix.
+    const warnings: string[] = []
+    const source = reader([{ id: 'somewhere-else' }])
+
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      [schema('homepage')],
+      source,
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toEqual([])
+    expect(source.listDocuments).not.toHaveBeenCalled()
+  })
+
+  it('should leave a structure singleton with no registered schema to the existing check', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(singletonStructure(), [], reader([{ id: 'x' }]), m =>
+      warnings.push(m)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('should tolerate a reader that is missing or cannot list documents', async () => {
+    await expect(
+      checkSingletonStoredIds(singletonStructure(), homepageSchemas, null)
+    ).resolves.toEqual([])
+    await expect(
+      checkSingletonStoredIds(singletonStructure(), homepageSchemas, {} as any)
+    ).resolves.toEqual([])
+  })
+
+  it('should not require a warning callback', async () => {
+    await expect(
+      checkSingletonStoredIds(singletonStructure(), homepageSchemas, reader([{ id: 'homepage' }]))
+    ).resolves.toHaveLength(1)
   })
 })
