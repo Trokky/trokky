@@ -29,6 +29,32 @@ describe('FilesystemDataAdapter', () => {
     await fs.remove(tempDir)
   })
 
+  // The routes layer normalises every incoming sort into `field.asc` / `field.desc` before it
+  // reaches an adapter, which is the grammar the postgres adapter parses. This adapter only
+  // understood `-field`, so API sorting silently did nothing on a filesystem-backed site.
+  describe('sorting', () => {
+    beforeEach(async () => {
+      await adapter.saveDocument('posts', 'a', { title: 'A', order: 2 })
+      await adapter.saveDocument('posts', 'b', { title: 'B', order: 1 })
+      await adapter.saveDocument('posts', 'c', { title: 'C', order: 3 })
+    })
+
+    it('should sort ascending with the field.asc form the routes layer produces', async () => {
+      const docs = await adapter.listDocuments('posts', { sort: 'order.asc' })
+      expect(docs.map(d => (d as Record<string, unknown>).order)).toEqual([1, 2, 3])
+    })
+
+    it('should sort descending with the field.desc form', async () => {
+      const docs = await adapter.listDocuments('posts', { sort: 'order.desc' })
+      expect(docs.map(d => (d as Record<string, unknown>).order)).toEqual([3, 2, 1])
+    })
+
+    it('should still honour the -field prefix form', async () => {
+      const docs = await adapter.listDocuments('posts', { sort: '-order' })
+      expect(docs.map(d => (d as Record<string, unknown>).order)).toEqual([3, 2, 1])
+    })
+  })
+
   describe('healthCheck', () => {
     it('should return true after initialization', async () => {
       const result = await adapter.healthCheck()

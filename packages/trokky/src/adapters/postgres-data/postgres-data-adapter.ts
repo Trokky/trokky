@@ -43,6 +43,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   private logger = createLogger('adapter', 'PostgresDataAdapter')
   private initialized = false
   private initializationPromise: Promise<void> | null = null
+  private closePromise: Promise<void> | null = null
 
   // Security limits
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
@@ -161,6 +162,26 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       this.logger.error('❌ Failed to initialize PostgreSQL adapter', error)
       throw error
     }
+  }
+
+  /**
+   * Close the connection pool. Until this runs the pool's idle clients keep the event loop
+   * alive, so a process that stops its HTTP server never exits and a test file leaks its
+   * sockets into the next one.
+   *
+   * `pool.end()` throws if it is called a second time, and shutdown paths do get entered
+   * twice (a SIGTERM arriving while a manual stop is already in flight), so the first call's
+   * promise is remembered and replayed rather than re-ending the pool.
+   */
+  async close(): Promise<void> {
+    if (!this.closePromise) {
+      this.closePromise = this.pool.end()
+      this.closePromise.then(
+        () => this.logger.info('PostgreSQL connection pool closed'),
+        error => this.logger.error('Error closing PostgreSQL connection pool', error)
+      )
+    }
+    return this.closePromise
   }
 
   private async ensureInitialized(): Promise<void> {

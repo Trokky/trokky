@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
+  MemoryEventStorage,
   TrokkyEventBus,
   createDocumentEvent,
   documentCreated,
@@ -228,6 +229,50 @@ describe('Event System', () => {
       await eventBus.emitEvent(documentCreated('article', mockDocument, systemActor()))
       const stats = await eventBus.getEventStats()
       expect(stats).toBeDefined()
+    })
+  })
+
+  describe('MemoryEventStorage teardown', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should stop the cleanup timer firing once closed', async () => {
+      const storage = new MemoryEventStorage({ autoCleanup: true, cleanupInterval: 1000, maxAge: 0 })
+      const cleanupSpy = vi.spyOn(storage, 'cleanup')
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(cleanupSpy).toHaveBeenCalledTimes(1)
+
+      await storage.close()
+
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(cleanupSpy).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('should be safe to close twice', async () => {
+      const storage = new MemoryEventStorage({ autoCleanup: true, cleanupInterval: 1000 })
+      await storage.close()
+      await expect(storage.close()).resolves.toBeUndefined()
+    })
+
+    it('should close its storage when the bus is closed', async () => {
+      const storage = new MemoryEventStorage({ autoCleanup: true, cleanupInterval: 1000 })
+      const bus = new TrokkyEventBus({ enablePersistence: true, storage })
+
+      await bus.close()
+
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('should not fail when the bus has no storage', async () => {
+      const bus = new TrokkyEventBus({ enablePersistence: false })
+      await expect(bus.close()).resolves.toBeUndefined()
     })
   })
 })

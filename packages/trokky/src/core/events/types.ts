@@ -466,6 +466,17 @@ export interface EventStorage {
    * Get event statistics
    */
   getStats(): Promise<EventStats>
+
+  /**
+   * Release whatever the storage is holding open — connections, and above all timers.
+   *
+   * Optional because a storage that only appends to an array has nothing to release, and
+   * third-party implementations written against this interface before the method existed
+   * must keep compiling. Note this is not `cleanup()` above — that one deletes old events
+   * and the process stays alive afterwards; this one is what lets it exit. Make it safe to
+   * call twice.
+   */
+  close?(): Promise<void>
 }
 
 /**
