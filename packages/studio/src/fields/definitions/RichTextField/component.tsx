@@ -15,6 +15,7 @@ import { sanitizePastedContent, SECURITY_PRESETS } from './sanitizer'
 import {
   editorToStorageFormat,
   storageToEditorFormat,
+  isEditorContentEquivalent,
 } from './format-converter'
 import type { RichTextOutputFormat, ProseMirrorDocument } from './definition'
 import { ToolbarButton } from './ToolbarButton'
@@ -303,7 +304,14 @@ function RichTextEditorField(props: RichTextFieldComponentProps) {
       // Compare as strings (convert ProseMirror JSON to string if needed)
       const editorContentStr = typeof editorContent === 'string' ? editorContent : ''
 
-      if (currentContent !== editorContentStr && editorContentStr) {
+      // Compare like with like: the editor and the stored value serialise images
+      // differently, so a raw string compare would be permanently unequal for any
+      // document containing an <img> and would re-set (and re-anchor) the
+      // selection on every keystroke.
+      if (
+        editorContentStr &&
+        !isEditorContentEquivalent(currentContent, editorContentStr)
+      ) {
         // v3 emits an update from setContent by default; opt out explicitly so
         // syncing the external value never re-enters onUpdate -> onChange.
         editor.commands.setContent(editorContent, { emitUpdate: false })
