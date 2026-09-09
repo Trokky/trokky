@@ -29,11 +29,17 @@ import {
 import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types.js'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
+  /** Resolves once the configured directories exist. Rejects if they could not be created. */
+  public readonly ready: Promise<void>
+
   private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
   // Security limits
   private readonly MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB
+  // Ceiling on any list operation. Matches the postgres adapter's MAX_LIST_LIMIT
+  // so both backends agree on how much a single call can return.
+  private readonly MAX_LIST_LIMIT = 1000
   private readonly userWriteLocks = new Map<string, Promise<void>>()
 
   constructor(config: FilesystemDataAdapterConfig = {}) {
@@ -53,10 +59,13 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       silent: config.silent ?? false
     }
 
-    // Initialize directories
-    if (this.config.createDirs) {
-      this.initializeDirectories()
-    }
+    // Directory creation is async and a constructor cannot await it. Keeping the promise
+    // gives callers something to wait on: without it the adapter can still be creating
+    // its directories after a caller believes it is done, which is how a teardown ends up
+    // racing ensureDir and failing with ENOTEMPTY. The catch only stops an early failure
+    // becoming an unhandled rejection; `ready` still rejects for whoever awaits it.
+    this.ready = this.config.createDirs ? this.initializeDirectories() : Promise.resolve()
+    this.ready.catch(() => undefined)
 
     if (!this.config.silent) {
       this.logger.info('FilesystemDataAdapter initialized', {
@@ -103,22 +112,23 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       const fileContent = await fs.readFile(filePath, 'utf8')
       const documentFile: DocumentFile = JSON.parse(fileContent)
 
-      return {
-        id: documentFile.id,
-        _collection: collection,
-        _createdAt: new Date(documentFile.metadata.createdAt),
-        _updatedAt: new Date(documentFile.metadata.updatedAt),
-        _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status,
-        _createdBy: documentFile.metadata.createdBy,
-        _updatedBy: documentFile.metadata.updatedBy,
-        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
-        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined,
-        ...documentFile.data
-      }
+      return this.documentFileToDocument(documentFile, collection)
     } catch (error) {
       this.logger.error(`Failed to get document ${id} from collection ${collection}`, error)
       throw new Error(`Failed to get document: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  public async documentExists(collection: string, id: string): Promise<boolean> {
+    SecurityValidator.validateCollectionName(collection)
+    SecurityValidator.validateDocumentId(id)
+
+    try {
+      await fs.access(this.getDocumentPath(collection, id), constants.F_OK)
+      return true
+    } catch {
+      // Missing file, or a collection directory that was never created.
+      return false
     }
   }
 
@@ -195,19 +205,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         this.logger.info(`Document ${isUpdate ? 'updated' : 'created'}`, { collection, id, revision: documentFile.metadata.revision })
       }
 
-      return {
-        id: documentFile.id,
-        _collection: collection,
-        _createdAt: documentFile.metadata.createdAt,
-        _updatedAt: documentFile.metadata.updatedAt,
-        _revision: documentFile.metadata.revision,
-        _status: documentFile.metadata.status,
-        _createdBy: documentFile.metadata.createdBy,
-        _updatedBy: documentFile.metadata.updatedBy,
-        _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
-        _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined,
-        ...documentFile.data
-      }
+      return this.documentFileToDocument(documentFile, collection)
     } catch (error) {
       this.logger.error(`Failed to save document ${id} in collection ${collection}`, error)
       throw error
@@ -238,17 +236,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           const fileContent = await fs.readFile(filePath, 'utf8')
           const documentFile: DocumentFile = JSON.parse(fileContent)
 
-          const document: Document = {
-            id: documentFile.id,
-            _collection: collection,
-            _createdAt: new Date(documentFile.metadata.createdAt),
-            _updatedAt: new Date(documentFile.metadata.updatedAt),
-            _revision: documentFile.metadata.revision,
-            _status: documentFile.metadata.status,
-            ...documentFile.data
-          }
-
-          documents.push(document)
+          documents.push(this.documentFileToDocument(documentFile, collection))
         } catch (error) {
           this.logger.warn(`Skipping invalid document file ${file}`, error)
           continue
@@ -314,12 +302,13 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         })
       }
 
-      // Apply pagination
+      // Apply pagination. No implicit default limit -- an unbounded call returns
+      // everything -- but never more than MAX_LIST_LIMIT rows in one response.
       const { offset = 0, limit } = options
       const start = offset
-      const end = limit ? start + limit : undefined
+      const effectiveLimit = Math.min(limit || this.MAX_LIST_LIMIT, this.MAX_LIST_LIMIT)
 
-      return filteredDocuments.slice(start, end)
+      return filteredDocuments.slice(start, start + effectiveLimit)
     } catch (error) {
       this.logger.error(`Failed to list documents in collection ${collection}`, error)
       throw new Error(`Failed to list documents: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -353,15 +342,11 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           const fileContent = await fs.readFile(filePath, 'utf8')
           const documentFile: DocumentFile = JSON.parse(fileContent)
 
-          const doc: Record<string, unknown> = {
-            id: documentFile.id,
-            _status: documentFile.metadata.status,
-            _createdAt: documentFile.metadata.createdAt,
-            _updatedAt: documentFile.metadata.updatedAt,
-            ...documentFile.data
-          }
+          const doc = this.documentFileToDocument(documentFile, collection)
 
-          const matches = Object.entries(filter).every(([key, value]) => doc[key] === value)
+          // Same strict, type-preserving equality as listDocuments, now against
+          // the full document shape rather than a four-field projection.
+          const matches = Object.entries(filter).every(([key, value]) => (doc as any)[key] === value)
           if (matches) count++
         } catch {
           continue
@@ -479,14 +464,24 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         // User exists, this is an update
         isUpdate = true
         const updateData = userData as Partial<UpdateUserData>
+        // A plain spread copies explicitly-`undefined` keys over the existing
+        // value, which would clear a field the caller never meant to touch.
+        // Only keys that are actually present AND not `undefined` take effect;
+        // an explicit `null` still gets through, and clears the field.
+        const presentUpdates = Object.fromEntries(
+          Object.entries(updateData).filter(([, value]) => value !== undefined)
+        )
         userFile = {
           ...existingUser,
-          ...updateData,
+          ...presentUpdates,
           id,
           updatedAt: new Date().toISOString()
         }
       } catch {
-        // User doesn't exist, this is a new user
+        // User doesn't exist, this is a new user.
+        // Persist every supplied field: the create branch used to build the
+        // record field by field and silently drop `mfa`, `passkeys` and
+        // `lastLoginAt`, so `trokky restore` lost them.
         const createData = userData as CreateUserData
         userFile = {
           id,
@@ -501,6 +496,9 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           profileImage: createData.profileImage,
           preferences: createData.preferences,
           oauthProviders: (createData as any).oauthProviders,
+          mfa: (createData as any).mfa,
+          passkeys: (createData as any).passkeys,
+          lastLoginAt: (createData as any).lastLoginAt,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
@@ -563,12 +561,16 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
         filteredUsers = filteredUsers.filter(user => user.isActive === options.isActive)
       }
 
-      // Apply pagination
+      // Order newest first. Directory order is whatever readdir returns, which
+      // is arbitrary and differs from the postgres adapter's `createdAt DESC`.
+      filteredUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      // Apply pagination. No implicit default limit, capped at MAX_LIST_LIMIT.
       const { offset = 0, limit } = options
       const start = offset
-      const end = limit ? start + limit : undefined
+      const effectiveLimit = Math.min(limit || this.MAX_LIST_LIMIT, this.MAX_LIST_LIMIT)
 
-      return filteredUsers.slice(start, end)
+      return filteredUsers.slice(start, start + effectiveLimit)
     } catch (error) {
       this.logger.error('Failed to list users', error)
       throw new Error(`Failed to list users: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -616,6 +618,16 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       this.logger.error(`Failed to get user by email ${email}`, error)
       throw new Error(`Failed to get user by email: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  }
+
+  public async isUsernameAvailable(username: string): Promise<boolean> {
+    const user = await this.getUserByUsername(username)
+    return user === null
+  }
+
+  public async isEmailAvailable(email: string): Promise<boolean> {
+    const user = await this.getUserByEmail(email)
+    return user === null
   }
 
   public async getUserByOAuthProvider(provider: string, providerId: string): Promise<User | null> {
@@ -1014,6 +1026,8 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
 
   public async healthCheck(): Promise<boolean> {
     try {
+      // Directories may still be being created; healthCheck is the documented way to wait.
+      await this.ready
       // Test directory access
       await fs.access(this.config.contentDir, constants.R_OK | constants.W_OK)
       await fs.access(this.config.usersDir, constants.R_OK | constants.W_OK)
@@ -1039,6 +1053,33 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
 
   private getDocumentPath(collection: string, id: string): string {
     return path.join(this.config.contentDir, collection, `${id}.json`)
+  }
+
+  /**
+   * The single stored-file -> Document projection.
+   *
+   * Every read path (get, save, list, count) goes through this so the shape
+   * cannot drift again: `listDocuments` used to drop `_createdBy`/`_updatedBy`
+   * and the `*ByType` fields, and `countDocuments` filtered against a partial
+   * document with only `id`/`_status`/`_createdAt`/`_updatedAt`, so a filter on
+   * `_createdBy` or `_revision` never matched anything.
+   */
+  private documentFileToDocument(documentFile: DocumentFile, collection: string): Document {
+    return {
+      id: documentFile.id,
+      // Both identities, same value: consumers read one or the other.
+      _id: documentFile.id,
+      _collection: collection,
+      _createdAt: new Date(documentFile.metadata.createdAt),
+      _updatedAt: new Date(documentFile.metadata.updatedAt),
+      _revision: documentFile.metadata.revision,
+      _status: documentFile.metadata.status,
+      _createdBy: documentFile.metadata.createdBy,
+      _updatedBy: documentFile.metadata.updatedBy,
+      _createdByType: documentFile.metadata.createdByType as AuditActorType | undefined,
+      _updatedByType: documentFile.metadata.updatedByType as AuditActorType | undefined,
+      ...documentFile.data
+    }
   }
 
   /**
@@ -1102,6 +1143,15 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     }
   }
 
+  /**
+   * A field cleared by writing `null` round-trips through JSON as `null`, but
+   * the contract says an absent or cleared user field reads back `undefined` on
+   * every adapter. Normalise on the way out.
+   */
+  private orUndefined<T>(value: T | null | undefined): T | undefined {
+    return value ?? undefined
+  }
+
   private userFileToUser(userFile: UserFile): User {
     return {
       id: userFile.id,
@@ -1111,17 +1161,19 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       firstName: userFile.firstName,
       lastName: userFile.lastName,
       role: userFile.role as any,
-      permissions: userFile.permissions as any[],
+      // Created users always get `[]`; only an update that explicitly clears
+      // permissions makes them absent, and absent reads back as `undefined`.
+      permissions: this.orUndefined(userFile.permissions) as any[],
       isActive: userFile.isActive,
-      profileImage: userFile.profileImage,
-      preferences: userFile.preferences as any,
-      oauthProviders: userFile.oauthProviders as any,
+      profileImage: this.orUndefined(userFile.profileImage),
+      preferences: this.orUndefined(userFile.preferences) as any,
+      oauthProviders: this.orUndefined(userFile.oauthProviders) as any,
       // Written to disk by the spread in writeUserFile but previously dropped
       // here, so every read returned a user without them: TOTP enrolment always
       // failed with "No pending TOTP setup found" and passkeys never persisted.
-      mfa: userFile.mfa,
-      passkeys: userFile.passkeys,
-      lastLoginAt: userFile.lastLoginAt,
+      mfa: this.orUndefined(userFile.mfa),
+      passkeys: this.orUndefined(userFile.passkeys),
+      lastLoginAt: this.orUndefined(userFile.lastLoginAt),
       createdAt: userFile.createdAt,
       updatedAt: userFile.updatedAt
     }

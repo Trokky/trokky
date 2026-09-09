@@ -37,6 +37,14 @@ import type {
   MigrationRow
 } from './types.js'
 
+/**
+ * Serialise a value for a JSONB column. `undefined` and `null` both become SQL NULL, which
+ * reads back as `undefined` — an unset field is never stored as `'{}'` or `'[]'`.
+ */
+function jsonColumnValue(value: unknown): string | null {
+  return value === undefined || value === null ? null : JSON.stringify(value)
+}
+
 export class PostgresDataAdapter implements DataStorageAdapter {
   private config: Required<PostgresDataAdapterConfig>
   private pool: Pool
@@ -235,6 +243,33 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   // DOCUMENT OPERATIONS
   // ==========================================================================
 
+  /**
+   * Shared shape for every document read path, so get/save/list cannot drift apart.
+   *
+   * `_status` lives inside the JSONB payload, so it is pulled out of the data and re-emitted as
+   * a metadata field with the same `'draft'` fallback the filesystem adapter applies; the rest of
+   * the user data is spread last, exactly as the filesystem adapter does. SQL NULLs become
+   * `undefined` — the contract never returns `null` for an unknown actor.
+   */
+  private mapRowToDocument(row: DocumentRow): Document {
+    const { _status, ...data } = (row.data ?? {}) as Record<string, unknown>
+
+    return {
+      id: row.id,
+      _id: row.id,
+      _collection: row.collection,
+      _createdAt: row.created_at,
+      _updatedAt: row.updated_at,
+      _revision: row.revision ?? 1,
+      _status: (_status as Document['_status']) ?? 'draft',
+      _createdBy: row.created_by ?? undefined,
+      _updatedBy: row.updated_by ?? undefined,
+      _createdByType: (row.created_by_type as AuditActorType | null) ?? undefined,
+      _updatedByType: (row.updated_by_type as AuditActorType | null) ?? undefined,
+      ...data
+    }
+  }
+
   async getDocument(collection: string, id: string): Promise<Document | null> {
     SecurityValidator.validateCollectionName(collection)
     SecurityValidator.validateDocumentId(id)
@@ -248,16 +283,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       return null
     }
 
-    const row: DocumentRow = result.rows[0]
-    return {
-      _id: row.id,
-      _collection: row.collection,
-      _createdAt: row.created_at.toISOString(),
-      _updatedAt: row.updated_at.toISOString(),
-      _createdBy: row.created_by,
-      _updatedBy: row.updated_by,
-      ...row.data
-    }
+    return this.mapRowToDocument(result.rows[0])
   }
 
   async saveDocument(
@@ -277,19 +303,31 @@ export class PostgresDataAdapter implements DataStorageAdapter {
 
     const now = new Date()
     const userId = auditContext?.userId
+    const userType = auditContext?.userType
 
     try {
-      // Use UPSERT (INSERT ... ON CONFLICT ... DO UPDATE)
+      // UPSERT (INSERT ... ON CONFLICT ... DO UPDATE). `_status` is defaulted in SQL so the
+      // create/update distinction is decided by the same statement that performs the write:
+      // an explicit incoming status wins, otherwise the stored one is preserved on update and
+      // 'draft' is used on create. `created_by`/`created_by_type` are left out of the SET list,
+      // so the original creator survives an update (filesystem behaviour).
       const result = await this.query(`
-        INSERT INTO ${this.tableName('documents')} (collection, id, data, created_at, updated_at, created_by, updated_by)
-        VALUES ($1, $2, $3, $4, $4, $5, $5)
+        INSERT INTO ${this.tableName('documents')}
+          (collection, id, data, created_at, updated_at, created_by, updated_by, created_by_type, updated_by_type, revision)
+        VALUES (
+          $1, $2,
+          $3::jsonb || jsonb_build_object('_status', COALESCE($3::jsonb->>'_status', 'draft')),
+          $4, $4, $5, $5, $6, $6, 1
+        )
         ON CONFLICT (collection, id)
         DO UPDATE SET
-          data = $3,
+          data = $3::jsonb || jsonb_build_object('_status', COALESCE($3::jsonb->>'_status', ${this.config.tablePrefix}documents.data->>'_status', 'draft')),
           updated_at = $4,
-          updated_by = $5
+          updated_by = $5,
+          updated_by_type = $6,
+          revision = COALESCE(${this.config.tablePrefix}documents.revision, 1) + 1
         RETURNING *
-      `, [collection, id, data, now, userId])
+      `, [collection, id, JSON.stringify(data), now, userId, userType])
 
       const row: DocumentRow = result.rows[0]
 
@@ -304,115 +342,152 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           actorUsername: auditContext.username,
           changes: { after: data },
           timestamp: now,
-          revision: 1,
+          revision: row.revision ?? 1,
           ipAddress: auditContext.ipAddress,
           userAgent: auditContext.userAgent
         })
       }
 
-      return {
-        _id: row.id,
-        _collection: row.collection,
-        _createdAt: row.created_at.toISOString(),
-        _updatedAt: row.updated_at.toISOString(),
-        _createdBy: row.created_by,
-        _updatedBy: row.updated_by,
-        ...row.data
-      }
+      return this.mapRowToDocument(row)
     } catch (error) {
       this.logger.error('Failed to save document', { collection, id, error })
       throw error
     }
   }
 
+  /**
+   * Document fields that live in their own column rather than inside the JSONB payload.
+   * Anything not listed here — including `_status` and any other leading-underscore field the
+   * schema happens to define — is addressed through `data`.
+   */
+  private static readonly DOCUMENT_SYSTEM_COLUMNS: Record<string, string> = {
+    id: 'id',
+    _id: 'id',
+    _revision: 'revision',
+    _createdAt: 'created_at',
+    _updatedAt: 'updated_at',
+    _createdBy: 'created_by',
+    _updatedBy: 'updated_by',
+    _createdByType: 'created_by_type',
+    _updatedByType: 'updated_by_type'
+  }
+
+  /** SECURITY: field names reach the SQL text directly, so they are whitelisted first. */
+  private static readonly DOCUMENT_FIELD_PATTERN = /^[a-zA-Z0-9_.\-]+$/
+
+  /** Updatable user columns, in the order they are written. `json` columns are JSONB. */
+  private static readonly USER_UPDATE_COLUMNS: ReadonlyArray<{ key: string; column: string; json?: boolean }> = [
+    { key: 'username', column: 'username' },
+    { key: 'email', column: 'email' },
+    { key: 'passwordHash', column: 'password_hash' },
+    { key: 'firstName', column: 'first_name' },
+    { key: 'lastName', column: 'last_name' },
+    { key: 'role', column: 'role' },
+    { key: 'permissions', column: 'permissions', json: true },
+    { key: 'isActive', column: 'is_active' },
+    { key: 'profileImage', column: 'profile_image' },
+    { key: 'preferences', column: 'preferences', json: true },
+    { key: 'oauthProviders', column: 'oauth_providers', json: true },
+    { key: 'mfa', column: 'mfa', json: true },
+    { key: 'passkeys', column: 'passkeys', json: true },
+    { key: 'lastLoginAt', column: 'last_login_at' }
+  ]
+
+  /**
+   * Filter clauses shared by listDocuments and countDocuments, so the two cannot disagree
+   * about what a filter means. Data fields are compared as `jsonb`, not as text: `String(value)`
+   * turned `false`, `0` and `null` into strings that never matched anything.
+   */
+  private buildDocumentFilterClauses(filter: Record<string, unknown>, params: any[]): string[] {
+    return Object.entries(filter).map(([key, value]) => {
+      // SECURITY: Validate field name to prevent SQL injection
+      // Allow only alphanumeric, underscore, dash, and dot (for nested fields)
+      if (!PostgresDataAdapter.DOCUMENT_FIELD_PATTERN.test(key)) {
+        throw new Error(`Invalid filter field name: ${key}`)
+      }
+
+      const column = PostgresDataAdapter.DOCUMENT_SYSTEM_COLUMNS[key]
+      if (column) {
+        if (value === null || value === undefined) {
+          return `${column} IS NULL`
+        }
+        params.push(value)
+        return `${column} = $${params.length}`
+      }
+
+      // Data field (including _status, which is stored inside the payload)
+      params.push(key)
+      const keyParam = `$${params.length}::text`
+      params.push(JSON.stringify(value ?? null))
+      return `data->${keyParam} = $${params.length}::jsonb`
+    })
+  }
+
+  /**
+   * Accepts both sort grammars the API surfaces: `-field` (leading minus = descending) and
+   * `field.asc` / `field.desc`. The direction is stripped before the field name is validated,
+   * otherwise `-title` reads as a field literally named `-title`.
+   */
+  private buildDocumentSortClause(rawSortField: string): string {
+    let field = rawSortField.trim()
+    let direction: 'ASC' | 'DESC' = 'ASC'
+
+    if (field.startsWith('-')) {
+      direction = 'DESC'
+      field = field.slice(1)
+    } else {
+      const dotted = /^(.+)\.(asc|desc)$/i.exec(field)
+      if (dotted) {
+        field = dotted[1]
+        direction = dotted[2].toLowerCase() === 'desc' ? 'DESC' : 'ASC'
+      }
+    }
+
+    // SECURITY: Validate field name to prevent SQL injection
+    if (!PostgresDataAdapter.DOCUMENT_FIELD_PATTERN.test(field)) {
+      throw new Error(`Invalid sort field name: ${field}`)
+    }
+
+    // Data fields are ordered by the stored jsonb value (`->`), not by its text rendering
+    // (`->>`): as text, 13 sorts before 2. jsonb ordering compares numbers numerically and
+    // strings by collation, which is what the filesystem adapter's `<` / `>` on the parsed
+    // JS values does for a homogeneously-typed field.
+    const column = PostgresDataAdapter.DOCUMENT_SYSTEM_COLUMNS[field] ?? `data->'${field}'`
+    return `${column} ${direction}`
+  }
+
   async listDocuments(collection: string, options: ListOptions = {}): Promise<Document[]> {
     SecurityValidator.validateCollectionName(collection)
 
-    const limit = Math.min(options.limit || 50, this.MAX_LIST_LIMIT)
+    // No implicit default: an unbounded list returns everything up to the hard cap
+    const limit = Math.min(options.limit ?? this.MAX_LIST_LIMIT, this.MAX_LIST_LIMIT)
     const offset = options.offset || 0
 
     let query = `SELECT * FROM ${this.tableName('documents')} WHERE collection = $1`
     const params: any[] = [collection]
 
-    // Add filtering if provided
     if (options.filter) {
-      console.log('[PostgresAdapter] Applying filter:', options.filter)
-      // Simple JSONB filtering - can be enhanced for more complex queries
-      Object.entries(options.filter).forEach(([key, value], index) => {
-        // SECURITY: Validate field name to prevent SQL injection
-        // Allow only alphanumeric, underscore, dash, and dot (for nested fields)
-        if (!/^[a-zA-Z0-9_.\-]+$/.test(key)) {
-          throw new Error(`Invalid filter field name: ${key}`)
-        }
-
-        // Handle system fields vs data fields
-        if (key.startsWith('_')) {
-          // System field - map to database column
-          const dbField = key === '_status' ? 'data->>\'_status\'' :
-                         key === '_createdAt' ? 'created_at' :
-                         key === '_updatedAt' ? 'updated_at' :
-                         key === '_createdBy' ? 'created_by' :
-                         key === '_updatedBy' ? 'updated_by' : `data->>'${key}'`
-          query += ` AND ${dbField} = $${params.length + 1}`
-        } else {
-          // Data field - use JSONB operator
-          query += ` AND data->>'${key}' = $${params.length + 1}`
-        }
-        params.push(String(value))
-      })
-      console.log('[PostgresAdapter] Filter query:', query)
-      console.log('[PostgresAdapter] Filter params:', params)
+      const clauses = this.buildDocumentFilterClauses(options.filter, params)
+      if (clauses.length > 0) {
+        query += ` AND ${clauses.join(' AND ')}`
+      }
     }
 
-    // Add sorting
     if (options.sort) {
       const sortFields = Array.isArray(options.sort) ? options.sort : [options.sort]
-      const sortClauses = sortFields.map(sortField => {
-        const [field, direction = 'asc'] = sortField.split('.')
-
-        // SECURITY: Validate field name to prevent SQL injection
-        if (!/^[a-zA-Z0-9_.\-]+$/.test(field)) {
-          throw new Error(`Invalid sort field name: ${field}`)
-        }
-
-        const sortDirection = direction.toLowerCase() === 'desc' ? 'DESC' : 'ASC'
-
-        if (field.startsWith('_')) {
-          // System field
-          const dbField = field === '_createdAt' ? 'created_at' :
-                         field === '_updatedAt' ? 'updated_at' :
-                         field === '_id' ? 'id' :
-                         field === '_status' ? 'data->>\'_status\'' : 'id'
-          return `${dbField} ${sortDirection}`
-        } else {
-          // Data field
-          return `data->>'${field}' ${sortDirection}`
-        }
-      })
-      query += ` ORDER BY ${sortClauses.join(', ')}`
+      query += ` ORDER BY ${sortFields.map(field => this.buildDocumentSortClause(field)).join(', ')}`
     } else {
-      query += ` ORDER BY updated_at DESC`
+      query += ` ORDER BY created_at DESC`
     }
 
     query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
     params.push(limit, offset)
 
+    this.logger.debug('Listing documents', { collection, query, params })
+
     const result = await this.query(query, params)
 
-    if (options.filter) {
-      console.log('[PostgresAdapter] Query returned', result.rows.length, 'documents')
-      console.log('[PostgresAdapter] Sample statuses:', result.rows.slice(0, 3).map((r: any) => ({ id: r.id, _status: r.data?._status })))
-    }
-
-    return result.rows.map((row: DocumentRow) => ({
-      _id: row.id,
-      _collection: row.collection,
-      _createdAt: row.created_at.toISOString(),
-      _updatedAt: row.updated_at.toISOString(),
-      _createdBy: row.created_by,
-      _updatedBy: row.updated_by,
-      ...row.data
-    }))
+    return result.rows.map((row: DocumentRow) => this.mapRowToDocument(row))
   }
 
   async deleteDocument(collection: string, id: string): Promise<void> {
@@ -448,10 +523,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     const params: any[] = [collection]
 
     if (filter) {
-      Object.entries(filter).forEach(([key, value]) => {
-        query += ` AND data->>'${key}' = $${params.length + 1}`
-        params.push(String(value))
-      })
+      // Same clause builder as listDocuments: same field validation, same jsonb equality,
+      // same system-field column mapping
+      const clauses = this.buildDocumentFilterClauses(filter, params)
+      if (clauses.length > 0) {
+        query += ` AND ${clauses.join(' AND ')}`
+      }
     }
 
     const result = await this.query(query, params)
@@ -667,10 +744,14 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         // Use passwordHash from caller (like filesystem adapter)
         const passwordHash = (createData as any).passwordHash || ''
 
+        // Every supplied field is persisted: a restore writes a user in one create, and
+        // hardcoding oauth_providers/mfa/passkeys or dropping lastLoginAt silently lost them.
+        // Fields that were not supplied are stored as SQL NULL (not '{}' / '[]') so they read
+        // back as undefined rather than as an empty value the caller never asked for.
         const result = await this.query(`
           INSERT INTO ${this.tableName('users')}
-          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, passkeys, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+          (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, passkeys, last_login_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
           RETURNING *
         `, [
           id,
@@ -680,13 +761,14 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           createData.firstName,
           createData.lastName,
           createData.role,
-          JSON.stringify(createData.permissions || []),
+          JSON.stringify(createData.permissions ?? []),
           createData.isActive ?? true,
-          createData.profileImage,
-          JSON.stringify(createData.preferences || {}),
-          JSON.stringify([]), // oauth_providers starts empty
-          JSON.stringify({}), // mfa starts empty
-          JSON.stringify([]), // passkeys starts empty
+          createData.profileImage ?? null,
+          jsonColumnValue(createData.preferences),
+          jsonColumnValue((createData as any).oauthProviders),
+          jsonColumnValue((createData as any).mfa),
+          jsonColumnValue((createData as any).passkeys),
+          (createData as any).lastLoginAt ?? null,
           now
         ])
 
@@ -724,6 +806,10 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   /**
    * Shared UPDATE for user rows. When expectedPasswordHash is provided the
    * write only applies while the stored hash still matches, in one statement.
+   *
+   * The SET list is built from the keys actually present in `updateData`. The previous
+   * `COALESCE($n, col)` form could not tell "omitted" from "explicitly null", so clearing a
+   * field was impossible: an explicit `null` silently kept the old value.
    */
   private async updateUserRow(
     id: string,
@@ -731,26 +817,26 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     now: string,
     expectedPasswordHash?: string
   ): Promise<any> {
-    const params: any[] = [
-      id,
-      updateData.username,
-      updateData.email,
-      (updateData as any).passwordHash,
-      updateData.firstName,
-      updateData.lastName,
-      updateData.role,
-      // Only pass permissions if explicitly provided (including empty array), otherwise null to preserve existing
-      updateData.permissions !== undefined ? JSON.stringify(updateData.permissions) : null,
-      updateData.isActive,
-      updateData.profileImage,
-      // Only pass preferences if explicitly provided, otherwise null to preserve existing
-      updateData.preferences !== undefined ? JSON.stringify(updateData.preferences) : null,
-      (updateData as any).oauthProviders ? JSON.stringify((updateData as any).oauthProviders) : null,
-      updateData.mfa ? JSON.stringify(updateData.mfa) : null,
-      (updateData as any).passkeys ? JSON.stringify((updateData as any).passkeys) : null,
-      updateData.lastLoginAt,
-      now
-    ]
+    const params: any[] = [id]
+    const assignments: string[] = []
+
+    for (const { key, column, json } of PostgresDataAdapter.USER_UPDATE_COLUMNS) {
+      // An absent key and an explicit `undefined` both mean "unchanged"; an explicit `null`
+      // writes NULL and clears the field.
+      if (!Object.prototype.hasOwnProperty.call(updateData, key)) {
+        continue
+      }
+      const value = (updateData as Record<string, unknown>)[key]
+      if (value === undefined) {
+        continue
+      }
+
+      params.push(json ? jsonColumnValue(value) : value)
+      assignments.push(`${column} = $${params.length}`)
+    }
+
+    params.push(now)
+    assignments.push(`updated_at = $${params.length}`)
 
     let condition = ''
     if (expectedPasswordHash !== undefined) {
@@ -761,28 +847,15 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     return await this.query(`
       UPDATE ${this.tableName('users')}
       SET
-        username = COALESCE($2, username),
-        email = COALESCE($3, email),
-        password_hash = COALESCE($4, password_hash),
-        first_name = COALESCE($5, first_name),
-        last_name = COALESCE($6, last_name),
-        role = COALESCE($7, role),
-        permissions = COALESCE($8, permissions),
-        is_active = COALESCE($9, is_active),
-        profile_image = COALESCE($10, profile_image),
-        preferences = COALESCE($11, preferences),
-        oauth_providers = COALESCE($12, oauth_providers),
-        mfa = COALESCE($13, mfa),
-        passkeys = COALESCE($14, passkeys),
-        last_login_at = COALESCE($15, last_login_at),
-        updated_at = $16
+        ${assignments.join(',\n        ')}
       WHERE id = $1${condition}
       RETURNING *
     `, params)
   }
 
   async listUsers(options: UserListOptions = {}): Promise<User[]> {
-    const limit = Math.min(options.limit || 50, this.MAX_LIST_LIMIT)
+    // No implicit default: an unbounded list returns everything up to the hard cap
+    const limit = Math.min(options.limit ?? this.MAX_LIST_LIMIT, this.MAX_LIST_LIMIT)
     const offset = options.offset || 0
 
     let query = `SELECT * FROM ${this.tableName('users')}`
@@ -920,6 +993,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     return this.mapRowToUser(row)
   }
 
+  /** Every nullable column is mapped to `undefined`: the contract never surfaces `null`. */
   private mapRowToUser(row: UserRow): User {
     return {
       id: row.id,
@@ -929,14 +1003,16 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       firstName: row.first_name,
       lastName: row.last_name,
       role: row.role as any,
-      permissions: row.permissions as any[],
+      // Created users always get `[]`; only an update that explicitly clears permissions
+      // leaves NULL behind, and a cleared field reads back as undefined
+      permissions: (row.permissions ?? undefined) as any[],
       isActive: row.is_active,
-      profileImage: row.profile_image,
-      preferences: row.preferences as any,
-      oauthProviders: row.oauth_providers as any[],
-      mfa: row.mfa as any,
-      passkeys: row.passkeys as any[],
-      lastLoginAt: row.last_login_at,
+      profileImage: row.profile_image ?? undefined,
+      preferences: (row.preferences as any) ?? undefined,
+      oauthProviders: (row.oauth_providers as any[]) ?? undefined,
+      mfa: (row.mfa as any) ?? undefined,
+      passkeys: (row.passkeys as any[]) ?? undefined,
+      lastLoginAt: row.last_login_at ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }
@@ -1147,9 +1223,35 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         updated_at TIMESTAMP DEFAULT NOW(),
         created_by VARCHAR(255),
         updated_by VARCHAR(255),
+        created_by_type VARCHAR(50),
+        updated_by_type VARCHAR(50),
+        revision INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (collection, id)
       )
     `)
+
+    // Migrations for databases created before revision / actor-type tracking existed.
+    // ADD COLUMN IF NOT EXISTS keeps them safe to re-run on every boot.
+    for (const [column, definition] of [
+      ['revision', 'INTEGER NOT NULL DEFAULT 1'],
+      ['created_by_type', 'VARCHAR(50)'],
+      ['updated_by_type', 'VARCHAR(50)']
+    ]) {
+      await this.directQuery(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = '${this.config.schema}'
+            AND table_name = '${this.config.tablePrefix}documents'
+            AND column_name = '${column}'
+          ) THEN
+            ALTER TABLE ${this.tableName('documents')}
+            ADD COLUMN IF NOT EXISTS ${column} ${definition};
+          END IF;
+        END $$
+      `)
+    }
 
     this.logger.info('Creating performance indexes for documents...')
     // Create indexes for better performance
@@ -1161,6 +1263,12 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     await this.directQuery(`
       CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}documents_updated_at_idx
       ON ${this.tableName('documents')} (updated_at DESC)
+    `)
+
+    // The default list order is created_at DESC
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}documents_created_at_idx
+      ON ${this.tableName('documents')} (created_at DESC)
     `)
 
     await this.directQuery(`

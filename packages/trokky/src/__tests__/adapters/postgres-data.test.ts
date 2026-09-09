@@ -104,10 +104,12 @@ describe('PostgresDataAdapter', () => {
       expect(updated).not.toBeNull()
       expect(updated!.passwordHash).toBe('hash-v2')
 
-      // A single conditional UPDATE, no separate read
+      // A single conditional UPDATE, no separate read.
+      // The SET list is built from the keys present in the update, so the guard's placeholder
+      // is whatever comes after them: passwordHash ($2), lastLoginAt ($3), updated_at ($4).
       expect(queryCalls).toHaveLength(1)
       expect(queryCalls[0].text).toContain('UPDATE')
-      expect(queryCalls[0].text).toContain('WHERE id = $1 AND password_hash = $17')
+      expect(queryCalls[0].text).toContain('WHERE id = $1 AND password_hash = $5')
       expect(queryCalls[0].text).toContain('RETURNING *')
       expect(queryCalls[0].params).toContain('hash-v1')
     })
@@ -139,8 +141,8 @@ describe('PostgresDataAdapter', () => {
 
       expect(updated).not.toBeNull()
       expect(updated!.lastLoginAt).toBe(loginAt)
-      expect(queryCalls[0].text).toContain('last_login_at = COALESCE($15, last_login_at)')
-      expect(queryCalls[0].params[14]).toBe(loginAt)
+      expect(queryCalls[0].text).toContain('last_login_at = $3')
+      expect(queryCalls[0].params[2]).toBe(loginAt)
     })
   })
 
@@ -163,12 +165,12 @@ describe('PostgresDataAdapter', () => {
       const saved = await adapter.saveUser('user-001', { lastLoginAt: loginAt })
 
       expect(queryCalls).toHaveLength(2)
-      expect(queryCalls[1].text).toContain('last_login_at = COALESCE($15, last_login_at)')
-      expect(queryCalls[1].params[14]).toBe(loginAt)
+      expect(queryCalls[1].text).toContain('last_login_at = $2')
+      expect(queryCalls[1].params[1]).toBe(loginAt)
       expect(saved.lastLoginAt).toBe(loginAt)
     })
 
-    it('should leave last_login_at to COALESCE when the update omits lastLoginAt', async () => {
+    it('should leave last_login_at untouched when the update omits lastLoginAt', async () => {
       const adapter = await createAdapter()
       const storedLoginAt = '2026-09-07T10:00:00.000Z'
       nextResults = [
@@ -179,10 +181,27 @@ describe('PostgresDataAdapter', () => {
       const saved = await adapter.saveUser('user-001', { firstName: 'Grace' })
 
       expect(queryCalls).toHaveLength(2)
-      expect(queryCalls[1].text).toContain('last_login_at = COALESCE($15, last_login_at)')
-      expect(queryCalls[1].params[14] ?? null).toBeNull()
+      // An omitted key is not in the SET list at all, so the column is never written
+      expect(queryCalls[1].text).toContain('first_name = $2')
+      expect(queryCalls[1].text).not.toContain('last_login_at')
+      expect(queryCalls[1].params).not.toContain(storedLoginAt)
       // The stored value survives the update
       expect(saved.lastLoginAt).toBe(storedLoginAt)
+    })
+
+    it('should write NULL for a field the update clears explicitly', async () => {
+      const adapter = await createAdapter()
+      nextResults = [
+        { rows: [userRow()], rowCount: 1 },
+        { rows: [userRow({ profile_image: null })], rowCount: 1 }
+      ]
+
+      const saved = await adapter.saveUser('user-001', { profileImage: null } as never)
+
+      expect(queryCalls[1].text).toContain('profile_image = $2')
+      expect(queryCalls[1].params[1]).toBeNull()
+      // A cleared field reads back as undefined, never null
+      expect(saved.profileImage).toBeUndefined()
     })
   })
 
