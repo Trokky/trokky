@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "build": "turbo build",
-    "dev": "cd examples/demo && npm run dev:full",
     "dev:packages": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
@@ -21,13 +20,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version && npm install --package-lock-only",
     "release": "turbo build && changeset publish",
-    "setup-dev": "./scripts/setup-dev-env.sh",
-    "install-hooks": "node scripts/install-git-hooks.js",
-    "client": "node packages/client/dist/cli/index.js",
-    "generate-types": "node packages/client/dist/cli/index.js generate-types",
-    "generate-docs": "node packages/client/dist/cli/index.js generate-documents",
-    "generate-all": "node packages/client/dist/cli/index.js generate-all",
-    "webhook-test": "node scripts/webhook-test-server.js"
+    "install-hooks": "node scripts/install-git-hooks.js"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",

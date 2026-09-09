@@ -156,13 +156,17 @@ npm run clean            # Clean build outputs
 npm run format           # Format with Prettier
 ```
 
-### Running the Demo
+### Trying it out
+
+There is no example app in this repository. To start a project, scaffold one with the CLI:
 
 ```bash
-cd examples/demo
-npm run dev              # Start API server
-npm run dev:full         # Start API + Studio dev server
+trokky create my-site --template blog --data filesystem
+cd my-site && npm install && npm run dev
 ```
+
+[trokky.dev](https://trokky.dev) walks through that build end to end, from an empty folder to
+a typed page rendering content you edited in the Studio.
 
 ### Testing
 

@@ -53,17 +53,14 @@ coverage/
 
 # Test-generated files
 examples/*/content/
-examples/demo/data/
 examples/*/media/
 **/media/
 !packages/*/src/media/
 !packages/*/src/**/media/
 
 # Archived files from refactoring
-examples/demo/archived-files/
 
 # Migration scripts (one-time utilities)
-examples/demo/migrate-media-metadata.js
 
 # Development and internal files (keep private)
 INTERNAL_NOTES.md
