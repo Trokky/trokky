@@ -1,4 +1,7 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router';
+// v7 splits the DOM-dependent RouterProvider (it uses react-dom's flushSync) into
+// a deep import; the bare `react-router` export is the non-DOM one used by tests.
+import { RouterProvider } from 'react-router/dom';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
@@ -21,7 +24,8 @@ const getBasename = () => {
   return config?.basePath || '';
 };
 
-const router = createBrowserRouter([
+// Exported so tests can mount the real tree under a memory router.
+export const routes: RouteObject[] = [
   {
     // OAuth callback route (standalone, no layout)
     path: '/oauth/callback',
@@ -108,7 +112,9 @@ const router = createBrowserRouter([
       }
     ]
   }
-], {
+];
+
+const router = createBrowserRouter(routes, {
   basename: getBasename()
 });
 

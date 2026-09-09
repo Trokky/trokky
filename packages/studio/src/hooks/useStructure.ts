@@ -8,7 +8,7 @@
 
 import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 import { apiClient } from '../services/api-client'
 import { createStructureService } from '../services/structure-service'
 import type {

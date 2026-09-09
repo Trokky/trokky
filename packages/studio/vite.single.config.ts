@@ -16,7 +16,7 @@ export default defineConfig({
   
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   
@@ -24,10 +24,11 @@ export default defineConfig({
     outDir: 'dist-single',
     assetsInlineLimit: 100000000, // Inline all assets
     cssCodeSplit: false,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        inlineDynamicImports: true,
-        manualChunks: undefined
+        // Rolldown's replacement for `inlineDynamicImports`: everything has to
+        // land in one chunk for the single-file bundle to be complete.
+        codeSplitting: false
       }
     }
   },
