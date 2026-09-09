@@ -1,14 +1,12 @@
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
-import Placeholder from '@tiptap/extension-placeholder'
-import CharacterCount from '@tiptap/extension-character-count'
+import { CharacterCount, Placeholder } from '@tiptap/extensions'
 import Image from '@tiptap/extension-image'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableHeaderCell from '@tiptap/extension-table-header'
-import TableCell from '@tiptap/extension-table-cell'
-import Gapcursor from '@tiptap/extension-gapcursor'
+import {
+  Table,
+  TableRow,
+  TableHeader as TableHeaderCell,
+  TableCell,
+} from '@tiptap/extension-table'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import type { RichTextFieldDefinition } from './definition'
@@ -19,8 +17,8 @@ type RichTextOptions = NonNullable<RichTextFieldDefinition['options']>
 
 /**
  * The Tiptap extension set the rich text editor runs on: the starter kit with
- * the pieces we configure ourselves disabled, plus links, images carrying the
- * Trokky asset attributes, tables and highlighted code blocks.
+ * the pieces we configure ourselves disabled or tuned in place, plus images
+ * carrying the Trokky asset attributes, tables and highlighted code blocks.
  */
 export function createRichTextExtensions(
   options: RichTextOptions,
@@ -31,16 +29,21 @@ export function createRichTextExtensions(
         heading: {
           levels: (options.headingLevels || [1, 2, 3]) as any,
         },
-        // Disable gapcursor and codeBlock from StarterKit since we add them manually
-        gapcursor: false,
+        // CodeBlockLowlight replaces the plain code block below.
         codeBlock: false,
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class:
-            'text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300',
+        // v3's StarterKit adds a trailing paragraph node that v2's did not.
+        // Keeping it off leaves the serialised HTML identical to what stored
+        // content already looks like.
+        trailingNode: false,
+        // Underline, Link, Gapcursor and ListKeymap ship inside StarterKit as of
+        // v3, so they are configured here rather than added as separate
+        // extensions — registering them twice throws a duplicate-name error.
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class:
+              'text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300',
+          },
         },
       }),
       Image.configure({
@@ -80,7 +83,6 @@ export function createRichTextExtensions(
       Placeholder.configure({
         placeholder: options.placeholder || 'Start typing...',
       }),
-      Gapcursor,
       Table.configure({
         resizable: true,
       }),

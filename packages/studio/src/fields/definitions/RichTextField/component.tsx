@@ -304,7 +304,9 @@ function RichTextEditorField(props: RichTextFieldComponentProps) {
       const editorContentStr = typeof editorContent === 'string' ? editorContent : ''
 
       if (currentContent !== editorContentStr && editorContentStr) {
-        editor.commands.setContent(editorContent, false) // false = don't emit update event
+        // v3 emits an update from setContent by default; opt out explicitly so
+        // syncing the external value never re-enters onUpdate -> onChange.
+        editor.commands.setContent(editorContent, { emitUpdate: false })
         logger.debug('Editor content synced with format conversion', {
           outputFormat,
           valueType: typeof value,
@@ -412,7 +414,7 @@ function RichTextEditorField(props: RichTextFieldComponentProps) {
     } else {
       // Exiting source view - update editor with modified HTML
       try {
-        editor.commands.setContent(sourceCode, false)
+        editor.commands.setContent(sourceCode, { emitUpdate: false })
         onChange(sourceCode)
         logger.debug('Exiting source view, content updated', {
           htmlLength: sourceCode.length,
