@@ -198,6 +198,37 @@ describe('checkSingletonStoredIds', () => {
     expect(warnings).toEqual([])
   })
 
+  // filesystem-data returns the identity as `id`, postgres-data returns it as `_id`. Reading
+  // only one makes this check inert on the other backend, and the production deployments are
+  // the Postgres one.
+  it('should read the stored id from _id, as the postgres adapter returns it', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      homepageSchemas,
+      reader([{ _id: 'homepage' }]),
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([
+      { collection: 'homepage', expectedId: 'home', actualId: 'homepage' },
+    ])
+    expect(warnings[0]).toContain('homepage')
+  })
+
+  it('should stay quiet when an _id-shaped document already matches', async () => {
+    const warnings: string[] = []
+    const issues = await checkSingletonStoredIds(
+      singletonStructure(),
+      homepageSchemas,
+      reader([{ _id: 'home' }]),
+      message => warnings.push(message)
+    )
+
+    expect(issues).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
   it('should warn once naming the collection, the expected id and the stored id', async () => {
     const warnings: string[] = []
     const issues = await checkSingletonStoredIds(

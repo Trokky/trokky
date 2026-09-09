@@ -223,7 +223,11 @@ export async function checkSingletonStoredIds(
       continue
     }
 
-    const actualId = Array.isArray(documents) ? documents[0]?.id : undefined
+    // Adapters disagree about which field carries the identity: filesystem-data returns `id`,
+    // postgres-data returns `_id`. Reading only one of them makes this check silently inert on
+    // the other backend — which would have meant it never ran on a Postgres-backed site.
+    const first = Array.isArray(documents) ? documents[0] : undefined
+    const actualId = (first as { id?: string; _id?: string } | undefined)?.id ?? (first as { _id?: string } | undefined)?._id
     // An empty collection has not diverged from anything; auto-create will file the first
     // document under the id the structure names.
     if (!actualId || actualId === entry.documentId) continue
