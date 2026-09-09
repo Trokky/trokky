@@ -29,6 +29,9 @@ import {
 import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types.js'
 
 export class FilesystemDataAdapter implements DataStorageAdapter {
+  /** Resolves once the configured directories exist. Rejects if they could not be created. */
+  public readonly ready: Promise<void>
+
   private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
@@ -56,10 +59,13 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       silent: config.silent ?? false
     }
 
-    // Initialize directories
-    if (this.config.createDirs) {
-      this.initializeDirectories()
-    }
+    // Directory creation is async and a constructor cannot await it. Keeping the promise
+    // gives callers something to wait on: without it the adapter can still be creating
+    // its directories after a caller believes it is done, which is how a teardown ends up
+    // racing ensureDir and failing with ENOTEMPTY. The catch only stops an early failure
+    // becoming an unhandled rejection; `ready` still rejects for whoever awaits it.
+    this.ready = this.config.createDirs ? this.initializeDirectories() : Promise.resolve()
+    this.ready.catch(() => undefined)
 
     if (!this.config.silent) {
       this.logger.info('FilesystemDataAdapter initialized', {
@@ -1020,6 +1026,8 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
 
   public async healthCheck(): Promise<boolean> {
     try {
+      // Directories may still be being created; healthCheck is the documented way to wait.
+      await this.ready
       // Test directory access
       await fs.access(this.config.contentDir, constants.R_OK | constants.W_OK)
       await fs.access(this.config.usersDir, constants.R_OK | constants.W_OK)
