@@ -1448,4 +1448,49 @@ export class TrokkyCore {
       this.oauth2Server.stopCleanup()
     }
   }
+
+  /**
+   * Full teardown: everything `cleanup()` does, plus releasing whatever the storage adapters
+   * and the event storage are holding open.
+   *
+   * This is a separate method rather than an async `cleanup()` because `cleanup()` is called
+   * synchronously and unawaited by existing hosts (see the express integration's boot-time
+   * consistency check); turning it async would silently give those callers a floating promise
+   * and change nothing for them. So `cleanup()` keeps its exact current behaviour and this
+   * builds on top.
+   *
+   * Every close is awaited independently: an adapter that fails to close must not strand the
+   * handles held by the others, which is the whole reason the process could not exit.
+   */
+  public async shutdown(): Promise<void> {
+    this.cleanup()
+
+    const closers: { name: string; close: () => Promise<void> }[] = []
+    const seen = new Set<unknown>()
+
+    // The legacy unified adapter is wrapped into both `dataStorage` and `mediaStorage`, and a
+    // split deployment may still point both at one instance, so dedupe by identity: closing
+    // the same pool twice is at best noise and at worst an error.
+    const addCloser = (name: string, target: { close?: () => Promise<void> } | undefined): void => {
+      if (!target || seen.has(target) || typeof target.close !== 'function') return
+      seen.add(target)
+      closers.push({ name, close: () => target.close!() })
+    }
+
+    // With a legacy unified adapter the two wrappers delegate to it, so close the real one.
+    addCloser('storage', this.storage as { close?: () => Promise<void> } | undefined)
+    addCloser('dataStorage', this.dataStorage)
+    addCloser('mediaStorage', this.mediaStorage)
+    addCloser('eventBus', this.eventBus)
+
+    const results = await Promise.allSettled(closers.map(c => c.close()))
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.error(`Failed to close ${closers[index].name} during shutdown`, result.reason)
+      }
+    })
+
+    this.logger.info('TrokkyCore shutdown complete')
+  }
 }

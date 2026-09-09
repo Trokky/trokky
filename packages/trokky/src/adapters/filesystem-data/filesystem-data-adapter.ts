@@ -278,9 +278,18 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
             let direction = 'asc'
             
             // Handle descending sort (field prefixed with -)
+            // Two grammars reach here. The routes layer normalises every incoming sort into
+            // `field.asc` / `field.desc` (routes/handlers/documents.ts), which is what the
+            // postgres adapter parses. This adapter understood only the `-field` form, so it
+            // looked for a property literally named "field.asc", found none, and returned
+            // documents unsorted -- silently, for every API request.
             if (field.startsWith('-')) {
               fieldName = field.substring(1)
               direction = 'desc'
+            } else if (field.includes('.')) {
+              const [name, dir] = field.split('.')
+              fieldName = name
+              direction = dir?.toLowerCase() === 'desc' ? 'desc' : 'asc'
             }
             
             const aVal = (a as any)[fieldName]

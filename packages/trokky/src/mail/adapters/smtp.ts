@@ -45,7 +45,6 @@ export class SMTPMailAdapter implements MailAdapter {
 
     // Create Nodemailer transporter
     this.transporter = nodemailer.createTransport({
-      // @ts-expect-error - nodemailer types are overly strict
       host: this.config.host,
       port: this.config.port,
       secure: this.config.secure,

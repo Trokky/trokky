@@ -188,7 +188,7 @@ export async function startServer(
   }
 
   // Setup graceful shutdown
-  const stop = createShutdownHandler(server, fullConfig, mailService)
+  const stop = createShutdownHandler(server, fullConfig, integration, mailService)
 
   // Register process handlers
   setupProcessHandlers(stop, fullConfig)
@@ -557,9 +557,15 @@ function isRouteGroup(route: CustomRoute | RouteGroup): route is RouteGroup {
 // SHUTDOWN HANDLING
 // =============================================================================
 
-function createShutdownHandler(
+/**
+ * Exported for tests only — the package index deliberately exposes just `startServer` and
+ * `createServer`, and the ordering this function enforces (drain, then release handles) is
+ * worth asserting directly.
+ */
+export function createShutdownHandler(
   server: Server,
   config: TrokkyConfigWithDefaults,
+  integration: ExpressIntegration,
   mailService?: MailService
 ): () => Promise<void> {
   let isShuttingDown = false
@@ -589,6 +595,24 @@ function createShutdownHandler(
         resolve()
       })
     })
+
+    // Closing the HTTP server only stops it accepting connections. The core still holds the
+    // handles that keep the process alive — the data adapter's connection pool, the event
+    // storage's cleanup interval — so release them here, after the last request has drained.
+    // Each teardown is caught on its own: the SMTP pool is exactly as capable of holding the
+    // process open as the database pool is, so a core that fails to close must not take the
+    // mail transport down with it, or the other way round.
+    try {
+      await integration.core?.shutdown?.()
+    } catch (error) {
+      logger.error('Error during core shutdown', error)
+    }
+
+    try {
+      await mailService?.close()
+    } catch (error) {
+      logger.error('Error closing mail service', error)
+    }
 
     logger.info('Trokky server stopped')
   }
@@ -731,7 +755,7 @@ export async function createServer(config: TrokkyConfig): Promise<{
         httpServer.on('error', reject)
       })
 
-      const stop = createShutdownHandler(server, fullConfig)
+      const stop = createShutdownHandler(server, fullConfig, integration)
 
       return {
         app,

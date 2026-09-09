@@ -32,6 +32,16 @@ export interface MailAdapter {
    * Get adapter name/type for logging and debugging
    */
   getAdapterName(): string
+
+  /**
+   * Release whatever the adapter is holding open — for SMTP, a pooled transporter with live
+   * TCP connections that keeps the process alive after its server has stopped.
+   *
+   * Optional because the HTTP-based adapters have nothing to release: console writes to
+   * stdout and Resend makes a request per message, so requiring the method would force a
+   * no-op on them and break third-party adapters written before it existed.
+   */
+  close?(): Promise<void>
 }
 
 // ============================================================================

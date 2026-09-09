@@ -423,6 +423,15 @@ export class TrokkyEventBus extends EventEmitter {
     }
   }
 
+  /**
+   * Release the event storage. The bus itself holds no handles, but its storage may — the
+   * default `MemoryEventStorage` runs a cleanup interval that keeps the process alive — and
+   * the storage is private here, so the shutdown path needs this to reach it.
+   */
+  async close(): Promise<void> {
+    await this.storage?.close?.()
+  }
+
   // ==========================================================================
   // PRIVATE METHODS
   // ==========================================================================

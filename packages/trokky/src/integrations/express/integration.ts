@@ -17,7 +17,7 @@ import type {
   StorageConfig,
 } from './config.js'
 import { withDefaults } from './config.js'
-import { assertSingletonConsistency } from '../../core/schema/singleton.js'
+import { assertSingletonConsistency, checkSingletonStoredIds } from '../../core/schema/singleton.js'
 
 /**
  * Main Express integration class for Trokky CMS
@@ -823,10 +823,28 @@ async function assertResolvedStructureConsistency(
   try {
     assertSingletonConsistency(structure, schemas, message => logger.warn(message))
   } catch (error) {
-    // The core is already initialised at this point. This stops its rate-limiter sweep and
-    // OAuth2 cleanup intervals; the event storage keeps its own interval, so a host that
-    // catches this error rather than exiting still has handles open.
-    core.cleanup?.()
+    // The core is already initialised at this point, so tear it down before rethrowing:
+    // this stops the rate-limiter sweep and OAuth2 cleanup intervals and releases the
+    // storage adapters and event storage, leaving no handles behind for a host that catches
+    // this error rather than exiting. Awaiting would delay the throw for no benefit — the
+    // rethrow below is what the caller is waiting on — so failures are only logged.
+    void core.shutdown?.().catch(shutdownError => {
+      logger.warn('Error shutting down core after singleton consistency failure', {
+        error: shutdownError instanceof Error ? shutdownError.message : String(shutdownError),
+      })
+    })
     throw error
+  }
+
+  // Only once structure and schemas agree, compare what the structure names against what storage
+  // actually holds. This one reads data rather than source, so it warns and never stops the boot —
+  // see `checkSingletonStoredIds`. Its own failures are swallowed there, but the call is guarded
+  // anyway: nothing about a startup advisory should be able to take the server down.
+  try {
+    await checkSingletonStoredIds(structure, schemas, core, message => logger.warn(message))
+  } catch (error) {
+    logger.warn('Could not check singleton stored document ids', {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }

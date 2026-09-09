@@ -412,6 +412,17 @@ export interface DataStorageAdapter {
    * @returns Transaction context or undefined if not supported
    */
   beginTransaction?(): Promise<DataTransaction | undefined>
+
+  /**
+   * Release whatever the adapter is holding open — connection pools, sockets, timers.
+   *
+   * Optional because most backends hold nothing: the filesystem and in-memory adapters have
+   * no handle to give back, and requiring the method would break every third-party adapter
+   * written against the interface before it existed. Implement it only when there is
+   * genuinely something to release, and make it safe to call twice — shutdown paths are
+   * rarely as orderly as they look.
+   */
+  close?(): Promise<void>
 }
 
 /**
@@ -620,6 +631,16 @@ export interface MediaStorageAdapter {
     spaceSaved: number
     [key: string]: unknown
   }>
+
+  /**
+   * Release whatever the adapter is holding open — clients, sockets, timers.
+   *
+   * Optional for the same reason as on `DataStorageAdapter`: a filesystem or in-memory media
+   * backend has no handle to release, and third-party adapters written before this method
+   * existed must keep compiling. Note this is not `cleanup()` above — that one deletes
+   * orphaned files, this one lets the process exit.
+   */
+  close?(): Promise<void>
 }
 
 // =============================================================================
