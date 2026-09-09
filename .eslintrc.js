@@ -23,7 +23,10 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 'warn',
     '@typescript-eslint/no-non-null-assertion': 'warn',
     '@typescript-eslint/ban-ts-comment': 'warn',
-    '@typescript-eslint/ban-types': 'warn',
+    // ban-types was removed in typescript-eslint v8 and split into three rules.
+    '@typescript-eslint/no-empty-object-type': 'warn',
+    '@typescript-eslint/no-unsafe-function-type': 'warn',
+    '@typescript-eslint/no-restricted-types': 'warn',
     '@typescript-eslint/no-var-requires': 'warn',
     '@typescript-eslint/no-namespace': 'warn',
     'prefer-const': 'error',

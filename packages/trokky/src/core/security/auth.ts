@@ -20,8 +20,10 @@ import type {
   CreateAppTokenData,
   AuthenticatedUser,
   AuthenticatedAppToken,
-  ROLE_PERMISSIONS
 } from '../types/user.js'
+// ROLE_PERMISSIONS is a value, not a type: a type-only import is erased at runtime,
+// which is why this used to be fetched with require() in an ESM package.
+import { ROLE_PERMISSIONS } from '../types/user.js'
 
 export interface AuthConfig {
   jwtSecret: string
@@ -263,8 +265,6 @@ export class AuthenticationService {
    * Get default permissions for a role
    */
   getRolePermissions(role: UserRole): Permission[] {
-    // Import here to avoid circular dependencies
-    const { ROLE_PERMISSIONS } = require('../types/user.js')
     return ROLE_PERMISSIONS[role] || []
   }
 

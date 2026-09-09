@@ -570,7 +570,13 @@ export function DocumentEditor({
     }
 
     skipNavigationBlockRef.current = true;
-    onCancel?.() || navigate(`/content/${schemaName}`);
+    // Not `onCancel?.() || navigate(...)`: onCancel returns undefined, so the fallback ran
+    // every time and a caller that handled the cancel itself was navigated away anyway.
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate(`/content/${schemaName}`);
+    }
   }, [hasUnsavedChanges, onCancel, navigate, schemaName, studioContext]);
 
   // Prepare editor context value

@@ -199,11 +199,11 @@ export class DocumentGenerator {
     const fieldName = field.name.toLowerCase()
     
     if (fieldName.includes('title') || fieldName.includes('name')) {
-      return faker.lorem.words(faker.datatype.number({ min: 1, max: 4 }))
+      return faker.lorem.words(faker.number.int({ min: 1, max: 4 }))
     }
     
     if (fieldName.includes('description') || fieldName.includes('content')) {
-      return faker.lorem.paragraphs(faker.datatype.number({ min: 1, max: 3 }))
+      return faker.lorem.paragraphs(faker.number.int({ min: 1, max: 3 }))
     }
     
     if (fieldName.includes('phone')) {
@@ -211,11 +211,11 @@ export class DocumentGenerator {
     }
     
     if (fieldName.includes('address')) {
-      return faker.address.streetAddress()
+      return faker.location.streetAddress()
     }
 
     // Default string generation
-    const length = faker.datatype.number({ min: minLength, max: Math.min(maxLength, 200) })
+    const length = faker.number.int({ min: minLength, max: Math.min(maxLength, 200) })
     return faker.lorem.sentence(Math.ceil(length / 8))
   }
 
@@ -223,7 +223,7 @@ export class DocumentGenerator {
     const prefix = field.prefix || ''
     const suffix = field.suffix || ''
     
-    let slug = faker.lorem.slug(faker.datatype.number({ min: 2, max: 4 }))
+    let slug = faker.lorem.slug(faker.number.int({ min: 2, max: 4 }))
     
     if (prefix) {
       slug = `${prefix}-${slug}`
@@ -241,14 +241,14 @@ export class DocumentGenerator {
     const min = validation.min || 0
     const max = validation.max || 1000
     
-    return faker.datatype.number({ min, max })
+    return faker.number.int({ min, max })
   }
 
   private generateArrayValue(field: FieldSchema, schemaName: string): any[] {
     const itemType = field.options?.of
     if (!itemType) return []
 
-    const length = faker.datatype.number({ min: 1, max: 5 })
+    const length = faker.number.int({ min: 1, max: 5 })
     const items = []
 
     for (let i = 0; i < length; i++) {
@@ -305,14 +305,14 @@ export class DocumentGenerator {
       title: faker.lorem.words(3),
       url: faker.image.url({ width: 800, height: 600 }),
       filename: faker.system.fileName(),
-      size: faker.datatype.number({ min: 1000, max: 10000000 }),
+      size: faker.number.int({ min: 1000, max: 10000000 }),
       mimeType: faker.helpers.arrayElement(['image/jpeg', 'image/png', 'image/webp'])
     }
   }
 
   private generateRichTextValue(): any[] {
     const blocks = []
-    const numBlocks = faker.datatype.number({ min: 1, max: 3 })
+    const numBlocks = faker.number.int({ min: 1, max: 3 })
 
     for (let i = 0; i < numBlocks; i++) {
       blocks.push({
@@ -342,7 +342,7 @@ export class DocumentGenerator {
   }
 
   private generateId(): string {
-    return `doc-${faker.datatype.uuid()}`
+    return `doc-${faker.string.uuid()}`
   }
 
   private async fetchSchemas(): Promise<DocumentSchema[]> {
