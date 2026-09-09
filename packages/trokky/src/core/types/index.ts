@@ -95,6 +95,12 @@ export interface AuditLog {
 // Base document structure
 export interface Document {
   id: string
+  /**
+   * The same value as `id`. Both spellings are always present: the filesystem adapter used to
+   * return only `id` and the postgres adapter only `_id`, so consumers had to know which backend
+   * they were on. Every adapter now returns both; prefer `id` in new code.
+   */
+  _id: string
   _collection: string
   _createdAt: Date
   _updatedAt: Date
@@ -112,7 +118,7 @@ export interface DocumentWithContent extends Document {
 }
 
 // Document data without metadata
-export type DocumentData = Omit<Document, 'id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>
+export type DocumentData = Omit<Document, 'id' | '_id' | '_collection' | '_createdAt' | '_updatedAt' | '_revision' | '_status'>
 
 // Dynamic field type registry - allows @trokky/fields to register types at runtime
 let _fieldRegistry: FieldRegistry | null = null;

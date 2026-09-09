@@ -64,8 +64,12 @@ export interface DocumentRow {
   data: any // JSONB data
   created_at: Date
   updated_at: Date
-  created_by?: string
-  updated_by?: string
+  /** Bumped on every save; 1 on create. Older rows predate the column and read back as null. */
+  revision: number | null
+  created_by: string | null
+  updated_by: string | null
+  created_by_type: string | null
+  updated_by_type: string | null
 }
 
 export interface UserRow {
@@ -78,12 +82,14 @@ export interface UserRow {
   role: string
   permissions: any // JSONB array
   is_active: boolean
-  profile_image?: string
-  last_login_at?: string // ISO string
+  // Nullable columns: a field that was never supplied, or was explicitly cleared, reads back
+  // as SQL NULL and is mapped to `undefined` before it leaves the adapter.
+  profile_image: string | null
+  last_login_at: string | null // ISO string
   preferences: any // JSONB data
-  oauth_providers?: any // JSONB array of OAuth providers
-  mfa?: any // JSONB - MFA configuration
-  passkeys?: any // JSONB array of passkey credentials
+  oauth_providers: any // JSONB array of OAuth providers
+  mfa: any // JSONB - MFA configuration
+  passkeys: any // JSONB array of passkey credentials
   created_at: string // ISO string
   updated_at: string // ISO string
 }
