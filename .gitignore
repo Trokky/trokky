@@ -91,3 +91,6 @@ package-lock.json
 # Local agent tooling. Kept on the machine, never in the repository.
 CLAUDE.md
 .claude/
+
+# Agent scratch space (conformance suite temp roots live here)
+.foreman/

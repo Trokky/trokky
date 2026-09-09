@@ -123,6 +123,7 @@ export class FilesystemAdapter implements StorageAdapter {
       // Convert stored data back to Document format
       const document: Document = {
         id: documentFile.id,
+        _id: documentFile.id,
         ...documentFile.data,
         _collection: documentFile.collection,
         _createdAt: documentFile.metadata.createdAt instanceof Date ? documentFile.metadata.createdAt : new Date(documentFile.metadata.createdAt),
@@ -204,6 +205,7 @@ export class FilesystemAdapter implements StorageAdapter {
       // Return the document in the expected format
       const document: Document = {
         id,
+        _id: id,
         ...data,
         _collection: collection,
         _createdAt: documentFile.metadata.createdAt,
