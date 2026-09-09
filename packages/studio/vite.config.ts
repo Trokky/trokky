@@ -57,7 +57,7 @@ export default defineConfig({
   
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   
@@ -75,7 +75,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    rollupOptions: {
+    rolldownOptions: {
       external: [
         'crypto', 
         'bcrypt', 
@@ -108,17 +108,35 @@ export default defineConfig({
           url: 'url',
           '@trokky/core': 'TrokkyCore'
         },
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          query: ['@tanstack/react-query'],
-          ui: ['@headlessui/react', '@heroicons/react']
+        // Vite 8 / Rolldown dropped the object form of `manualChunks`; the same
+        // four vendor chunks are now expressed as codeSplitting groups. `test`
+        // matches the resolved module id, so the patterns are anchored on the
+        // package directory to avoid catching unrelated paths.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'router',
+              test: /[\\/]node_modules[\\/]react-router([\\/]|$)/
+            },
+            {
+              name: 'query',
+              test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query([\\/]|$)/
+            },
+            {
+              name: 'ui',
+              test: /[\\/]node_modules[\\/]@(headlessui|heroicons)[\\/]react([\\/]|$)/
+            },
+            {
+              name: 'vendor',
+              test: /[\\/]node_modules[\\/]react(-dom)?([\\/]|$)/
+            }
+          ]
         }
       }
     }
   },
   
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom']
+    include: ['react', 'react-dom', 'react-router', 'react-router/dom']
   }
 });

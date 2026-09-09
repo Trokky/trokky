@@ -39,7 +39,7 @@
     "lowlight": "^3.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^6.8.0",
+    "react-router": "^7.18.3",
     "util-deprecate": "^1.0.2",
     "zustand": "^4.4.0"
   },
@@ -52,7 +52,7 @@
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.0",
     "autoprefixer": "^10.4.14",
     "eslint": "^8.42.0",
@@ -63,8 +63,8 @@
     "rollup": "^4.63.1",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.0.0",
-    "vite": "^5.0.0",
-    "vite-plugin-singlefile": "^0.13.5",
+    "vite": "^8.2.2",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.0"
   },
   "exports": {
@@ -84,6 +84,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "keywords": [
     "cms",
     "content-management",

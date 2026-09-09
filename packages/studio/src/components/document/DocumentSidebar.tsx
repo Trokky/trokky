@@ -13,7 +13,7 @@ import {
   ChevronDownIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
 import { usePermissions } from '@/hooks/usePermissions';

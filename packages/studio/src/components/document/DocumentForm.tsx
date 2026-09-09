@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { FieldRenderer, evaluateConditional } from '../../fields/index';
 import { useDocumentEditor } from './DocumentEditorContext';
 import { useStudioContext } from '@/contexts/StudioContext';
