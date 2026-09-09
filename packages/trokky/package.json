@@ -158,7 +158,7 @@
     "zod": "^3.22.4"
   },
   "optionalDependencies": {
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^10.0.1",
     "pg": "^8.11.3",
     "resend": "^3.5.0",
     "sharp": "^0.35.4"
@@ -171,7 +171,6 @@
     "@types/fs-extra": "^11.0.4",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.24",
-    "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.11.10",
     "@types/qrcode": "^1.5.6",
     "@types/sharp": "^0.31.1",
