@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router'
 import { useContextSidebar } from '@/contexts/ContextSidebarContext'
 import { useStructure } from './useStructure'
 import { useAuth } from './useAuth'

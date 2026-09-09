@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { useT } from '@trokky/trokky/i18n'
 import type { ContextSidebarRenderContext } from '@/types/structure'
 

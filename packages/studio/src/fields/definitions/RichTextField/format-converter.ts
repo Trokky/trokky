@@ -161,6 +161,30 @@ function normalizeHtmlImages(html: string): string {
 }
 
 /**
+ * Compare live editor HTML against stored HTML, ignoring differences that are
+ * purely serialisation artefacts.
+ *
+ * `editor.getHTML()` renders images with the attribute order TipTap's Image
+ * extension produces (class first, absolute src), while stored HTML has been
+ * through `normalizeHtmlImages` (fixed order, relative src). A raw string
+ * compare therefore never matches for any document containing an `<img>`, which
+ * made the external-value-sync effect re-run `setContent` on every keystroke and
+ * reset the caret to the end of the document.
+ *
+ * Normalising BOTH sides the same way makes the comparison meaningful. It is
+ * deliberately no more forgiving than that: genuine external changes (initial
+ * mount, revision restore, leaving source view, legacy `<li>x</li>` markup that
+ * TipTap re-renders as `<li><p>x</p></li>`) still compare as different and still
+ * sync.
+ */
+export function isEditorContentEquivalent(
+  editorHtml: string,
+  storedHtml: string
+): boolean {
+  return normalizeHtmlImages(editorHtml) === normalizeHtmlImages(storedHtml)
+}
+
+/**
  * Convert editor content to ProseMirror JSON with shortcodes for storage
  *
  * For ProseMirror format, we use shortcode references since this format

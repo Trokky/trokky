@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { useT } from '@trokky/trokky/i18n';
 import { useContextSidebar } from '@/contexts/ContextSidebarContext';
 import { useStudioContext } from '@/contexts/StudioContext';

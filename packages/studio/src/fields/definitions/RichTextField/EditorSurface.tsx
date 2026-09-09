@@ -55,6 +55,20 @@ export function InlineEditorSurface({
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
+              /*
+               * The Placeholder extension only sets data-placeholder and the
+               * is-editor-empty class on the first node; rendering it is ours to do.
+               */
+              .tiptap-editor-container .ProseMirror .is-editor-empty:first-child::before {
+                content: attr(data-placeholder);
+                float: left;
+                height: 0;
+                pointer-events: none;
+                color: #9ca3af;
+              }
+              .dark .tiptap-editor-container .ProseMirror .is-editor-empty:first-child::before {
+                color: #6b7280;
+              }
               .tiptap-editor-container .ProseMirror h1 {
                 font-size: 1.875rem !important;
                 font-weight: 700 !important;
@@ -295,6 +309,20 @@ export function FullscreenEditorSurface({
               <style
                 dangerouslySetInnerHTML={{
                   __html: `
+                  /*
+                   * The Placeholder extension only sets data-placeholder and the
+                   * is-editor-empty class on the first node; rendering it is ours to do.
+                   */
+                  .tiptap-editor-container .ProseMirror .is-editor-empty:first-child::before {
+                    content: attr(data-placeholder);
+                    float: left;
+                    height: 0;
+                    pointer-events: none;
+                    color: #9ca3af;
+                  }
+                  .dark .tiptap-editor-container .ProseMirror .is-editor-empty:first-child::before {
+                    color: #6b7280;
+                  }
                   .tiptap-editor-container .ProseMirror h1 {
                     font-size: 1.875rem !important;
                     font-weight: 700 !important;
