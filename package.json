@@ -7,10 +7,12 @@
   "workspaces": [
     "packages/trokky",
     "packages/studio",
-    "packages/client"
+    "packages/client",
+    "examples/*"
   ],
   "scripts": {
     "build": "turbo build",
+    "dev": "turbo build --filter=@trokky/trokky --filter=@trokky/studio && npm run dev --workspace=@trokky/demo",
     "dev:packages": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",

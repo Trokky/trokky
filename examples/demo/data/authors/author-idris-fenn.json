@@ -1,0 +1,23 @@
+{
+  "id": "author-idris-fenn",
+  "collection": "authors",
+  "data": {
+    "name": "Idris Fenn",
+    "slug": "idris-fenn",
+    "bio": "Idris compiles the Almanac's tables. He is happiest with an ephemeris, a slide rule he refuses to retire, and an argument about which minute a rising counts from.",
+    "avatar": null,
+    "links": [
+      {
+        "label": "Table corrections",
+        "url": "https://example.com/meridian-almanac/idris-fenn/errata",
+        "primary": true
+      }
+    ]
+  },
+  "metadata": {
+    "createdAt": "2026-01-06T09:05:00.000Z",
+    "updatedAt": "2026-01-06T09:05:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}

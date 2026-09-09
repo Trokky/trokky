@@ -1,0 +1,40 @@
+{
+  "id": "post-first-light",
+  "collection": "posts",
+  "data": {
+    "title": "First Light on the Verge Ridge Refractor",
+    "slug": "first-light-on-the-verge-ridge-refractor",
+    "excerpt": "The Almanac's oldest instrument came back from three months of repair. We pointed it at a double star and held our breath.",
+    "body": "<h2>Back from the workshop</h2><p>The Verge Ridge refractor left us in October with a lens cell that rattled and returned in January with one that does not. First light was a cold, still Tuesday — the kind of night that arrives twice a season and never when you have booked leave.</p><p>We opened on <strong>Almaran</strong>, the wide pair on the ridge's own meridian, because it is the test we have used since the instrument was installed. Both components sat clean and round at 180x, with the faint companion showing for the first time in years.</p><h3>What we measured</h3><ul><li>Separation held steady through two hours of seeing.</li><li>No colour fringing worth writing down.</li><li>Focus drift of roughly a millimetre across a nine-degree temperature drop.</li></ul><blockquote><p>An instrument you trust is worth two you have to argue with.</p></blockquote><p>The full collimation notes go in the next issue's <em>Field Notes</em>, along with the drawings.</p>",
+    "coverImage": null,
+    "author": {
+      "_ref": "author-sable-rooke",
+      "_type": "authors"
+    },
+    "categories": [
+      {
+        "_ref": "category-field-notes",
+        "_type": "categories"
+      },
+      {
+        "_ref": "category-deep-sky",
+        "_type": "categories"
+      }
+    ],
+    "seo": {
+      "metaTitle": "First light on the Verge Ridge refractor",
+      "metaDescription": "A repaired lens cell, a cold Tuesday, and a double star that finally split cleanly.",
+      "canonicalUrl": null,
+      "noIndex": false
+    },
+    "featured": true,
+    "publishedAt": "2026-02-14T19:30:00.000Z",
+    "readingMinutes": 6
+  },
+  "metadata": {
+    "createdAt": "2026-02-14T19:30:00.000Z",
+    "updatedAt": "2026-02-14T19:30:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}

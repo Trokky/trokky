@@ -1,0 +1,28 @@
+{
+  "id": "author-sable-rooke",
+  "collection": "authors",
+  "data": {
+    "name": "Sable Rooke",
+    "slug": "sable-rooke",
+    "bio": "Sable keeps the Almanac's observing desk. She has spent eleven winters on the Verge Ridge with a battered six-inch refractor and a notebook that is mostly weather complaints.",
+    "avatar": null,
+    "links": [
+      {
+        "label": "Field notebook",
+        "url": "https://example.com/meridian-almanac/sable-rooke",
+        "primary": true
+      },
+      {
+        "label": "Observing log",
+        "url": "https://example.com/meridian-almanac/sable-rooke/log",
+        "primary": false
+      }
+    ]
+  },
+  "metadata": {
+    "createdAt": "2026-01-06T09:00:00.000Z",
+    "updatedAt": "2026-01-06T09:00:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}

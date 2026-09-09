@@ -1,0 +1,15 @@
+{
+  "id": "category-deep-sky",
+  "collection": "categories",
+  "data": {
+    "title": "Deep Sky",
+    "slug": "deep-sky",
+    "description": "Clusters, nebulae and galaxies, and the patience required to see any of them properly."
+  },
+  "metadata": {
+    "createdAt": "2026-01-05T08:00:00.000Z",
+    "updatedAt": "2026-01-05T08:00:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}
