@@ -3,7 +3,26 @@
  * Generates realistic test documents based on Trokky schemas
  */
 
-import { faker } from '@faker-js/faker'
+// faker is loaded on demand rather than imported at module load. It is a ~29 MB test-data
+// library, and making it a runtime dependency meant every site that installs this SDK merely
+// to read content downloaded it too. It is now a devDependency: projects that use
+// DocumentGenerator install it themselves, and everyone else pays nothing.
+type FakerApi = (typeof import('@faker-js/faker'))['faker']
+
+let faker: FakerApi
+
+async function ensureFaker(): Promise<void> {
+  if (faker) return
+  try {
+    ;({ faker } = await import('@faker-js/faker'))
+  } catch {
+    throw new Error(
+      'DocumentGenerator requires @faker-js/faker, which is not installed. It is an optional ' +
+        'peer of @trokky/client so that reading content does not pull in a test-data library. ' +
+        'Install it with: npm install -D @faker-js/faker'
+    )
+  }
+}
 import type { 
   DocumentGeneratorOptions, 
   DocumentSchema, 
@@ -30,8 +49,7 @@ export class DocumentGenerator {
       existingDocuments: options.existingDocuments || {}
     }
 
-    // Set faker seed for consistent results
-    faker.seed(this.options.seed)
+    // The seed is applied in generateDocuments, once faker has been loaded.
   }
 
   /**
@@ -53,6 +71,11 @@ export class DocumentGenerator {
    * Generate documents for all schemas
    */
   private async generateDocuments(schemas: DocumentSchema[]): Promise<Record<string, BaseDocument[]>> {
+    await ensureFaker()
+    // Seeded here rather than in the constructor so that the same input still produces the
+    // same output, now that faker is not available until this point.
+    faker.seed(this.options.seed)
+
     this.schemas = schemas
     this.generatedDocuments = {}
 
