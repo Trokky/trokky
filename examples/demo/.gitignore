@@ -1,0 +1,12 @@
+# Generated users, tokens, webhooks, settings and audit logs. Machine-local.
+data/system/
+
+# Uploaded media. Not part of the seeded content.
+media/
+
+node_modules/
+
+# Never commit secrets, not even the demo's.
+.env
+.env.*
+!.env.example

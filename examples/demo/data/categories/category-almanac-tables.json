@@ -1,0 +1,15 @@
+{
+  "id": "category-almanac-tables",
+  "collection": "categories",
+  "data": {
+    "title": "Almanac Tables",
+    "slug": "almanac-tables",
+    "description": "The quarterly's own tables — risings, settings, phases and the occasional apology for a rounding error."
+  },
+  "metadata": {
+    "createdAt": "2026-01-05T08:10:00.000Z",
+    "updatedAt": "2026-01-05T08:10:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}

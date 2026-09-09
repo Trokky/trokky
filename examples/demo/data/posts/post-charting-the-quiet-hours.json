@@ -1,0 +1,36 @@
+{
+  "id": "post-charting-the-quiet-hours",
+  "collection": "posts",
+  "data": {
+    "title": "Charting the Quiet Hours",
+    "slug": "charting-the-quiet-hours",
+    "excerpt": "How the Almanac's rising and setting tables are built, and why the third decimal place is a lie we agree to tell.",
+    "body": "<h2>Where the tables come from</h2><p>Every quarter we publish four pages of risings, settings and phases. Readers ask, reasonably, where the numbers come from. The honest answer is: from an ephemeris, an assumed horizon, and a set of decisions that are more editorial than astronomical.</p><ol><li>We compute for the Almanac's reference site, not for your garden.</li><li>We assume a flat horizon, which yours is not.</li><li>We round to the minute, because the refraction term does not deserve better.</li></ol><p>The last point causes the most letters. Atmospheric refraction near the horizon varies with temperature and pressure enough to move a rising by a minute or more; a table quoting seconds would be <em>precise</em> and <em>wrong</em>, which is the worst pairing in reference publishing.</p><h3>Using the tables away from the reference site</h3><p>Apply the longitude correction printed at the head of each page, then ignore everything smaller than five minutes. If your observing plan depends on less than that, you want software, not a quarterly.</p>",
+    "coverImage": null,
+    "author": {
+      "_ref": "author-idris-fenn",
+      "_type": "authors"
+    },
+    "categories": [
+      {
+        "_ref": "category-almanac-tables",
+        "_type": "categories"
+      }
+    ],
+    "seo": {
+      "metaTitle": null,
+      "metaDescription": null,
+      "canonicalUrl": "https://example.com/meridian-almanac/archive/charting-the-quiet-hours",
+      "noIndex": false
+    },
+    "featured": false,
+    "publishedAt": "2026-03-02T08:00:00.000Z",
+    "readingMinutes": 9
+  },
+  "metadata": {
+    "createdAt": "2026-03-02T08:00:00.000Z",
+    "updatedAt": "2026-03-02T08:00:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}
