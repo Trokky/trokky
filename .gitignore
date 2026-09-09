@@ -90,3 +90,7 @@ package-lock.json
 *.tmp
 *.temp
 .scratch/
+
+# Local agent tooling. Kept on the machine, never in the repository.
+CLAUDE.md
+.claude/
