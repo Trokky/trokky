@@ -1,0 +1,40 @@
+{
+  "id": "post-the-long-winter-occultation",
+  "collection": "posts",
+  "data": {
+    "title": "The Long Winter Occultation",
+    "slug": "the-long-winter-occultation",
+    "excerpt": "A grazing occultation crossed the ridge at four in the morning. Six of us stood in the cold; two of us saw it.",
+    "body": "<h2>The plan</h2><p>The graze line ran within a kilometre of the ridge track, which is as close as the Almanac has been to one in six years. We set six stations along the road at two hundred metre intervals, each with a recorder and a stopwatch, on the theory that redundancy beats optimism.</p><p>At 04:12 the star dimmed at the northernmost station and stayed dim for eleven seconds. At the second station it winked twice — the classic signature of a lunar limb profile with a valley in it. The remaining four stations saw nothing at all, which is exactly what a graze line means and is still disappointing at four in the morning.</p><h3>Results worth keeping</h3><p>Two clean timings, one profile hint, and a strong argument for buying better recorders before the next event. The reduced timings appear in the <em>Deep Sky</em> pages of this issue.</p><p>Our thanks to the four observers who saw nothing and stayed until dawn anyway.</p>",
+    "coverImage": null,
+    "author": {
+      "_ref": "author-sable-rooke",
+      "_type": "authors"
+    },
+    "categories": [
+      {
+        "_ref": "category-deep-sky",
+        "_type": "categories"
+      },
+      {
+        "_ref": "category-field-notes",
+        "_type": "categories"
+      }
+    ],
+    "seo": {
+      "metaTitle": "The long winter occultation",
+      "metaDescription": "Six stations on the ridge road, two clean timings, and a lunar limb with a valley in it.",
+      "canonicalUrl": null,
+      "noIndex": true
+    },
+    "featured": true,
+    "publishedAt": "2026-04-18T21:15:00.000Z",
+    "readingMinutes": 4
+  },
+  "metadata": {
+    "createdAt": "2026-04-18T21:15:00.000Z",
+    "updatedAt": "2026-04-18T21:15:00.000Z",
+    "revision": 1,
+    "status": "published"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "site-settings",
+  "collection": "siteSettings",
+  "data": {
+    "siteTitle": "The Meridian Almanac",
+    "tagline": "A quarterly for people who stand outside in the cold on purpose.",
+    "about": "<p>The Meridian Almanac has been published four times a year since its first issue, by a small editorial desk and a larger number of contributors who send in observations, tables and complaints about the weather.</p><p>Each issue carries observing guides, field reports from the ridge sites, and the Almanac's own rising and setting tables. Corrections are printed in the following issue and, when they are embarrassing enough, on the cover.</p>",
+    "logo": null,
+    "contact": {
+      "email": "editors@meridian-almanac.example",
+      "postalAddress": "The Meridian Almanac\nPost Box 41\nVerge Ridge",
+      "acceptsSubmissions": true
+    },
+    "socialLinks": [
+      {
+        "platform": "Observers' forum",
+        "url": "https://example.com/meridian-almanac/forum",
+        "handle": "@meridianalmanac"
+      },
+      {
+        "platform": "Newsletter",
+        "url": "https://example.com/meridian-almanac/newsletter",
+        "handle": "The Quiet Hours"
+      }
+    ],
+    "issueNumber": 47,
+    "showIssueBanner": true,
+    "lastUpdated": "2026-04-20T10:00:00.000Z"
+  },
+  "metadata": {
+    "createdAt": "2026-01-04T12:00:00.000Z",
+    "updatedAt": "2026-04-20T10:00:00.000Z",
+    "revision": 3,
+    "status": "published"
+  }
+}
