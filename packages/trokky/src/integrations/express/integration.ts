@@ -823,10 +823,16 @@ async function assertResolvedStructureConsistency(
   try {
     assertSingletonConsistency(structure, schemas, message => logger.warn(message))
   } catch (error) {
-    // The core is already initialised at this point. This stops its rate-limiter sweep and
-    // OAuth2 cleanup intervals; the event storage keeps its own interval, so a host that
-    // catches this error rather than exiting still has handles open.
-    core.cleanup?.()
+    // The core is already initialised at this point, so tear it down before rethrowing:
+    // this stops the rate-limiter sweep and OAuth2 cleanup intervals and releases the
+    // storage adapters and event storage, leaving no handles behind for a host that catches
+    // this error rather than exiting. Awaiting would delay the throw for no benefit — the
+    // rethrow below is what the caller is waiting on — so failures are only logged.
+    void core.shutdown?.().catch(shutdownError => {
+      logger.warn('Error shutting down core after singleton consistency failure', {
+        error: shutdownError instanceof Error ? shutdownError.message : String(shutdownError),
+      })
+    })
     throw error
   }
 

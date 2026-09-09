@@ -206,6 +206,16 @@ export class MemoryEventStorage implements EventStorage {
     this.clear()
   }
 
+  /**
+   * EventStorage teardown. The interval started by `startCleanupTimer` keeps the event loop
+   * alive on its own, so a host that stops its server without this still hangs; `destroy()`
+   * already clears it, this just puts it on the interface the shutdown path can call.
+   * Idempotent: `destroy()` drops the handle, so a second call finds nothing to clear.
+   */
+  async close(): Promise<void> {
+    this.destroy()
+  }
+
   private startCleanupTimer(): void {
     this.cleanupTimer = setInterval(() => {
       const cutoffDate = new Date(Date.now() - this.config.maxAge)

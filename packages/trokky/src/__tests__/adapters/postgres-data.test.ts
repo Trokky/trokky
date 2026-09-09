@@ -20,14 +20,14 @@ const poolQuery = vi.fn(async (text: string, params?: unknown[]): Promise<QueryR
   return nextResults.shift() ?? { rows: [], rowCount: 0 }
 })
 
+const poolEnd = vi.fn(async (): Promise<void> => undefined)
+
 vi.mock('pg', () => {
   class MockPool {
     query = poolQuery
+    end = poolEnd
     async connect(): Promise<unknown> {
       return { query: poolQuery, release: (): void => undefined }
-    }
-    async end(): Promise<void> {
-      return undefined
     }
     on(): void {
       return undefined
@@ -183,6 +183,45 @@ describe('PostgresDataAdapter', () => {
       expect(queryCalls[1].params[14] ?? null).toBeNull()
       // The stored value survives the update
       expect(saved.lastLoginAt).toBe(storedLoginAt)
+    })
+  })
+
+  describe('close', () => {
+    beforeEach(() => {
+      poolEnd.mockClear()
+    })
+
+    it('should end the connection pool', async () => {
+      const adapter = await createAdapter()
+
+      await adapter.close()
+
+      expect(poolEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('should end the pool exactly once when closed twice', async () => {
+      const adapter = await createAdapter()
+
+      await adapter.close()
+      await adapter.close()
+
+      // pg throws on a second end(); shutdown paths do get entered twice
+      expect(poolEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('should end the pool once for concurrent close calls', async () => {
+      const adapter = await createAdapter()
+
+      await Promise.all([adapter.close(), adapter.close()])
+
+      expect(poolEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('should surface a pool that fails to close', async () => {
+      const adapter = await createAdapter()
+      poolEnd.mockRejectedValueOnce(new Error('pool already ended'))
+
+      await expect(adapter.close()).rejects.toThrow('pool already ended')
     })
   })
 })

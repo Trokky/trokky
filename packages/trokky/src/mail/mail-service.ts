@@ -526,6 +526,19 @@ export class MailService {
     return this.initialized
   }
 
+  /**
+   * Release the adapter's transport. The SMTP adapter pools TCP connections that keep the
+   * process alive once its server has stopped; the adapter is private here, so the shutdown
+   * path needs this to reach it. Adapters with nothing to release (console, Resend) simply
+   * do not define `close`, and this becomes a no-op.
+   *
+   * Sending after this will fail at the transport, so only call it while shutting down.
+   */
+  async close(): Promise<void> {
+    await this.adapter.close?.()
+    this.initialized = false
+  }
+
   // ==========================================================================
   // PRIVATE METHODS
   // ==========================================================================
