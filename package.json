@@ -2,6 +2,7 @@
   "name": "trokky-v2",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Modern, composable CMS for developers",
   "workspaces": [
     "packages/trokky",

@@ -186,4 +186,4 @@ See **[API.md](./API.md)** for the complete API reference.
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
