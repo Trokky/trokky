@@ -85,6 +85,132 @@ const COLORS = {
 } as const
 
 /**
+ * Replacement used for redacted values
+ */
+const REDACTED = '[REDACTED]'
+
+/**
+ * Key names whose values are never written to logs.
+ *
+ * Matching is a case-insensitive EXACT match against this list, never a
+ * substring match. This is deliberate: substring matching would also redact
+ * innocuous fields such as `tokenCount`, `passwordPolicy` or
+ * `secretsManagerRegion`, which destroys debuggability and makes redaction
+ * unpredictable. New sensitive field names must be added to this list to be
+ * redacted.
+ *
+ * A few entries are less obvious: an app token's `tokenHash` is the lookup key
+ * accepted by `getAppTokenByHash`, so it is credential-equivalent rather than a
+ * mere digest, and `userCode`/`deviceCode` are the one-time approval values of
+ * the OAuth2 device flow.
+ */
+export const SENSITIVE_KEYS: readonly string[] = [
+  'secret',
+  'secrets',
+  'token',
+  'tokenHash',
+  'token_hash',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'resetToken',
+  'reset_token',
+  'idToken',
+  'id_token',
+  'apiKey',
+  'api_key',
+  'apikey',
+  'password',
+  'passwordHash',
+  'password_hash',
+  'newPassword',
+  'new_password',
+  'currentPassword',
+  'current_password',
+  'temporaryPassword',
+  'temporary_password',
+  'authorization',
+  'auth',
+  'cookie',
+  'setCookie',
+  'set_cookie',
+  'connectionString',
+  'connection_string',
+  'databaseUrl',
+  'database_url',
+  'privateKey',
+  'private_key',
+  'privateKeyPem',
+  'salt',
+  'credentials',
+  'credential',
+  'clientSecret',
+  'client_secret',
+  'clientAssertion',
+  'client_assertion',
+  'userCode',
+  'user_code',
+  'deviceCode',
+  'device_code',
+  'sessionToken',
+  'session_token',
+  'mfaSecret',
+  'mfa_secret',
+  'totpSecret',
+  'totp_secret',
+  'webhookSecret',
+  'webhook_secret',
+  'jwtSecret',
+  'jwt_secret',
+  'signature',
+  'bearer',
+  'passphrase'
+]
+
+const SENSITIVE_KEY_SET = new Set(SENSITIVE_KEYS.map(key => key.toLowerCase()))
+
+/**
+ * `ancestors` tracks only the objects currently being recursed into, so a true
+ * cycle is detected while the same object referenced twice in different
+ * branches (an acyclic DAG) is still rendered in full.
+ */
+function redactValue(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value === null || typeof value !== 'object') return value
+  if (value instanceof Date || value instanceof Error) return value
+
+  if (ancestors.has(value)) return '[Circular]'
+  ancestors.add(value)
+
+  try {
+    if (Array.isArray(value)) {
+      return value.map(item => redactValue(item, ancestors))
+    }
+
+    const result: Record<string, unknown> = {}
+    for (const [key, nested] of Object.entries(value)) {
+      result[key] = SENSITIVE_KEY_SET.has(key.toLowerCase())
+        ? REDACTED
+        : redactValue(nested, ancestors)
+    }
+    return result
+  } finally {
+    ancestors.delete(value)
+  }
+}
+
+/**
+ * Recursively replace values held under sensitive keys with '[REDACTED]'.
+ *
+ * Returns a new structure, leaving the input unmutated. Non-object values pass
+ * through unchanged, and references back to an enclosing object become
+ * '[Circular]'.
+ */
+export function redactSensitive(value: unknown): unknown {
+  return redactValue(value, new WeakSet<object>())
+}
+
+/**
  * Platform-agnostic logger
  */
 export class TrokkyLogger {
@@ -109,7 +235,7 @@ export class TrokkyLogger {
     }
 
     if (data !== undefined) {
-      entry.data = data
+      entry.data = redactSensitive(data)
     }
 
     if (error) {

@@ -100,10 +100,7 @@ export async function startDeviceAuthorization(
       }
     }
 
-    logger.info('Started device authorization', {
-      clientId,
-      userCode: result.response.user_code
-    })
+    logger.info('Started device authorization', { clientId })
 
     return {
       status: 200,

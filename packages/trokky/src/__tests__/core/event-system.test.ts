@@ -230,6 +230,41 @@ describe('Event System', () => {
       const stats = await eventBus.getEventStats()
       expect(stats).toBeDefined()
     })
+
+    it('should not log the webhook secret when updating a webhook', async () => {
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await eventBus.registerWebhook({
+        id: 'wh-1',
+        name: 'Test webhook',
+        url: 'https://example.com/hook',
+        events: ['document.created'],
+        secret: 'placeholder-secret-value',
+        active: true,
+        createdBy: 'user-1',
+      })
+
+      const updated = await eventBus.updateWebhook('wh-1', {
+        secret: 'another-placeholder-secret-value',
+        active: false,
+      })
+      expect(updated).toBe(true)
+
+      const logged = [...infoSpy.mock.calls, ...logSpy.mock.calls]
+        .map((call) => String(call[0]))
+        .join('\n')
+
+      expect(logged).toContain('Webhook updated')
+      expect(logged).not.toContain('another-placeholder-secret-value')
+      expect(logged).not.toContain('placeholder-secret-value')
+      // Only the changed field names are logged, never the values
+      expect(logged).toContain('updatedFields')
+      expect(logged).not.toContain('"updates"')
+
+      infoSpy.mockRestore()
+      logSpy.mockRestore()
+    })
   })
 
   describe('MemoryEventStorage teardown', () => {

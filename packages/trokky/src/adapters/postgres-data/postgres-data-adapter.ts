@@ -212,14 +212,14 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     await this.ensureInitialized()
 
     if (this.config.enableQueryLogging) {
-      this.logger.debug('Executing query', { text, params })
+      this.logger.debug('Executing query', { text, paramCount: params?.length ?? 0 })
     }
 
     try {
       const result = await this.pool.query(text, params)
       return result
     } catch (error) {
-      this.logger.error('Query failed', { text, params, error })
+      this.logger.error('Query failed', { text, paramCount: params?.length ?? 0, error })
       throw error
     }
   }
@@ -227,14 +227,14 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   private async directQuery(text: string, params?: any[]): Promise<any> {
     // Direct query without ensureInitialized() - used during initialization
     if (this.config.enableQueryLogging) {
-      this.logger.debug('Executing direct query', { text, params })
+      this.logger.debug('Executing direct query', { text, paramCount: params?.length ?? 0 })
     }
 
     try {
       const result = await this.pool.query(text, params)
       return result
     } catch (error) {
-      this.logger.error('Direct query failed', { text, params, error })
+      this.logger.error('Direct query failed', { text, paramCount: params?.length ?? 0, error })
       throw error
     }
   }
@@ -483,7 +483,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
     params.push(limit, offset)
 
-    this.logger.debug('Listing documents', { collection, query, params })
+    this.logger.debug('Listing documents', { collection, query, paramCount: params.length })
 
     const result = await this.query(query, params)
 
@@ -1098,7 +1098,7 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         return this.mapRowToAppToken(row)
       }
     } catch (error) {
-      this.logger.error('Failed to save app token', { id, tokenData, error })
+      this.logger.error('Failed to save app token', { id, fields: Object.keys(tokenData), error })
       throw error
     }
   }
@@ -1539,7 +1539,10 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         ]
       )
 
-      this.logger.info('Settings saved successfully', { id: settings.id, config })
+      this.logger.info('Settings saved successfully', {
+        id: settings.id || 'studio-settings',
+        configFields: Object.keys(config)
+      })
     } catch (error) {
       this.logger.error('Failed to save settings', { error })
       throw error
