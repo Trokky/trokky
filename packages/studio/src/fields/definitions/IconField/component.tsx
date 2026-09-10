@@ -8,6 +8,7 @@ import { useT } from '@trokky/trokky/i18n';
 import { Dialog } from '@/components/ui/Dialog.js';
 import type { FieldComponentProps } from '../../base/FieldPlugin.js';
 import type { IconFieldDefinition, IconValue, IconMeta, IconLibraryAdapter, CustomIconDefinition } from './definition.js';
+import { normalizeIconValue } from './definition.js';
 import { fontawesomeAdapter } from './adapters/fontawesome.js';
 import { heroiconsAdapter } from './adapters/heroicons.js';
 import { customSvgAdapter, setCustomIcons } from './adapters/custom-svg.js';
@@ -539,43 +540,8 @@ export function IconFieldComponent(props: FieldComponentProps) {
   const defaultLibraryName = availableLibraries[0] || 'fontawesome';
   const defaultAdapter = iconLibraries[defaultLibraryName];
 
-  // Parse value - handle legacy string values like "fas fa-user" or "fab fa-github"
-  const iconValue: IconValue | null = useMemo(() => {
-    if (!value) return null;
-
-    // Already an object
-    if (typeof value === 'object') return value as IconValue;
-
-    // Try to parse as JSON first
-    if (typeof value === 'string') {
-      // Check if it's a legacy FontAwesome class string (e.g., "fas fa-user", "fab fa-github")
-      const faMatch = value.match(/^(fas|far|fab|fal|fad)\s+(fa-[\w-]+)$/);
-      if (faMatch) {
-        const styleMap: Record<string, string> = {
-          'fas': 'solid',
-          'far': 'regular',
-          'fab': 'brands',
-          'fal': 'light',
-          'fad': 'duotone'
-        };
-        return {
-          library: 'fontawesome' as const,
-          name: faMatch[2],
-          style: styleMap[faMatch[1]] || 'solid'
-        };
-      }
-
-      // Try JSON parse
-      try {
-        return JSON.parse(value);
-      } catch {
-        // If all else fails, return null
-        return null;
-      }
-    }
-
-    return null;
-  }, [value]);
+  // Parse value - legacy documents store icons as FontAwesome class strings
+  const iconValue: IconValue | null = useMemo(() => normalizeIconValue(value), [value]);
 
   // Handle icon selection
   const handleSelect = useCallback((icon: IconMeta & { svg?: string }, library: string) => {

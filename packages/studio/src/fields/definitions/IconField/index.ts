@@ -8,7 +8,7 @@ import type { DocumentContext, ValidationResult } from '../../base/FieldDefiniti
 import { IconFieldComponent } from './component.js';
 import { IconFieldPreview } from './preview.js';
 import type { IconFieldDefinition, IconValue } from './definition.js';
-import { iconFieldSchema } from './definition.js';
+import { iconFieldSchema, normalizeIconValue } from './definition.js';
 
 export * from './definition.js';
 export { IconFieldComponent, registerIconLibrary } from './component.js';
@@ -46,7 +46,10 @@ export const IconFieldPlugin: FieldPlugin<IconFieldDefinition, IconValue | null>
       return { isValid: true, errors: [] };
     }
 
-    const result = iconFieldSchema.safeParse(value);
+    // Legacy documents store icons as FontAwesome class strings; the editor
+    // renders those, so validation must accept them too.
+    const normalized = normalizeIconValue(value);
+    const result = iconFieldSchema.safeParse(normalized);
 
     if (!result.success) {
       return {
@@ -58,11 +61,12 @@ export const IconFieldPlugin: FieldPlugin<IconFieldDefinition, IconValue | null>
     // Check allowed libraries
     if (
       definition.validation?.allowedLibraries &&
-      !definition.validation.allowedLibraries.includes(value.library)
+      normalized !== null &&
+      !definition.validation.allowedLibraries.includes(normalized.library)
     ) {
       return {
         isValid: false,
-        errors: [`Icon library '${value.library}' is not allowed`],
+        errors: [`Icon library '${normalized?.library}' is not allowed`],
       };
     }
 

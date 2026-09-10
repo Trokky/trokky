@@ -115,6 +115,48 @@ export const iconValueSchema = z.object({
 
 export const iconFieldSchema = iconValueSchema.nullable();
 
+/**
+ * Coerce a stored icon value into the object form the field expects.
+ *
+ * Icon values used to be plain FontAwesome class strings ("fas fa-user"), and
+ * documents written before the field became structured still hold them. The
+ * editor has always rendered those, but validation used to reject them
+ * outright, so a single unrelated edit turned every legacy icon in the
+ * document into "Expected object, received string" with no way to fix it from
+ * the UI. Normalising here means such documents stay editable.
+ *
+ * Returns null for anything genuinely unusable, which the nullable schema
+ * accepts unless the field is required.
+ */
+export function normalizeIconValue(value: unknown): IconValue | null {
+  if (!value) return null;
+  if (typeof value === 'object') return value as IconValue;
+  if (typeof value !== 'string') return null;
+
+  const faMatch = value.match(/^(fas|far|fab|fal|fad)\s+(fa-[\w-]+)$/);
+  if (faMatch) {
+    const styleMap: Record<string, string> = {
+      fas: 'solid',
+      far: 'regular',
+      fab: 'brands',
+      fal: 'light',
+      fad: 'duotone',
+    };
+    return {
+      library: 'fontawesome' as const,
+      name: faMatch[2],
+      style: styleMap[faMatch[1]] || 'solid',
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? (parsed as IconValue) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Default configuration
 export const ICON_FIELD_DEFAULTS: Partial<IconFieldDefinition> = {
   type: 'icon',
