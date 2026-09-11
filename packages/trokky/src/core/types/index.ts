@@ -389,6 +389,15 @@ export interface TrokkyConfig {
     }
     /** Passkey/WebAuthn configuration for passwordless authentication */
     passkey?: PasskeyConfig
+    /** Multi-factor authentication settings */
+    mfa?: {
+      /**
+       * Name shown beside a TOTP enrolment in an authenticator app, and used in
+       * the email OTP subject and body. Falls back to the passkey `rpName`,
+       * then the Studio branding title, then 'Trokky'.
+       */
+      issuer?: string
+    }
   }
   // OAuth configuration (auto-enabled when credentials are set)
   oauth?: {

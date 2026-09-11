@@ -28,6 +28,8 @@ export interface MFAServiceDependencies {
   getSettings: () => Promise<SettingsConfig | null>
   verifyPassword: (plainPassword: string, hashedPassword: string) => Promise<boolean>
   logAuditEvent: (event: AuditEvent) => void
+  /** Name shown in authenticator apps, resolved from config and settings. */
+  getMfaIssuer: (settings?: { organizationName?: string; studioTitle?: string }) => string
 }
 
 /**
@@ -50,6 +52,37 @@ export function generateSecureSecret(): string {
 }
 
 /**
+ * Name shown beside a TOTP enrolment in an authenticator app.
+ *
+ * Operators commonly run several instances under one account, so a fixed name
+ * makes the entries indistinguishable. The chain prefers an explicit setting
+ * but falls back to the passkey `rpName`, which most deployments already set to
+ * the site's own name, so an existing install gets a useful label without
+ * editing any config.
+ */
+export function resolveMfaIssuer(
+  config: { security?: { mfa?: { issuer?: string }; passkey?: { rpName?: string } } },
+  settings?: { organizationName?: string; studioTitle?: string }
+): string {
+  // A value of only whitespace is not a name; treat it as unset. Colons are
+  // stripped because the Key Uri Format separates the issuer from the account
+  // name with one, and a colon inside the issuer would give the label two
+  // separators - authenticator apps split on the first and mis-read both parts.
+  const usable = (candidate?: string): string | undefined => {
+    const cleaned = candidate?.replace(/:/g, '').trim()
+    return cleaned ? cleaned : undefined
+  }
+
+  return (
+    usable(config.security?.mfa?.issuer) ||
+    usable(config.security?.passkey?.rpName) ||
+    usable(settings?.organizationName) ||
+    usable(settings?.studioTitle) ||
+    'Trokky'
+  )
+}
+
+/**
  * Multi-factor authentication service: TOTP and email OTP enrolment,
  * verification, backup codes and administrative resets.
  */
@@ -61,8 +94,9 @@ export class MFAService {
    * Creates one with a default issuer (can be overridden via settings)
    */
   public getTOTPService(issuer?: string): TOTPService {
-    // Default issuer - can be configured via settings
-    return new TOTPService({ issuer: issuer || 'Trokky' })
+    // The resolved issuer comes from config via `deps.getMfaIssuer`; the explicit
+    // argument is only for callers that already know a different one.
+    return new TOTPService({ issuer: issuer || this.deps.getMfaIssuer() })
   }
 
   /**
@@ -147,10 +181,11 @@ export class MFAService {
       throw new InvalidInputError('User not found', 'userId')
     }
 
-    // Get issuer from settings or use default
+    // This is the enrolment path, so it decides the label a user ends up seeing.
+    // It previously read the Studio title first, which commonly still holds the
+    // generic default and so produced the same name on every instance.
     const settings = await this.deps.getSettings()
-    const issuer = settings?.studioTitle || settings?.organizationName || 'Trokky'
-    const totpService = this.getTOTPService(issuer)
+    const totpService = this.getTOTPService(this.deps.getMfaIssuer(settings ?? undefined))
     const result = await totpService.generateSecret(user.email || user.username)
 
     // Store the secret temporarily in user preferences (unverified)

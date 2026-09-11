@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth-service.js'
 import { DocumentService } from '../../core/services/document-service.js'
 import { TokenService } from '../../core/services/token-service.js'
 import { UserService } from '../../core/services/user-service.js'
+import { MFAService, resolveMfaIssuer } from '../../core/services/mfa-service.js'
 import type { MFARequirement } from '../../core/services/mfa-service.js'
 import type { TOTPService } from '../../core/security/mfa/index.js'
 import { WebCryptoAdapter } from '../../core/crypto/webcrypto-adapter.js'
@@ -710,5 +711,91 @@ describe('TokenService', () => {
 
   it('should throw when deleting an app token that does not exist', async () => {
     await expect(harness.tokenService.deleteAppToken('missing-token')).rejects.toThrow()
+  })
+})
+
+describe('resolveMfaIssuer', () => {
+  it('should prefer an explicitly configured issuer', () => {
+    const issuer = resolveMfaIssuer({
+      security: { mfa: { issuer: 'Example Council' }, passkey: { rpName: 'Example CMS' } }
+    })
+
+    expect(issuer).toBe('Example Council')
+  })
+
+  it('should fall back to the passkey rpName', () => {
+    // Most deployments already set rpName to the site's own name, so an
+    // existing install gets a useful label without editing any config.
+    const issuer = resolveMfaIssuer({ security: { passkey: { rpName: 'Example CMS' } } })
+
+    expect(issuer).toBe('Example CMS')
+  })
+
+  it('should fall back to a generic name when nothing is configured', () => {
+    expect(resolveMfaIssuer({})).toBe('Trokky')
+    expect(resolveMfaIssuer({ security: {} })).toBe('Trokky')
+  })
+
+  it('should ignore an empty or whitespace-only issuer and continue down the chain', () => {
+    expect(
+      resolveMfaIssuer({ security: { mfa: { issuer: '' }, passkey: { rpName: 'Example CMS' } } })
+    ).toBe('Example CMS')
+
+    expect(
+      resolveMfaIssuer({ security: { mfa: { issuer: '   ' }, passkey: { rpName: 'Example CMS' } } })
+    ).toBe('Example CMS')
+  })
+
+  it('should strip colons, which the authenticator URI format reserves as the label separator', () => {
+    const issuer = resolveMfaIssuer({ security: { mfa: { issuer: 'Example: Council' } } })
+
+    expect(issuer).toBe('Example Council')
+    expect(issuer).not.toContain(':')
+  })
+
+  it('should fall back to settings before the generic name', () => {
+    expect(resolveMfaIssuer({}, { organizationName: 'Example Organisation' })).toBe(
+      'Example Organisation'
+    )
+    expect(resolveMfaIssuer({}, { studioTitle: 'Example Studio' })).toBe('Example Studio')
+  })
+
+  it('should prefer configuration over the Studio title', () => {
+    // The Studio title commonly still holds its generic default, which is what
+    // made every instance enrol under the same name.
+    const issuer = resolveMfaIssuer(
+      { security: { passkey: { rpName: 'Example CMS' } } },
+      { studioTitle: 'Trokky Studio' }
+    )
+
+    expect(issuer).toBe('Example CMS')
+  })
+})
+
+describe('MFAService TOTP enrolment', () => {
+  it('should label the enrolment with the resolved issuer, not the Studio title', async () => {
+    // The enrolment path used to read the Studio title directly, so the
+    // configured name never reached the authenticator app.
+    let storedUser: Record<string, unknown> = {}
+    const service = new MFAService({
+      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as never,
+      eventBus: undefined as never,
+      eventsEnabled: false,
+      getUser: async () => ({ id: 'u1', username: 'admin', email: 'admin@example.com' }) as never,
+      updateUser: async (_id: string, data: Record<string, unknown>) => {
+        storedUser = data
+        return data as never
+      },
+      getSettings: async () => ({ studioTitle: 'Trokky Studio' }) as never,
+      verifyPassword: async () => true,
+      logAuditEvent: () => {},
+      getMfaIssuer: () => 'Example Council'
+    })
+
+    const result = await service.initializeTOTPSetup('u1')
+
+    expect(result.uri).toContain('issuer=Example+Council')
+    expect(result.uri).not.toContain('Trokky+Studio')
+    expect(storedUser).toBeDefined()
   })
 })
