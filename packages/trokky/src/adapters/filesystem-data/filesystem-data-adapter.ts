@@ -1012,6 +1012,20 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   // AUTH FLOW STATE OPERATIONS
   // ==========================================================================
 
+  public async saveAuthFlowState(state: AuthFlowState): Promise<void> {
+    SecurityValidator.validateDocumentId(state.id)
+
+    // These hold PKCE verifiers and WebAuthn challenges, so they get private
+    // permissions rather than the adapter's defaults, which leave files
+    // readable by every local user.
+    await fsExtra.ensureDir(this.config.authFlowStateDir, { mode: 0o700 })
+    await fs.writeFile(
+      this.getAuthFlowStatePath(state.id),
+      JSON.stringify(state, null, this.config.prettyJson ? this.config.jsonSpaces : 0),
+      { mode: 0o600 }
+    )
+  }
+
   public async consumeAuthFlowState(
     id: string,
     kind: AuthFlowState['kind']
