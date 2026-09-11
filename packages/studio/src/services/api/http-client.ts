@@ -370,11 +370,16 @@ export class HttpClient {
   /**
    * POST request helper
    */
-  async post<T>(endpoint: string, data?: any, options?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+  async post<T>(
+    endpoint: string,
+    data?: any,
+    options?: { headers?: Record<string, string>; signal?: AbortSignal }
+  ): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
       headers: options?.headers,
+      signal: options?.signal,
     })
   }
 

@@ -3,7 +3,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
 import { authStore } from '@/services/auth-store';
 import { getBasePath } from '@/utils/navigation';
-import { useT } from '@trokky/trokky/i18n';
+import { useT, getI18n, SUPPORTED_LOCALES } from '@trokky/trokky/i18n';
 
 interface OAuthCallbackPageProps {
   onLoginSuccess: () => void;
@@ -12,12 +12,63 @@ interface OAuthCallbackPageProps {
 type CallbackStatus = 'processing' | 'success' | 'error';
 
 /**
+ * How long the token exchange may run before the page stops waiting and shows
+ * the error state. Exported so tests can shrink it.
+ */
+export const OAUTH_CALLBACK_TIMEOUT_MS = 30_000;
+
+// This page needs copy that is not in the shared locale files (those live in
+// @trokky/trokky). Register it into the existing `studio` namespace once,
+// non-destructively, so a future upstream definition wins. This must run at
+// render time, not at import: getI18n() initializes the shared i18next
+// singleton, which is init-once - the provider applies the deployment config
+// on mount, and importing the page must not front-run it.
+let oauthBundlesRegistered = false;
+
+type OAuthStudioBundle = { auth: { oauth: { notCompleted: string } } };
+
+function ensureOAuthStudioBundles(): void {
+  if (oauthBundlesRegistered) {
+    return;
+  }
+  oauthBundlesRegistered = true;
+  const bundles: Record<string, OAuthStudioBundle> = {
+    en: {
+      auth: {
+        oauth: {
+          notCompleted: 'Sign-in could not be completed. Please try again.',
+        },
+      },
+    },
+    fr: {
+      auth: {
+        oauth: {
+          notCompleted: "La connexion n'a pas pu aboutir. Veuillez réessayer.",
+        },
+      },
+    },
+  };
+  const i18n = getI18n();
+  for (const lng of SUPPORTED_LOCALES) {
+    const bundle = bundles[lng];
+    if (bundle) {
+      i18n.addResourceBundle(lng, 'studio', bundle, true, false);
+    }
+  }
+}
+
+/**
  * OAuth Callback Page
  *
  * Handles the OAuth redirect callback from providers (Google).
  * Processes the authorization code and completes login or account linking.
  */
 export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
+  // Runs at render time (the page mounts under TrokkyI18nProvider, which has
+  // already applied the deployment config), not at import. Needs to happen
+  // before the first t() call below; StrictMode's second render is a no-op.
+  ensureOAuthStudioBundles();
+
   const { t } = useT('studio');
   const [status, setStatus] = useState<CallbackStatus>('processing');
   const [error, setError] = useState<string | null>(null);
@@ -30,28 +81,47 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
       return;
     }
 
-    // Check if OAuth state exists - if not, we've already processed this callback
-    const storedState = sessionStorage.getItem('oauth_state');
-    if (!storedState) {
-      // If token exists, the OAuth was successful - show success and trigger auth check
-      const token = authStore.getToken();
-      if (token) {
+    try {
+      // Check if OAuth state exists - if not, we've already processed this callback
+      const storedState = sessionStorage.getItem('oauth_state');
+      if (!storedState) {
+        // If token exists, the OAuth was successful - show success and trigger auth check
+        const token = authStore.getToken();
+        if (token) {
+          hasProcessedRef.current = true;
+          setStatus('success');
+          setSuccessMessage(t('auth.oauth.loginSuccess'));
+          // Trigger auth check to update state
+          setTimeout(() => {
+            onLoginSuccess();
+          }, 100);
+          return;
+        }
+        // No stored state and no session: the sign-in flow never started here
+        // (e.g. the callback landed on a different hostname, and sessionStorage
+        // is per-origin). This is terminal - do not spin forever.
         hasProcessedRef.current = true;
-        setStatus('success');
-        setSuccessMessage(t('auth.oauth.loginSuccess'));
-        // Trigger auth check to update state
-        setTimeout(() => {
-          onLoginSuccess();
-        }, 100);
+        setStatus('error');
+        setError(t('auth.oauth.notCompleted'));
+        return;
       }
-      return;
-    }
 
-    hasProcessedRef.current = true;
-    handleOAuthCallback();
+      hasProcessedRef.current = true;
+      void handleOAuthCallback();
+    } catch {
+      // Storage access can throw synchronously (disabled or blocked storage).
+      // Still land in the error state rather than crashing past the page.
+      hasProcessedRef.current = true;
+      setStatus('error');
+      setError(t('auth.oauth.notCompleted'));
+    }
   }, []);
 
   const handleOAuthCallback = async () => {
+    // Give the token exchange a hard deadline: a request that never settles
+    // would otherwise leave the page in 'processing' forever.
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), OAUTH_CALLBACK_TIMEOUT_MS);
     try {
       // Extract code and state from URL
       const urlParams = new URLSearchParams(window.location.search);
@@ -106,13 +176,17 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
           email: string;
           linkedAt: string;
         };
-      }>('/auth/oauth/google/callback', {
-        code,
-        state,
-        codeVerifier,
-        mode,
-        deviceId,
-      });
+      }>(
+        '/auth/oauth/google/callback',
+        {
+          code,
+          state,
+          codeVerifier,
+          mode,
+          deviceId,
+        },
+        { signal: timeoutController.signal }
+      );
 
       // Clean up sessionStorage
       sessionStorage.removeItem('oauth_state');
@@ -185,13 +259,25 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
       }
     } catch (err) {
       console.error('OAuth callback error:', err);
+      // A timeout surfaces as a generic network abort ("Network error: The
+      // user aborted a request.") by the time it reaches here, so check the
+      // controller to tell it apart from other failures.
+      const timedOut = timeoutController.signal.aborted;
       setStatus('error');
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError(
+        timedOut
+          ? t('auth.oauth.notCompleted')
+          : err instanceof Error
+            ? err.message
+            : 'An unexpected error occurred'
+      );
 
       // Clean up sessionStorage on error too
       sessionStorage.removeItem('oauth_state');
       sessionStorage.removeItem('oauth_code_verifier');
       sessionStorage.removeItem('oauth_mode');
+    } finally {
+      clearTimeout(timeoutId);
     }
   };
 
