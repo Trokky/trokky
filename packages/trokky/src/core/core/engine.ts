@@ -77,7 +77,7 @@ import {
 } from '../security/oauth2/index.js'
 import type { OAuth2Scope, TokenResponse } from '../types/oauth2.js'
 import { AuthService } from '../services/auth-service.js'
-import { MFAService, generateSecureSecret } from '../services/mfa-service.js'
+import { MFAService, generateSecureSecret, resolveMfaIssuer } from '../services/mfa-service.js'
 import { TrustedDeviceService } from '../services/trusted-device-service.js'
 import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
@@ -336,7 +336,8 @@ export class TrokkyCore {
       updateUser: (id, userData) => this.updateUser(id, userData),
       getSettings: () => this.getSettings(),
       verifyPassword: (plainPassword, hashedPassword) => this.authService.verifyPassword(plainPassword, hashedPassword),
-      logAuditEvent: (event) => this.logAuditEvent(event)
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      getMfaIssuer: () => resolveMfaIssuer(this.config)
     })
 
     this.trustedDeviceService = new TrustedDeviceService({

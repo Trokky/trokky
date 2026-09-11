@@ -28,6 +28,8 @@ export interface MFAServiceDependencies {
   getSettings: () => Promise<SettingsConfig | null>
   verifyPassword: (plainPassword: string, hashedPassword: string) => Promise<boolean>
   logAuditEvent: (event: AuditEvent) => void
+  /** Name shown in authenticator apps and MFA emails, resolved from config. */
+  getMfaIssuer: () => string
 }
 
 /**
@@ -50,6 +52,21 @@ export function generateSecureSecret(): string {
 }
 
 /**
+ * Name shown beside a TOTP enrolment in an authenticator app.
+ *
+ * Operators commonly run several instances under one account, so a fixed name
+ * makes the entries indistinguishable. The chain prefers an explicit setting
+ * but falls back to the passkey `rpName`, which most deployments already set to
+ * the site's own name, so an existing install gets a useful label without
+ * editing any config.
+ */
+export function resolveMfaIssuer(config: {
+  security?: { mfa?: { issuer?: string }; passkey?: { rpName?: string } }
+}): string {
+  return config.security?.mfa?.issuer || config.security?.passkey?.rpName || 'Trokky'
+}
+
+/**
  * Multi-factor authentication service: TOTP and email OTP enrolment,
  * verification, backup codes and administrative resets.
  */
@@ -61,8 +78,9 @@ export class MFAService {
    * Creates one with a default issuer (can be overridden via settings)
    */
   public getTOTPService(issuer?: string): TOTPService {
-    // Default issuer - can be configured via settings
-    return new TOTPService({ issuer: issuer || 'Trokky' })
+    // The resolved issuer comes from config via `deps.getMfaIssuer`; the explicit
+    // argument is only for callers that already know a different one.
+    return new TOTPService({ issuer: issuer || this.deps.getMfaIssuer() })
   }
 
   /**

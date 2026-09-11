@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth-service.js'
 import { DocumentService } from '../../core/services/document-service.js'
 import { TokenService } from '../../core/services/token-service.js'
 import { UserService } from '../../core/services/user-service.js'
+import { resolveMfaIssuer } from '../../core/services/mfa-service.js'
 import type { MFARequirement } from '../../core/services/mfa-service.js'
 import type { TOTPService } from '../../core/security/mfa/index.js'
 import { WebCryptoAdapter } from '../../core/crypto/webcrypto-adapter.js'
@@ -710,5 +711,36 @@ describe('TokenService', () => {
 
   it('should throw when deleting an app token that does not exist', async () => {
     await expect(harness.tokenService.deleteAppToken('missing-token')).rejects.toThrow()
+  })
+})
+
+describe('resolveMfaIssuer', () => {
+  it('should prefer an explicitly configured issuer', () => {
+    const issuer = resolveMfaIssuer({
+      security: { mfa: { issuer: 'Example Council' }, passkey: { rpName: 'Example CMS' } }
+    })
+
+    expect(issuer).toBe('Example Council')
+  })
+
+  it('should fall back to the passkey rpName', () => {
+    // Most deployments already set rpName to the site's own name, so an
+    // existing install gets a useful label without editing any config.
+    const issuer = resolveMfaIssuer({ security: { passkey: { rpName: 'Example CMS' } } })
+
+    expect(issuer).toBe('Example CMS')
+  })
+
+  it('should fall back to a generic name when nothing is configured', () => {
+    expect(resolveMfaIssuer({})).toBe('Trokky')
+    expect(resolveMfaIssuer({ security: {} })).toBe('Trokky')
+  })
+
+  it('should ignore an empty issuer and continue down the chain', () => {
+    const issuer = resolveMfaIssuer({
+      security: { mfa: { issuer: '' }, passkey: { rpName: 'Example CMS' } }
+    })
+
+    expect(issuer).toBe('Example CMS')
   })
 })
