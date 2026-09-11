@@ -1,6 +1,6 @@
 {
   "name": "@trokky/client",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "TypeScript-native client SDK for Trokky CMS with type generation and shortcode support",
   "keywords": [
     "cms",
@@ -71,7 +71,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@trokky/trokky": "^2.0.4",
+    "@trokky/trokky": "^2.0.5",
     "commander": "^11.0.0"
   },
   "devDependencies": {

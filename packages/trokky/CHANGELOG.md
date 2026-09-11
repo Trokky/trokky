@@ -1,5 +1,52 @@
 # @trokky/trokky
 
+## 2.0.5
+
+### Patch Changes
+
+- 22dcdc1: Take the MFA TOTP issuer from configuration instead of a fixed name.
+
+  Every instance enrolled TOTP under the same generic label, so an operator running more than one Trokky site saw identical entries in their authenticator app with nothing to distinguish them. The account name does not help either, since the same address is usually reused across instances.
+
+  A new `security.mfa.issuer` setting controls the name. When it is not set the issuer falls back to the passkey `rpName`, which most deployments already set to the site's own name, then to the organisation name, then to the Studio title, and only then to the previous generic fallback. Existing installs therefore get a useful label without anyone editing configuration.
+
+  Enrolment previously read the Studio title first, which commonly still holds its generic default, which is why every instance produced the same label. Configuration now takes precedence over it.
+
+  Colons are stripped from the resolved issuer. The authenticator URI format separates the issuer from the account name with a colon, so one inside the issuer gave the label two separators and apps split on the first, mis-reading both halves. The two halves of the label are also encoded separately now, rather than encoding the joined string.
+
+  Changing the issuer does not invalidate existing enrolments. The shared secret is what generates the codes and it is unchanged, so users keep working and keep their old label until they re-enrol. Only new enrolments pick up the new name.
+
+- 15e998d: Fix the Studio OAuth callback page appearing to process the sign-in forever with no error. When the sign-in state was missing and no session existed — for example when the OAuth callback landed on a different hostname than the one that started sign-in — the page now shows a clear error instead of spinning indefinitely. The token exchange request is also given a 30-second timeout, so a request that never responds ends in the same error state instead of loading forever. In both cases the error screen offers a way back to the login screen. No behavioural change for successful sign-in, MFA, or account-linking flows.
+- 621ff0e: Persist pending sign-in state so a restart does not fail a login in progress.
+
+  OAuth login state with its PKCE verifier, and the WebAuthn challenge behind a passkey, were held in a map inside the server process. Both are written when a flow begins and read when it completes, so a restart between those two requests failed the sign-in with an invalid state error, and a deployment running more than one replica could not complete them at all: the second request may reach a different process than the first.
+
+  Both now persist through the data storage adapter. Two optional methods were added to the adapter interface, `saveAuthFlowState` and `consumeAuthFlowState`, alongside `deleteExpiredAuthFlowStates` for the expiry sweep. The Postgres and filesystem adapters implement them; the Postgres adapter creates its table on start like the others, so no manual migration is needed.
+
+  Consumption is a single atomic operation that returns the state and removes it, scoped to the flow it belongs to. These states are single use - an OAuth state is CSRF protection and a WebAuthn challenge must not be answerable twice - so reading and then separately deleting would let two concurrent callbacks both succeed. Postgres uses `DELETE ... RETURNING`; the filesystem adapter claims the file with a rename. Scoping to the flow also means a request carrying another flow's id neither receives nor destroys that state.
+
+  An adapter that does not implement the methods keeps the previous in-process behaviour, so a custom adapter written against the older interface continues to work. An adapter that does implement them and then fails to write raises rather than silently falling back to memory, which would report a durability the caller does not have.
+
+  On the filesystem these records hold PKCE verifiers and WebAuthn challenges, so they are written with private permissions rather than the adapter's defaults.
+
+- ca26993: Stop writing secrets to application logs.
+
+  Updating a webhook logged the full set of changed fields, so a change that included the webhook's signing secret wrote that secret to the application log in cleartext. The update now logs only the names of the fields that changed, matching what webhook registration and the webhook HTTP route already did.
+
+  The server logger now redacts known-sensitive keys from log payloads automatically, at log time, for every level. Values held under names such as `secret`, `password`, `token`, `tokenHash`, `authorization`, `privateKey`, `connectionString` and the OAuth2 device-flow `userCode` and `deviceCode` are replaced with `[REDACTED]`. Key names are normalised before matching, so `setCookie`, `set_cookie` and the wire-format `set-cookie` are all caught, as are `x-api-key` and the other hyphenated names real HTTP headers use. Matching is still an exact match on that normalised form rather than a substring match, so ordinary fields like `tokenCount` or `passwordPolicy` still appear in full. Nested objects and arrays are covered, and the original object is never modified.
+
+  The redacted output is inert. Functions are not carried over, so an object's own `toJSON` cannot run during serialization and hand back the value that was just removed. Errors are rebuilt rather than passed through: context attached to an error, such as the request headers hung off a failed HTTP call, is redacted like any other payload, and the error's `name`, `message` and `stack` are carried explicitly so a JSON log no longer renders a thrown error as an empty object. Getters under a sensitive key are never invoked, one that throws is reported as `[Unreadable]` instead of taking the log call down with it, and very deep or very large structures are truncated rather than overflowing the stack.
+
+  Several other log lines that dumped whole payloads now log field names or counts instead: creating a document, saving an app token, saving studio settings, updating settings through the config route, a failed event emission, a password reset attempt, the start of a device authorization and the Postgres adapter's query logging. The document create handler was the widest of these, because a failed create logged the entire request body of a collection whose schema is defined by the application author, so the payload could hold credentials under field names no redaction list can anticipate. These were fixed individually; the redaction pass is a backstop, not the fix.
+
+  Operators should rotate any affected webhook secrets after upgrading, not before. Rotating first sends the new secret through the very log line being fixed, writing it to the log in cleartext as well.
+
+- Updated dependencies [22dcdc1]
+- Updated dependencies [15e998d]
+- Updated dependencies [621ff0e]
+- Updated dependencies [ca26993]
+  - @trokky/studio@2.0.5
+
 ## 2.0.4
 
 ### Patch Changes
