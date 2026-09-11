@@ -1,6 +1,7 @@
 import { promises as fs, constants } from 'fs'
 import * as fsExtra from 'fs-extra'
 import * as path from 'path'
+import { randomUUID } from 'crypto'
 import {
   DataStorageAdapter,
   Document,
@@ -18,6 +19,7 @@ import {
   CreateAppTokenData,
   UpdateAppTokenData,
   WebhookConfig,
+  AuthFlowState,
   WebhookListOptions,
   SettingsConfig,
   createLogger,
@@ -32,7 +34,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   /** Resolves once the configured directories exist. Rejects if they could not be created. */
   public readonly ready: Promise<void>
 
-  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string }
+  private config: Required<Omit<FilesystemDataAdapterConfig, 'webhooksDir' | 'settingsDir' | 'auditLogsDir' | 'authFlowStateDir'>> & { webhooksDir: string; settingsDir: string; auditLogsDir: string; authFlowStateDir: string }
   private logger = createLogger('adapter', 'FilesystemDataAdapter')
   
   // Security limits
@@ -48,6 +50,7 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       usersDir: config.usersDir || './users',
       tokensDir: config.tokensDir || './tokens',
       webhooksDir: config.webhooksDir || './webhooks',
+      authFlowStateDir: config.authFlowStateDir || './auth-flow-state',
       settingsDir: config.settingsDir || './settings',
       auditLogsDir: config.auditLogsDir || './audit-logs',
       createDirs: config.createDirs ?? true,
@@ -1004,6 +1007,97 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   // ==========================================================================
   // PRIVATE HELPER METHODS FOR WEBHOOKS
   // ==========================================================================
+
+  // ==========================================================================
+  // AUTH FLOW STATE OPERATIONS
+  // ==========================================================================
+
+  public async saveAuthFlowState(state: AuthFlowState): Promise<void> {
+    SecurityValidator.validateDocumentId(state.id)
+
+    // These hold PKCE verifiers and WebAuthn challenges, so they get private
+    // permissions rather than the adapter's defaults, which leave files
+    // readable by every local user.
+    await fsExtra.ensureDir(this.config.authFlowStateDir, { mode: 0o700 })
+    await fs.writeFile(
+      this.getAuthFlowStatePath(state.id),
+      JSON.stringify(state, null, this.config.prettyJson ? this.config.jsonSpaces : 0),
+      { mode: 0o600 }
+    )
+  }
+
+  public async consumeAuthFlowState(
+    id: string,
+    kind: AuthFlowState['kind']
+  ): Promise<AuthFlowState | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    const statePath = this.getAuthFlowStatePath(id)
+    // rename is atomic within a filesystem, so exactly one caller can claim the
+    // file. Reading and then unlinking would let two concurrent callbacks both
+    // read the same single-use state before either removed it.
+    const claimedPath = `${statePath}.${randomUUID()}.claimed`
+
+    try {
+      await fs.rename(statePath, claimedPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+
+    try {
+      const content = await fs.readFile(claimedPath, 'utf-8')
+      const state = JSON.parse(content) as AuthFlowState
+
+      // Checked after claiming so the record is consumed either way: a wrong
+      // kind or an expired state is spent, not left for a retry.
+      if (state.kind !== kind) return null
+      const expiresAt = new Date(state.expiresAt).getTime()
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null
+
+      return state
+    } catch {
+      return null
+    } finally {
+      await fs.unlink(claimedPath).catch(() => {
+        // The claim file is already outside the lookup path; a failure to tidy
+        // it up is for the sweep, not for the sign-in in progress.
+      })
+    }
+  }
+
+  public async deleteExpiredAuthFlowStates(): Promise<number> {
+    let removed = 0
+
+    try {
+      const files = await fs.readdir(this.config.authFlowStateDir)
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue
+        try {
+          const content = await fs.readFile(path.join(this.config.authFlowStateDir, file), 'utf-8')
+          const state = JSON.parse(content) as AuthFlowState
+          const expiresAt = new Date(state.expiresAt).getTime()
+          if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+            await fs.unlink(path.join(this.config.authFlowStateDir, file)).catch(() => {})
+            removed++
+          }
+        } catch {
+          // A malformed or vanished file is not worth failing the sweep over.
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+
+    return removed
+  }
+
+  private getAuthFlowStatePath(id: string): string {
+    SecurityValidator.validateDocumentId(id)
+    const statePath = path.join(this.config.authFlowStateDir, `${id}.json`)
+    this.validateSecurePath(statePath, this.config.authFlowStateDir)
+    return statePath
+  }
 
   private getWebhookPath(id: string): string {
     SecurityValidator.validateDocumentId(id)

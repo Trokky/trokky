@@ -12,6 +12,12 @@ import {
   GoogleOAuthService,
   type OAuthProvider,
 } from '../../core/index.js'
+import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
+import {
+  saveAuthFlowState,
+  consumeAuthFlowState,
+  deleteExpiredAuthFlowStates,
+} from './auth-flow-store.js'
 
 const logger = createLogger('routes', 'OAuth')
 
@@ -31,27 +37,40 @@ interface OAuthCallbackRequest {
   deviceId?: string // For trusted device check (skips MFA if trusted)
 }
 
-// In-memory store for PKCE and state (in production, use Redis or similar)
-// Map of state -> { codeVerifier, mode, userId?, expiresAt }
-const oauthStateStore = new Map<
-  string,
-  {
-    codeVerifier: string
-    mode: 'login' | 'link'
-    userId?: string
-    expiresAt: number
-  }
->()
+/**
+ * The PKCE verifier and login state are written when a sign-in begins and read
+ * once when the provider redirects back. They are persisted through the data
+ * storage adapter where it supports it, so a restart between the two halves
+ * does not fail the sign-in and a second replica can serve the callback. See
+ * routes/auth/auth-flow-store.ts for the fallback behaviour.
+ */
+interface OAuthFlowData {
+  codeVerifier: string
+  mode: 'login' | 'link'
+  userId?: string
+}
 
-// Clean up expired states periodically
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
+
+// Sweep expired states. Reads reject them regardless, so this only reclaims space.
 setInterval(() => {
-  const now = Date.now()
-  for (const [state, data] of oauthStateStore.entries()) {
-    if (data.expiresAt < now) {
-      oauthStateStore.delete(state)
-    }
+  void deleteExpiredAuthFlowStates(lastKnownAdapter)
+}, 60000)
+
+/**
+ * The sweeper runs on a timer with no request in hand, so it has no core to ask
+ * for the adapter. Requests record the one they used.
+ */
+let lastKnownAdapter: DataStorageAdapter | null = null
+
+function dataAdapter(core: TrokkyCore): DataStorageAdapter | null {
+  try {
+    lastKnownAdapter = core.getDataStorageAdapter()
+    return lastKnownAdapter
+  } catch {
+    return null
   }
-}, 60000) // Clean up every minute
+}
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -125,11 +144,15 @@ export async function initGoogleOAuth(
     const state = googleService.generateState()
 
     // Store state with PKCE verifier (expires in 10 minutes)
-    oauthStateStore.set(state, {
-      codeVerifier: pkce.codeVerifier,
-      mode,
-      userId: request.user?.id,
-      expiresAt: Date.now() + 10 * 60 * 1000,
+    await saveAuthFlowState(dataAdapter(core), {
+      id: state,
+      kind: 'oauth',
+      data: {
+        codeVerifier: pkce.codeVerifier,
+        mode,
+        userId: request.user?.id,
+      } satisfies OAuthFlowData,
+      expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString(),
     })
 
     // Generate authorization URL (mode affects consent screen behavior)
@@ -210,10 +233,12 @@ export async function handleGoogleOAuthCallback(
       }
     }
 
-    // Validate state (CSRF protection)
-    const storedState = oauthStateStore.get(state)
-    if (!storedState || storedState.expiresAt < Date.now()) {
-      oauthStateStore.delete(state)
+    // Validate state (CSRF protection). Consuming is atomic and scoped to this
+    // flow: a replayed callback finds nothing, and one carrying another flow's
+    // id neither receives nor destroys that flow's state. An unknown, expired
+    // and wrong-kind state are all the same answer here.
+    const storedFlow = await consumeAuthFlowState(dataAdapter(core), state, 'oauth')
+    if (!storedFlow) {
       return {
         status: 400,
         headers: {},
@@ -227,8 +252,7 @@ export async function handleGoogleOAuthCallback(
       }
     }
 
-    // Clean up used state
-    oauthStateStore.delete(state)
+    const storedState = storedFlow.data as unknown as OAuthFlowData
 
     // Exchange code for tokens
     const tokens = await googleService.exchangeCodeForTokens(code, codeVerifier)

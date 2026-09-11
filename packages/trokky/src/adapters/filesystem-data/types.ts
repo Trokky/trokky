@@ -25,6 +25,8 @@ export interface FilesystemDataAdapterConfig {
    * @default './webhooks'
    */
   webhooksDir?: string
+  /** Directory for pending sign-in state (OAuth and WebAuthn), defaults to ./auth-flow-state */
+  authFlowStateDir?: string
 
   /**
    * Base directory for settings storage (system entities)

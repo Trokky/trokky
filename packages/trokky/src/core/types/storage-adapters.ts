@@ -91,7 +91,25 @@ export interface SettingsConfig {
  * - Queries and filtering
  * 
  * Optimal backends: SQL databases (D1, PostgreSQL, MySQL), NoSQL with query support
+ *//**
+ * A pending authentication flow, held between the two halves of a sign-in.
+ *
+ * Covers the OAuth login state with its PKCE verifier, and the WebAuthn
+ * challenge for a passkey registration or assertion. Both are short-lived,
+ * single-use, and written by one request and read by another.
  */
+export interface AuthFlowState {
+  /** The state token or session id the second request presents */
+  id: string
+  /** Which flow this belongs to, so one store can serve both */
+  kind: 'oauth' | 'passkey'
+  /** Flow-specific payload: the PKCE verifier, or the WebAuthn challenge */
+  data: Record<string, unknown>
+  /** ISO 8601 timestamp after which the state must not be accepted */
+  expiresAt: string
+}
+
+
 export interface DataStorageAdapter {
   // ==========================================================================
   // DOCUMENT OPERATIONS
@@ -358,6 +376,53 @@ export interface DataStorageAdapter {
    */
   deleteWebhook?(id: string): Promise<void>
   
+  // ==========================================================================
+  // AUTH FLOW STATE OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Atomically take a pending auth flow state: return it and delete it in one
+   * operation, or return null.
+   *
+   * Must be atomic. These states are single-use - an OAuth state is CSRF
+   * protection and a WebAuthn challenge must not be answerable twice - so a
+   * read followed by a separate delete is not sufficient: two concurrent
+   * callbacks can both read before either deletes, and both would proceed.
+   * Postgres can do this with `DELETE ... RETURNING`.
+   *
+   * Returns null for an unknown id, one whose `expiresAt` has passed, and one
+   * whose kind does not match, so a caller cannot be handed the wrong flow and
+   * cannot delete another flow's state by presenting its id.
+   *
+   * @param id - The state or session identifier
+   * @param kind - The flow the caller expects
+   * @returns The stored state, or null if unknown, expired or of another kind
+   * @throws Error if storage fails - callers must fail closed rather than
+   *         continuing without having consumed the state
+   */
+  consumeAuthFlowState?(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
+
+  /**
+   * Store a pending auth flow state.
+   *
+   * These are short-lived, single-use records written when a sign-in begins and
+   * read once when it completes. Holding them in the server process means a
+   * restart between the two halves fails the sign-in, and that a second replica
+   * cannot serve the second half at all.
+   *
+   * @param state - The state to store, including its expiry
+   * @throws Error if storage fails
+   */
+  saveAuthFlowState?(state: AuthFlowState): Promise<void>
+
+  /**
+   * Remove every state whose expiry has passed.
+   *
+   * @returns How many records were removed
+   * @throws Error if storage fails
+   */
+  deleteExpiredAuthFlowStates?(): Promise<number>
+
   // ==========================================================================
   // SETTINGS OPERATIONS
   // ==========================================================================

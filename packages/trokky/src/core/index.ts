@@ -231,6 +231,7 @@ export type {
   SplitStorageConfig,
   TrokkyStorageAdapters,
   WebhookListOptions,
+  AuthFlowState,
   SettingsConfig,
   // Audit types
   AuditContext,

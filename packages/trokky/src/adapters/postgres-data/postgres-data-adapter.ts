@@ -17,6 +17,7 @@ import {
   UpdateAppTokenData,
   WebhookConfig,
   WebhookListOptions,
+  AuthFlowState,
   SettingsConfig,
   createLogger,
   AuditContext,
@@ -1438,6 +1439,25 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       )
     `)
 
+    this.logger.info('Creating auth flow state table...')
+    // Pending sign-ins: OAuth login state with its PKCE verifier, and WebAuthn
+    // challenges. Short-lived and single-use, but they must outlive the process
+    // so a restart between the two halves of a sign-in does not fail it.
+    await this.directQuery(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName('auth_flow_state')} (
+        id VARCHAR(255) PRIMARY KEY,
+        kind VARCHAR(32) NOT NULL,
+        data JSONB NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+
+    await this.directQuery(`
+      CREATE INDEX IF NOT EXISTS ${this.config.tablePrefix}auth_flow_state_expires_idx
+      ON ${this.tableName('auth_flow_state')} (expires_at)
+    `)
+
     this.logger.info('Creating settings table...')
     // Settings table
     await this.directQuery(`
@@ -1690,6 +1710,42 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     } else {
       this.logger.info(`Webhook deleted: ${id}`)
     }
+  }
+
+  // ==========================================================================
+  // AUTH FLOW STATE OPERATIONS
+  // ==========================================================================
+
+  async consumeAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    // Atomic by construction: one statement returns the row and removes it, so
+    // two concurrent callbacks cannot both be handed the same single-use state.
+    // Expiry and kind are part of the WHERE clause, so a request for the wrong
+    // flow neither receives nor destroys another flow's state.
+    const result = await this.query(
+      `DELETE FROM ${this.tableName('auth_flow_state')}
+       WHERE id = $1 AND kind = $2 AND expires_at > NOW()
+       RETURNING id, kind, data, expires_at`,
+      [id, kind]
+    )
+
+    const row = result.rows[0]
+    if (!row) return null
+
+    return {
+      id: row.id,
+      kind: row.kind,
+      data: row.data || {},
+      expiresAt: new Date(row.expires_at).toISOString(),
+    }
+  }
+
+  async deleteExpiredAuthFlowStates(): Promise<number> {
+    const result = await this.query(
+      `DELETE FROM ${this.tableName('auth_flow_state')} WHERE expires_at <= NOW()`
+    )
+    return result.rowCount || 0
   }
 
   private mapRowToWebhook(row: WebhookRow): WebhookConfig {
