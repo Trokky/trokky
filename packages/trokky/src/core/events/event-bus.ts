@@ -166,7 +166,15 @@ export class TrokkyEventBus extends EventEmitter {
       return event.id
 
     } catch (error) {
-      this.logger.error('Failed to emit event', { error, event })
+      this.logger.error('Failed to emit event', {
+        error,
+        eventId: event.id,
+        eventType: event.type,
+        timestamp: event.timestamp,
+        source: event.source,
+        collection: event.data?.collection,
+        documentId: event.data?.id
+      })
       throw error
     }
   }
@@ -272,7 +280,7 @@ export class TrokkyEventBus extends EventEmitter {
       }
     }
     
-    this.logger.info('Webhook updated', { id, updates, persisted: !!this.dataStorage })
+    this.logger.info('Webhook updated', { id, updatedFields: Object.keys(updates), persisted: !!this.dataStorage })
     return true
   }
 

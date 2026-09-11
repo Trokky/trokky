@@ -270,7 +270,7 @@ export async function resetPassword(
       tokenPrefix: body.token.substring(0, 8)
     })
 
-    logger.info('Password reset attempt', { token: body.token.substring(0, 8) + '...' })
+    logger.info('Password reset attempt')
 
     // Hash the provided token to compare with stored hash
     const hashedToken = await hashResetToken(body.token)

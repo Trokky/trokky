@@ -85,6 +85,215 @@ const COLORS = {
 } as const
 
 /**
+ * Replacement used for redacted values
+ */
+const REDACTED = '[REDACTED]'
+
+/**
+ * Guards against pathological payloads. Logging must never be the thing that
+ * takes a request down, so deep or very large structures are truncated rather
+ * than followed, and an accessor that throws is reported rather than rethrown.
+ */
+const MAX_DEPTH = 10
+const MAX_NODES = 5000
+
+/**
+ * Key names whose values are never written to logs.
+ *
+ * Keys are normalised before comparison - lowercased, with `-`, `_` and spaces
+ * removed - so `setCookie`, `set_cookie` and the wire-format `set-cookie` all
+ * match one entry. Matching is still EXACT on that normalised form, never a
+ * substring match: substring matching would also redact innocuous fields such
+ * as `tokenCount`, `passwordPolicy` or `secretsManagerRegion`, which destroys
+ * debuggability and makes redaction unpredictable.
+ *
+ * A few entries are less obvious. An app token's `tokenHash` is the lookup key
+ * accepted by `getAppTokenByHash`, so it is credential-equivalent rather than a
+ * mere digest. `userCode`/`deviceCode` are the one-time approval values of the
+ * OAuth2 device flow.
+ *
+ * `auth` and `credential` are deliberately included even though they sometimes
+ * hold non-secret values - a route's auth mode, a WebAuthn response. Hiding a
+ * diagnostic field is recoverable; printing a credential is not.
+ */
+export const SENSITIVE_KEYS: readonly string[] = [
+  'secret',
+  'secrets',
+  'token',
+  'tokenHash',
+  'accessToken',
+  'refreshToken',
+  'resetToken',
+  'idToken',
+  'sessionToken',
+  'apiKey',
+  'xApiKey',
+  'password',
+  'passwordHash',
+  'newPassword',
+  'currentPassword',
+  'temporaryPassword',
+  'passphrase',
+  'authorization',
+  'proxyAuthorization',
+  'wwwAuthenticate',
+  'auth',
+  'bearer',
+  'cookie',
+  'setCookie',
+  'connectionString',
+  'databaseUrl',
+  'privateKey',
+  'privateKeyPem',
+  'salt',
+  'credential',
+  'credentials',
+  'clientSecret',
+  'clientAssertion',
+  'userCode',
+  'deviceCode',
+  'mfaSecret',
+  'totpSecret',
+  'webhookSecret',
+  'jwtSecret',
+  'signature'
+]
+
+/**
+ * Collapse the spellings a key arrives in - camelCase, snake_case and the
+ * hyphenated wire format used by real HTTP headers - onto one form.
+ */
+function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/[-_\s]/g, '')
+}
+
+const SENSITIVE_KEY_SET = new Set(SENSITIVE_KEYS.map(normalizeKey))
+
+interface RedactionBudget {
+  ancestors: WeakSet<object>
+  nodes: number
+}
+
+/**
+ * Read one own property without trusting it.
+ *
+ * `Object.entries` invokes every enumerable getter, which means a throwing
+ * accessor would take down the log call and a side-effecting one would run as
+ * a consequence of logging. Descriptors let us see what a property is before
+ * deciding whether to touch it - and a getter under a sensitive key is never
+ * invoked at all.
+ */
+function readOwnProperty(source: object, key: string): { ok: boolean; value?: unknown } {
+  const descriptor = Object.getOwnPropertyDescriptor(source, key)
+  if (!descriptor) return { ok: false }
+  if ('value' in descriptor) return { ok: true, value: descriptor.value }
+  if (typeof descriptor.get !== 'function') return { ok: false }
+  try {
+    return { ok: true, value: descriptor.get.call(source) }
+  } catch {
+    return { ok: false }
+  }
+}
+
+/**
+ * Errors are rebuilt rather than passed through.
+ *
+ * Returning the Error itself leaked twice over: any attached context survived
+ * redaction (`err.config.headers.authorization` is the common shape), and
+ * `message`/`stack` are non-enumerable so a JSON serializer rendered the whole
+ * thing as `{}`. Rebuilding fixes both - the diagnostic fields are carried
+ * explicitly and everything hung off the error is redacted like any payload.
+ */
+function sanitizeError(error: Error, budget: RedactionBudget, depth: number): Record<string, unknown> {
+  const result: Record<string, unknown> = Object.create(null)
+  result.name = error.name
+  result.message = error.message
+  if (error.stack) result.stack = error.stack
+
+  for (const key of Object.keys(error)) {
+    if (key === 'name' || key === 'message' || key === 'stack') continue
+    if (SENSITIVE_KEY_SET.has(normalizeKey(key))) {
+      result[key] = REDACTED
+      continue
+    }
+    const read = readOwnProperty(error, key)
+    result[key] = read.ok ? redactValue(read.value, budget, depth + 1) : '[Unreadable]'
+  }
+
+  const cause = (error as Error & { cause?: unknown }).cause
+  if (cause !== undefined) {
+    result.cause = redactValue(cause, budget, depth + 1)
+  }
+
+  return result
+}
+
+/**
+ * `ancestors` tracks only the objects currently being recursed into, so a true
+ * cycle is detected while the same object referenced twice in different
+ * branches (an acyclic DAG) is still rendered in full.
+ */
+function redactValue(value: unknown, budget: RedactionBudget, depth: number): unknown {
+  // A copied function is not inert: an own `toJSON` would be invoked by the
+  // serializer and could hand back the very object we just redacted.
+  if (typeof value === 'function') return '[Function]'
+  if (value === null || typeof value !== 'object') return value
+
+  // Date's toJSON lives on the prototype, is not copied, and yields an ISO
+  // string, so dates are safe to pass through untouched.
+  if (value instanceof Date) return value
+
+  if (depth > MAX_DEPTH) return '[Max depth exceeded]'
+  if (budget.nodes >= MAX_NODES) return '[Truncated]'
+  budget.nodes++
+
+  if (budget.ancestors.has(value)) return '[Circular]'
+  budget.ancestors.add(value)
+
+  try {
+    if (value instanceof Error) {
+      return sanitizeError(value, budget, depth)
+    }
+
+    // Not traversed: their contents are invisible to JSON anyway, and walking
+    // them would add leak surface for no diagnostic gain. Say so plainly
+    // instead of rendering a misleading empty object.
+    if (value instanceof Map) return '[Map]'
+    if (value instanceof Set) return '[Set]'
+
+    if (Array.isArray(value)) {
+      return value.map(item => redactValue(item, budget, depth + 1))
+    }
+
+    // Null prototype: an own `__proto__` key copied onto a normal object would
+    // otherwise reassign the clone's prototype.
+    const result: Record<string, unknown> = Object.create(null)
+    for (const key of Object.keys(value)) {
+      if (SENSITIVE_KEY_SET.has(normalizeKey(key))) {
+        result[key] = REDACTED
+        continue
+      }
+      const read = readOwnProperty(value, key)
+      result[key] = read.ok ? redactValue(read.value, budget, depth + 1) : '[Unreadable]'
+    }
+    return result
+  } finally {
+    budget.ancestors.delete(value)
+  }
+}
+
+/**
+ * Recursively replace values held under sensitive keys with '[REDACTED]'.
+ *
+ * Returns a new structure, leaving the input unmutated. The result is inert:
+ * no functions are carried over, so nothing in it can execute during
+ * serialization and reintroduce what was removed.
+ */
+export function redactSensitive(value: unknown): unknown {
+  return redactValue(value, { ancestors: new WeakSet<object>(), nodes: 0 }, 0)
+}
+
+/**
  * Platform-agnostic logger
  */
 export class TrokkyLogger {
@@ -109,7 +318,7 @@ export class TrokkyLogger {
     }
 
     if (data !== undefined) {
-      entry.data = data
+      entry.data = redactSensitive(data)
     }
 
     if (error) {

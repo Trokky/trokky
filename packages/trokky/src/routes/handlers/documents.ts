@@ -26,6 +26,18 @@ function stripSystemFields<T extends Record<string, unknown>>(data: T): T {
   return result as T
 }
 
+/**
+ * Field names of a request payload, for logging. Collection schemas are defined
+ * by the application author, so payload values can hold anything and are never
+ * logged. Returns an empty array for a non-object payload rather than throwing,
+ * since this runs inside error handlers where a throw would mask the original
+ * error.
+ */
+function safeFieldNames(payload: unknown): string[] {
+  if (payload === null || typeof payload !== 'object') return []
+  return Object.keys(payload)
+}
+
 export class DocumentRoutes extends BaseRoutes {
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
@@ -263,7 +275,7 @@ export class DocumentRoutes extends BaseRoutes {
       SecurityValidator.validateCollectionName(collection)
       SecurityValidator.validateDocumentData(data)
 
-      this.logger.debug('Creating document', { collection, data, id })
+      this.logger.debug('Creating document', { collection, dataFields: safeFieldNames(data), id })
 
       // SINGLETON VALIDATION: Check if this collection is a singleton and prevent duplicate creation
       await this.validateSingletonCreation(collection, id)
@@ -281,7 +293,7 @@ export class DocumentRoutes extends BaseRoutes {
         collection: request.params.collection, 
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        requestBody: request.body
+        bodyFields: safeFieldNames(request.body)
       })
       return this.errorResponse(error)
     }
