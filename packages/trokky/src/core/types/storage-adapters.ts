@@ -91,7 +91,25 @@ export interface SettingsConfig {
  * - Queries and filtering
  * 
  * Optimal backends: SQL databases (D1, PostgreSQL, MySQL), NoSQL with query support
+ *//**
+ * A pending authentication flow, held between the two halves of a sign-in.
+ *
+ * Covers the OAuth login state with its PKCE verifier, and the WebAuthn
+ * challenge for a passkey registration or assertion. Both are short-lived,
+ * single-use, and written by one request and read by another.
  */
+export interface AuthFlowState {
+  /** The state token or session id the second request presents */
+  id: string
+  /** Which flow this belongs to, so one store can serve both */
+  kind: 'oauth' | 'passkey'
+  /** Flow-specific payload: the PKCE verifier, or the WebAuthn challenge */
+  data: Record<string, unknown>
+  /** ISO 8601 timestamp after which the state must not be accepted */
+  expiresAt: string
+}
+
+
 export interface DataStorageAdapter {
   // ==========================================================================
   // DOCUMENT OPERATIONS
@@ -358,6 +376,54 @@ export interface DataStorageAdapter {
    */
   deleteWebhook?(id: string): Promise<void>
   
+  // ==========================================================================
+  // AUTH FLOW STATE OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Retrieve a pending auth flow state by id.
+   *
+   * Returns null for an unknown id and for one whose `expiresAt` has passed, so
+   * callers do not have to check expiry themselves.
+   *
+   * @param id - The state or session identifier
+   * @returns The stored state, or null if unknown or expired
+   * @throws Error if storage fails
+   */
+  getAuthFlowState?(id: string): Promise<AuthFlowState | null>
+
+  /**
+   * Store a pending auth flow state.
+   *
+   * These are short-lived, single-use records written when a sign-in begins and
+   * read once when it completes. Holding them in the server process means a
+   * restart between the two halves fails the sign-in, and that a second replica
+   * cannot serve the second half at all.
+   *
+   * @param state - The state to store, including its expiry
+   * @throws Error if storage fails
+   */
+  saveAuthFlowState?(state: AuthFlowState): Promise<void>
+
+  /**
+   * Delete a state once it has been consumed.
+   *
+   * Deleting an unknown id is not an error: the record is single-use and may
+   * already have been removed by the expiry sweep.
+   *
+   * @param id - The state or session identifier
+   * @throws Error if storage fails
+   */
+  deleteAuthFlowState?(id: string): Promise<void>
+
+  /**
+   * Remove every state whose expiry has passed.
+   *
+   * @returns How many records were removed
+   * @throws Error if storage fails
+   */
+  deleteExpiredAuthFlowStates?(): Promise<number>
+
   // ==========================================================================
   // SETTINGS OPERATIONS
   // ==========================================================================
