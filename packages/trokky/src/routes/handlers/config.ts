@@ -300,15 +300,11 @@ export class ConfigRoutes extends BaseRoutes {
 
       const newSettings = body.settings as Record<string, any>
 
-      // DEBUG: Log received settings
-      this.logger.info('DEBUG: Received settings update', {
-        newSettings,
-        brandingFields: {
-          organizationName: newSettings.organizationName,
-          primaryColor: newSettings.primaryColor,
-          secondaryColor: newSettings.secondaryColor,
-          logo: newSettings.logo
-        }
+      // Field names only: settings are application-defined and routinely carry
+      // credentials such as an SMTP password, which redaction cannot catch
+      // under an arbitrary key name.
+      this.logger.info('Received settings update', {
+        settingsFields: Object.keys(newSettings)
       })
 
       // Get data storage
@@ -363,15 +359,8 @@ export class ConfigRoutes extends BaseRoutes {
         _updatedBy: currentUser?.username || 'system'
       }
 
-      // DEBUG: Log merged settings being saved
-      this.logger.info('DEBUG: Saving merged settings', {
-        updatedSettings,
-        brandingFields: {
-          organizationName: updatedSettings.organizationName,
-          primaryColor: updatedSettings.primaryColor,
-          secondaryColor: updatedSettings.secondaryColor,
-          logo: updatedSettings.logo
-        }
+      this.logger.info('Saving merged settings', {
+        settingsFields: Object.keys(updatedSettings)
       })
 
       // Save to storage

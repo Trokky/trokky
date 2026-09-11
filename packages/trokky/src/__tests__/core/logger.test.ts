@@ -201,18 +201,124 @@ describe('Logger', () => {
       expect(redactSensitive(42)).toBe(42)
       expect(redactSensitive('plain string')).toBe('plain string')
       expect(redactSensitive(true)).toBe(true)
-      const fn = (): string => 'noop'
-      expect(redactSensitive(fn)).toBe(fn)
     })
 
-    it('should preserve Date and Error instances as-is', () => {
+    it('should render functions inert rather than carrying them through', () => {
+      // Carried-over functions are how a serializer hook reintroduces a value
+      // that was just redacted, so nothing callable survives redaction.
+      const fn = (): string => 'noop'
+      expect(redactSensitive(fn)).toBe('[Function]')
+    })
+
+    it('should preserve Date instances as-is', () => {
       const date = new Date('2026-01-01T00:00:00Z')
-      const error = new Error('boom')
       expect(redactSensitive(date)).toBe(date)
-      expect(redactSensitive(error)).toBe(error)
 
       const redacted = redactSensitive({ updatedAt: date }) as Record<string, unknown>
       expect(redacted.updatedAt).toBe(date)
+    })
+
+    it('should redact context attached to an Error rather than passing it through', () => {
+      const error = Object.assign(new Error('request failed'), {
+        config: { headers: { authorization: 'placeholder-bearer-value' } }
+      })
+
+      const redacted = redactSensitive({ error }) as Record<string, any>
+
+      expect(redacted.error.config.headers.authorization).toBe('[REDACTED]')
+      expect(JSON.stringify(redacted)).not.toContain('placeholder-bearer-value')
+    })
+
+    it('should carry the Error name, message and stack through serialization', () => {
+      // message and stack are non-enumerable, so passing an Error straight to a
+      // JSON serializer renders it as {} and loses the diagnosis entirely.
+      const redacted = redactSensitive({ error: new Error('boom') }) as Record<string, any>
+      const parsed = JSON.parse(JSON.stringify(redacted))
+
+      expect(parsed.error.name).toBe('Error')
+      expect(parsed.error.message).toBe('boom')
+      expect(typeof parsed.error.stack).toBe('string')
+    })
+
+    it('should redact an Error cause', () => {
+      const error = new Error('outer', { cause: { password: 'placeholder-password-value' } })
+      const redacted = redactSensitive({ error }) as Record<string, any>
+
+      expect(redacted.error.cause.password).toBe('[REDACTED]')
+    })
+
+    it('should not let an own toJSON reintroduce a redacted value', () => {
+      // A copied toJSON would be invoked by the serializer and could hand back
+      // the original object, so the redacted output must carry no functions.
+      const payload = {
+        password: 'placeholder-password-value',
+        toJSON() {
+          return { password: 'placeholder-password-value' }
+        }
+      }
+
+      const redacted = redactSensitive({ payload }) as Record<string, any>
+
+      expect(redacted.payload.password).toBe('[REDACTED]')
+      expect(redacted.payload.toJSON).toBe('[Function]')
+      expect(JSON.stringify(redacted)).not.toContain('placeholder-password-value')
+    })
+
+    it('should match the hyphenated spellings real HTTP headers use', () => {
+      const redacted = redactSensitive({
+        headers: {
+          'set-cookie': 'placeholder-cookie-value',
+          'x-api-key': 'placeholder-key-value',
+          'authorization': 'placeholder-bearer-value'
+        }
+      }) as Record<string, any>
+
+      expect(redacted.headers['set-cookie']).toBe('[REDACTED]')
+      expect(redacted.headers['x-api-key']).toBe('[REDACTED]')
+      expect(redacted.headers['authorization']).toBe('[REDACTED]')
+    })
+
+    it('should truncate rather than throw on a deeply nested payload', () => {
+      let deep: Record<string, unknown> = {}
+      let cursor = deep
+      for (let i = 0; i < 12000; i++) {
+        const next: Record<string, unknown> = {}
+        cursor.nested = next
+        cursor = next
+      }
+
+      expect(() => redactSensitive(deep)).not.toThrow()
+    })
+
+    it('should not invoke a getter under a sensitive key, and survive one that throws', () => {
+      let sensitiveGetterCalled = false
+      const payload = {}
+      Object.defineProperty(payload, 'password', {
+        enumerable: true,
+        get: () => {
+          sensitiveGetterCalled = true
+          return 'placeholder-password-value'
+        }
+      })
+      Object.defineProperty(payload, 'explodes', {
+        enumerable: true,
+        get: () => {
+          throw new Error('accessor failed')
+        }
+      })
+
+      const redacted = redactSensitive(payload) as Record<string, unknown>
+
+      expect(redacted.password).toBe('[REDACTED]')
+      expect(sensitiveGetterCalled).toBe(false)
+      expect(redacted.explodes).toBe('[Unreadable]')
+    })
+
+    it('should not let an own __proto__ key change the result prototype', () => {
+      const redacted = redactSensitive(JSON.parse('{"__proto__":{"polluted":true}}')) as Record<string, unknown>
+
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+      expect(Object.getPrototypeOf(redacted)).toBeNull()
     })
 
     // Matching is an exact key match by design: substring matching would redact
