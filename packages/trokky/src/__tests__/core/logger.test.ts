@@ -279,7 +279,7 @@ describe('Logger', () => {
     })
 
     it('should truncate rather than throw on a deeply nested payload', () => {
-      let deep: Record<string, unknown> = {}
+      const deep: Record<string, unknown> = {}
       let cursor = deep
       for (let i = 0; i < 12000; i++) {
         const next: Record<string, unknown> = {}
