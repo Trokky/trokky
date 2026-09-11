@@ -2,33 +2,32 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { AuthFlowState, DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import {
   saveAuthFlowState,
-  getAuthFlowState,
-  deleteAuthFlowState,
+  consumeAuthFlowState,
   deleteExpiredAuthFlowStates,
   clearFallbackAuthFlowStates,
 } from '../../routes/auth/auth-flow-store.js'
 
 /**
- * Stands in for a persistent adapter. The rows object is deliberately shared
- * between instances so a test can prove one process reads what another wrote.
+ * Stands in for a persistent adapter, consuming atomically the way Postgres
+ * does with DELETE ... RETURNING. The rows map is shared between instances so a
+ * test can prove one process reads what another wrote.
  */
 function createPersistentAdapter(rows: Map<string, AuthFlowState>): DataStorageAdapter {
   return {
     async saveAuthFlowState(state: AuthFlowState): Promise<void> {
       rows.set(state.id, state)
     },
-    async getAuthFlowState(id: string): Promise<AuthFlowState | null> {
+    async consumeAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
       const found = rows.get(id)
-      if (!found) return null
-      return new Date(found.expiresAt).getTime() < Date.now() ? null : found
-    },
-    async deleteAuthFlowState(id: string): Promise<void> {
+      if (!found || found.kind !== kind) return null
+      if (new Date(found.expiresAt).getTime() <= Date.now()) return null
       rows.delete(id)
+      return found
     },
     async deleteExpiredAuthFlowStates(): Promise<number> {
       let removed = 0
       for (const [id, state] of rows.entries()) {
-        if (new Date(state.expiresAt).getTime() < Date.now()) {
+        if (new Date(state.expiresAt).getTime() <= Date.now()) {
           rows.delete(id)
           removed++
         }
@@ -41,10 +40,14 @@ function createPersistentAdapter(rows: Map<string, AuthFlowState>): DataStorageA
 /** An adapter from before these methods existed. */
 const legacyAdapter = {} as DataStorageAdapter
 
-function stateFor(id: string, ttlMs = 60_000): AuthFlowState {
+function stateFor(
+  id: string,
+  ttlMs = 60_000,
+  kind: AuthFlowState['kind'] = 'oauth'
+): AuthFlowState {
   return {
     id,
-    kind: 'oauth',
+    kind,
     data: { codeVerifier: 'placeholder-verifier', mode: 'login' },
     expiresAt: new Date(Date.now() + ttlMs).toISOString(),
   }
@@ -55,9 +58,9 @@ describe('auth flow store', () => {
     clearFallbackAuthFlowStates()
   })
 
-  it('should let a second instance read state written by the first', async () => {
-    // The whole point of persisting: initiate and callback are separate
-    // requests and may not be served by the same process.
+  it('should let a second instance consume state written by the first', async () => {
+    // The point of persisting: initiate and callback are separate requests and
+    // may not be served by the same process.
     const sharedRows = new Map<string, AuthFlowState>()
     const instanceA = createPersistentAdapter(sharedRows)
     const instanceB = createPersistentAdapter(sharedRows)
@@ -65,63 +68,83 @@ describe('auth flow store', () => {
     await saveAuthFlowState(instanceA, stateFor('state-1'))
     clearFallbackAuthFlowStates() // instance B has no in-process memory of it
 
-    const read = await getAuthFlowState(instanceB, 'state-1')
+    const consumed = await consumeAuthFlowState(instanceB, 'state-1', 'oauth')
 
-    expect(read).not.toBeNull()
-    expect(read?.data.codeVerifier).toBe('placeholder-verifier')
+    expect(consumed?.data.codeVerifier).toBe('placeholder-verifier')
   })
 
-  it('should reject an expired state', async () => {
+  it('should hand the state to exactly one of two concurrent callers', async () => {
+    // Single use is the security property: an OAuth state is CSRF protection
+    // and a WebAuthn challenge must not be answerable twice. A read followed by
+    // a separate delete would let both callers through.
     const adapter = createPersistentAdapter(new Map())
-    await saveAuthFlowState(adapter, stateFor('state-expired', -1000))
+    await saveAuthFlowState(adapter, stateFor('state-race'))
 
-    expect(await getAuthFlowState(adapter, 'state-expired')).toBeNull()
+    const [first, second] = await Promise.all([
+      consumeAuthFlowState(adapter, 'state-race', 'oauth'),
+      consumeAuthFlowState(adapter, 'state-race', 'oauth'),
+    ])
+
+    expect([first, second].filter(Boolean)).toHaveLength(1)
   })
 
-  it('should treat a consumed state as unknown', async () => {
+  it('should not return a state twice', async () => {
     const adapter = createPersistentAdapter(new Map())
     await saveAuthFlowState(adapter, stateFor('state-2'))
 
-    await deleteAuthFlowState(adapter, 'state-2')
-
-    expect(await getAuthFlowState(adapter, 'state-2')).toBeNull()
+    expect(await consumeAuthFlowState(adapter, 'state-2', 'oauth')).not.toBeNull()
+    expect(await consumeAuthFlowState(adapter, 'state-2', 'oauth')).toBeNull()
   })
 
-  it('should not throw when deleting a state that is already gone', async () => {
+  it('should refuse a state belonging to another flow, and leave it intact', async () => {
+    // A passkey session id presented to the OAuth callback must neither be
+    // accepted nor destroyed - otherwise it is a way to cancel someone's
+    // sign-in by guessing an id.
     const adapter = createPersistentAdapter(new Map())
+    await saveAuthFlowState(adapter, stateFor('state-passkey', 60_000, 'passkey'))
 
-    await expect(deleteAuthFlowState(adapter, 'never-existed')).resolves.toBeUndefined()
+    expect(await consumeAuthFlowState(adapter, 'state-passkey', 'oauth')).toBeNull()
+    expect(await consumeAuthFlowState(adapter, 'state-passkey', 'passkey')).not.toBeNull()
   })
 
-  it('should fall back to memory for an adapter without the methods', async () => {
-    // An adapter that predates this interface must keep working exactly as
-    // before rather than failing every sign-in.
-    await saveAuthFlowState(legacyAdapter, stateFor('state-3'))
+  it('should reject an expired state, including exactly at its expiry', async () => {
+    const adapter = createPersistentAdapter(new Map())
+    await saveAuthFlowState(adapter, stateFor('state-expired', -1000))
+    await saveAuthFlowState(adapter, stateFor('state-boundary', 0))
 
-    const read = await getAuthFlowState(legacyAdapter, 'state-3')
-
-    expect(read?.id).toBe('state-3')
+    expect(await consumeAuthFlowState(adapter, 'state-expired', 'oauth')).toBeNull()
+    expect(await consumeAuthFlowState(adapter, 'state-boundary', 'oauth')).toBeNull()
   })
 
-  it('should expire fallback entries too', async () => {
-    await saveAuthFlowState(legacyAdapter, stateFor('state-4', -1000))
+  it('should treat an unparseable expiry as expired rather than eternal', async () => {
+    // NaN < Date.now() is false, so a naive comparison would accept a corrupt
+    // record for ever.
+    await saveAuthFlowState(legacyAdapter, { ...stateFor('state-nan'), expiresAt: 'not-a-date' })
 
-    expect(await getAuthFlowState(legacyAdapter, 'state-4')).toBeNull()
+    expect(await consumeAuthFlowState(legacyAdapter, 'state-nan', 'oauth')).toBeNull()
   })
 
-  it('should keep the sign-in working when the adapter write fails', async () => {
-    // A storage blip should not be the reason someone cannot log in.
+  it('should raise when a capable adapter cannot persist, rather than pretending', async () => {
+    // Silently keeping it in memory would report a durability the caller does
+    // not have, and would reintroduce exactly the bug this store exists to fix.
     const failing = {
       saveAuthFlowState: async () => {
         throw new Error('storage unavailable')
       },
-      getAuthFlowState: async () => null,
-      deleteAuthFlowState: async () => {},
+      consumeAuthFlowState: async () => null,
     } as unknown as DataStorageAdapter
 
-    await saveAuthFlowState(failing, stateFor('state-5'))
+    await expect(saveAuthFlowState(failing, stateFor('state-5'))).rejects.toThrow(
+      'storage unavailable'
+    )
+  })
 
-    expect((await getAuthFlowState(failing, 'state-5'))?.id).toBe('state-5')
+  it('should fall back to memory for an adapter without the methods', async () => {
+    // An adapter predating this interface must keep working rather than
+    // failing every sign-in.
+    await saveAuthFlowState(legacyAdapter, stateFor('state-3'))
+
+    expect((await consumeAuthFlowState(legacyAdapter, 'state-3', 'oauth'))?.id).toBe('state-3')
   })
 
   it('should sweep expired states from both the adapter and memory', async () => {
@@ -136,6 +159,6 @@ describe('auth flow store', () => {
 
     expect(rows.has('stale')).toBe(false)
     expect(rows.has('live')).toBe(true)
-    expect(await getAuthFlowState(legacyAdapter, 'stale-memory')).toBeNull()
+    expect(await consumeAuthFlowState(legacyAdapter, 'stale-memory', 'oauth')).toBeNull()
   })
 })

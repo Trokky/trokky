@@ -1,6 +1,7 @@
 import { promises as fs, constants } from 'fs'
 import * as fsExtra from 'fs-extra'
 import * as path from 'path'
+import { randomUUID } from 'crypto'
 import {
   DataStorageAdapter,
   Document,
@@ -1011,46 +1012,43 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
   // AUTH FLOW STATE OPERATIONS
   // ==========================================================================
 
-  public async getAuthFlowState(id: string): Promise<AuthFlowState | null> {
+  public async consumeAuthFlowState(
+    id: string,
+    kind: AuthFlowState['kind']
+  ): Promise<AuthFlowState | null> {
     SecurityValidator.validateDocumentId(id)
 
+    const statePath = this.getAuthFlowStatePath(id)
+    // rename is atomic within a filesystem, so exactly one caller can claim the
+    // file. Reading and then unlinking would let two concurrent callbacks both
+    // read the same single-use state before either removed it.
+    const claimedPath = `${statePath}.${randomUUID()}.claimed`
+
     try {
-      const content = await fs.readFile(this.getAuthFlowStatePath(id), 'utf-8')
-      const state = JSON.parse(content) as AuthFlowState
-
-      // Expired records are rejected on read as well as swept, so one that
-      // outlives its sweep is never handed out.
-      if (new Date(state.expiresAt).getTime() < Date.now()) {
-        await this.deleteAuthFlowState(id)
-        return null
-      }
-
-      return state
+      await fs.rename(statePath, claimedPath)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
     }
-  }
-
-  public async saveAuthFlowState(state: AuthFlowState): Promise<void> {
-    SecurityValidator.validateDocumentId(state.id)
-
-    await fsExtra.ensureDir(this.config.authFlowStateDir, { mode: this.config.dirMode })
-    await fs.writeFile(
-      this.getAuthFlowStatePath(state.id),
-      JSON.stringify(state, null, this.config.prettyJson ? this.config.jsonSpaces : 0),
-      { mode: this.config.fileMode }
-    )
-  }
-
-  public async deleteAuthFlowState(id: string): Promise<void> {
-    SecurityValidator.validateDocumentId(id)
 
     try {
-      await fs.unlink(this.getAuthFlowStatePath(id))
-    } catch (error) {
-      // Single-use records: an already-removed one is not an error.
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      const content = await fs.readFile(claimedPath, 'utf-8')
+      const state = JSON.parse(content) as AuthFlowState
+
+      // Checked after claiming so the record is consumed either way: a wrong
+      // kind or an expired state is spent, not left for a retry.
+      if (state.kind !== kind) return null
+      const expiresAt = new Date(state.expiresAt).getTime()
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null
+
+      return state
+    } catch {
+      return null
+    } finally {
+      await fs.unlink(claimedPath).catch(() => {
+        // The claim file is already outside the lookup path; a failure to tidy
+        // it up is for the sweep, not for the sign-in in progress.
+      })
     }
   }
 
@@ -1061,12 +1059,12 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
       const files = await fs.readdir(this.config.authFlowStateDir)
       for (const file of files) {
         if (!file.endsWith('.json')) continue
-        const id = file.slice(0, -'.json'.length)
         try {
           const content = await fs.readFile(path.join(this.config.authFlowStateDir, file), 'utf-8')
           const state = JSON.parse(content) as AuthFlowState
-          if (new Date(state.expiresAt).getTime() < Date.now()) {
-            await this.deleteAuthFlowState(id)
+          const expiresAt = new Date(state.expiresAt).getTime()
+          if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+            await fs.unlink(path.join(this.config.authFlowStateDir, file)).catch(() => {})
             removed++
           }
         } catch {

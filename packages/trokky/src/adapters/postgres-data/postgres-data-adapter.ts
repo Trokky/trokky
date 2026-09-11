@@ -1716,16 +1716,18 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   // AUTH FLOW STATE OPERATIONS
   // ==========================================================================
 
-  async getAuthFlowState(id: string): Promise<AuthFlowState | null> {
+  async consumeAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
     SecurityValidator.validateDocumentId(id)
 
-    // Filtering on expires_at here rather than in the caller means an expired
-    // row is never handed out even if the sweep has not run yet.
+    // Atomic by construction: one statement returns the row and removes it, so
+    // two concurrent callbacks cannot both be handed the same single-use state.
+    // Expiry and kind are part of the WHERE clause, so a request for the wrong
+    // flow neither receives nor destroys another flow's state.
     const result = await this.query(
-      `SELECT id, kind, data, expires_at
-       FROM ${this.tableName('auth_flow_state')}
-       WHERE id = $1 AND expires_at > NOW()`,
-      [id]
+      `DELETE FROM ${this.tableName('auth_flow_state')}
+       WHERE id = $1 AND kind = $2 AND expires_at > NOW()
+       RETURNING id, kind, data, expires_at`,
+      [id, kind]
     )
 
     const row = result.rows[0]
@@ -1737,29 +1739,6 @@ export class PostgresDataAdapter implements DataStorageAdapter {
       data: row.data || {},
       expiresAt: new Date(row.expires_at).toISOString(),
     }
-  }
-
-  async saveAuthFlowState(state: AuthFlowState): Promise<void> {
-    SecurityValidator.validateDocumentId(state.id)
-
-    await this.query(
-      `INSERT INTO ${this.tableName('auth_flow_state')} (id, kind, data, expires_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (id) DO UPDATE
-         SET kind = EXCLUDED.kind, data = EXCLUDED.data, expires_at = EXCLUDED.expires_at`,
-      [state.id, state.kind, JSON.stringify(state.data), state.expiresAt]
-    )
-  }
-
-  async deleteAuthFlowState(id: string): Promise<void> {
-    SecurityValidator.validateDocumentId(id)
-
-    // Deleting an unknown id is not an error: these are single-use and the
-    // sweep may already have removed it.
-    await this.query(
-      `DELETE FROM ${this.tableName('auth_flow_state')} WHERE id = $1`,
-      [id]
-    )
   }
 
   async deleteExpiredAuthFlowStates(): Promise<number> {

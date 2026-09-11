@@ -381,16 +381,26 @@ export interface DataStorageAdapter {
   // ==========================================================================
 
   /**
-   * Retrieve a pending auth flow state by id.
+   * Atomically take a pending auth flow state: return it and delete it in one
+   * operation, or return null.
    *
-   * Returns null for an unknown id and for one whose `expiresAt` has passed, so
-   * callers do not have to check expiry themselves.
+   * Must be atomic. These states are single-use - an OAuth state is CSRF
+   * protection and a WebAuthn challenge must not be answerable twice - so a
+   * read followed by a separate delete is not sufficient: two concurrent
+   * callbacks can both read before either deletes, and both would proceed.
+   * Postgres can do this with `DELETE ... RETURNING`.
+   *
+   * Returns null for an unknown id, one whose `expiresAt` has passed, and one
+   * whose kind does not match, so a caller cannot be handed the wrong flow and
+   * cannot delete another flow's state by presenting its id.
    *
    * @param id - The state or session identifier
-   * @returns The stored state, or null if unknown or expired
-   * @throws Error if storage fails
+   * @param kind - The flow the caller expects
+   * @returns The stored state, or null if unknown, expired or of another kind
+   * @throws Error if storage fails - callers must fail closed rather than
+   *         continuing without having consumed the state
    */
-  getAuthFlowState?(id: string): Promise<AuthFlowState | null>
+  consumeAuthFlowState?(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
 
   /**
    * Store a pending auth flow state.
@@ -404,17 +414,6 @@ export interface DataStorageAdapter {
    * @throws Error if storage fails
    */
   saveAuthFlowState?(state: AuthFlowState): Promise<void>
-
-  /**
-   * Delete a state once it has been consumed.
-   *
-   * Deleting an unknown id is not an error: the record is single-use and may
-   * already have been removed by the expiry sweep.
-   *
-   * @param id - The state or session identifier
-   * @throws Error if storage fails
-   */
-  deleteAuthFlowState?(id: string): Promise<void>
 
   /**
    * Remove every state whose expiry has passed.

@@ -33,8 +33,7 @@ import type {
 import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import {
   saveAuthFlowState,
-  getAuthFlowState,
-  deleteAuthFlowState,
+  consumeAuthFlowState,
   deleteExpiredAuthFlowStates,
 } from './auth-flow-store.js'
 
@@ -104,14 +103,14 @@ async function savePasskeySession(core: TrokkyCore, sessionId: string, session: 
   })
 }
 
+/**
+ * Takes the session and consumes it in one step: a WebAuthn challenge must not
+ * be answerable twice, and scoping to 'passkey' stops a request carrying an
+ * OAuth state id from destroying that flow.
+ */
 async function takePasskeySession(core: TrokkyCore, sessionId: string): Promise<PasskeySession | null> {
-  const stored = await getAuthFlowState(dataAdapter(core), sessionId)
-  if (!stored || stored.kind !== 'passkey') return null
-  return stored.data as unknown as PasskeySession
-}
-
-async function dropPasskeySession(core: TrokkyCore, sessionId: string): Promise<void> {
-  await deleteAuthFlowState(dataAdapter(core), sessionId)
+  const stored = await consumeAuthFlowState(dataAdapter(core), sessionId, 'passkey')
+  return stored ? (stored.data as unknown as PasskeySession) : null
 }
 
 // Generate a random session ID
@@ -366,7 +365,6 @@ export async function verifyPasskeyRegistration(
     // expired are the same answer here.
     const session = await takePasskeySession(core, sessionId)
     if (!session) {
-      await dropPasskeySession(core, sessionId)
       return {
         status: 400,
         headers: {},
@@ -382,7 +380,6 @@ export async function verifyPasskeyRegistration(
 
     // Validate session matches user
     if (session.userId !== request.user.id) {
-      await dropPasskeySession(core, sessionId)
       return {
         status: 403,
         headers: {},
@@ -397,7 +394,6 @@ export async function verifyPasskeyRegistration(
     }
 
     // Clean up session
-    await dropPasskeySession(core, sessionId)
 
     // Verify the registration
     const verification = await verifyRegistrationResponse({
@@ -640,7 +636,6 @@ export async function verifyPasskeyAuthentication(
     // expired are the same answer here.
     const session = await takePasskeySession(core, sessionId)
     if (!session) {
-      await dropPasskeySession(core, sessionId)
       return {
         status: 400,
         headers: {},
@@ -655,7 +650,6 @@ export async function verifyPasskeyAuthentication(
     }
 
     // Clean up session
-    await dropPasskeySession(core, sessionId)
 
     // Find user by credential ID
     const credentialId = credential.id

@@ -15,8 +15,7 @@ import {
 import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import {
   saveAuthFlowState,
-  getAuthFlowState,
-  deleteAuthFlowState,
+  consumeAuthFlowState,
   deleteExpiredAuthFlowStates,
 } from './auth-flow-store.js'
 
@@ -234,11 +233,12 @@ export async function handleGoogleOAuthCallback(
       }
     }
 
-    // Validate state (CSRF protection). getAuthFlowState already rejects an
-    // expired record, so an unknown and an expired state are the same answer here.
-    const storedFlow = await getAuthFlowState(dataAdapter(core), state)
-    if (!storedFlow || storedFlow.kind !== 'oauth') {
-      await deleteAuthFlowState(dataAdapter(core), state)
+    // Validate state (CSRF protection). Consuming is atomic and scoped to this
+    // flow: a replayed callback finds nothing, and one carrying another flow's
+    // id neither receives nor destroys that flow's state. An unknown, expired
+    // and wrong-kind state are all the same answer here.
+    const storedFlow = await consumeAuthFlowState(dataAdapter(core), state, 'oauth')
+    if (!storedFlow) {
       return {
         status: 400,
         headers: {},
@@ -252,9 +252,6 @@ export async function handleGoogleOAuthCallback(
       }
     }
 
-    // Single use: consume it before the exchange so a replayed callback cannot
-    // reuse the same state.
-    await deleteAuthFlowState(dataAdapter(core), state)
     const storedState = storedFlow.data as unknown as OAuthFlowData
 
     // Exchange code for tokens
