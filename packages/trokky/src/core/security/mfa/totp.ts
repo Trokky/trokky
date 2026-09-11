@@ -216,8 +216,12 @@ export class TOTPService {
       period: this.config.period.toString(),
     })
 
-    // Encode account name and issuer for the label
-    const label = encodeURIComponent(`${this.config.issuer}:${accountName}`)
+    // Encode the two halves separately so the separator stays a literal colon.
+    // Encoding the joined string turned the separator into %3A as well, which
+    // was harmless for a fixed issuer but is not once the issuer is
+    // configurable: an issuer containing a colon would give the label two
+    // separators and authenticator apps split on the first one.
+    const label = `${encodeURIComponent(this.config.issuer)}:${encodeURIComponent(accountName)}`
 
     return `otpauth://totp/${label}?${params.toString()}`
   }

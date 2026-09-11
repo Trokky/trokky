@@ -337,7 +337,7 @@ export class TrokkyCore {
       getSettings: () => this.getSettings(),
       verifyPassword: (plainPassword, hashedPassword) => this.authService.verifyPassword(plainPassword, hashedPassword),
       logAuditEvent: (event) => this.logAuditEvent(event),
-      getMfaIssuer: () => resolveMfaIssuer(this.config)
+      getMfaIssuer: (settings) => resolveMfaIssuer(this.config, settings)
     })
 
     this.trustedDeviceService = new TrustedDeviceService({
