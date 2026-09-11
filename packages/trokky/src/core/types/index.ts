@@ -503,6 +503,7 @@ export type {
   SplitStorageConfig,
   TrokkyStorageAdapters,
   WebhookListOptions,
+  AuthFlowState,
   SettingsConfig
 } from './storage-adapters.js'
 

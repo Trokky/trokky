@@ -30,6 +30,14 @@ import type {
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/server'
 
+import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
+import {
+  saveAuthFlowState,
+  getAuthFlowState,
+  deleteAuthFlowState,
+  deleteExpiredAuthFlowStates,
+} from './auth-flow-store.js'
+
 const logger = createLogger('routes', 'Passkey')
 
 // =============================================================================
@@ -65,17 +73,46 @@ interface PasskeyUpdateRequest {
 // =============================================================================
 
 // In-memory store for WebAuthn sessions (in production, use Redis or similar)
-const passkeySessionStore = new Map<string, PasskeySession>()
-
-// Clean up expired sessions periodically
+/**
+ * WebAuthn challenges are issued by one request and verified by another, so
+ * they are persisted through the data storage adapter where it supports it. In
+ * memory, a restart between the two halves fails the ceremony and a second
+ * replica cannot verify at all. See routes/auth/auth-flow-store.ts.
+ */
 setInterval(() => {
-  const now = Date.now()
-  for (const [sessionId, session] of passkeySessionStore.entries()) {
-    if (session.expiresAt < now) {
-      passkeySessionStore.delete(sessionId)
-    }
+  void deleteExpiredAuthFlowStates(lastKnownAdapter)
+}, 60000)
+
+/** The sweeper runs on a timer with no request in hand; requests record the adapter. */
+let lastKnownAdapter: DataStorageAdapter | null = null
+
+function dataAdapter(core: TrokkyCore): DataStorageAdapter | null {
+  try {
+    lastKnownAdapter = core.getDataStorageAdapter()
+    return lastKnownAdapter
+  } catch {
+    return null
   }
-}, 60000) // Clean up every minute
+}
+
+async function savePasskeySession(core: TrokkyCore, sessionId: string, session: PasskeySession): Promise<void> {
+  await saveAuthFlowState(dataAdapter(core), {
+    id: sessionId,
+    kind: 'passkey',
+    data: session as unknown as Record<string, unknown>,
+    expiresAt: new Date(session.expiresAt).toISOString(),
+  })
+}
+
+async function takePasskeySession(core: TrokkyCore, sessionId: string): Promise<PasskeySession | null> {
+  const stored = await getAuthFlowState(dataAdapter(core), sessionId)
+  if (!stored || stored.kind !== 'passkey') return null
+  return stored.data as unknown as PasskeySession
+}
+
+async function dropPasskeySession(core: TrokkyCore, sessionId: string): Promise<void> {
+  await deleteAuthFlowState(dataAdapter(core), sessionId)
+}
 
 // Generate a random session ID
 function generateSessionId(): string {
@@ -223,7 +260,7 @@ export async function getPasskeyRegistrationOptions(
 
     // Store session
     const sessionId = generateSessionId()
-    passkeySessionStore.set(sessionId, {
+    await savePasskeySession(core, sessionId, {
       challenge: options.challenge,
       userId: user.id,
       expectedOrigin: config.origin,
@@ -325,9 +362,11 @@ export async function verifyPasskeyRegistration(
     }
 
     // Get and validate session
-    const session = passkeySessionStore.get(sessionId)
-    if (!session || session.expiresAt < Date.now()) {
-      passkeySessionStore.delete(sessionId)
+    // takePasskeySession already rejects an expired record, so unknown and
+    // expired are the same answer here.
+    const session = await takePasskeySession(core, sessionId)
+    if (!session) {
+      await dropPasskeySession(core, sessionId)
       return {
         status: 400,
         headers: {},
@@ -343,7 +382,7 @@ export async function verifyPasskeyRegistration(
 
     // Validate session matches user
     if (session.userId !== request.user.id) {
-      passkeySessionStore.delete(sessionId)
+      await dropPasskeySession(core, sessionId)
       return {
         status: 403,
         headers: {},
@@ -358,7 +397,7 @@ export async function verifyPasskeyRegistration(
     }
 
     // Clean up session
-    passkeySessionStore.delete(sessionId)
+    await dropPasskeySession(core, sessionId)
 
     // Verify the registration
     const verification = await verifyRegistrationResponse({
@@ -512,7 +551,7 @@ export async function getPasskeyAuthenticationOptions(
 
     // Store session
     const sessionId = generateSessionId()
-    passkeySessionStore.set(sessionId, {
+    await savePasskeySession(core, sessionId, {
       challenge: options.challenge,
       expectedOrigin: config.origin,
       expectedRPID: config.rpId,
@@ -597,9 +636,11 @@ export async function verifyPasskeyAuthentication(
     }
 
     // Get and validate session
-    const session = passkeySessionStore.get(sessionId)
-    if (!session || session.expiresAt < Date.now()) {
-      passkeySessionStore.delete(sessionId)
+    // takePasskeySession already rejects an expired record, so unknown and
+    // expired are the same answer here.
+    const session = await takePasskeySession(core, sessionId)
+    if (!session) {
+      await dropPasskeySession(core, sessionId)
       return {
         status: 400,
         headers: {},
@@ -614,7 +655,7 @@ export async function verifyPasskeyAuthentication(
     }
 
     // Clean up session
-    passkeySessionStore.delete(sessionId)
+    await dropPasskeySession(core, sessionId)
 
     // Find user by credential ID
     const credentialId = credential.id
