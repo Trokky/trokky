@@ -450,6 +450,23 @@ describe('DocumentService', () => {
       })
       expect(saveSpy.mock.calls[0][1]).toBe('post-1')
     })
+    it('keeps underscore-prefixed fields the resolved schema declares, such as the injected _thumbnail', async () => {
+      const saveSpy = vi.spyOn(harness.dataAdapter, 'saveDocument')
+      const thumbnail = { _type: 'media', alt: '', asset: { _ref: 'media-1', _type: 'mediaAsset' } }
+
+      await harness.documentService.saveDocument('posts', {
+        id: 'post-2',
+        title: 'Thumbnailed',
+        _thumbnail: thumbnail,
+        _createdAt: '1999-01-01T00:00:00Z',
+        _revision: 99
+      })
+
+      const storedData = saveSpy.mock.calls[0][2] as Record<string, unknown>
+      expect(storedData._thumbnail).toEqual(thumbnail)
+      expect(storedData).not.toHaveProperty('_createdAt')
+      expect(storedData).not.toHaveProperty('_revision')
+    })
   })
 
   describe('validation and unknown collections', () => {

@@ -1,4 +1,5 @@
 import { SchemaRegistry } from '../schema/registry.js'
+import type { ContentSchema } from '../types/index.js'
 import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
@@ -29,14 +30,25 @@ import {
 /** System fields that clients may send back but must never overwrite storage-managed values */
 const PRESERVED_SYSTEM_FIELDS = new Set(['_status', '_type'])
 
+function declaredFieldNames(schema?: ContentSchema | null): Set<string> {
+  const fields = (schema as { fields?: unknown } | null | undefined)?.fields
+  if (Array.isArray(fields)) return new Set(fields.map(f => (f as { name?: string }).name).filter((n): n is string => !!n))
+  return new Set(Object.keys((fields as Record<string, unknown> | undefined) ?? {}))
+}
+
 /**
  * Remove client-sent system fields (keys starting with "_") from document data.
- * _status and _type are content-level fields and are preserved.
+ *
+ * `_status` and `_type` are content-level fields and are preserved, and so is any
+ * underscore-prefixed key the collection's resolved schema declares as a field
+ * (the registry injects `_thumbnail` for autoThumbnail). Those hold editor
+ * content; only undeclared underscore keys are storage-managed metadata.
  */
-function stripSystemFields(data: Record<string, unknown>): Record<string, unknown> {
+function stripSystemFields(data: Record<string, unknown>, schema?: ContentSchema | null): Record<string, unknown> {
+  const declared = declaredFieldNames(schema)
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(data)) {
-    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key)) {
+    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key) && !declared.has(key)) {
       continue
     }
     result[key] = value
@@ -168,7 +180,7 @@ export class DocumentService {
     // Generate ID if not provided
     const id = data.id || this.deps.idGenerator.generate({ prefix: collection })
     const { id: _, ...rest } = data
-    const documentData = stripSystemFields(rest as Record<string, unknown>)
+    const documentData = stripSystemFields(rest as Record<string, unknown>, this.deps.schemas.getSchema(collection))
 
     // Check if document already exists (for event emission)
     const existingDocument = await this.deps.dataStorage.getDocument(collection, id).catch(() => null)
