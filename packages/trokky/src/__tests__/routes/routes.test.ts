@@ -394,6 +394,44 @@ describe('TrokkyRoutes', () => {
       expect(savedData.title).toBe('Updated Title')
     })
 
+    it('keeps underscore-prefixed fields the schema declares, such as the injected _thumbnail', async () => {
+      // The registry injects `_thumbnail` for autoThumbnail; a project may declare its own.
+      // Those are editor content and must survive the system-field strip on both writes.
+      const thumbnail = { _type: 'media', alt: '', asset: { _ref: 'media-1', _type: 'mediaAsset' } }
+      core.getSchema.mockReturnValue({
+        name: 'article',
+        title: 'Article',
+        type: 'document',
+        fields: { title: { type: 'string' }, _thumbnail: { type: 'media' }, _hero: { type: 'media' } },
+      } as any)
+
+      const create = routes.findRoute('POST', '/collections/article')!
+      const created = await create.handler(makeRequest({
+        method: 'POST',
+        path: '/collections/article',
+        params: { collection: 'article' },
+        body: { data: { title: 'With thumbnail', _thumbnail: thumbnail, _hero: thumbnail, _createdAt: 'spoofed', _revision: 9 } },
+      }))
+      expect(created.status).toBe(201)
+      const createdData = vi.mocked(core.saveDocument).mock.calls[0][1] as Record<string, unknown>
+      expect(createdData._thumbnail).toEqual(thumbnail)
+      expect(createdData._hero).toEqual(thumbnail)
+      expect(createdData).not.toHaveProperty('_createdAt')
+      expect(createdData).not.toHaveProperty('_revision')
+
+      const update = routes.findRoute('PUT', '/collections/article/doc-001')!
+      const updated = await update.handler(makeRequest({
+        method: 'PUT',
+        path: '/collections/article/doc-001',
+        params: { collection: 'article', id: 'doc-001' },
+        body: { data: { title: 'Still with thumbnail', _thumbnail: thumbnail, _createdBy: 'mallory' } },
+      }))
+      expect(updated.status).toBe(200)
+      const updatedData = vi.mocked(core.saveDocument).mock.calls[1][1] as Record<string, unknown>
+      expect(updatedData._thumbnail).toEqual(thumbnail)
+      expect(updatedData).not.toHaveProperty('_createdBy')
+    })
+
     it('should delete a document', async () => {
       const route = routes.findRoute('DELETE', '/collections/article/doc-001')!
       const response = await route.handler(makeRequest({

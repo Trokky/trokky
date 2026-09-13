@@ -4,6 +4,7 @@
 
 import { SecurityValidator, InvalidInputError, expandDocumentReferences, parseExpandParam } from '../../core/index.js'
 import type { HttpRequest, HttpResponse, RouteDefinition, CreateDocumentRequest, UpdateDocumentRequest } from '../types.js'
+import type { ContentSchema } from '../../core/types/index.js'
 import { processSlugFields } from '../slug-processor.js'
 import { isSingletonSchema, collectStructureSingletons } from '../../core/schema/singleton.js'
 import { BaseRoutes } from './base.js'
@@ -11,14 +12,26 @@ import { BaseRoutes } from './base.js'
 /** System fields that clients may send back but must never overwrite storage-managed values */
 const PRESERVED_SYSTEM_FIELDS = new Set(['_status', '_type'])
 
+function declaredFieldNames(schema?: ContentSchema | null): Set<string> {
+  const fields = (schema as { fields?: unknown } | null | undefined)?.fields
+  if (Array.isArray(fields)) return new Set(fields.map(f => (f as { name?: string }).name).filter((n): n is string => !!n))
+  return new Set(Object.keys((fields as Record<string, unknown> | undefined) ?? {}))
+}
+
 /**
  * Remove client-sent system fields (keys starting with "_") from document data.
- * _status and _type are content-level fields and are preserved.
+ *
+ * `_status` and `_type` are content-level fields and are preserved. So is any
+ * underscore-prefixed key the collection's resolved schema declares as a field:
+ * the schema registry injects `_thumbnail` for autoThumbnail, and a project may
+ * declare its own. Those are editor content, not storage-managed metadata, and
+ * dropping them here silently discarded every thumbnail set through the API.
  */
-function stripSystemFields<T extends Record<string, unknown>>(data: T): T {
+function stripSystemFields<T extends Record<string, unknown>>(data: T, schema?: ContentSchema | null): T {
+  const declared = declaredFieldNames(schema)
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(data)) {
-    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key)) {
+    if (key.startsWith('_') && !PRESERVED_SYSTEM_FIELDS.has(key) && !declared.has(key)) {
       continue
     }
     result[key] = value
@@ -281,7 +294,7 @@ export class DocumentRoutes extends BaseRoutes {
       await this.validateSingletonCreation(collection, id)
 
       // Strip client-sent system fields so they cannot shadow storage-managed values
-      const cleanData = stripSystemFields(data as Record<string, any>)
+      const cleanData = stripSystemFields(data as Record<string, any>, this.core.getSchema(collection))
 
       // Process slug fields - auto-generate slugs from source fields if not provided
       const processedData = await processSlugFields(this.core, collection, cleanData)
@@ -382,12 +395,13 @@ export class DocumentRoutes extends BaseRoutes {
       SecurityValidator.validateDocumentId(id)
       SecurityValidator.validateDocumentData(data)
 
+      const schema = this.core.getSchema(collection)
+
       // Strip client-sent system fields so they cannot shadow storage-managed values
-      const cleanData = stripSystemFields(data as Record<string, any>)
+      const cleanData = stripSystemFields(data as Record<string, any>, schema)
 
       // Get existing document to merge with updates
       // For singletons, allow upsert (create if doesn't exist)
-      const schema = this.core.getSchema(collection)
       const isSingleton = isSingletonSchema(schema)
 
       const existingDoc = await this.core.getDocument(collection, id)
