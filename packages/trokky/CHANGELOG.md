@@ -1,5 +1,12 @@
 # @trokky/trokky
 
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [4712195]
+  - @trokky/studio@2.0.7
+
 ## 2.0.6
 
 ### Patch Changes
