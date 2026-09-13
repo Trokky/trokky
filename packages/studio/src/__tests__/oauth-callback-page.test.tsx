@@ -141,6 +141,69 @@ describe('OAuthCallbackPage terminal states', () => {
     await expectErrorState()
   })
 
+  it('times out even when the transport ignores the abort signal, e.g. a hanging 401-recovery refresh (#19)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    sessionStorage.setItem('oauth_state', 'xyz')
+    sessionStorage.setItem('oauth_code_verifier', 'verifier-123')
+    sessionStorage.setItem('oauth_mode', 'login')
+
+    // A request that never settles AND never reacts to the signal: this is
+    // what a 401-recovery refresh inside the client looks like from here,
+    // since that inner request is issued without the caller's signal.
+    postMock.mockImplementation(() => new Promise<ApiResponse<unknown>>(() => undefined))
+
+    render(<OAuthCallbackPage onLoginSuccess={vi.fn()} />)
+    expect(postMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(OAUTH_CALLBACK_TIMEOUT_MS + 1_000)
+    vi.useRealTimers()
+    await expectErrorState()
+  })
+
+  it('keeps the error state when the abandoned request succeeds after the deadline', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    sessionStorage.setItem('oauth_state', 'xyz')
+    sessionStorage.setItem('oauth_code_verifier', 'verifier-123')
+    sessionStorage.setItem('oauth_mode', 'login')
+    const onLoginSuccess = vi.fn()
+
+    let resolveLate: (value: ApiResponse<unknown>) => void = () => undefined
+    postMock.mockImplementation(
+      () =>
+        new Promise<ApiResponse<unknown>>(resolve => {
+          resolveLate = resolve
+        })
+    )
+
+    render(<OAuthCallbackPage onLoginSuccess={onLoginSuccess} />)
+    await vi.advanceTimersByTimeAsync(OAUTH_CALLBACK_TIMEOUT_MS + 1_000)
+    vi.useRealTimers()
+    await expectErrorState()
+
+    // The exchange completes late. The page has already reported; a late
+    // success must neither persist tokens nor flip the status.
+    resolveLate({
+      success: true,
+      data: { token: 'late-token', refreshToken: 'r', user: { id: 'u1' } },
+    } as ApiResponse<unknown>)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(screen.getByText('auth.oauth.notCompleted')).toBeTruthy()
+    expect(screen.queryByText('auth.oauth.loginSuccess')).toBeNull()
+    expect(vi.mocked(authStore.persist)).not.toHaveBeenCalled()
+    expect(onLoginSuccess).not.toHaveBeenCalled()
+  })
+
+  it('reports a genuine failure as itself, not as a timeout', async () => {
+    sessionStorage.setItem('oauth_state', 'xyz')
+    sessionStorage.setItem('oauth_code_verifier', 'verifier-123')
+    sessionStorage.setItem('oauth_mode', 'login')
+    postMock.mockRejectedValue(new Error('Invalid authorization code'))
+
+    render(<OAuthCallbackPage onLoginSuccess={vi.fn()} />)
+    expect(await screen.findByText('Invalid authorization code')).toBeTruthy()
+    expect(screen.queryByText('auth.oauth.notCompleted')).toBeNull()
+  })
+
   it('navigates back to the login screen from the error state', async () => {
     // `location.href` is not writable in jsdom; redefine it for this test.
     const originalLocation = window.location

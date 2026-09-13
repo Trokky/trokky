@@ -17,6 +17,18 @@ type CallbackStatus = 'processing' | 'success' | 'error';
  */
 export const OAUTH_CALLBACK_TIMEOUT_MS = 30_000;
 
+/**
+ * Thrown by the callback deadline. A dedicated class, rather than reading the
+ * abort controller's flag, so that a genuine failure landing just after the
+ * deadline is reported as itself and not as a timeout.
+ */
+class OAuthCallbackTimeoutError extends Error {
+  constructor() {
+    super('OAuth callback timed out');
+    this.name = 'OAuthCallbackTimeoutError';
+  }
+}
+
 // This page needs copy that is not in the shared locale files (those live in
 // @trokky/trokky). Register it into the existing `studio` namespace once,
 // non-destructively, so a future upstream definition wins. This must run at
@@ -118,10 +130,25 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
   }, []);
 
   const handleOAuthCallback = async () => {
-    // Give the token exchange a hard deadline: a request that never settles
-    // would otherwise leave the page in 'processing' forever.
+    // Give the whole exchange a hard deadline, not just the one request: the
+    // transport may run a 401-recovery refresh inside it that the request's
+    // abort signal does not reach (#19). The race below bounds anything the
+    // transport does; the controller still cancels the direct fetch so it
+    // does not linger. Once the deadline has put the page in its error
+    // state, a late result must not flip it back.
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), OAUTH_CALLBACK_TIMEOUT_MS);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(() => {
+        // Reject first, then abort: an abort listener on the request fires
+        // synchronously, and the race must see the deadline, not the abort.
+        reject(new OAuthCallbackTimeoutError());
+        timeoutController.abort();
+      }, OAUTH_CALLBACK_TIMEOUT_MS);
+    });
+    // Everything before the request (URL parsing, storage reads) runs inside
+    // the try as well, so a synchronous throw lands in the error state.
     try {
       // Extract code and state from URL
       const urlParams = new URLSearchParams(window.location.search);
@@ -157,36 +184,40 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
       const deviceId = getDeviceId();
 
       // Exchange code for tokens
-      const response = await apiClient.post<{
-        token?: string;
-        refreshToken?: string;
-        user?: any;
-        expiresAt?: string;
-        message?: string;
-        // MFA fields
-        requiresMFA?: boolean;
-        mfaToken?: string;
-        methods?: string[];
-        requiresMFASetup?: boolean;
-        setupToken?: string;
-        allowedMethods?: string[];
-        expiresIn?: number;
-        provider?: {
-          provider: string;
-          email: string;
-          linkedAt: string;
-        };
-      }>(
-        '/auth/oauth/google/callback',
-        {
-          code,
-          state,
-          codeVerifier,
-          mode,
-          deviceId,
-        },
-        { signal: timeoutController.signal }
-      );
+      const response = await Promise.race([
+        apiClient.post<{
+          token?: string;
+          refreshToken?: string;
+          user?: any;
+          expiresAt?: string;
+          message?: string;
+          // MFA fields
+          requiresMFA?: boolean;
+          mfaToken?: string;
+          methods?: string[];
+          requiresMFASetup?: boolean;
+          setupToken?: string;
+          allowedMethods?: string[];
+          expiresIn?: number;
+          provider?: {
+            provider: string;
+            email: string;
+            linkedAt: string;
+          };
+        }>(
+          '/auth/oauth/google/callback',
+          {
+            code,
+            state,
+            codeVerifier,
+            mode,
+            deviceId,
+          },
+          { signal: timeoutController.signal }
+        ),
+        deadline,
+      ]);
+      settled = true;
 
       // Clean up sessionStorage
       sessionStorage.removeItem('oauth_state');
@@ -258,11 +289,14 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
         throw new Error(response.error?.message || 'OAuth callback failed');
       }
     } catch (err) {
+      // The deadline already reported; a late rejection from the abandoned
+      // request (typically the abort it received) must not overwrite it.
+      if (settled) {
+        return;
+      }
+      settled = true;
       console.error('OAuth callback error:', err);
-      // A timeout surfaces as a generic network abort ("Network error: The
-      // user aborted a request.") by the time it reaches here, so check the
-      // controller to tell it apart from other failures.
-      const timedOut = timeoutController.signal.aborted;
+      const timedOut = err instanceof OAuthCallbackTimeoutError;
       setStatus('error');
       setError(
         timedOut
@@ -278,6 +312,9 @@ export function OAuthCallbackPage({ onLoginSuccess }: OAuthCallbackPageProps) {
       sessionStorage.removeItem('oauth_mode');
     } finally {
       clearTimeout(timeoutId);
+      // Nothing awaits the deadline once the race is over; keep its rejection
+      // from surfacing as an unhandled promise.
+      deadline.catch(() => undefined);
     }
   };
 
