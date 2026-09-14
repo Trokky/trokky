@@ -26,7 +26,7 @@ export interface ProcessedImage {
 }
 
 export interface ImageProcessorConfig {
-  type: 'none' | 'sharp' | 'cloudflare-images' | 'cloudflare-transformations' | 'cloudflare-transform-store' | 'workers-images' | 'imagekit' | 'imgix' | 'custom'
+  type: 'none' | 'sharp' | 'cloudflare-images' | 'imagekit' | 'imgix' | 'custom'
   variants?: ImageVariant[]
   options?: Record<string, unknown>
 }
