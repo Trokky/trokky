@@ -1,5 +1,128 @@
 # @trokky/trokky
 
+## 3.2.0
+
+### Minor Changes
+
+- b976e31: A Cloudflare D1 data adapter, written against the conformance suite.
+
+  ```ts
+  import '@trokky/trokky/adapters/cloudflare-d1'
+
+  storage: { data: { adapter: 'cloudflare-d1', options: { database: env.DB } } }
+  ```
+
+  It passes all 113 conformance tests (134 cases with the divergent-field matrix expanded) — the same suite the filesystem and Postgres adapters answer to, which exists because those two silently disagreed in eight ways. The suite runs against a **real D1**: Miniflare boots workerd and hands back a `D1Database`, so actual D1 semantics are exercised from an ordinary Node test run, with no separate runner. It has no external dependency, so unlike the Postgres runner it never skips.
+
+  SQLite differs from Postgres in ways that stay invisible until a test fails, so the notable choices are deliberate:
+
+  - **Timestamps come from JS, never from SQL.** SQLite's `CURRENT_TIMESTAMP` has one-second resolution, and the ordering fixtures are 20ms apart.
+  - **Document payloads are one JSON text blob**, so `0`, `false`, `''`, `null` and absent stay distinguishable.
+  - **Filters compare `json_type` as well as value**, because `json_extract` collapses JSON booleans to 0/1 and `false` would otherwise match a stored `0`.
+  - **Sorts use `json_extract`**, which yields real SQL numbers; the text accessors sort 13 before 2.
+  - **No `beginTransaction`.** D1 has no interactive transactions. The three places needing atomicity each do it in one statement: the document upsert via `ON CONFLICT`, `saveUserIf` via a conditional `UPDATE … RETURNING`, and `consumeAuthFlowState` via `DELETE … RETURNING`, which is what makes single-use auth state safe across isolates.
+
+  Also exports `@trokky/trokky/adapters/cloudflare-d1`, registering itself as `cloudflare-d1` for the `edge` and `cloudflare` environments.
+
+- 6b0b978: A Cloudflare R2 media adapter, and the media conformance suite it is written against.
+
+  ```ts
+  import '@trokky/trokky/adapters/cloudflare-r2'
+
+  storage: { media: { adapter: 'cloudflare-r2', options: { bucket: env.MEDIA } } }
+  ```
+
+  **The suite came first.** There was no media conformance suite at all: the filesystem media adapter was the contract by accident, and a second implementation would have shipped unvalidated. `media-conformance.ts` now pins what `MediaService` and the media routes actually depend on — 63 cases covering upload validation, byte-exact round-tripping of non-UTF-8 content, metadata merge semantics, listing filters, sorting, pre-pagination totals, and the variant lifecycle. It is specified against the real call order the service produces, not against whatever one adapter happens to do. Optional interface methods are declared by each runner rather than probed at runtime, so a method going missing fails a runner instead of silently skipping a test.
+
+  `FilesystemMediaAdapter` passes it, and so does the new R2 adapter — against a **real R2 bucket**, via Miniflare, the same way the D1 runner gets a real D1.
+
+  R2 is a flat object store with no metadata queries and no transactions, so:
+
+  - **Bytes and description are separate objects.** `files/<id>` and `meta/<id>.json`: renaming a photo must not rewrite 12MB, and serving it must not parse JSON.
+  - **The listing carries its own index.** Sortable and filterable fields are mirrored into each record's `customMetadata`, so `listMedia` filters, sorts and counts from one `list()` sweep and reads full records only for the page it returns. Listing 900 files is one sweep, not 900 GETs.
+  - **The record object is the authority on existence.** Written last on upload, deleted first on delete, so an interrupted operation can orphan bytes — which `cleanup()` reclaims — but never leave a listing entry pointing at nothing.
+  - **Variant keys carry no format.** `variants/<id>/<name>` with the format in `customMetadata`, so re-encoding a variant overwrites it instead of leaving both formats behind.
+  - **Caller metadata is namespaced.** `updateFile({ size: 0 })` cannot shadow the real size in the listing index.
+
+  A `prefix` option lets one bucket host several installs, isolated from each other. `getFileUrl`/`getVariantUrl` return direct URLs when `publicBaseUrl` is set and null otherwise — a bucket binding cannot presign, so the alternative is serving bytes through Trokky's own media routes.
+
+- 638f265: Serve Trokky from a web-standard `fetch` handler, so it can run on Cloudflare Workers, Deno and Bun.
+
+  ```ts
+  import { createFetchHandler } from '@trokky/trokky/workers'
+
+  const handler = createFetchHandler({ core, basePath: '/api' })
+  export default { fetch: (request: Request) => handler(request) }
+  ```
+
+  The route layer already spoke `HttpRequest` → `HttpResponse` and knew nothing about any framework. On an edge runtime the incoming object is already a web `Request`, so the integration is a router lookup between two conversions: no Node streams, no `Buffer`, no `busboy`. Multipart uses the platform's own `request.formData()`, which yields the web `File` objects `HttpRequest.files` was already typed as.
+
+  Also exports `@trokky/trokky/routes`. `TrokkyRoutes` was not exported from the package at all, so the framework-agnostic registry could not be reached from outside it.
+
+  This is the runtime entry point only. Running Trokky on Workers end to end also needs edge-native storage adapters, which are not part of this release.
+
+- 13b6dce: Retry transient media processing failures, and stop swallowing the ones that remain.
+
+  Remote image processing is not reliable enough to call once. Measured against Cloudflare's real Images service, roughly **one call in fifteen** of a 6MB JPEG fails transiently — `Network connection lost`, `internal error; reference = ...`. `MediaService` used to catch those, log a warning and carry on, so the upload returned looking complete with no thumbnail attached. That is the same shape as the `autoThumbnail` write drop that cost 97 of 124 articles their images.
+
+  Three steps now retry with exponential backoff and jitter — processing the image, writing each variant, and persisting the variant metadata. Jitter matters because variants are generated in a loop: a batch that fails together would otherwise retry together, in step, against the same overloaded backend. Input nothing can fix (`unsupported format`, `too large`) is not retried, so a permanent failure still fails fast.
+
+  What survives the retries is **reported, not swallowed**. The media record gains an `imageProcessing` field:
+
+  ```jsonc
+  {
+    "status": "partial", // or "failed"
+    "failures": [
+      {
+        "stage": "save-variant",
+        "variant": "thumbnail",
+        "error": "Network connection lost.",
+      },
+    ],
+    "failedAt": "2026-09-14T22:41:07.000Z",
+  }
+  ```
+
+  Its absence means every variant was generated and stored, so a clean upload is unmarked and nothing downstream changes. Failures now log at `error` rather than `warn`.
+
+  Uploads still do not throw when variants fail: the original file is stored and is what the user actually sent, so failing would send them to re-upload something already safe. The difference is that the record now says it is incomplete instead of looking finished.
+
+  Upload and `regenerateMediaVariants` share one generation path, so their retry and reporting behaviour cannot drift apart.
+
+  `withRetry` is exported from `@trokky/trokky` for adapters and custom processors that face the same problem.
+
+- b976e31: Stop assuming a long-lived process: rate limit counters can be shared, and expired auth state is swept by requests rather than by a timer.
+
+  **Rate limiting.** `RateLimiter` kept its counters in a plain `Map` with no seam to replace it. In one process that is exact and free. Across isolates it is a security bug wearing a performance costume: each isolate counts on its own, so the real limit is multiplied by however many are warm, and the limiter still looks like it works.
+
+  Counters now live behind a `RateLimitStore`. The default is `MemoryRateLimitStore`, which is the previous behaviour exactly, so nothing changes for a Node deployment. `D1RateLimitStore` (from `@trokky/trokky/adapters/cloudflare-d1`) shares them across isolates using the D1 binding an install already has — no new binding to provision, which matters for one-click deploys. KV would be the wrong tool: its writes take up to a minute to propagate, so a limiter built on it would admit bursts it believes it has already refused.
+
+  The unit of exchange is a **lease**, not a request, because `checkRateLimit` guards media reads as well as sign-ins and a shared write per request would be unaffordable. A limiter reserves a slice of the window's quota, spends it locally for free, and returns to the store only when the slice runs out: one statement per `leaseSize` requests. The error this introduces leans safe — an isolate evicted with credit unspent has still spent it, so churn makes the limit stricter than configured, never looser.
+
+  **Auth flow state.** The OAuth and passkey routes swept expired state from a module-scope `setInterval`, which assumes a process outliving any request. On an edge runtime that fails twice: work at import time is restricted, and nothing runs between requests, so the timer is either rejected or never fires while still reading as correct. The sweep is now driven by a request, at most once a minute, and is never awaited. That is safe because expiry is already enforced on read, making the sweep pure garbage collection. The module-level "last known adapter" globals both routes kept for the timer are gone with it.
+
+### Patch Changes
+
+- cd9a33b: Remove four image processors that were never reachable.
+
+  `cloudflare-images`, `cloudflare-transformations`, `cloudflare-transform-store` and `workers-images` were 1,234 lines that nothing could run: the factory case was commented out, `processors/index.ts` deliberately did not export them, and no test ever touched them.
+
+  They also predate the Cloudflare Images binding, and three of them are built on mechanisms it supersedes — `fetch()` with `cf.image` and the URL transformation API, both of which need the source image publicly reachable, which an R2 bucket behind Trokky need not be.
+
+  `cloudflare-images` stays in the public `media.imageProcessor` union as the reserved name for a real implementation, and now throws the same explicit "not yet implemented" error as `imagekit` and `imgix` rather than falling through to "unknown processor". The internal union drops the three names that only ever described the deleted files.
+
+  No behaviour changes: every one of these already threw when selected.
+
+- 93e3617: Bundle for Cloudflare Workers without the caller aliasing optional Node dependencies.
+
+  `sharp`, `pg` and `bcrypt` never execute on Workers, and the code loading them already sat behind a dynamic `import()` for that reason. That is not enough: a bundler resolves a literal dynamic import whether or not the branch runs, and the surviving reference broke the Worker at startup with `Unable to resolve ... dependency "sharp": no matching module rules`. sharp pulls in `detect-libc`, which wants `fs` and `child_process`.
+
+  Hiding the specifier behind a variable is not a fix either — workerd rejects a non-literal dynamic specifier at parse time, executed or not. So `sharp` is now loaded through `require`, which no bundler follows and workerd never parses, matching how `bcrypt` was already loaded. Node behaviour is unchanged; sharp is CommonJS anyway.
+
+  A Worker build needs no `alias` entries now. `nodejs_compat` is still required, for `crypto`, `events` and `module`.
+
+  Guarded by a test that bundles the edge entry points for a workerd target and asserts nothing external survives but Node built-ins, and that no Trokky source reaching the bundle uses a non-literal dynamic specifier. Both halves were confirmed to fail before the fix.
+
 ## 3.1.0
 
 ### Minor Changes

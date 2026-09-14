@@ -1,5 +1,18 @@
 # @trokky/studio
 
+## 3.2.0
+
+### Patch Changes
+
+- Updated dependencies [b976e31]
+- Updated dependencies [6b0b978]
+- Updated dependencies [cd9a33b]
+- Updated dependencies [93e3617]
+- Updated dependencies [638f265]
+- Updated dependencies [13b6dce]
+- Updated dependencies [b976e31]
+  - @trokky/trokky@3.2.0
+
 ## 3.1.0
 
 ### Minor Changes
