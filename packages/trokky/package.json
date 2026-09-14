@@ -104,6 +104,10 @@
     "./workers": {
       "import": "./dist/integrations/workers/index.js",
       "types": "./dist/integrations/workers/index.d.ts"
+    },
+    "./adapters/cloudflare-d1": {
+      "import": "./dist/adapters/cloudflare-d1/index.js",
+      "types": "./dist/adapters/cloudflare-d1/index.d.ts"
     }
   },
   "scripts": {
@@ -168,6 +172,7 @@
     "sharp": "^0.35.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260914.1",
     "@types/bcrypt": "^6.0.0",
     "@types/busboy": "^1.5.4",
     "@types/cors": "^2.8.17",
@@ -180,6 +185,7 @@
     "@types/sharp": "^0.31.1",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.0",
+    "miniflare": "^4.20260730.0",
     "supertest": "^7.2.2",
     "typescript": "^5.3.3",
     "vitest": "^4.1.0"

@@ -16,7 +16,7 @@ import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import {
   saveAuthFlowState,
   consumeAuthFlowState,
-  deleteExpiredAuthFlowStates,
+  sweepExpiredAuthFlowStates,
 } from './auth-flow-store.js'
 
 const logger = createLogger('routes', 'OAuth')
@@ -52,21 +52,14 @@ interface OAuthFlowData {
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
 
-// Sweep expired states. Reads reject them regardless, so this only reclaims space.
-setInterval(() => {
-  void deleteExpiredAuthFlowStates(lastKnownAdapter)
-}, 60000)
 
-/**
- * The sweeper runs on a timer with no request in hand, so it has no core to ask
- * for the adapter. Requests record the one they used.
- */
-let lastKnownAdapter: DataStorageAdapter | null = null
 
 function dataAdapter(core: TrokkyCore): DataStorageAdapter | null {
   try {
-    lastKnownAdapter = core.getDataStorageAdapter()
-    return lastKnownAdapter
+    const adapter = core.getDataStorageAdapter()
+    // Reclaim expired states opportunistically; never awaited, never required.
+    sweepExpiredAuthFlowStates(adapter)
+    return adapter
   } catch {
     return null
   }

@@ -105,3 +105,57 @@ describe('FilesystemDataAdapter auth flow state', () => {
     expect(await adapter.consumeAuthFlowState('live', 'oauth')).not.toBeNull()
   })
 })
+
+describe('sweeping without a background timer', () => {
+  it('sweeps on the first call and then not again until the interval has passed', async () => {
+    const { sweepExpiredAuthFlowStates, resetSweepClock } = await import(
+      '../../routes/auth/auth-flow-store.js'
+    )
+    resetSweepClock()
+
+    let sweeps = 0
+    const adapter = {
+      saveAuthFlowState: async () => undefined,
+      consumeAuthFlowState: async () => null,
+      deleteExpiredAuthFlowStates: async () => {
+        sweeps++
+        return 0
+      },
+    } as unknown as Parameters<typeof sweepExpiredAuthFlowStates>[0]
+
+    const start = 1_000_000
+    sweepExpiredAuthFlowStates(adapter, start)
+    sweepExpiredAuthFlowStates(adapter, start + 1_000)
+    sweepExpiredAuthFlowStates(adapter, start + 30_000)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(sweeps).toBe(1)
+
+    // Past the interval, the next request sweeps again.
+    sweepExpiredAuthFlowStates(adapter, start + 61_000)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(sweeps).toBe(2)
+
+    resetSweepClock()
+  })
+
+  it('never makes the caller wait, and survives a failing sweep', async () => {
+    const { sweepExpiredAuthFlowStates, resetSweepClock } = await import(
+      '../../routes/auth/auth-flow-store.js'
+    )
+    resetSweepClock()
+
+    const adapter = {
+      saveAuthFlowState: async () => undefined,
+      consumeAuthFlowState: async () => null,
+      deleteExpiredAuthFlowStates: async () => {
+        throw new Error('storage unavailable')
+      },
+    } as unknown as Parameters<typeof sweepExpiredAuthFlowStates>[0]
+
+    // Returns synchronously and does not throw: a failed sweep costs storage,
+    // never a request.
+    expect(() => sweepExpiredAuthFlowStates(adapter, 2_000_000)).not.toThrow()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    resetSweepClock()
+  })
+})
