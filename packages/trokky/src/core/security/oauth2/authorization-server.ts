@@ -51,6 +51,8 @@ export interface OAuth2ClientConfig {
 export interface OAuth2ServerConfig {
   /** Base URL of the authorization server (e.g., https://cms.example.com) */
   issuer: string
+  /** Device-flow approval page (RFC 8628 verification_uri). Default: `${issuer}/studio/auth/device`. */
+  verificationUri?: string
   /** JWT secret for signing tokens */
   jwtSecret: string
   /** Access token lifetime in seconds (default: 3600 = 1 hour) */
@@ -91,6 +93,7 @@ export class OAuth2AuthorizationServer {
       accessTokenTtl: config.accessTokenTtl ?? 3600,
       refreshTokenTtl: config.refreshTokenTtl ?? 2592000,
       deviceCodeTtl: config.deviceCodeTtl ?? 600,
+      verificationUri: config.verificationUri ?? `${config.issuer}/studio/auth/device`,
       authCodeTtl: config.authCodeTtl ?? 600,
       pollingInterval: config.pollingInterval ?? 5
     }
@@ -308,7 +311,8 @@ export class OAuth2AuthorizationServer {
     this.deviceCodes.set(userCode, state)
 
     // Build verification URIs
-    const verificationUri = `${this.config.issuer}/studio/auth/device`
+    // Studio serves the approval page under its own mount; the default assumes /studio.
+    const verificationUri = this.config.verificationUri
     const verificationUriComplete = `${verificationUri}?code=${userCode}`
 
     return {

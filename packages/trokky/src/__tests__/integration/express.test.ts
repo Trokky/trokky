@@ -68,7 +68,7 @@ describe('Express Integration', () => {
       },
     })
 
-    trokky.mount(app, { apiPath: '/api', studioPath: '/studio' })
+    trokky.mount(app, { apiPath: '/api'})
   }, 30000) // 30s timeout for setup
 
   afterAll(async () => {
@@ -304,7 +304,6 @@ describe('Express Integration with a custom apiPath', () => {
 
     customTrokky.mount(customApp, {
       apiPath: '/backend/api',
-      studioPath: '/studio',
     })
   }, 30000)
 
@@ -323,6 +322,87 @@ describe('Express Integration with a custom apiPath', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.servers[0].url).toBe('/backend/api')
+  })
+})
+
+describe('Studio mounting moved out of the server (3.0)', () => {
+  let tempDir: string
+
+  const baseConfig = (extra: Record<string, unknown>) =>
+    ({
+      schemas: [{ name: 'post', title: 'Post', type: 'document', fields: [{ name: 'title', type: 'string' }] }],
+      storage: {
+        data: {
+          adapter: 'filesystem-data',
+          options: {
+            contentDir: path.join(tempDir, 'content'),
+            usersDir: path.join(tempDir, 'users'),
+            tokensDir: path.join(tempDir, 'tokens'),
+            webhooksDir: path.join(tempDir, 'webhooks'),
+            settingsDir: path.join(tempDir, 'settings'),
+          },
+        },
+        media: { adapter: 'filesystem-media', options: { mediaDir: path.join(tempDir, 'media') } },
+      },
+      security: {
+        adminUser: { username: 'admin', email: 'admin@test.com', password: 'TestPassword123!' },
+      },
+      ...extra,
+    }) as any
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'trokky-studio-3-'))
+  })
+
+  afterEach(async () => {
+    await fs.remove(tempDir).catch(() => undefined)
+  })
+
+  it('refuses a pre-3.0 studio block and names each removed key', async () => {
+    const boot = TrokkyExpress.create(baseConfig({ studio: { enabled: true, path: '/studio', structure: {} } }))
+    await expect(boot).rejects.toThrow(/'studio\.structure' has moved to the top-level 'structure'/)
+    await expect(boot).rejects.toThrow(/'studio\.path' is gone/)
+    await expect(boot).rejects.toThrow(/'studio\.enabled' is gone/)
+  })
+
+  it('defineConfig refuses the old shape too', async () => {
+    const { defineConfig } = await import('../../integrations/express/config.js')
+    expect(() => defineConfig(baseConfig({ studio: { requireAuth: true } }))).toThrow(/'studio\.requireAuth' is gone/)
+  })
+
+  it('still accepts the studio keys that are served over the API', async () => {
+    const trokky = await TrokkyExpress.create(
+      baseConfig({
+        studio: { branding: { title: 'Site CMS' }, settings: { pageSize: 10 } },
+        structure: { title: 'Site', items: [] },
+      })
+    )
+    try {
+      expect(trokky.getMountedPaths()).toEqual({ apiPath: '/api' })
+      const app = express()
+      trokky.mount(app, { apiPath: '/api' })
+      expect(trokky.getMountedPaths()).toEqual({ apiPath: '/api' })
+
+      const config = await request(app).get('/api/config/studio')
+      expect(config.status).toBe(200)
+      expect(config.body.data.studioConfig.branding.title).toBe('Site CMS')
+
+      // The server no longer answers for Studio: that is the site's router now.
+      expect((await request(app).get('/studio')).status).toBe(404)
+    } finally {
+      await trokky.core?.shutdown?.()
+    }
+  })
+
+  it('mount() refuses the removed studioPath option', async () => {
+    const trokky = await TrokkyExpress.create(baseConfig({}))
+    try {
+      expect(() => trokky.mount(express(), { apiPath: '/api', studioPath: '/studio' } as any)).toThrow(
+        /studioPath[\s\S]*studioRouter\(\) from '@trokky\/studio\/express'/
+      )
+    } finally {
+      await trokky.core?.shutdown?.()
+    }
   })
 })
 
@@ -355,7 +435,7 @@ describe('singleton consistency at boot', () => {
           password: 'TestPassword123!',
         },
       },
-      studio: { structure },
+      structure,
     } as any)
 
   const settingsSchema = (extra: Record<string, unknown> = {}) => ({

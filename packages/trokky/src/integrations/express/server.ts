@@ -59,8 +59,6 @@ export interface ServerInfo {
   port: number
   env: string
   apiPath: string
-  studioPath: string
-  studioEnabled: boolean
   mailEnabled: boolean
   customRoutesCount: number
   hooksCount: number
@@ -133,10 +131,9 @@ export async function startServer(
 
   // Mount Trokky routes
   const apiPath = fullConfig.server.basePath || '/api'
-  const studioPath = fullConfig.studio.path || '/studio'
 
-  integration.mount(app, { apiPath, studioPath })
-  logger.info('Trokky routes mounted', { apiPath, studioPath })
+  integration.mount(app, { apiPath })
+  logger.info('Trokky routes mounted', { apiPath })
 
   // Initialize mail service if configured
   let mailService: MailService | undefined
@@ -205,8 +202,6 @@ export async function startServer(
       port,
       env: fullConfig.env,
       apiPath,
-      studioPath,
-      studioEnabled: fullConfig.studio.enabled ?? true,
       mailEnabled: !!mailService,
       customRoutesCount: fullConfig.routes?.length ?? 0,
       hooksCount: countHooks(fullConfig.hooks),
@@ -688,9 +683,6 @@ function logStartupSummary(info: ServerInfo): void {
   console.log(`║  Environment:    ${info.env.padEnd(42)}║`)
   console.log(`║  Port:           ${String(info.port).padEnd(42)}║`)
   console.log(`║  API:            http://localhost:${info.port}${info.apiPath.padEnd(22)}║`)
-  if (info.studioEnabled) {
-    console.log(`║  Studio:         http://localhost:${info.port}${info.studioPath.padEnd(22)}║`)
-  }
   console.log(`║  Health:         http://localhost:${info.port}/health${' '.repeat(17)}║`)
   console.log('╠════════════════════════════════════════════════════════════╣')
   console.log(`║  Mail:           ${(info.mailEnabled ? 'Enabled' : 'Disabled').padEnd(42)}║`)
@@ -742,7 +734,6 @@ export async function createServer(config: TrokkyConfig): Promise<{
       // Mount routes
       integration.mount(app, {
         apiPath: fullConfig.server.basePath || '/api',
-        studioPath: fullConfig.studio.path || '/studio',
       })
 
       // Initialize mail, hooks, routes...
@@ -766,8 +757,6 @@ export async function createServer(config: TrokkyConfig): Promise<{
           port: actualPort,
           env: fullConfig.env,
           apiPath: fullConfig.server.basePath || '/api',
-          studioPath: fullConfig.studio.path || '/studio',
-          studioEnabled: fullConfig.studio.enabled ?? true,
           mailEnabled: false,
           customRoutesCount: 0,
           hooksCount: 0,

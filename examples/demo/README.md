@@ -88,10 +88,12 @@ curl -s "http://localhost:3253/api/collections/posts/post-first-light?expand=*" 
 
 ### `server.ts`
 
-The whole integration is two calls: `TrokkyExpress.create(config)` builds the
-core, the storage adapters and the routers; `trokky.mount(app)` attaches the API,
-the static routes and the Studio to an ordinary Express app. `getMountedPaths()`
-reports where they landed, which is what the startup banner prints.
+The whole integration is three calls: `TrokkyExpress.create(config)` builds the
+core, the storage adapters and the routers; `trokky.mount(app)` attaches the API
+and the static routes to an ordinary Express app; `app.use('/studio',
+studioRouter({ apiPath }))` from `@trokky/studio/express` mounts the admin UI
+wherever the site wants it, before any catch-all. `getMountedPaths()` reports
+where the API landed, which is what the startup banner prints.
 
 ### `schemas/`
 

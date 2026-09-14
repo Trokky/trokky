@@ -12,17 +12,9 @@ export interface AutoAdminUser {
   role?: UserRole
 }
 
-// Studio configuration (matches Studio's StudioConfig interface)
+// Studio configuration served to the admin UI over the API (GET /config/studio).
+// Serving the UI itself is the site's job since 3.0 (studioRouter from '@trokky/studio/express').
 export interface StudioIntegrationConfig {
-  /** Enable Studio integration */
-  enabled?: boolean
-
-  /** Mount point for Studio (default: '/studio') */
-  mount?: string
-
-  /** Enable authentication */
-  auth?: boolean
-
   /** Studio branding configuration */
   branding?: {
     title?: string
@@ -135,7 +127,6 @@ export type ExpressRouteHandler = (
 export interface ExpressIntegration {
   router: Router
   staticRouter: Router
-  studioRouter?: Router
   middleware: ExpressMiddleware[]
   config: ExpressIntegrationConfig
   core?: TrokkyCore
@@ -145,7 +136,6 @@ export interface ExpressIntegration {
     app: any,
     options?: {
       apiPath?: string
-      studioPath?: string
     }
   ) => void
 
@@ -153,8 +143,7 @@ export interface ExpressIntegration {
   getMountedApiPath: () => string
 
   /** Get the currently mounted Studio path */
-  getMountedStudioPath: () => string
 
   /** Get both mounted paths */
-  getMountedPaths: () => { apiPath: string; studioPath: string }
+  getMountedPaths: () => { apiPath: string }
 }

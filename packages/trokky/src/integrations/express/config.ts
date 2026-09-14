@@ -274,16 +274,19 @@ export interface ServerConfig {
 }
 
 // Studio integration configuration
+/**
+ * Studio configuration the server exposes to the admin UI over the API
+ * (`GET /config/studio`). This is data the UI reads; it has nothing to do
+ * with *serving* the UI. Since 3.0 the site mounts Studio itself:
+ *
+ *   import { studioRouter } from '@trokky/studio/express'
+ *   app.use('/studio', studioRouter({ apiPath: '/api' }))
+ *
+ * The navigation structure is a core concern (singleton enforcement reads it)
+ * and lives at the top level of the config as `structure`.
+ */
 export interface StudioConfig {
-  /** Enable Studio integration */
-  enabled?: boolean
-  /** Studio mount path */
-  path?: string
-  /** API URL for Studio to connect to (for external Studio deployments) */
-  apiUrl?: string
-  /** Authentication requirement */
-  requireAuth?: boolean
-  /** Studio branding */
+  /** Studio branding (also merged with the branding stored in settings) */
   branding?: {
     title?: string
     logo?: string
@@ -293,8 +296,6 @@ export interface StudioConfig {
       accent?: string
     }
   }
-  /** Content structure definition */
-  structure?: any // TODO: Type this properly when structure system is finalized
   /** Custom field types */
   fields?: any[]
   /** Studio behavior settings */
@@ -309,9 +310,38 @@ export interface StudioConfig {
   session?: {
     refreshBuffer?: number // milliseconds before expiry to auto-refresh
     warningBuffer?: number // milliseconds before expiry to show warning
-    checkInterval?: number // check session validity every N milliseconds
-    inactivityTimeout?: number // logout after N milliseconds of inactivity
+    checkInterval?: number // milliseconds between session checks
+    inactivityTimeout?: number // milliseconds of inactivity before logout
   }
+}
+
+/**
+ * Keys that used to live under `studio` and are refused since 3.0, with the
+ * message the server prints so the migration is obvious.
+ */
+export const REMOVED_STUDIO_KEYS: Record<string, string> = {
+  enabled:
+    "'studio.enabled' is gone: the server no longer serves Studio. Mount it yourself with studioRouter() from '@trokky/studio/express', or simply do not mount it.",
+  path:
+    "'studio.path' is gone: the mount path is wherever you app.use() the router from '@trokky/studio/express'.",
+  structure:
+    "'studio.structure' has moved to the top-level 'structure' key: the navigation structure is read by the server for singleton enforcement, not only by Studio.",
+  requireAuth: "'studio.requireAuth' is gone: it was never enforced. Studio always requires a session.",
+  apiUrl: "'studio.apiUrl' is gone: pass apiPath or backendUrl to studioRouter() instead.",
+}
+
+/**
+ * Fail loudly on a pre-3.0 `studio` block instead of silently ignoring keys that used to
+ * decide whether and where Studio was served.
+ */
+export function assertStudioConfigShape(studio: unknown): void {
+  if (!studio || typeof studio !== 'object') return
+  const offending = Object.keys(studio).filter(key => key in REMOVED_STUDIO_KEYS)
+  if (offending.length === 0) return
+  const lines = offending.map(key => `  - ${REMOVED_STUDIO_KEYS[key]}`)
+  throw new Error(
+    `Unsupported 'studio' configuration (Trokky 3.0 moved Studio mounting out of the server):\n${lines.join('\n')}\n\nSee the 3.0 migration notes.`
+  )
 }
 
 // =============================================================================
@@ -588,6 +618,12 @@ export interface TrokkyConfig {
   oauth2?: {
     enabled?: boolean
     issuer?: string
+    /**
+     * Where the device-code flow sends a person to approve a sign-in (RFC 8628
+     * `verification_uri`). Studio serves that page at `<studio mount>/auth/device`.
+     * Default: `${issuer}/studio/auth/device`.
+     */
+    verificationUri?: string
     accessTokenTtl?: number
     refreshTokenTtl?: number
     deviceCodeTtl?: number
@@ -619,7 +655,13 @@ export interface TrokkyConfig {
   i18n?: I18nConfig
   /** HTTP server settings */
   server?: ServerConfig
-  /** Studio integration */
+  /**
+   * Navigation structure: a structure object, or a function of
+   * `{ user, schemas, core, config }` returning one. The server uses it to
+   * enforce singletons and to serve `GET /config/structure`; Studio renders it.
+   */
+  structure?: any
+  /** Studio configuration served to the admin UI over the API */
   studio?: StudioConfig
   /** Mail service configuration */
   mail?: MailConfig
@@ -645,9 +687,8 @@ export interface TrokkyConfigWithDefaults extends TrokkyConfig {
     lifecycle?: ServerLifecycle
     trustProxy?: boolean | number | string
   }
-  studio: Required<Omit<StudioConfig, 'apiUrl'>> & {
-    apiUrl?: string
-  }
+  structure?: any
+  studio: Required<StudioConfig>
   /** i18n configuration with defaults applied */
   i18n: Required<I18nConfig>
   // These remain optional as they're truly opt-in features
@@ -740,15 +781,13 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       ...config.server
     },
     
+    structure: config.structure,
+
     studio: {
-      enabled: true,
-      path: '/studio',
-      requireAuth: true,
       branding: {
         title: 'Trokky CMS',
         theme: 'system'
       },
-      structure: undefined,
       fields: [],
       settings: {
         pageSize: 20,
@@ -765,6 +804,7 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       },
       ...config.studio
     },
+
 
     i18n: {
       defaultLocale: 'en',
@@ -808,7 +848,9 @@ export function defineConfig(config: TrokkyConfig): TrokkyConfig {
   if (env === 'production' && !config.security?.jwtSecret) {
     throw new Error('JWT secret is required in production')
   }
-  
+
+  assertStudioConfigShape(config.studio)
+
   return config
 }
 
