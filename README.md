@@ -50,6 +50,7 @@ const trokky = await TrokkyExpress.create({
     }
   },
   studio: {
+    url: process.env.STUDIO_URL,   // public Studio URL: device-flow approval page + email links
     branding: { title: 'My CMS' }
   }
 })
@@ -128,6 +129,7 @@ export default {
     media: { adapter: 'filesystem-media', options: { mediaDir: './media' } }
   },
   studio: {
+    url: process.env.STUDIO_URL,   // public Studio URL: device-flow approval page + email links
     branding: { title: 'My CMS' }
   },
   security: {

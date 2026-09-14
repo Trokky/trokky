@@ -46,12 +46,16 @@ export class StudioConfigService {
         
         // Merge API config with existing window config
         const existingConfig = (window as any).TROKKY_CONFIG || {}
+        // Branding and the session tuning both come from the server; the
+        // session values are read by useAuth from the window config, so they
+        // have to land there too or studio.session is silently inert.
         const mergedConfig = {
           ...existingConfig,
           branding: {
             ...existingConfig.branding,
             ...apiConfig.branding
-          }
+          },
+          ...(apiConfig.sessionConfig ? { sessionConfig: apiConfig.sessionConfig } : {})
         }
         
         // Update window config with API data
