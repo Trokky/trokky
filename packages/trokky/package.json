@@ -96,6 +96,14 @@
     "./express": {
       "types": "./dist/integrations/express/index.d.ts",
       "import": "./dist/integrations/express/index.js"
+    },
+    "./routes": {
+      "import": "./dist/routes/index.js",
+      "types": "./dist/routes/index.d.ts"
+    },
+    "./workers": {
+      "import": "./dist/integrations/workers/index.js",
+      "types": "./dist/integrations/workers/index.d.ts"
     }
   },
   "scripts": {
