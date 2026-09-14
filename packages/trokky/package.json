@@ -105,6 +105,10 @@
       "import": "./dist/integrations/workers/index.js",
       "types": "./dist/integrations/workers/index.d.ts"
     },
+    "./adapters/cloudflare-r2": {
+      "import": "./dist/adapters/cloudflare-r2/index.js",
+      "types": "./dist/adapters/cloudflare-r2/index.d.ts"
+    },
     "./adapters/cloudflare-d1": {
       "import": "./dist/adapters/cloudflare-d1/index.js",
       "types": "./dist/adapters/cloudflare-d1/index.d.ts"
