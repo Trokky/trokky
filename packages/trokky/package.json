@@ -190,7 +190,7 @@
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.0",
     "esbuild": "^0.21.5",
-    "miniflare": "^4.20260730.0",
+    "miniflare": "^5.20260911.1-alpha",
     "supertest": "^7.2.2",
     "typescript": "^5.3.3",
     "vitest": "^4.1.0"
