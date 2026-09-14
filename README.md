@@ -2,7 +2,7 @@
 
 > Modern, composable CMS for developers
 
-Trokky is a TypeScript-native content management system designed as a developer-friendly alternative to Sanity. It provides local-first development, full type safety from schemas to frontend, and a composable architecture with a React-based admin UI.
+Trokky is a TypeScript-native content management system designed as a developer-friendly alternative to Sanity. It provides full type safety from schemas to frontend and a composable architecture with a React-based admin UI. Storage is a choice, not a premise: your content lives in JSON files, in Postgres, or in Cloudflare D1 — on infrastructure you own either way.
 
 ## Packages
 
@@ -98,8 +98,15 @@ Storage is split into data (structured) and media (files), each using the adapte
 | Filesystem Data | `@trokky/trokky/adapters/filesystem-data` | File-based JSON storage, Git-friendly |
 | Filesystem Media | `@trokky/trokky/adapters/filesystem-media` | Local file storage for media |
 | PostgreSQL Data | `@trokky/trokky/adapters/postgres-data` | PostgreSQL for structured data |
+| Cloudflare D1 | `@trokky/trokky/adapters/cloudflare-d1` | D1 for structured data, on Workers |
+| Cloudflare R2 | `@trokky/trokky/adapters/cloudflare-r2` | R2 object storage for media, on Workers |
 
 Adapters self-register on import via `registerAdapter()`.
+
+The filesystem adapters are the Git-friendly ones: content is JSON on disk, so it can be
+committed alongside the code. The database adapters are not — with Postgres or D1 the code and
+schemas live in Git and the content lives in the database, which is what running on a server or
+at the edge means. Use the CLI's `backup`/`restore` to take a content snapshot in either case.
 
 ## Features
 
