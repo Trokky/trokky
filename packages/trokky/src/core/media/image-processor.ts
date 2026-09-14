@@ -58,18 +58,12 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
       }
     }
     
-    // case 'cloudflare-images': {
-    //   // Cloudflare Images processor - future implementation
-    //   try {
-    //     const { CloudflareImagesProcessor } = await import('./processors/cloudflare-images.js')
-    //     return new CloudflareImagesProcessor(config as any)
-    //   } catch (error) {
-    //     throw new Error(
-    //       `Failed to load Cloudflare Images processor: ${error instanceof Error ? error.message : String(error)}\n\n` +
-    //       `This processor is not yet implemented. Use processor: "none" for now.`
-    //     )
-    //   }
-    // }
+    case 'cloudflare-images': {
+      throw new Error(
+        'Cloudflare Images processor is not yet implemented.\n' +
+        'Use processor: "none" on Workers: uploads are stored as-is and no variants are generated.'
+      )
+    }
     
     case 'imagekit': {
       throw new Error(
@@ -91,7 +85,7 @@ export async function createImageProcessor(config: ImageProcessorConfig): Promis
         `Available processors:\n` +
         `- "none": Store originals only (recommended for edge environments)\n` +
         `- "sharp": Local processing with Sharp (Node.js only)\n` +
-        `- "cloudflare-images": Cloudflare Images API (coming soon)\n` +
+        `- "cloudflare-images": Cloudflare Images binding (coming soon)\n` +
         `- "imagekit": ImageKit API (coming soon)\n` +
         `- "imgix": Imgix API (coming soon)`
       )
