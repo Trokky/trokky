@@ -71,14 +71,11 @@ export default defineConfig({
     port,
   },
 
+  structure: validateStructure(),
   studio: {
-    enabled: true,
-    path: '/studio',
-    requireAuth: true,
     branding: {
       title: 'The Meridian Almanac',
       theme: 'system',
     },
-    structure: validateStructure(),
   },
 })

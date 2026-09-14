@@ -118,6 +118,7 @@ export interface TrokkyCoreOptions {
     accessTokenTtl?: number // Access token lifetime in seconds (default: 3600)
     refreshTokenTtl?: number // Refresh token lifetime in seconds (default: 2592000)
     deviceCodeTtl?: number // Device code lifetime in seconds (default: 600)
+    verificationUri?: string // Device-flow approval page; default `${issuer}/studio/auth/device`
     authCodeTtl?: number // Authorization code lifetime in seconds (default: 600)
     pollingInterval?: number // Minimum polling interval in seconds (default: 5)
     clients?: Array<{
@@ -604,6 +605,7 @@ export class TrokkyCore {
         accessTokenTtl: oauth2Config.accessTokenTtl,
         refreshTokenTtl: oauth2Config.refreshTokenTtl,
         deviceCodeTtl: oauth2Config.deviceCodeTtl,
+        verificationUri: oauth2Config.verificationUri,
         authCodeTtl: oauth2Config.authCodeTtl,
         pollingInterval: oauth2Config.pollingInterval,
         clients: oauth2Config.clients

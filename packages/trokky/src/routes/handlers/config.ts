@@ -140,9 +140,6 @@ export class ConfigRoutes extends BaseRoutes {
       // Get studio configuration from global config or fallback
       const studioConfig = this.config.studioConfig || {
         branding: { title: 'Trokky Studio' },
-        enabled: true,
-        path: '/studio',
-        requireAuth: true
       }
 
       // Fetch settings from storage to get branding configuration

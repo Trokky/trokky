@@ -55,6 +55,11 @@ const trokky = await TrokkyExpress.create({
 })
 
 trokky.mount(app)
+
+// Studio is a router you mount yourself, before any catch-all
+import { studioRouter } from '@trokky/studio/express'
+app.use('/studio', studioRouter({ apiPath: '/api' }))
+
 app.listen(3000)
 ```
 
@@ -180,7 +185,7 @@ cd packages/client && npm test       # Client tests
 
 ## REST API
 
-All API endpoints are mounted at `/api` by default. Studio is served at `/studio`. The server exposes 90+ endpoints covering content CRUD, media management, authentication (JWT, OAuth, passkeys, MFA), webhooks, audit logs, and more.
+All API endpoints are mounted at `/api` by default. Studio is served wherever the site mounts `studioRouter()` from `@trokky/studio/express`, by convention `/studio`. The server exposes 90+ endpoints covering content CRUD, media management, authentication (JWT, OAuth, passkeys, MFA), webhooks, audit logs, and more.
 
 See **[API.md](./API.md)** for the complete API reference.
 

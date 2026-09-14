@@ -16,7 +16,7 @@ import type {
   TrokkyConfig as NewTrokkyConfig,
   StorageConfig,
 } from './config.js'
-import { withDefaults } from './config.js'
+import { withDefaults, assertStudioConfigShape } from './config.js'
 import { assertSingletonConsistency, checkSingletonStoredIds } from '../../core/schema/singleton.js'
 
 /**
@@ -31,7 +31,6 @@ export class TrokkyExpress {
   private config: ExpressIntegrationConfig
   private logger = createLogger('express', 'TrokkyExpress')
   private mountedApiPath: string | null = null
-  private mountedStudioPath: string | null = null
   private studioConfig: any = null
   private i18nConfig: any = null
   private structureConfig: any = null
@@ -68,26 +67,20 @@ export class TrokkyExpress {
     const staticRouter = this.createStaticRouter()
     const middleware = this.middleware.getMiddleware()
 
-    // Create Studio router if enabled
-    let studioRouter: Router | undefined
-    if (this.config.studio?.enabled !== false) {
-      studioRouter = await this.createStudioRouter()
-    }
-
     // Create auto-mount function
-    const mount = (
-      app: any,
-      options?: { apiPath?: string; studioPath?: string }
-    ) => {
+    const mount = (app: any, options?: { apiPath?: string }) => {
+      if (options && 'studioPath' in (options as object)) {
+        throw new Error(
+          "mount() no longer takes 'studioPath': since 3.0 the site mounts Studio itself with studioRouter() from '@trokky/studio/express'."
+        )
+      }
       const apiPath = options?.apiPath ?? '/api'
-      const studioPath = options?.studioPath ?? '/studio'
 
-      // Store the mounted paths for Studio config and external access
+      // Store the mounted path for Studio config and external access
       this.mountedApiPath = apiPath
-      this.mountedStudioPath = studioPath
 
-      // Update Studio config with correct apiBasePath if Studio is enabled
-      if (this.config.studio?.enabled && this.studioConfig) {
+      // The API path is reported to Studio through GET /config/studio
+      if (this.studioConfig) {
         this.studioConfig.apiBasePath = apiPath
 
         if (this.studioConfig.mediaUrlGenerator) {
@@ -112,34 +105,23 @@ export class TrokkyExpress {
         app.use(cors(this.config.server.cors))
       }
 
-      this.logger.info('Auto-mounting Trokky routers', {
-        apiPath,
-        studioPath,
-        hasStudio: !!studioRouter,
-      })
+      this.logger.info('Mounting Trokky routers', { apiPath })
 
       // Mount API routes
       app.use(apiPath, router)
 
       // Mount static routes at root level (no authentication)
       app.use('/', staticRouter)
-
-      // Mount Studio if enabled
-      if (studioRouter) {
-        app.use(studioPath, studioRouter)
-      }
     }
 
     return {
       router,
       staticRouter,
-      studioRouter,
       middleware,
       config: this.config,
       core: this.config.core, // Expose core for mail and other integrations
       mount,
       getMountedApiPath: () => this.getMountedApiPath(),
-      getMountedStudioPath: () => this.getMountedStudioPath(),
       getMountedPaths: () => this.getMountedPaths(),
     }
   }
@@ -228,105 +210,6 @@ export class TrokkyExpress {
   }
 
   /**
-   * Create Studio router if Studio integration is enabled
-   */
-  public async createStudioRouter(): Promise<Router | undefined> {
-    if (!this.config.studio) {
-      return undefined
-    }
-
-    this.logger.info('Creating Studio router with dynamic config injection')
-    const router = Router()
-
-    try {
-      // Import Studio assets utilities (separate @trokky/studio package)
-      const { getStudioHTML, getStudioAsset } = await import(
-        // @ts-ignore - @trokky/studio is an optional peer dependency resolved at runtime
-        '@trokky/studio/dist/server/assets.js'
-      )
-
-      // Serve Studio HTML with dynamic config injection
-      router.get('/', (req, res) => {
-        try {
-          const studioConfig = {
-            mode: 'production' as const,
-            apiBasePath: this.getMountedApiPath(), // Use dynamic API path
-            basePath: this.getMountedStudioPath(), // Set the base path for routing
-            backendUrl:
-              req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
-            schemas: this.config.core?.getAllSchemas() || [],
-            branding: this.config.studio?.branding,
-            structure: this.config.studio?.structure,
-            config: this.config.studio?.config || {},
-            customFields: this.config.studio?.customFields || [],
-            mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
-            i18n: this.i18nConfig || undefined,
-          }
-
-          const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
-          res.setHeader('Content-Type', 'text/html')
-          res.send(html)
-        } catch (error) {
-          this.logger.error('Failed to serve Studio HTML', error)
-          res.status(500).send('Studio temporarily unavailable')
-        }
-      })
-
-      // Serve Studio assets
-      router.get('/assets/:filename', (req, res) => {
-        try {
-          const asset = getStudioAsset(req.params.filename)
-          if (!asset) {
-            return res.status(404).send('Asset not found')
-          }
-
-          res.setHeader('Content-Type', asset.contentType)
-          res.send(asset.content)
-        } catch (error) {
-          this.logger.error('Failed to serve Studio asset', error)
-          res.status(500).send('Asset unavailable')
-        }
-      })
-
-      // SPA catch-all route - serve Studio HTML for any unmatched Studio routes
-      // This enables client-side routing to work on page refresh
-      router.get('*', (req, res) => {
-        try {
-          const studioConfig = {
-            mode: 'production' as const,
-            apiBasePath: this.getMountedApiPath(), // Use dynamic API path
-            basePath: this.getMountedStudioPath(), // Set the base path for routing
-            backendUrl:
-              req.protocol + '://' + req.get('host') + this.getMountedApiPath(), // Full backend URL for integrated Studio
-            schemas: this.config.core?.getAllSchemas() || [],
-            branding: this.config.studio?.branding,
-            structure: this.config.studio?.structure,
-            config: this.config.studio?.config || {},
-            customFields: this.config.studio?.customFields || [],
-            mediaUrlGenerator: this.config.media?.mediaUrlGenerator,
-            i18n: this.i18nConfig || undefined,
-          }
-
-          const html = getStudioHTML(studioConfig, this.getMountedStudioPath())
-          res.setHeader('Content-Type', 'text/html')
-          res.send(html)
-        } catch (error) {
-          this.logger.error('Failed to serve Studio HTML for SPA route', error)
-          res.status(500).send('Studio temporarily unavailable')
-        }
-      })
-
-      return router
-    } catch (error) {
-      this.logger.error(
-        'Failed to create Studio router - Studio assets not available',
-        error
-      )
-      return undefined
-    }
-  }
-
-  /**
    * Get just the middleware array
    */
   public getMiddleware() {
@@ -348,20 +231,11 @@ export class TrokkyExpress {
   }
 
   /**
-   * Get the currently mounted Studio path
+   * Get the mounted paths. Since 3.0 only the API is mounted here; Studio's
+   * path is wherever the site mounted the router from '@trokky/studio/express'.
    */
-  public getMountedStudioPath(): string {
-    return this.mountedStudioPath || '/studio'
-  }
-
-  /**
-   * Get both mounted paths for easy access
-   */
-  public getMountedPaths(): { apiPath: string; studioPath: string } {
-    return {
-      apiPath: this.getMountedApiPath(),
-      studioPath: this.getMountedStudioPath(),
-    }
+  public getMountedPaths(): { apiPath: string } {
+    return { apiPath: this.getMountedApiPath() }
   }
 
   /**
@@ -438,6 +312,8 @@ export class TrokkyExpress {
         oauth2: fullConfig.oauth2,
       }
 
+      assertStudioConfigShape(config.studio)
+
       const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
       await core.init()
       logger.info('TrokkyCore initialized with professional config')
@@ -465,11 +341,11 @@ export class TrokkyExpress {
           },
         }
 
-        if (fullConfig.studio.structure) {
-          resolvedStructureConfig = fullConfig.studio.structure
-        }
-
         logger.debug('Studio configuration resolved')
+      }
+
+      if (fullConfig.structure) {
+        resolvedStructureConfig = fullConfig.structure
       }
 
       if (fullConfig.i18n) {
@@ -552,13 +428,10 @@ export class TrokkyExpress {
         rateLimiting: fullConfig.security.rateLimit?.enabled
           ? fullConfig.security.rateLimit
           : undefined,
-        studio: fullConfig.studio.enabled
+        studio: fullConfig.studio
           ? {
-              enabled: fullConfig.studio.enabled,
-              mount: fullConfig.studio.path,
-              auth: fullConfig.studio.requireAuth,
               branding: fullConfig.studio.branding,
-              structure: fullConfig.studio.structure,
+              structure: fullConfig.structure,
               customFields: fullConfig.studio.fields,
               config: {
                 pageSize: fullConfig.studio.settings?.pageSize,
