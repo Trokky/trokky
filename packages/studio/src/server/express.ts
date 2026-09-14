@@ -49,8 +49,6 @@ export interface StudioRouterOptions {
     fallbackLocale?: string
     detectBrowserLanguage?: boolean
   }
-  /** Custom field plugins registered at build time. */
-  customFields?: unknown[]
 }
 
 /** How long browsers may cache Studio's hashed assets. */
@@ -83,7 +81,6 @@ export function studioRouter(options: StudioRouterOptions = {}): Router {
         backendUrl,
         schemas: [],
         branding: options.branding,
-        customFields: options.customFields as any[] | undefined,
         ...(options.i18n ? { i18n: options.i18n } : {}),
       } as Parameters<typeof getStudioHTML>[0],
       basePath

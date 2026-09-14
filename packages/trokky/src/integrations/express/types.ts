@@ -25,15 +25,8 @@ export interface StudioIntegrationConfig {
   /** Custom structure configuration */
   structure?: any
 
-  /** Custom field types to register */
-  customFields?: any[]
-
   /** Additional Studio configuration */
   config?: {
-    pageSize?: number
-    enableDrafts?: boolean
-    enableVersioning?: boolean
-
     /** Session management configuration */
     session?: {
       /** Auto-refresh token buffer in milliseconds (default: 30000) */

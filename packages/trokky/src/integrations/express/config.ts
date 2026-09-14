@@ -286,6 +286,14 @@ export interface ServerConfig {
  * and lives at the top level of the config as `structure`.
  */
 export interface StudioConfig {
+  /**
+   * Public URL the Studio is reachable at, e.g. `https://cms.example.com/studio`.
+   * This is the one thing the server needs to know about where the site mounted
+   * the Studio: it derives the device-flow approval page (`<url>/auth/device`)
+   * and the base of links in system emails from it. Defaults to the
+   * `STUDIO_URL` environment variable.
+   */
+  url?: string
   /** Studio branding (also merged with the branding stored in settings) */
   branding?: {
     title?: string
@@ -296,23 +304,39 @@ export interface StudioConfig {
       accent?: string
     }
   }
-  /** Custom field types */
-  fields?: any[]
-  /** Studio behavior settings */
-  settings?: {
-    pageSize?: number
-    enableDrafts?: boolean
-    enableVersioning?: boolean
-    autoSave?: boolean
-    autosaveInterval?: number // milliseconds
-  }
-  /** Session management */
+  /** Session management, served to the Studio over the API */
   session?: {
     refreshBuffer?: number // milliseconds before expiry to auto-refresh
     warningBuffer?: number // milliseconds before expiry to show warning
     checkInterval?: number // milliseconds between session checks
     inactivityTimeout?: number // milliseconds of inactivity before logout
   }
+}
+
+/**
+ * Keys under `studio` that no longer do anything. They are accepted and reported
+ * at boot rather than refused: nothing depended on them, so a site carrying
+ * them keeps starting while its owner cleans them up.
+ */
+export const IGNORED_STUDIO_KEYS: Record<string, string> = {
+  fields: "'studio.fields' is ignored: custom field types are registered in the Studio build, never read from the server config.",
+  settings: "'studio.settings' is ignored: the Studio never read pageSize, enableDrafts, enableVersioning, autoSave or autosaveInterval from the server.",
+}
+
+/** Names the `studio` keys that are accepted but do nothing. */
+export function ignoredStudioKeys(studio: unknown): string[] {
+  if (!studio || typeof studio !== 'object') return []
+  return Object.keys(studio).filter(key => key in IGNORED_STUDIO_KEYS)
+}
+
+/**
+ * The Studio's public URL, from the config or the STUDIO_URL environment
+ * variable, without a trailing slash. Undefined when neither is set.
+ */
+export function resolveStudioUrl(config: { studio?: { url?: string } } | undefined): string | undefined {
+  const raw = config?.studio?.url ?? process.env.STUDIO_URL
+  if (!raw) return undefined
+  return raw.replace(/\/+$/, '')
 }
 
 /**
@@ -620,8 +644,8 @@ export interface TrokkyConfig {
     issuer?: string
     /**
      * Where the device-code flow sends a person to approve a sign-in (RFC 8628
-     * `verification_uri`). Studio serves that page at `<studio mount>/auth/device`.
-     * Default: `${issuer}/studio/auth/device`.
+     * `verification_uri`). Rarely needed: it is derived from `studio.url` as
+     * `<studio.url>/auth/device`, falling back to `${issuer}/studio/auth/device`.
      */
     verificationUri?: string
     accessTokenTtl?: number
@@ -688,7 +712,7 @@ export interface TrokkyConfigWithDefaults extends TrokkyConfig {
     trustProxy?: boolean | number | string
   }
   structure?: any
-  studio: Required<StudioConfig>
+  studio: Required<Omit<StudioConfig, 'url'>> & { url?: string }
   /** i18n configuration with defaults applied */
   i18n: Required<I18nConfig>
   // These remain optional as they're truly opt-in features
@@ -787,14 +811,6 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
       branding: {
         title: 'Trokky CMS',
         theme: 'system'
-      },
-      fields: [],
-      settings: {
-        pageSize: 20,
-        enableDrafts: true,
-        enableVersioning: false,
-        autoSave: true,
-        autosaveInterval: 30000 // 30 seconds
       },
       session: {
         refreshBuffer: 5 * 60 * 1000,    // 5 minutes

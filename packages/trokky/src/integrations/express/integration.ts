@@ -16,7 +16,7 @@ import type {
   TrokkyConfig as NewTrokkyConfig,
   StorageConfig,
 } from './config.js'
-import { withDefaults, assertStudioConfigShape } from './config.js'
+import { withDefaults, assertStudioConfigShape, ignoredStudioKeys, IGNORED_STUDIO_KEYS, resolveStudioUrl } from './config.js'
 import { assertSingletonConsistency, checkSingletonStoredIds } from '../../core/schema/singleton.js'
 
 /**
@@ -309,10 +309,22 @@ export class TrokkyExpress {
         enableSecurity: fullConfig.security.enabled,
         jwtSecret: fullConfig.security.jwtSecret,
         cryptoOptions: fullConfig.security.cryptoOptions,
-        oauth2: fullConfig.oauth2,
+        // The device-flow approval page lives under the Studio; derive it from
+        // studio.url unless the site set oauth2.verificationUri explicitly.
+        oauth2: fullConfig.oauth2
+          ? {
+              ...fullConfig.oauth2,
+              verificationUri:
+                fullConfig.oauth2.verificationUri ??
+                (resolveStudioUrl(fullConfig) ? `${resolveStudioUrl(fullConfig)}/auth/device` : undefined),
+            }
+          : fullConfig.oauth2,
       }
 
       assertStudioConfigShape(config.studio)
+      for (const key of ignoredStudioKeys(config.studio)) {
+        logger.warn(IGNORED_STUDIO_KEYS[key])
+      }
 
       const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
       await core.init()
@@ -432,11 +444,7 @@ export class TrokkyExpress {
           ? {
               branding: fullConfig.studio.branding,
               structure: fullConfig.structure,
-              customFields: fullConfig.studio.fields,
               config: {
-                pageSize: fullConfig.studio.settings?.pageSize,
-                enableDrafts: fullConfig.studio.settings?.enableDrafts,
-                enableVersioning: fullConfig.studio.settings?.enableVersioning,
                 session: {
                   refreshBufferMs: fullConfig.studio.session?.refreshBuffer,
                   warningBufferMs: fullConfig.studio.session?.warningBuffer,

@@ -394,6 +394,70 @@ describe('Studio mounting moved out of the server (3.0)', () => {
     }
   })
 
+  it('derives the device-flow approval page from studio.url', async () => {
+    const trokky = await TrokkyExpress.create(
+      baseConfig({
+        studio: { url: 'https://cms.example.com/admin/' },
+        oauth2: { enabled: true, issuer: 'https://cms.example.com' },
+      })
+    )
+    try {
+      const app = express()
+      trokky.mount(app, { apiPath: '/api' })
+      const res = await request(app).post('/api/auth/device').send({ client_id: 'trokky-cli' })
+      expect(res.status).toBe(200)
+      expect(res.body.verification_uri).toBe('https://cms.example.com/admin/auth/device')
+    } finally {
+      await trokky.core?.shutdown?.()
+    }
+  })
+
+  it('falls back to <issuer>/studio/auth/device without studio.url, and honours an explicit oauth2.verificationUri', async () => {
+    const previous = process.env.STUDIO_URL
+    delete process.env.STUDIO_URL
+    try {
+      const plain = await TrokkyExpress.create(
+        baseConfig({ oauth2: { enabled: true, issuer: 'https://cms.example.com' } })
+      )
+      try {
+        const app = express()
+        plain.mount(app, { apiPath: '/api' })
+        const res = await request(app).post('/api/auth/device').send({ client_id: 'trokky-cli' })
+        expect(res.body.verification_uri).toBe('https://cms.example.com/studio/auth/device')
+      } finally {
+        await plain.core?.shutdown?.()
+      }
+
+      const explicit = await TrokkyExpress.create(
+        baseConfig({
+          studio: { url: 'https://cms.example.com/admin' },
+          oauth2: { enabled: true, issuer: 'https://cms.example.com', verificationUri: 'https://approve.example.com/device' },
+        })
+      )
+      try {
+        const app = express()
+        explicit.mount(app, { apiPath: '/api' })
+        const res = await request(app).post('/api/auth/device').send({ client_id: 'trokky-cli' })
+        expect(res.body.verification_uri).toBe('https://approve.example.com/device')
+      } finally {
+        await explicit.core?.shutdown?.()
+      }
+    } finally {
+      if (previous !== undefined) process.env.STUDIO_URL = previous
+    }
+  })
+
+  it('keeps booting on the dead studio keys and only warns', async () => {
+    const trokky = await TrokkyExpress.create(
+      baseConfig({ studio: { settings: { pageSize: 10 }, fields: [], branding: { title: 'X' } } })
+    )
+    try {
+      expect(trokky.getMountedPaths()).toEqual({ apiPath: '/api' })
+    } finally {
+      await trokky.core?.shutdown?.()
+    }
+  })
+
   it('mount() refuses the removed studioPath option', async () => {
     const trokky = await TrokkyExpress.create(baseConfig({}))
     try {

@@ -17,7 +17,7 @@ import express, { Express, Router } from 'express'
 import { createLogger } from '../../core/index.js'
 import { MailService, MailNotificationService, BuiltInTemplateRenderer } from '../../mail/index.js'
 import { TrokkyExpress } from './integration.js'
-import { withDefaults } from './config.js'
+import { withDefaults, resolveStudioUrl } from './config.js'
 import type {
   TrokkyConfig,
   TrokkyConfigWithDefaults,
@@ -226,6 +226,11 @@ async function initializeMailService(
   mailNotificationService?: MailNotificationService
 }> {
   logger.info('Initializing mail service...')
+  if (!resolveStudioUrl(config)) {
+    logger.warn(
+      'studio.url is not set (and STUDIO_URL is empty): links in system emails will point at localhost. Set studio.url to the public Studio URL.'
+    )
+  }
 
   const mailConfig = config.mail!
 
@@ -234,7 +239,7 @@ async function initializeMailService(
     brandName: config.studio?.branding?.title || 'Trokky',
     brandColor: '#3B82F6',
     supportEmail: mailConfig.defaultFrom || 'noreply@localhost',
-    baseUrl: process.env.STUDIO_URL || `http://localhost:${config.server.port || 3000}`,
+    baseUrl: resolveStudioUrl(config) || `http://localhost:${config.server.port || 3000}`,
   })
 
   // Create mail service
