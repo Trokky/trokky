@@ -1,6 +1,7 @@
 import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
+import { withRetry, type RetryOptions } from '../utils/retry.js'
 import type { TrokkyLogger } from '../utils/logger.js'
 import type { ImageProcessor, ProcessedImageVariant } from '../media/image-processor.js'
 import { TrokkyEventBus } from '../events/index.js'
@@ -24,6 +25,30 @@ export interface MediaServiceDependencies {
   eventBus: TrokkyEventBus
   eventsEnabled: boolean
   getImageProcessor: () => ImageProcessor
+}
+
+
+/** One step of media processing that did not succeed, even after retries. */
+export interface VariantFailure {
+  stage: 'process' | 'save-variant' | 'persist-metadata'
+  variant?: string
+  error: string
+}
+
+/**
+ * What happened while generating variants, recorded on the media file when it was not clean.
+ * Its absence means every variant was generated and stored.
+ */
+export interface ImageProcessingReport {
+  status: 'partial' | 'failed'
+  failures: VariantFailure[]
+  failedAt: string
+}
+
+interface VariantGenerationOutcome {
+  variants: Record<string, unknown>
+  originalDimensions?: { width: number; height: number }
+  report?: ImageProcessingReport
 }
 
 /**
@@ -56,95 +81,55 @@ export class MediaService {
 
     // Process image if it's an image file
     if (file.type.startsWith('image/')) {
-      try {
-        const processedImage = await this.deps.getImageProcessor().processImage(file, {
-          id: metadata.id,
-          filename: metadata.filename,
-          path: metadata.filename // Use filename as fallback since we don't have the full path here
-        })
+      const outcome = await this.generateVariants(metadata.id, file, {
+        id: metadata.id,
+        filename: metadata.filename,
+        // Use filename as fallback since we don't have the full path here
+        path: metadata.filename
+      })
 
-        // Save variant files directly to storage without creating separate MediaFile records
-        const savedVariants: Record<string, any> = {}
-        for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
-          if (variantData.buffer) {
-            try {
-              // Save variant file directly using storage adapter's variant support
-              if (this.deps.mediaStorage.saveVariantFile) {
-                const variantPath = await this.deps.mediaStorage.saveVariantFile(
-                  metadata.id,
-                  variantName,
-                  variantData.buffer,
-                  variantData.format
-                )
+      mediaFile.metadata = {
+        ...mediaFile.metadata,
+        imageVariants: outcome.variants,
+        ...(outcome.originalDimensions ? { originalDimensions: outcome.originalDimensions } : {}),
+        ...(outcome.report ? { imageProcessing: outcome.report } : {})
+      }
 
-                // Store variant info without URL - let frontend handle URL construction
-                savedVariants[variantName] = {
-                  width: variantData.width,
-                  height: variantData.height,
-                  format: variantData.format,
-                  size: variantData.size
-                }
-
-                this.deps.logger.info('Variant file saved directly', {
-                  parentId: metadata.id,
-                  variantName,
-                  path: variantPath
-                })
-              } else {
-                // Fallback: just store metadata without physical files for now
-                savedVariants[variantName] = {
-                  url: variantData.url,
-                  width: variantData.width,
-                  height: variantData.height,
-                  format: variantData.format,
-                  size: variantData.size
-                }
-                this.deps.logger.warn('Storage adapter does not support variant files - storing metadata only', {
-                  parentId: metadata.id,
-                  variantName
-                })
-              }
-            } catch (variantError) {
-              this.deps.logger.warn('Failed to save variant file', {
-                parentId: metadata.id,
-                variantName,
-                error: variantError instanceof Error ? variantError.message : 'Unknown error'
-              })
+      // Persist the variant metadata. Without this the variant files exist in storage and
+      // nothing references them, which is invisible until someone notices missing thumbnails —
+      // so it retries, and a final failure is reported rather than logged and forgotten.
+      if (this.deps.mediaStorage.updateFile) {
+        const update = this.deps.mediaStorage.updateFile.bind(this.deps.mediaStorage)
+        try {
+          await withRetry(() => update(mediaFile.id, mediaFile.metadata!), this.retryOptions(
+            'persist image variant metadata',
+            { fileId: metadata.id }
+          ))
+          this.deps.logger.info('Image variants metadata saved', {
+            fileId: metadata.id,
+            variantCount: Object.keys(outcome.variants).length
+          })
+        } catch (updateError) {
+          const message = updateError instanceof Error ? updateError.message : 'Unknown error'
+          // The upload itself succeeded and the original is stored, so throwing here would tell
+          // the caller to re-upload a file that is already safe. Report it on the record the
+          // caller receives instead, and at error level rather than as a warning.
+          this.deps.logger.error('Image variants metadata could not be saved', {
+            fileId: metadata.id,
+            error: message
+          })
+          mediaFile.metadata = {
+            ...mediaFile.metadata,
+            imageProcessing: {
+              status: 'failed' as const,
+              failures: [
+                ...(outcome.report?.failures ?? []),
+                { stage: 'persist-metadata' as const, error: message }
+              ],
+              failedAt: new Date().toISOString()
             }
           }
         }
-
-        // Store processed image metadata in the media file
-        mediaFile.metadata = {
-          ...mediaFile.metadata,
-          imageVariants: savedVariants,
-          originalDimensions: {
-            width: processedImage.original.width,
-            height: processedImage.original.height
-          }
-        }
-
-        // Save the updated metadata back to storage
-        try {
-          if (this.deps.mediaStorage.updateFile) {
-            await this.deps.mediaStorage.updateFile(mediaFile.id, mediaFile.metadata)
-          }
-          this.deps.logger.info('Image variants metadata saved', {
-            fileId: metadata.id,
-            variantCount: Object.keys(processedImage.variants).length
-          })
-        } catch (updateError) {
-          this.deps.logger.warn('Failed to save image variants metadata', {
-            fileId: metadata.id,
-            error: updateError instanceof Error ? updateError.message : 'Unknown error'
-          })
-        }
-      } catch (error) {
-        // Log error but don't fail the upload - image processing is optional
-        this.deps.logger.warn('Image processing failed', {
-          fileId: metadata.id,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
       }
     }
 
@@ -161,6 +146,131 @@ export class MediaService {
     }
 
     return mediaFile
+  }
+
+
+  /**
+   * Retry policy for the remote-backed steps of media processing.
+   *
+   * Cloudflare's Images service fails a small share of calls transiently — measured at roughly
+   * one in fifteen for a 6MB JPEG — and every one of those used to cost a thumbnail silently.
+   * Input the service will never accept is not retried: that is a permanent failure and should
+   * surface immediately rather than after three waits.
+   */
+  private retryOptions(operation: string, context: Record<string, unknown>): RetryOptions {
+    return {
+      attempts: 3,
+      isRetryable: (error: unknown) => {
+        const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+        const permanent = [
+          'unsupported', 'invalid', 'too large', 'not an image', 'unsupported format', 'malformed'
+        ]
+        return !permanent.some(marker => message.includes(marker))
+      },
+      onRetry: ({ error, attempt, delayMs }) => {
+        this.deps.logger.warn(`Retrying: ${operation}`, {
+          ...context,
+          attempt,
+          delayMs,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    }
+  }
+
+  /**
+   * Generate every variant for an image and write them to storage.
+   *
+   * Shared by upload and regeneration so both get the same retries and the same reporting. A
+   * failure never throws: the original file is already stored and is what the caller actually
+   * uploaded. But a failure is never swallowed either — it comes back in `report`, which the
+   * caller attaches to the media record, so an image with missing variants says so instead of
+   * looking complete.
+   */
+  private async generateVariants(
+    id: string,
+    file: File,
+    metadata: { id: string; filename: string; path: string }
+  ): Promise<VariantGenerationOutcome> {
+    const failures: VariantFailure[] = []
+
+    let processedImage
+    try {
+      processedImage = await withRetry(
+        () => this.deps.getImageProcessor().processImage(file, metadata),
+        this.retryOptions('process image', { fileId: id })
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      this.deps.logger.error('Image processing failed after retries', { fileId: id, error: message })
+      return {
+        variants: {},
+        report: {
+          status: 'failed',
+          failures: [{ stage: 'process', error: message }],
+          failedAt: new Date().toISOString()
+        }
+      }
+    }
+
+    const variants: Record<string, unknown> = {}
+    const saveVariantFile = this.deps.mediaStorage.saveVariantFile?.bind(this.deps.mediaStorage)
+
+    for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
+      if (!variantData.buffer) continue
+
+      if (!saveVariantFile) {
+        // No variant storage: keep the processor's own URL, which is all there is to keep.
+        variants[variantName] = {
+          url: variantData.url,
+          width: variantData.width,
+          height: variantData.height,
+          format: variantData.format,
+          size: variantData.size
+        }
+        this.deps.logger.warn('Storage adapter does not support variant files - storing metadata only', {
+          parentId: id,
+          variantName
+        })
+        continue
+      }
+
+      try {
+        const variantPath = await withRetry(
+          () => saveVariantFile(id, variantName, variantData.buffer!, variantData.format),
+          this.retryOptions('save variant file', { parentId: id, variantName })
+        )
+
+        // Store variant info without URL - let frontend handle URL construction
+        variants[variantName] = {
+          width: variantData.width,
+          height: variantData.height,
+          format: variantData.format,
+          size: variantData.size
+        }
+
+        this.deps.logger.info('Variant file saved', { parentId: id, variantName, path: variantPath })
+      } catch (variantError) {
+        const message = variantError instanceof Error ? variantError.message : 'Unknown error'
+        this.deps.logger.error('Variant file could not be saved after retries', {
+          parentId: id,
+          variantName,
+          error: message
+        })
+        failures.push({ stage: 'save-variant', variant: variantName, error: message })
+      }
+    }
+
+    return {
+      variants,
+      originalDimensions: {
+        width: processedImage.original.width,
+        height: processedImage.original.height
+      },
+      report: failures.length === 0
+        ? undefined
+        : { status: 'partial', failures, failedAt: new Date().toISOString() }
+    }
   }
 
   public async getMedia(id: string): Promise<MediaFile | null> {
@@ -294,68 +404,43 @@ export class MediaService {
         type: mediaFile.contentType
       })
 
-      // Process the image to generate new variants
-      const processedImage = await this.deps.getImageProcessor().processImage(file, {
+      // Delete existing variants first. A failure here is not fatal — the names are about to be
+      // overwritten anyway — but it is reported rather than dropped, because leftovers of a
+      // format no longer generated would linger in storage.
+      const staleVariantFailures: VariantFailure[] = []
+      if (this.deps.mediaStorage.deleteVariantFiles) {
+        const deleteVariantFiles = this.deps.mediaStorage.deleteVariantFiles.bind(this.deps.mediaStorage)
+        try {
+          await withRetry(() => deleteVariantFiles(id), this.retryOptions('delete existing variants', { id }))
+          this.deps.logger.info('Existing variants deleted', { id })
+        } catch (deleteError) {
+          const message = deleteError instanceof Error ? deleteError.message : 'Unknown error'
+          this.deps.logger.error('Existing variants could not be deleted after retries', { id, error: message })
+          staleVariantFailures.push({ stage: 'save-variant', error: `stale variants left in place: ${message}` })
+        }
+      }
+
+      // The same generation path as upload, so retries and reporting cannot drift apart.
+      const outcome = await this.generateVariants(id, file, {
         id: mediaFile.id,
         filename: mediaFile.filename,
         path: (mediaFile.metadata as any)?.path || mediaFile.filename
       })
 
-      // Delete existing variants first
-      if (this.deps.mediaStorage.deleteVariantFiles) {
-        try {
-          await this.deps.mediaStorage.deleteVariantFiles(id)
-          this.deps.logger.info('Existing variants deleted', { id })
-        } catch (deleteError) {
-          this.deps.logger.warn('Failed to delete existing variants', { id, error: deleteError })
-        }
-      }
-
-      // Save new variant files
-      const savedVariants: Record<string, any> = {}
-      for (const [variantName, variantData] of Object.entries(processedImage.variants) as [string, ProcessedImageVariant][]) {
-        if (variantData.buffer) {
-          try {
-            if (this.deps.mediaStorage.saveVariantFile) {
-              const variantPath = await this.deps.mediaStorage.saveVariantFile(
-                id,
-                variantName,
-                variantData.buffer,
-                variantData.format
-              )
-
-              // Store variant info without URL - let frontend handle URL construction
-              savedVariants[variantName] = {
-                width: variantData.width,
-                height: variantData.height,
-                format: variantData.format,
-                size: variantData.size
-              }
-
-              this.deps.logger.info('New variant saved', {
-                parentId: id,
-                variantName,
-                path: variantPath
-              })
-            }
-          } catch (variantError) {
-            this.deps.logger.warn('Failed to save new variant', {
-              parentId: id,
-              variantName,
-              error: variantError instanceof Error ? variantError.message : 'Unknown error'
-            })
-          }
-        }
-      }
+      const failures = [...staleVariantFailures, ...(outcome.report?.failures ?? [])]
 
       // Update metadata with new variants
       const updatedMetadata = {
         ...mediaFile.metadata,
-        imageVariants: savedVariants,
-        originalDimensions: {
-          width: processedImage.original.width,
-          height: processedImage.original.height
-        }
+        imageVariants: outcome.variants,
+        ...(outcome.originalDimensions ? { originalDimensions: outcome.originalDimensions } : {}),
+        imageProcessing: failures.length === 0
+          ? undefined
+          : {
+              status: outcome.report?.status ?? 'partial',
+              failures,
+              failedAt: new Date().toISOString()
+            }
       }
 
       // Save updated metadata
@@ -364,9 +449,10 @@ export class MediaService {
         throw new Error('Failed to update media file metadata')
       }
 
-      this.deps.logger.info('Variants regenerated successfully', {
+      this.deps.logger.info('Variants regenerated', {
         id,
-        variantCount: Object.keys(savedVariants).length
+        variantCount: Object.keys(outcome.variants).length,
+        failureCount: failures.length
       })
 
       return updatedMediaFile
