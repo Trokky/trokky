@@ -111,6 +111,38 @@ export async function deleteExpiredAuthFlowStates(
   }
 }
 
+/** At most one sweep per interval, per process. */
+const SWEEP_INTERVAL_MS = 60_000
+let lastSweepAt = 0
+
+/**
+ * Sweep expired states, driven by a request rather than by a timer.
+ *
+ * This used to be a module-scope `setInterval`, which assumes a process that
+ * outlives any one request. On an edge runtime that assumption fails twice over:
+ * work at import time is restricted, and nothing runs between requests, so the
+ * timer would either be rejected or simply never fire — while still looking
+ * correct in the source.
+ *
+ * Driving it from a request costs nothing, because expiry is already enforced on
+ * read (`isUsable`). Sweeping only reclaims space, so it is safe to skip, safe to
+ * fail, and safe to run on whichever instance happens to take the next request.
+ * The caller is not made to wait for it.
+ */
+export function sweepExpiredAuthFlowStates(
+  adapter: DataStorageAdapter | null | undefined,
+  now: number = Date.now()
+): void {
+  if (now - lastSweepAt < SWEEP_INTERVAL_MS) return
+  lastSweepAt = now
+  void deleteExpiredAuthFlowStates(adapter)
+}
+
+/** Test seam: forget when the last sweep happened. */
+export function resetSweepClock(): void {
+  lastSweepAt = 0
+}
+
 /** Test seam: drops the in-process entries without touching the adapter. */
 export function clearFallbackAuthFlowStates(): void {
   fallbackStore.clear()

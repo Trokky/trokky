@@ -1,4 +1,6 @@
 export { CloudflareD1Adapter } from './cloudflare-d1-adapter.js'
+export { D1RateLimitStore } from './rate-limit-store.js'
+export type { D1RateLimitStoreConfig } from './rate-limit-store.js'
 export type {
   CloudflareD1AdapterConfig,
   D1DocumentRow,

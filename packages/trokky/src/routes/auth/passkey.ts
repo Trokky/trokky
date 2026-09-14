@@ -34,7 +34,7 @@ import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import {
   saveAuthFlowState,
   consumeAuthFlowState,
-  deleteExpiredAuthFlowStates,
+  sweepExpiredAuthFlowStates,
 } from './auth-flow-store.js'
 
 const logger = createLogger('routes', 'Passkey')
@@ -78,17 +78,14 @@ interface PasskeyUpdateRequest {
  * memory, a restart between the two halves fails the ceremony and a second
  * replica cannot verify at all. See routes/auth/auth-flow-store.ts.
  */
-setInterval(() => {
-  void deleteExpiredAuthFlowStates(lastKnownAdapter)
-}, 60000)
 
-/** The sweeper runs on a timer with no request in hand; requests record the adapter. */
-let lastKnownAdapter: DataStorageAdapter | null = null
 
 function dataAdapter(core: TrokkyCore): DataStorageAdapter | null {
   try {
-    lastKnownAdapter = core.getDataStorageAdapter()
-    return lastKnownAdapter
+    const adapter = core.getDataStorageAdapter()
+    // Reclaim expired states opportunistically; never awaited, never required.
+    sweepExpiredAuthFlowStates(adapter)
+    return adapter
   } catch {
     return null
   }
