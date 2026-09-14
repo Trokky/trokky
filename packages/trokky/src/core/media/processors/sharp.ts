@@ -10,6 +10,7 @@
  * - Development with immediate processing
  */
 
+import { createRequire } from 'node:module'
 import {
   ImageProcessor,
   type ImageProcessorConfig,
@@ -36,8 +37,18 @@ export class SharpImageProcessor extends ImageProcessor {
   private async ensureSharpInitialized() {
     if (!this.sharp) {
       try {
-        // Dynamic import to avoid issues in edge environments
-        const sharpModule = await import('sharp')
+        // sharp is loaded through `require`, not `import`, and that is deliberate.
+        //
+        // A bundler resolves a literal `import('sharp')` even when the branch never executes,
+        // and the surviving reference breaks a Cloudflare Workers build before any code runs —
+        // sharp pulls in `detect-libc`, which wants `fs` and `child_process`. Hiding the
+        // specifier behind a variable does not help either: workerd rejects a non-literal
+        // dynamic specifier at parse time. A plain `require` call is followed by neither, so
+        // the reference disappears from an edge bundle and still resolves in Node, where sharp
+        // is CommonJS anyway. `password-hash.ts` loads bcrypt the same way, for the same reason.
+        //
+        // Do not turn this back into `await import('sharp')`.
+        const sharpModule = createRequire(import.meta.url)('sharp')
         this.sharp = sharpModule.default || sharpModule
       } catch (error) {
         throw new Error(
