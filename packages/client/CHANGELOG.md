@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.4.0
+
+### Minor Changes
+
+- 8526c51: `ClientConfig.fetch`: supply the fetch the client uses.
+
+  Hand it a Worker's own Trokky fetch handler and the client queries the API in-process — no network round trip, no subrequest — which is how a page can render on the same Worker that serves the CMS. Defaults to the global fetch, so nothing changes for existing callers.
+
+### Patch Changes
+
+- Updated dependencies [8526c51]
+  - @trokky/trokky@3.4.0
+
 ## 3.3.0
 
 ### Patch Changes
