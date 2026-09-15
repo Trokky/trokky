@@ -3,7 +3,7 @@ import { RateLimiter } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
 import type { TrokkyLogger } from '../utils/logger.js'
 import { TrokkyEventBus } from '../events/index.js'
-import { DocumentNotFoundError } from '../errors/index.js'
+import { DocumentNotFoundError, InvalidInputError } from '../errors/index.js'
 import type { AuditEvent } from '../core/engine.js'
 import {
   DataStorageAdapter,
@@ -25,6 +25,28 @@ export interface UserServiceDependencies {
   checkWeakPassword: (password: string) => { isWeak: boolean; reason?: string }
   logAuditEvent: (event: AuditEvent) => void
   getUserCreatedWithPasswordCallback: () => ((user: User, temporaryPassword: string) => Promise<void>) | undefined
+  /** The configured claim secret, if any. Read lazily so a Worker can supply it per request. */
+  claimSecret?: () => string | undefined
+}
+
+/** Whether an instance can still be claimed, and what a claim would have to present. */
+export interface ClaimStatus {
+  claimable: boolean
+  /** Why not, when it cannot be claimed. */
+  reason?: 'already-claimed' | 'unsupported'
+  /** True when a claim secret is configured and must be presented. */
+  secretRequired: boolean
+}
+
+/** The first administrator, as supplied by whoever is claiming the instance. */
+export interface ClaimInput {
+  username: string
+  email: string
+  password: string
+  firstName?: string
+  lastName?: string
+  /** Required when the instance was deployed with a claim secret. */
+  secret?: string
 }
 
 /**
@@ -253,6 +275,116 @@ export class UserService {
       default:
         return ['content:read', 'studio:access']
     }
+  }
+
+
+  // ==========================================================================
+  // FIRST-BOOT CLAIM
+  // ==========================================================================
+
+  /**
+   * Whether this instance still has no owner, and what it would take to claim it.
+   *
+   * An instance with zero users has no way in: there is nobody to sign in as. The claim flow is
+   * how the first administrator is created without baking a password into the deployment — which
+   * is what a one-click deploy would otherwise force, and would mean every Trokky on the internet
+   * sharing one default credential.
+   */
+  public async getClaimStatus(): Promise<ClaimStatus> {
+    let userCount: number
+    try {
+      userCount = (await this.listUsers({ limit: 1 })).length
+    } catch (error) {
+      // An adapter with no user support cannot be claimed, and cannot be signed into either.
+      if (error instanceof Error && error.message.includes('not supported by storage adapter')) {
+        return { claimable: false, reason: 'unsupported', secretRequired: false }
+      }
+      throw error
+    }
+
+    if (userCount > 0) {
+      return { claimable: false, reason: 'already-claimed', secretRequired: false }
+    }
+
+    return { claimable: true, secretRequired: Boolean(this.deps.claimSecret?.()) }
+  }
+
+  /**
+   * Create the first administrator, claiming an instance that has none.
+   *
+   * Two things guard it. The instance must have no users at all — so this closes permanently the
+   * moment it succeeds. And when a claim secret is configured, the caller must present it, which
+   * is what makes an instance safe to leave sitting on a public URL before anyone has claimed it.
+   *
+   * Without a secret the claim is open to whoever reaches it first. That is the same model as
+   * every comparable self-hosted CMS, and it is only safe because the window is meant to be the
+   * minute between deploying and opening the link. Anything left unclaimed on a public URL should
+   * set a secret.
+   */
+  public async claimInstance(input: ClaimInput): Promise<User> {
+    if (this.deps.rateLimiter) {
+      await this.deps.rateLimiter.checkRateLimit('claimInstance')
+    }
+
+    const status = await this.getClaimStatus()
+    if (!status.claimable) {
+      throw new InvalidInputError(
+        status.reason === 'unsupported'
+          ? 'This instance does not support user accounts.'
+          : 'This instance has already been claimed.',
+        'claim'
+      )
+    }
+
+    const expectedSecret = this.deps.claimSecret?.()
+    if (expectedSecret) {
+      // Constant-time-ish: compare full length regardless, so a wrong secret leaks no position.
+      const provided = input.secret ?? ''
+      const same =
+        provided.length === expectedSecret.length &&
+        provided.split('').reduce((acc, char, index) => acc | (char.charCodeAt(0) ^ expectedSecret.charCodeAt(index)), 0) === 0
+      if (!same) {
+        this.deps.logger.warn('Rejected a claim with an incorrect secret')
+        throw new InvalidInputError('Incorrect claim secret.', 'secret')
+      }
+    }
+
+    const admin = await this.createUser({
+      username: input.username,
+      email: input.email,
+      password: input.password,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      role: 'admin',
+      permissions: [
+        'content:read', 'content:write', 'content:delete',
+        'users:read', 'users:write',
+        'settings:read', 'settings:write',
+        'media:upload', 'media:delete',
+        'studio:access'
+      ],
+      isActive: true
+    } as CreateUserData)
+
+    // Two claims that raced each other both got past the check above and both created a user.
+    // Resolve it the same way on every instance: the lowest id wins and the rest withdraw, so
+    // the outcome does not depend on which request happens to run this first.
+    const all = await this.listUsers({ limit: 10 })
+    if (all.length > 1) {
+      const winner = all.map(user => user.id).sort()[0]
+      if (winner !== admin.id) {
+        await this.deleteUser(admin.id).catch(() => undefined)
+        this.deps.logger.warn('Lost a concurrent claim; withdrew the duplicate administrator', {
+          withdrew: admin.id,
+          winner
+        })
+        throw new InvalidInputError('This instance has already been claimed.', 'claim')
+      }
+      this.deps.logger.warn('Won a concurrent claim; another attempt will withdraw', { winner })
+    }
+
+    this.deps.logger.info('Instance claimed', { userId: admin.id, username: admin.username })
+    return admin
   }
 
   // Development utility: Setup admin user from environment variables

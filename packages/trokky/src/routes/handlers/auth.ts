@@ -10,6 +10,8 @@ export class AuthRoutes extends BaseRoutes {
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
     return this.defineRoutes([
+      ['GET', `${basePath}/auth/claim`, this.getClaimStatus.bind(this)],
+      ['POST', `${basePath}/auth/claim`, this.claimInstance.bind(this)],
       ['POST', `${basePath}/auth/login`, this.login.bind(this)],
       ['POST', `${basePath}/auth/logout`, this.logout.bind(this)],
       ['GET', `${basePath}/auth/me`, this.getMe.bind(this)],
@@ -57,6 +59,72 @@ export class AuthRoutes extends BaseRoutes {
   }
 
   // Authentication handlers
+
+  /**
+   * Whether this instance still has no administrator.
+   *
+   * Deliberately unauthenticated, and deliberately says almost nothing: on a claimed instance it
+   * reports only that it is claimed, so it cannot be used to probe how a deployment is set up.
+   */
+  private async getClaimStatus(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      const status = await this.core.getClaimStatus()
+      return this.successResponse({
+        claimable: status.claimable,
+        secretRequired: status.claimable ? status.secretRequired : false
+      })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
+  /**
+   * Claim an unclaimed instance by creating its first administrator.
+   *
+   * Unauthenticated by necessity — there is nobody to authenticate as yet. The service enforces
+   * that the instance has no users, and the claim secret when one is configured.
+   */
+  private async claimInstance(request: HttpRequest): Promise<HttpResponse> {
+    try {
+      if (!request.body || typeof request.body !== 'object') {
+        throw new InvalidInputError('Request body is required', 'body')
+      }
+
+      const body = request.body as {
+        username?: string
+        email?: string
+        password?: string
+        firstName?: string
+        lastName?: string
+        secret?: string
+      }
+
+      if (!body.username || !body.email || !body.password) {
+        throw new InvalidInputError('Username, email and password are required', 'body')
+      }
+
+      await this.core.claimInstance({
+        username: body.username,
+        email: body.email,
+        password: body.password,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        secret: body.secret
+      })
+
+      // Sign the new administrator straight in: they have just proved they own the instance, and
+      // bouncing them to a login form to retype what they typed a second ago helps nobody.
+      const authResult = await this.core.authenticateUser(body.username, body.password)
+      if (!authResult || authResult.type !== 'success') {
+        return this.successResponse({ claimed: true })
+      }
+
+      return this.successResponse({ claimed: true, ...(authResult as unknown as Record<string, unknown>) })
+    } catch (error) {
+      return this.errorResponse(error)
+    }
+  }
+
   private async login(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate request body structure
