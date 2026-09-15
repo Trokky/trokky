@@ -61,10 +61,19 @@ function workspacePackages() {
     .filter(Boolean)
 }
 
-/** The file as committed at HEAD, or null outside a git checkout. */
+/**
+ * The file as committed in the push that triggered this workflow.
+ *
+ * `GITHUB_SHA` is the commit that was pushed to main — immutable, and the only thing here that
+ * the changesets action cannot have moved. HEAD is not safe: to build the release PR the action
+ * commits the version bump on `changeset-release/main` inside this same checkout, so after it
+ * runs both the working tree and HEAD describe the *next* release. Outside Actions, HEAD is
+ * what a person means; outside a checkout, the file on disk is all there is.
+ */
 function committedFile(path) {
+  const ref = process.env.GITHUB_SHA || 'HEAD'
   try {
-    return execFileSync('git', ['show', `HEAD:${path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return execFileSync('git', ['show', `${ref}:${path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
   } catch {
     return null
   }
@@ -192,6 +201,7 @@ function promote(name, version) {
 }
 
 const all = workspacePackages()
+console.log(`Release versions read from ${process.env.GITHUB_SHA ? `commit ${process.env.GITHUB_SHA.slice(0, 7)}` : 'HEAD'}: ${all.map(pkg => `${pkg.name}@${pkg.version}`).join(', ')}`)
 
 // Anything already served at its manifest version needs nothing; that is every ordinary push.
 const pending = []
