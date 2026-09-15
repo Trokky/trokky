@@ -64,10 +64,13 @@ jobs:
       # be installed at all. Publishing behind `staged` keeps `latest` on the last complete
       # release until every package is confirmed on the registry; this step then moves `latest`,
       # dependencies first. A failure here leaves users on the previous release rather than on a
-      # broken one, and is fixed by re-running: changeset publish skips what is already there.
+      # broken one, and is fixed by re-running.
+      #
+      # It runs on every push rather than only when the action reports a publish. The action
+      # derives that from the publish command's output, which is exactly what npm garbles when it
+      # answers E409 for a staged version — a success that prints an error. The script reads the
+      # workspace manifests and the registry instead, and no-ops when there is nothing to move.
       - name: Verify on npm, then promote to latest
-        if: steps.changesets.outputs.published == 'true'
         run: npm run promote-release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}

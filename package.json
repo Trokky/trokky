@@ -22,7 +22,7 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version && npm install --package-lock-only",
-    "release": "turbo build && changeset publish --tag staged",
+    "release": "turbo build && node scripts/publish-release.mjs",
     "install-hooks": "node scripts/install-git-hooks.js",
     "promote-release": "node scripts/promote-release.mjs"
   },
