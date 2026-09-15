@@ -35,6 +35,15 @@ export interface ClientConfig {
   // API endpoint configuration
   baseUrl: string
   apiVersion?: string
+
+  /**
+   * The fetch implementation to use. Defaults to the global one.
+   *
+   * Hand it a Worker's own Trokky fetch handler and the client queries the API in-process —
+   * no network, no subrequest — which is how an Astro page renders on the same Worker that
+   * serves the CMS.
+   */
+  fetch?: typeof globalThis.fetch
   
   // Authentication (choose one method)
   token?: string        // JWT token from login

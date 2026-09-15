@@ -25,7 +25,9 @@ const NON_RECOVERABLE_ENDPOINTS = [
 ]
 
 export class HttpClient {
-  private config: Required<ClientConfig & { apiToken: string }>
+  private config: Required<Omit<ClientConfig, 'fetch'> & { apiToken: string }>
+  /** Bound at construction so a caller's handler is called as a plain function. */
+  private readonly fetchImpl: typeof globalThis.fetch
   private tokens: AuthTokens | null = null
   private logger = createLogger('client', 'HttpClient')
 
@@ -44,6 +46,7 @@ export class HttpClient {
       websocketUrl: config.websocketUrl || '',
       debug: config.debug ?? false
     }
+    this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis)
 
     // Initialize with provided tokens (JWT tokens)
     if (this.config.token) {
@@ -396,7 +399,7 @@ export class HttpClient {
   private async makeRequest(url: string, options: RequestInit): Promise<Response> {
     this.log('Request', { method: options.method, url })
     
-    const response = await fetch(url, options)
+    const response = await this.fetchImpl(url, options)
     
     this.log('Response', { status: response.status, statusText: response.statusText })
     
