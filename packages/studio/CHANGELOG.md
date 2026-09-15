@@ -1,5 +1,12 @@
 # @trokky/studio
 
+## 3.4.1
+
+### Patch Changes
+
+- Updated dependencies [7d7058b]
+  - @trokky/trokky@3.4.1
+
 ## 3.4.0
 
 ### Minor Changes
