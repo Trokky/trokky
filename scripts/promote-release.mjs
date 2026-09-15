@@ -53,22 +53,53 @@ function workspacePackages() {
     .filter(Boolean)
 }
 
-/** Read the registry once, bypassing any cache, for both the version list and dist-tags. */
+/**
+ * Read a packument from the registry, telling a definite answer apart from a transient one.
+ *
+ * Returns `{ document }` on 200, `{ document: null }` on 404 (the package does not exist), and
+ * `{ transient: status }` for anything else — which in practice is npm rate-limiting a shared
+ * GitHub runner IP with 429. That distinction is the whole point: the first version of this
+ * script treated every non-OK response as "not published yet" and spent its entire timeout
+ * waiting for three versions that had been on the registry for a day.
+ *
+ * Sends the publish token when present: authenticated reads get a far higher rate limit.
+ */
 async function packument(name) {
-  const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2f')}`, {
-    headers: { 'cache-control': 'no-cache' }
-  })
-  if (!response.ok) return null
-  return response.json()
+  const headers = { 'cache-control': 'no-cache', accept: 'application/json' }
+  if (process.env.NODE_AUTH_TOKEN) headers.authorization = `Bearer ${process.env.NODE_AUTH_TOKEN}`
+
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2f')}`, { headers })
+    if (response.status === 404) return { document: null }
+    if (!response.ok) return { transient: response.status }
+    return { document: await response.json() }
+  } catch (error) {
+    return { transient: error instanceof Error ? error.message : String(error) }
+  }
 }
 
-/**
- * Ask the registry directly rather than `npm view`, which reads a cached packument and will
- * happily report a version missing for a long time after it landed.
- */
+/** A packument read that rides out transient failures instead of misreading them. */
+async function packumentWithRetry(name, attempts = 6) {
+  let last
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = await packument(name)
+    if (!('transient' in result)) return result.document
+    last = result.transient
+    const delay = Math.min(30_000, 2_000 * 2 ** (attempt - 1))
+    console.log(`  registry read for ${name} failed transiently (${last}); retrying in ${delay / 1000}s`)
+    await sleep(delay)
+  }
+  throw new Error(`Registry unreadable for ${name} after ${attempts} attempts (last: ${last}).`)
+}
+
+/** npm is eventually consistent, and a staged version can take minutes to appear. */
 async function isOnRegistry(name, version) {
-  const document = await packument(name)
-  return Boolean(document?.versions?.[version])
+  const result = await packument(name)
+  if ('transient' in result) {
+    console.log(`  registry read for ${name} failed transiently (${result.transient})`)
+    return false
+  }
+  return Boolean(result.document?.versions?.[version])
 }
 
 async function waitForAll(packages) {
@@ -136,7 +167,11 @@ const dryRun = process.env.DRY_RUN === '1'
 function promote(name, version) {
   console.log(`  latest -> ${name}@${version}${dryRun ? ' (dry run)' : ''}`)
   if (dryRun) return
-  execFileSync('npm', ['dist-tag', 'add', `${name}@${version}`, 'latest'], { stdio: 'inherit' })
+  execFileSync('npm', ['dist-tag', 'add', `${name}@${version}`, 'latest'], {
+    // No stdin: if npm wants an OTP it must fail, not sit on a prompt until the job is killed.
+    stdio: ['ignore', 'inherit', 'inherit'],
+    timeout: 60_000
+  })
 }
 
 const all = workspacePackages()
@@ -144,7 +179,7 @@ const all = workspacePackages()
 // Anything already served at its manifest version needs nothing; that is every ordinary push.
 const pending = []
 for (const pkg of all) {
-  const document = await packument(pkg.name)
+  const document = await packumentWithRetry(pkg.name)
   if (document?.['dist-tags']?.latest === pkg.version) {
     console.log(`${pkg.name}@${pkg.version} is already latest.`)
   } else {
@@ -173,7 +208,7 @@ if (dryRun) {
 console.log('Confirming latest now resolves...')
 const wrong = []
 for (const pkg of pending) {
-  const document = await packument(pkg.name)
+  const document = await packumentWithRetry(pkg.name)
   const latest = document?.['dist-tags']?.latest
   console.log(`  ${pkg.name}: latest=${latest}`)
   if (latest !== pkg.version) wrong.push(`${pkg.name} is ${latest}, expected ${pkg.version}`)
