@@ -42,6 +42,7 @@ jobs:
       - name: Build Packages
         run: npm run build
 
+      # Publishes to the `staged` dist-tag, never straight to `latest` — see the promote step.
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
@@ -53,4 +54,23 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The half of the release that makes it visible to users.
+      #
+      # v3.2.0 is why this exists. `changeset publish` publishes concurrently with no dependency
+      # ordering and reported success for all three packages when only one had landed, so
+      # @trokky/studio went live depending on a @trokky/trokky that did not exist and could not
+      # be installed at all. Publishing behind `staged` keeps `latest` on the last complete
+      # release until every package is confirmed on the registry; this step then moves `latest`,
+      # dependencies first. A failure here leaves users on the previous release rather than on a
+      # broken one, and is fixed by re-running.
+      #
+      # It runs on every push rather than only when the action reports a publish. The action
+      # derives that from the publish command's output, which is exactly what npm garbles when it
+      # answers E409 for a staged version — a success that prints an error. The script reads the
+      # workspace manifests and the registry instead, and no-ops when there is nothing to move.
+      - name: Verify on npm, then promote to latest
+        run: npm run promote-release
+        env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
