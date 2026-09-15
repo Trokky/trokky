@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'crypto'
 import { SecurityValidator } from '../security/validation.js'
 import { RateLimiter } from '../security/rate-limiter.js'
 import { IdGenerator } from '../utils/id-generator.js'
@@ -27,6 +28,16 @@ export interface UserServiceDependencies {
   getUserCreatedWithPasswordCallback: () => ((user: User, temporaryPassword: string) => Promise<void>) | undefined
   /** The configured claim secret, if any. Read lazily so a Worker can supply it per request. */
   claimSecret?: () => string | undefined
+}
+
+/**
+ * Constant-time comparison of two secrets. Both sides are hashed first so lengths always match
+ * and `timingSafeEqual` never throws — and never reveals the length, either.
+ */
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = createHash('sha256').update(provided).digest()
+  const b = createHash('sha256').update(expected).digest()
+  return timingSafeEqual(a, b)
 }
 
 /** Whether an instance can still be claimed, and what a claim would have to present. */
@@ -291,11 +302,15 @@ export class UserService {
    * sharing one default credential.
    */
   public async getClaimStatus(): Promise<ClaimStatus> {
+    // Without an atomic create there is no exactly-once, and a racy claim is worse than none.
+    if (!this.deps.dataStorage.createFirstUser) {
+      return { claimable: false, reason: 'unsupported', secretRequired: false }
+    }
+
     let userCount: number
     try {
       userCount = (await this.listUsers({ limit: 1 })).length
     } catch (error) {
-      // An adapter with no user support cannot be claimed, and cannot be signed into either.
       if (error instanceof Error && error.message.includes('not supported by storage adapter')) {
         return { claimable: false, reason: 'unsupported', secretRequired: false }
       }
@@ -312,14 +327,14 @@ export class UserService {
   /**
    * Create the first administrator, claiming an instance that has none.
    *
-   * Two things guard it. The instance must have no users at all — so this closes permanently the
-   * moment it succeeds. And when a claim secret is configured, the caller must present it, which
-   * is what makes an instance safe to leave sitting on a public URL before anyone has claimed it.
+   * Exactly-once is the adapter's promise, not this method's: `createFirstUser` is an atomic
+   * check-and-insert, so of any number of concurrent claims precisely one creates a user and the
+   * rest get null. This method only decides who is allowed to try.
    *
-   * Without a secret the claim is open to whoever reaches it first. That is the same model as
-   * every comparable self-hosted CMS, and it is only safe because the window is meant to be the
-   * minute between deploying and opening the link. Anything left unclaimed on a public URL should
-   * set a secret.
+   * When a claim secret is configured the caller must present it, which is what makes an instance
+   * safe to leave on a public URL before anyone has claimed it. Without one the claim is open to
+   * whoever reaches it first — the model of every comparable self-hosted CMS, and only safe
+   * because the window is meant to be the minute between deploying and opening the link.
    */
   public async claimInstance(input: ClaimInput): Promise<User> {
     if (this.deps.rateLimiter) {
@@ -330,29 +345,38 @@ export class UserService {
     if (!status.claimable) {
       throw new InvalidInputError(
         status.reason === 'unsupported'
-          ? 'This instance does not support user accounts.'
+          ? 'This storage adapter cannot be claimed: it has no atomic first-user create.'
           : 'This instance has already been claimed.',
         'claim'
       )
     }
 
     const expectedSecret = this.deps.claimSecret?.()
-    if (expectedSecret) {
-      // Constant-time-ish: compare full length regardless, so a wrong secret leaks no position.
-      const provided = input.secret ?? ''
-      const same =
-        provided.length === expectedSecret.length &&
-        provided.split('').reduce((acc, char, index) => acc | (char.charCodeAt(0) ^ expectedSecret.charCodeAt(index)), 0) === 0
-      if (!same) {
-        this.deps.logger.warn('Rejected a claim with an incorrect secret')
-        throw new InvalidInputError('Incorrect claim secret.', 'secret')
-      }
+    if (expectedSecret && !secretsMatch(input.secret ?? '', expectedSecret)) {
+      this.deps.logger.warn('Rejected a claim with an incorrect secret')
+      throw new InvalidInputError('Incorrect claim secret.', 'secret')
     }
 
-    const admin = await this.createUser({
+    if (this.deps.securityEnabled) {
+      SecurityValidator.validateEmail(input.email)
+      SecurityValidator.validateUsername(input.username)
+    }
+
+    // This account owns the instance and the endpoint creating it is unauthenticated. The env
+    // bootstrap only warns about a weak password; here it is refused.
+    const weak = this.deps.checkWeakPassword(input.password)
+    if (weak.isWeak) {
+      throw new InvalidInputError(`Password too weak: ${weak.reason ?? 'choose a longer, less predictable one'}`, 'password')
+    }
+
+    const passwordHash = await this.deps.hashPassword(input.password)
+    const userId = this.deps.idGenerator.generate({ prefix: 'user' })
+    const now = new Date().toISOString()
+
+    const created = await this.deps.dataStorage.createFirstUser!(userId, {
       username: input.username,
       email: input.email,
-      password: input.password,
+      passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,
       role: 'admin',
@@ -363,28 +387,26 @@ export class UserService {
         'media:upload', 'media:delete',
         'studio:access'
       ],
-      isActive: true
-    } as CreateUserData)
+      isActive: true,
+      preferences: {},
+      createdAt: now,
+      updatedAt: now
+    } as unknown as CreateUserData)
 
-    // Two claims that raced each other both got past the check above and both created a user.
-    // Resolve it the same way on every instance: the lowest id wins and the rest withdraw, so
-    // the outcome does not depend on which request happens to run this first.
-    const all = await this.listUsers({ limit: 10 })
-    if (all.length > 1) {
-      const winner = all.map(user => user.id).sort()[0]
-      if (winner !== admin.id) {
-        await this.deleteUser(admin.id).catch(() => undefined)
-        this.deps.logger.warn('Lost a concurrent claim; withdrew the duplicate administrator', {
-          withdrew: admin.id,
-          winner
-        })
-        throw new InvalidInputError('This instance has already been claimed.', 'claim')
-      }
-      this.deps.logger.warn('Won a concurrent claim; another attempt will withdraw', { winner })
+    if (!created) {
+      // Someone else's claim landed between our check and our write. Theirs stands.
+      throw new InvalidInputError('This instance has already been claimed.', 'claim')
     }
 
-    this.deps.logger.info('Instance claimed', { userId: admin.id, username: admin.username })
-    return admin
+    this.deps.logAuditEvent({
+      type: 'user_created',
+      targetUserId: created.id,
+      username: created.username,
+      action: 'Instance claimed: first administrator created'
+    } as AuditEvent)
+
+    this.deps.logger.info('Instance claimed', { userId: created.id, username: created.username })
+    return created
   }
 
   // Development utility: Setup admin user from environment variables

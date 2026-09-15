@@ -46,6 +46,9 @@ function jsonColumnValue(value: unknown): string | null {
   return value === undefined || value === null ? null : JSON.stringify(value)
 }
 
+/** Advisory lock key serialising createFirstUser. Any fixed 64-bit value works. */
+const FIRST_USER_LOCK_KEY = 7207_2027
+
 export class PostgresDataAdapter implements DataStorageAdapter {
   private config: Required<PostgresDataAdapterConfig>
   private pool: Pool
@@ -779,6 +782,66 @@ export class PostgresDataAdapter implements DataStorageAdapter {
     } catch (error) {
       this.logger.error('Failed to save user', { id, userData, error })
       throw error
+    }
+  }
+
+  /**
+   * Create the first user, atomically.
+   *
+   * A bare `INSERT ... WHERE NOT EXISTS` is not enough here: under READ COMMITTED two
+   * concurrent statements can both see an empty table and both insert. So the check and
+   * the insert run in one transaction under a transaction-scoped advisory lock, which
+   * serialises every caller of this method without locking the table for anyone else.
+   */
+  async createFirstUser(id: string, userData: CreateUserData): Promise<User | null> {
+    SecurityValidator.validateDocumentId(id)
+    const now = new Date().toISOString()
+    const client = await this.pool.connect()
+
+    try {
+      await client.query('BEGIN')
+      // Released automatically at COMMIT/ROLLBACK. The key is arbitrary but fixed.
+      await client.query('SELECT pg_advisory_xact_lock($1)', [FIRST_USER_LOCK_KEY])
+
+      const existing = await client.query(`SELECT 1 FROM ${this.tableName('users')} LIMIT 1`)
+      if (existing.rowCount) {
+        await client.query('ROLLBACK')
+        return null
+      }
+
+      const passwordHash = (userData as any).passwordHash || ''
+      const result = await client.query(`
+        INSERT INTO ${this.tableName('users')}
+        (id, username, email, password_hash, first_name, last_name, role, permissions, is_active, profile_image, preferences, oauth_providers, mfa, passkeys, last_login_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+        RETURNING *
+      `, [
+        id,
+        userData.username,
+        userData.email,
+        passwordHash,
+        userData.firstName,
+        userData.lastName,
+        userData.role,
+        JSON.stringify(userData.permissions ?? []),
+        userData.isActive ?? true,
+        userData.profileImage ?? null,
+        jsonColumnValue(userData.preferences),
+        jsonColumnValue((userData as any).oauthProviders),
+        jsonColumnValue((userData as any).mfa),
+        jsonColumnValue((userData as any).passkeys),
+        (userData as any).lastLoginAt ?? null,
+        now
+      ])
+
+      await client.query('COMMIT')
+      return this.mapRowToUser(result.rows[0])
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined)
+      this.logger.error('Failed to create first user', { id, error })
+      throw error
+    } finally {
+      client.release()
     }
   }
 

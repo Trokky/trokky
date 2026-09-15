@@ -272,7 +272,11 @@ export class TrokkyCore {
     if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
       const rateLimitConfig: RateLimitConfig = {
         windowMs: config.api?.rateLimit?.windowMs || 60 * 1000,
-        maxRequests: config.api?.rateLimit?.maxRequests || 1000
+        maxRequests: config.api?.rateLimit?.maxRequests || 1000,
+        limits: {
+          // Unauthenticated and accepts a secret: a guessing budget, not a request budget.
+          claimInstance: { windowMs: 60 * 1000, maxRequests: 10 }
+        }
       }
       this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig)
     }

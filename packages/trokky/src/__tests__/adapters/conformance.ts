@@ -1188,6 +1188,58 @@ export function describeDataAdapterConformance(name: string, hooks: DataAdapterC
     })
 
     // =========================================================================
+    // USERS — createFirstUser
+    // =========================================================================
+
+    describe('users: createFirstUser', () => {
+      it('creates the user when the store is empty', async () => {
+        expect(adapter.createFirstUser).toBeTypeOf('function')
+        const created = await adapter.createFirstUser!('user-first', asUserData(baseUser()))
+
+        expect(created).not.toBeNull()
+        expect(created!.id).toBe('user-first')
+        expect(created!.username).toBe('conformance')
+        expect(created!.passwordHash).toBe('hash-v1')
+        expect(await adapter.getUser('user-first')).not.toBeNull()
+      })
+
+      it('returns null and writes nothing when any user already exists', async () => {
+        await adapter.saveUser('user-existing', asUserData(baseUser({ username: 'someone', email: 'someone@example.com' })))
+
+        const created = await adapter.createFirstUser!('user-first', asUserData(baseUser()))
+
+        expect(created).toBeNull()
+        expect(await adapter.getUser('user-first')).toBeNull()
+        expect(await adapter.listUsers()).toHaveLength(1)
+      })
+
+      it('is exactly-once under concurrent calls', async () => {
+        // The whole reason this method exists: every caller sees an empty store at the same
+        // moment, and precisely one of them may win.
+        const attempts = Array.from({ length: 12 }, (_, i) =>
+          adapter.createFirstUser!(`user-race-${i}`, asUserData(baseUser({
+            username: `racer${i}`,
+            email: `racer${i}@example.com`
+          })))
+        )
+        const results = await Promise.all(attempts)
+
+        expect(results.filter(user => user !== null)).toHaveLength(1)
+        expect(await adapter.listUsers()).toHaveLength(1)
+      })
+
+      it('closes permanently once it has succeeded', async () => {
+        await adapter.createFirstUser!('user-first', asUserData(baseUser()))
+        const second = await adapter.createFirstUser!('user-second', asUserData(baseUser({
+          username: 'second', email: 'second@example.com'
+        })))
+
+        expect(second).toBeNull()
+        expect(await adapter.listUsers()).toHaveLength(1)
+      })
+    })
+
+    // =========================================================================
     // USERS — saveUserIf
     // =========================================================================
 

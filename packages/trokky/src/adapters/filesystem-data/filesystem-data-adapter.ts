@@ -30,6 +30,9 @@ import {
 } from '../../core/index.js'
 import { FilesystemDataAdapterConfig, DocumentFile, UserFile, AppTokenFile, AuditLogFile, OAuthProviderFile } from './types.js'
 
+/** Lock key for createFirstUser: a name no user id can collide with. */
+const FIRST_USER_LOCK = '\u0000first-user'
+
 export class FilesystemDataAdapter implements DataStorageAdapter {
   /** Resolves once the configured directories exist. Rejects if they could not be created. */
   public readonly ready: Promise<void>
@@ -444,6 +447,34 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
 
       if (existingUser.passwordHash !== condition.passwordHash) {
         return null
+      }
+
+      return this.writeUserFile(id, userData)
+    })
+  }
+
+  /**
+   * Create the first user, atomically within this process.
+   *
+   * The empty check and the write run under one lock so two concurrent calls cannot both see
+   * an empty directory. The lock is in-process, like every other write lock in this adapter:
+   * two separate processes writing the same directory are not coordinated, which the adapter
+   * has never promised for anything.
+   */
+  public async createFirstUser(id: string, userData: CreateUserData): Promise<User | null> {
+    SecurityValidator.validateDocumentId(id)
+
+    return this.withUserLock(FIRST_USER_LOCK, async () => {
+      try {
+        const entries = await fs.readdir(this.config.usersDir)
+        if (entries.some(entry => entry.endsWith('.json'))) {
+          return null
+        }
+      } catch (error) {
+        // No directory yet means no users yet.
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error
+        }
       }
 
       return this.writeUserFile(id, userData)

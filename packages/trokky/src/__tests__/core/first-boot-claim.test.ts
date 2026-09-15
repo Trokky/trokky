@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { UserService, type UserServiceDependencies } from '../../core/services/user-service.js'
 import type { User } from '../../core/types/index.js'
 
-function makeService(options: { claimSecret?: string; users?: User[] } = {}) {
+function makeService(options: { claimSecret?: string; users?: User[]; weak?: boolean; noAtomicCreate?: boolean } = {}) {
   const users: User[] = [...(options.users ?? [])]
   let nextId = users.length + 1
 
@@ -29,7 +29,14 @@ function makeService(options: { claimSecret?: string; users?: User[] } = {}) {
       const index = users.findIndex(u => u.id === id)
       if (index >= 0) users.splice(index, 1)
     }),
-    getUser: vi.fn(async (id: string) => users.find(u => u.id === id) ?? null)
+    getUser: vi.fn(async (id: string) => users.find(u => u.id === id) ?? null),
+    // Models the adapter contract: check and write are one step, and it is honoured exactly once.
+    createFirstUser: options.noAtomicCreate ? undefined : vi.fn(async (id: string, data: Record<string, unknown>) => {
+      if (users.length > 0) return null
+      const user = { id, ...data } as unknown as User
+      users.push(user)
+      return user
+    })
   } as unknown as UserServiceDependencies['dataStorage']
 
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -41,7 +48,7 @@ function makeService(options: { claimSecret?: string; users?: User[] } = {}) {
     securityEnabled: true,
     eventBus: { emitEvent: vi.fn().mockResolvedValue(undefined) } as never,
     hashPassword: async password => `hashed:${password}`,
-    checkWeakPassword: () => ({ isWeak: false }),
+    checkWeakPassword: () => (options.weak ? { isWeak: true, reason: 'too short' } : { isWeak: false }),
     logAuditEvent: vi.fn(),
     getUserCreatedWithPasswordCallback: () => undefined,
     claimSecret: () => options.claimSecret
@@ -156,20 +163,48 @@ describe('first-boot claim', () => {
   })
 
   describe('concurrent claims', () => {
-    it('leaves exactly one administrator when two claims race', async () => {
+    it('leaves exactly one administrator when claims race', async () => {
       const { service, users } = makeService()
 
-      // Both get past the "is it claimable" check before either has written a user.
       const results = await Promise.allSettled([
         service.claimInstance({ ...validClaim, username: 'first', email: 'first@example.org' }),
-        service.claimInstance({ ...validClaim, username: 'second', email: 'second@example.org' })
+        service.claimInstance({ ...validClaim, username: 'second', email: 'second@example.org' }),
+        service.claimInstance({ ...validClaim, username: 'third', email: 'third@example.org' })
       ])
 
-      const won = results.filter(r => r.status === 'fulfilled')
-      expect(won).toHaveLength(1)
+      expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
       expect(users).toHaveLength(1)
-      // The survivor is decided by id, not by timing, so every instance resolves it the same way.
-      expect(users[0].id).toBe('user_1')
+      // Exactly-once is the adapter's atomic create; the losers are told the instance is claimed.
+      for (const lost of results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]) {
+        expect(String(lost.reason)).toContain('already been claimed')
+      }
+    })
+  })
+
+  describe('hardening', () => {
+    it('refuses a weak password, unlike the env bootstrap which only warns', async () => {
+      const { service, users } = makeService({ weak: true })
+
+      await expect(service.claimInstance({ ...validClaim, password: 'password' })).rejects.toThrow('too weak')
+      expect(users).toHaveLength(0)
+    })
+
+    it('is unclaimable on an adapter without an atomic first-user create', async () => {
+      // A racy fallback would be worse than refusing: the adapter must implement the primitive.
+      const { service } = makeService({ noAtomicCreate: true })
+
+      expect(await service.getClaimStatus()).toMatchObject({ claimable: false, reason: 'unsupported' })
+      await expect(service.claimInstance(validClaim)).rejects.toThrow('cannot be claimed')
+    })
+
+    it('uses the dedicated claim rate-limit bucket', async () => {
+      const checkRateLimit = vi.fn().mockResolvedValue(undefined)
+      const { service } = makeService()
+      ;(service as unknown as { deps: { rateLimiter: unknown } }).deps.rateLimiter = { checkRateLimit }
+
+      await service.claimInstance(validClaim)
+
+      expect(checkRateLimit).toHaveBeenCalledWith('claimInstance')
     })
   })
 })
