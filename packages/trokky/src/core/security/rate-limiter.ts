@@ -18,6 +18,12 @@ export interface RateLimitConfig {
    * is what makes a shared store affordable on hot paths. See rate-limit-store.ts.
    */
   leaseSize?: number
+  /**
+   * Tighter limits for specific operations, keyed by operation name. An unauthenticated
+   * endpoint that accepts a secret must not share the general 1000/min budget: that is a
+   * guessing rate, not a request rate.
+   */
+  limits?: Record<string, { windowMs: number; maxRequests: number }>
 }
 
 /** One isolate's unspent share of a window's quota. */
@@ -50,9 +56,10 @@ export class RateLimiter {
 
   public async checkRateLimit(operation: string, context?: Record<string, unknown>): Promise<void> {
     const key = this.config.keyGenerator ? this.config.keyGenerator(operation, context) : operation
+    const { windowMs, maxRequests } = this.config.limits?.[operation] ?? this.config
 
     const now = Date.now()
-    const windowStart = Math.floor(now / this.config.windowMs) * this.config.windowMs
+    const windowStart = Math.floor(now / windowMs) * windowMs
 
     const lease = this.leases.get(key)
     if (lease && lease.windowStart === windowStart && lease.remaining > 0) {
@@ -63,9 +70,9 @@ export class RateLimiter {
     const granted = await this.store.reserve({
       key,
       windowStart,
-      windowMs: this.config.windowMs,
+      windowMs,
       want: this.leaseSize,
-      max: this.config.maxRequests
+      max: maxRequests
     })
 
     if (granted <= 0) {

@@ -449,6 +449,40 @@ export class ApiClient extends HttpClient {
   /**
    * Login
    */
+  /**
+   * Whether this instance still has no administrator. Unauthenticated: it is what the Studio
+   * asks before deciding whether to show a login form or a claim form.
+   */
+  async getClaimStatus(): Promise<ApiResponse<{ claimable: boolean; secretRequired: boolean }>> {
+    return this.get<{ claimable: boolean; secretRequired: boolean }>('/auth/claim')
+  }
+
+  /**
+   * Claim an unclaimed instance by creating its first administrator. A successful claim
+   * signs the new administrator in, exactly as `login` would.
+   */
+  async claimInstance(input: {
+    username: string
+    email: string
+    password: string
+    firstName?: string
+    lastName?: string
+    secret?: string
+  }): Promise<ApiResponse<{ claimed: boolean; user?: User; token?: string; refreshToken?: string }>> {
+    const response = await this.post<{
+      claimed: boolean
+      user?: User
+      token?: string
+      refreshToken?: string
+    }>('/auth/claim', input)
+
+    if (response.success && response.data?.token) {
+      this.setAuthToken(response.data.token)
+    }
+
+    return response
+  }
+
   async login(
     username: string,
     password: string,

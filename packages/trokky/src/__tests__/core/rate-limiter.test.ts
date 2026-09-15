@@ -86,4 +86,22 @@ describe('RateLimiter', () => {
       expect(() => limiter.cleanup()).not.toThrow()
     })
   })
+
+  describe('per-operation limits', () => {
+    it('applies a tighter budget to a named operation without touching the rest', async () => {
+      const limiter = new RateLimiter({
+        windowMs: 60_000,
+        maxRequests: 1000,
+        limits: { claimInstance: { windowMs: 60_000, maxRequests: 3 } }
+      })
+
+      await limiter.checkRateLimit('claimInstance')
+      await limiter.checkRateLimit('claimInstance')
+      await limiter.checkRateLimit('claimInstance')
+      await expect(limiter.checkRateLimit('claimInstance')).rejects.toThrow()
+
+      // The general budget is untouched by the claim bucket being spent.
+      for (let i = 0; i < 20; i++) await limiter.checkRateLimit('listDocuments')
+    })
+  })
 })

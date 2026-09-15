@@ -243,6 +243,25 @@ export interface DataStorageAdapter {
   saveUserIf?(id: string, userData: Partial<UpdateUserData>, condition: { passwordHash: string }): Promise<User | null>
 
   /**
+   * Create a user only if the store holds no users at all, atomically.
+   *
+   * This is what makes a first-boot claim exactly-once. The check and the write must be one
+   * atomic operation: two concurrent callers must not both see an empty store and both create a
+   * user. A read followed by a separate write cannot guarantee that; the store's own
+   * serialisation can (a single `INSERT ... WHERE NOT EXISTS` under SQLite's write lock, an
+   * advisory lock in Postgres, the write lock in a file backend).
+   *
+   * Optional so adapters written before it existed keep compiling. An adapter without it cannot
+   * be claimed, and reports so; it is not silently downgraded to a racy check.
+   *
+   * @param id - The user ID
+   * @param userData - The user to create, password already hashed
+   * @returns The created user, or null if any user already existed (nothing written)
+   * @throws Error if storage fails
+   */
+  createFirstUser?(id: string, userData: CreateUserData): Promise<User | null>
+
+  /**
    * List users with filtering and pagination
    * @param options - Query options (role, isActive, limit, offset)
    * @returns Array of matching users

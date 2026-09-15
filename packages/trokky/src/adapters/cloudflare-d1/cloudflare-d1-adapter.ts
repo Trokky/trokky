@@ -66,6 +66,11 @@ const DOCUMENT_SYSTEM_COLUMNS: Record<string, string> = {
   _updatedByType: 'updated_by_type'
 }
 
+/** The user INSERT column list, in the order `userInsertValues` binds them. */
+const USER_INSERT_COLUMNS = `(id, username, email, password_hash, first_name, last_name, role, permissions,
+            is_active, profile_image, preferences, oauth_providers, mfa, passkeys,
+            last_login_at, created_at, updated_at)`
+
 /** User columns an update may set, in write order. */
 const USER_UPDATE_COLUMNS: ReadonlyArray<{ key: string; column: string; json?: boolean; bool?: boolean }> = [
   { key: 'username', column: 'username' },
@@ -588,36 +593,62 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
 
     const row = await this.db
       .prepare(
-        `INSERT INTO ${users}
-           (id, username, email, password_hash, first_name, last_name, role, permissions,
-            is_active, profile_image, preferences, oauth_providers, mfa, passkeys,
-            last_login_at, created_at, updated_at)
+        `INSERT INTO ${users} ${USER_INSERT_COLUMNS}
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          RETURNING *`
       )
-      .bind(
-        id,
-        input.username ?? null,
-        input.email ?? null,
-        input.passwordHash ?? '',
-        input.firstName ?? null,
-        input.lastName ?? null,
-        input.role ?? null,
-        jsonColumn(input.permissions ?? []),
-        boolColumn(input.isActive === undefined ? true : input.isActive),
-        input.profileImage ?? null,
-        jsonColumn(input.preferences),
-        jsonColumn(input.oauthProviders),
-        jsonColumn(input.mfa),
-        jsonColumn(input.passkeys),
-        input.lastLoginAt ?? null,
-        now,
-        now
-      )
+      .bind(...this.userInsertValues(id, input, now))
       .first<D1UserRow>()
 
     if (!row) throw new Error(`Failed to create user ${id}`)
     return this.mapRowToUser(row)
+  }
+
+  /** The bind list for a user INSERT, shared so the two insert paths cannot drift. */
+  private userInsertValues(id: string, input: Record<string, unknown>, now: string): unknown[] {
+    return [
+      id,
+      input.username ?? null,
+      input.email ?? null,
+      input.passwordHash ?? '',
+      input.firstName ?? null,
+      input.lastName ?? null,
+      input.role ?? null,
+      jsonColumn(input.permissions ?? []),
+      boolColumn(input.isActive === undefined ? true : input.isActive),
+      input.profileImage ?? null,
+      jsonColumn(input.preferences),
+      jsonColumn(input.oauthProviders),
+      jsonColumn(input.mfa),
+      jsonColumn(input.passkeys),
+      input.lastLoginAt ?? null,
+      now,
+      now
+    ]
+  }
+
+  /**
+   * Create the first user, atomically. SQLite serialises writers, so a single
+   * `INSERT ... SELECT ... WHERE NOT EXISTS` is the check and the write under one
+   * lock: of two concurrent calls, exactly one inserts and the other gets no row.
+   */
+  public async createFirstUser(id: string, userData: CreateUserData): Promise<User | null> {
+    SecurityValidator.validateDocumentId(id)
+    await this.ready()
+    const users = this.table('users')
+    const values = this.userInsertValues(id, (userData ?? {}) as unknown as Record<string, unknown>, this.now())
+
+    const row = await this.db
+      .prepare(
+        `INSERT INTO ${users} ${USER_INSERT_COLUMNS}
+         SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (SELECT 1 FROM ${users})
+         RETURNING *`
+      )
+      .bind(...values)
+      .first<D1UserRow>()
+
+    return row ? this.mapRowToUser(row) : null
   }
 
   /**

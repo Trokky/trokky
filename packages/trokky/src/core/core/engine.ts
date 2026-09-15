@@ -81,7 +81,7 @@ import { MFAService, generateSecureSecret, resolveMfaIssuer } from '../services/
 import { TrustedDeviceService } from '../services/trusted-device-service.js'
 import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
-import { UserService } from '../services/user-service.js'
+import { UserService , type ClaimStatus, type ClaimInput } from '../services/user-service.js'
 import { TokenService } from '../services/token-service.js'
 import { DocumentService } from '../services/document-service.js'
 import { MediaService } from '../services/media-service.js'
@@ -96,6 +96,11 @@ export interface TrokkyCoreOptions {
   enableSecurity?: boolean
   setupAdminFromEnv?: boolean // Automatically create admin user from env vars on startup
   jwtSecret?: string // JWT signing secret for token authentication
+  /**
+   * Secret a first-boot claim must present. Falls back to TROKKY_CLAIM_SECRET.
+   * Without one the claim is open to whoever reaches the instance first.
+   */
+  claimSecret?: string
   auditLogger?: (event: AuditEvent) => void // Optional audit logging function
   cryptoAdapter?: CryptoAdapter // Custom crypto adapter (auto-detected if not provided)
   cryptoOptions?: CryptoAdapterOptions // Options for crypto adapter
@@ -267,7 +272,11 @@ export class TrokkyCore {
     if (config.security?.rateLimitEnabled || config.api?.rateLimit) {
       const rateLimitConfig: RateLimitConfig = {
         windowMs: config.api?.rateLimit?.windowMs || 60 * 1000,
-        maxRequests: config.api?.rateLimit?.maxRequests || 1000
+        maxRequests: config.api?.rateLimit?.maxRequests || 1000,
+        limits: {
+          // Unauthenticated and accepts a secret: a guessing budget, not a request budget.
+          claimInstance: { windowMs: 60 * 1000, maxRequests: 10 }
+        }
       }
       this.rateLimiter = options.rateLimiter || new RateLimiter(rateLimitConfig)
     }
@@ -390,7 +399,9 @@ export class TrokkyCore {
       hashPassword: (password) => this.hashPassword(password),
       checkWeakPassword: (password) => this.checkWeakPassword(password),
       logAuditEvent: (event) => this.logAuditEvent(event),
-      getUserCreatedWithPasswordCallback: () => this.userCreatedWithPasswordCallback
+      getUserCreatedWithPasswordCallback: () => this.userCreatedWithPasswordCallback,
+      claimSecret: () => this.options.claimSecret ??
+        (typeof process !== 'undefined' ? process.env?.TROKKY_CLAIM_SECRET : undefined)
     })
 
     this.tokenService = new TokenService({
@@ -1362,6 +1373,16 @@ export class TrokkyCore {
   // Development utility: Setup admin user from environment variables
   public async setupAdminFromEnv(): Promise<User | null> {
     return this.userService.setupAdminFromEnv()
+  }
+
+  /** Whether this instance still has no administrator, and what claiming it would require. */
+  public async getClaimStatus(): Promise<ClaimStatus> {
+    return this.userService.getClaimStatus()
+  }
+
+  /** Create the first administrator on an instance that has none. */
+  public async claimInstance(input: ClaimInput): Promise<User> {
+    return this.userService.claimInstance(input)
   }
 
   // ============================================
