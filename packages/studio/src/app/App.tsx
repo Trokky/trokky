@@ -6,6 +6,7 @@ import { AppRouter } from './Router';
 import { apiClient } from '@/services/api-client';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoginPage } from '@/pages/LoginPage';
+import { ClaimPage } from '@/pages/ClaimPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage';
@@ -55,6 +56,33 @@ function AppContent() {
   const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const logger = createStudioLogger('AppContent');
   const lastStateRef = useRef<{ isAuthenticated?: boolean; isLoading?: boolean }>({});
+
+  // A fresh instance has nobody to sign in as, so the first screen is a claim form rather than
+  // a login form. Asked once per unauthenticated load; any failure means "not claimable", so a
+  // broken status endpoint can never keep a real login form from appearing.
+  const [claim, setClaim] = useState<{ checked: boolean; claimable: boolean; secretRequired: boolean }>({
+    checked: false,
+    claimable: false,
+    secretRequired: false,
+  });
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated || claim.checked) return;
+    let cancelled = false;
+    apiClient
+      .getClaimStatus()
+      .then(response => {
+        if (cancelled) return;
+        const data = response.success ? response.data : undefined;
+        setClaim({ checked: true, claimable: Boolean(data?.claimable), secretRequired: Boolean(data?.secretRequired) });
+      })
+      .catch(() => {
+        if (!cancelled) setClaim({ checked: true, claimable: false, secretRequired: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, isAuthenticated, claim.checked]);
   
   // Update document title from settings when authenticated
   useDocumentTitle(isAuthenticated);
@@ -115,6 +143,25 @@ function AppContent() {
 
     if (normalizedPath === '/oauth/callback') {
       return <OAuthCallbackPage onLoginSuccess={handleLoginSuccess} />;
+    }
+
+    // Don't flash a login form that is about to be replaced by the claim form.
+    if (!claim.checked) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
+
+    if (claim.claimable) {
+      return (
+        <ClaimPage
+          secretRequired={claim.secretRequired}
+          onLoginSuccess={handleLoginSuccess}
+          onClaimedWithoutSession={() => setClaim(prev => ({ ...prev, claimable: false }))}
+        />
+      );
     }
 
     // OAuth authorization routes - redirect to login first, preserving OAuth params
