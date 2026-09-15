@@ -233,15 +233,29 @@ if (dryRun) {
 }
 
 console.log('Confirming latest now resolves...')
-const wrong = []
-for (const pkg of pending) {
-  const document = await packumentWithRetry(pkg.name)
-  const latest = document?.['dist-tags']?.latest
-  console.log(`  ${pkg.name}: latest=${latest}`)
-  if (latest !== pkg.version) wrong.push(`${pkg.name} is ${latest}, expected ${pkg.version}`)
+// npm acknowledged every dist-tag with "+latest:", but its read path lags its write path by up
+// to a few minutes — the same propagation the verify step waits out. On v3.3.0 an instant
+// read-back here reported 3.2.0 for a release that was already live, and turned a correct run
+// red. So this polls too, and only a version that never shows up counts as a failure.
+const confirmDeadline = Date.now() + POLL_TIMEOUT_MS
+let wrong = []
+for (;;) {
+  wrong = []
+  for (const pkg of pending) {
+    const document = await packumentWithRetry(pkg.name)
+    const latest = document?.['dist-tags']?.latest
+    if (latest !== pkg.version) wrong.push(`${pkg.name} is ${latest}, expected ${pkg.version}`)
+  }
+  if (wrong.length === 0) break
+  if (Date.now() >= confirmDeadline) {
+    throw new Error(
+      `dist-tag promotion did not take effect within ${POLL_TIMEOUT_MS / 1000}s:\n  ${wrong.join('\n  ')}\n` +
+      `npm acknowledged the dist-tag writes; check the registry by hand before re-running.`
+    )
+  }
+  console.log(`  registry has not caught up yet (${wrong.length} package(s)); waiting...`)
+  await sleep(POLL_INTERVAL_MS)
 }
-if (wrong.length > 0) {
-  throw new Error(`dist-tag promotion did not take effect:\n  ${wrong.join('\n  ')}`)
-}
+for (const pkg of pending) console.log(`  ${pkg.name}: latest=${pkg.version}`)
 
 console.log('Release promoted.')
