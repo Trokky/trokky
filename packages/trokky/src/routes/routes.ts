@@ -107,6 +107,8 @@ export class TrokkyRoutes extends BaseRoutes {
     this.addHandlerRoute('GET', `${basePath}/users/by-email/:email`)
 
     // Authentication routes (public)
+    this.addHandlerRoute('GET', `${basePath}/auth/claim`)
+    this.addHandlerRoute('POST', `${basePath}/auth/claim`)
     this.addHandlerRoute('POST', `${basePath}/auth/login`)
     this.addHandlerRoute('POST', `${basePath}/auth/logout`)
     this.addHandlerRoute('GET', `${basePath}/auth/me`)
