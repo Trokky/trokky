@@ -7,8 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { Miniflare } from 'miniflare'
-import type { ImagesBinding } from '@cloudflare/workers-types'
-import { CloudflareImagesProcessor } from '../../core/media/processors/cloudflare-images.js'
+import { CloudflareImagesProcessor, type ImagesBindingLike } from '../../core/media/processors/cloudflare-images.js'
 import { createImageProcessor } from '../../core/media/image-processor.js'
 
 /** A binding that "transforms" by returning bytes tagged with the requested size. */
@@ -35,7 +34,7 @@ function fakeBinding(failFirst = 0) {
       return transformer
     })
   }
-  return { images: images as unknown as ImagesBinding, transformCalls, mocks: images }
+  return { images: images as unknown as ImagesBindingLike, transformCalls, mocks: images }
 }
 
 const png = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'photo.png', { type: 'image/png' })
@@ -121,7 +120,7 @@ describe('CloudflareImagesProcessor', () => {
       images: { binding: 'IMAGES' }
     })
     try {
-      const { IMAGES } = (await mf.getBindings()) as { IMAGES: ImagesBinding }
+      const { IMAGES } = (await mf.getBindings()) as { IMAGES: ImagesBindingLike }
       const sharp = (await import('sharp')).default
       const source = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#2b6cb0' } }).png().toBuffer()
       const processor = new CloudflareImagesProcessor({

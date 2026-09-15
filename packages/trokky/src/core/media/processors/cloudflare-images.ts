@@ -16,7 +16,6 @@
  * binding can travel.
  */
 
-import type { ImagesBinding } from '@cloudflare/workers-types'
 import { InvalidInputError } from '../../errors/index.js'
 import { withRetry } from '../../utils/retry.js'
 import {
@@ -28,9 +27,29 @@ import {
   type ProcessedImageVariant
 } from './types.js'
 
+/**
+ * The slice of Cloudflare's `ImagesBinding` this processor uses, declared structurally.
+ *
+ * Declared rather than imported on purpose: `@cloudflare/workers-types` ships its own
+ * `ReadableStream` type, and mixing it with the DOM lib's produces "not assignable" errors
+ * that come and go with the types package version. `env.IMAGES` satisfies this shape as-is.
+ */
+export interface ImagesBindingLike {
+  info(stream: ReadableStream<Uint8Array>): Promise<{ width?: number; height?: number; format?: string }>
+  input(stream: ReadableStream<Uint8Array>): ImageTransformerLike
+}
+
+export interface ImageTransformerLike {
+  transform(transform: { width?: number; height?: number; fit?: string }): ImageTransformerLike
+  output(options: { format: string; quality?: number }): Promise<{
+    image(): ReadableStream<Uint8Array>
+    contentType(): string
+  }>
+}
+
 export interface CloudflareImagesOptions {
   /** The Images binding from the Worker environment, e.g. `env.IMAGES`. */
-  images: ImagesBinding
+  images: ImagesBindingLike
   /** Attempts per variant before giving up on it. @default 3 */
   attempts?: number
 }
@@ -45,14 +64,16 @@ const FIT: Record<NonNullable<ImageVariant['fit']>, 'scale-down' | 'contain' | '
 }
 
 /** A fresh stream over the same bytes; the binding consumes each one it is given. */
-const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> => new Blob([bytes]).stream()
+const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> =>
+  // A copy, so the Blob owns a plain ArrayBuffer rather than a view into a shared one.
+  new Blob([bytes.slice().buffer as ArrayBuffer]).stream()
 
 async function collect(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
   return Buffer.from(await new Response(stream).arrayBuffer())
 }
 
 export class CloudflareImagesProcessor extends ImageProcessor {
-  private readonly images: ImagesBinding
+  private readonly images: ImagesBindingLike
   private readonly attempts: number
 
   constructor(config: ImageProcessorConfig) {
@@ -78,8 +99,8 @@ export class CloudflareImagesProcessor extends ImageProcessor {
     const info = await withRetry(() => this.images.info(streamOf(bytes)), { attempts: this.attempts })
     const original: ProcessedImageVariant = {
       url: this.getImageUrl(metadata.id, 'original'),
-      width: 'width' in info ? info.width : 0,
-      height: 'height' in info ? info.height : 0,
+      width: info.width ?? 0,
+      height: info.height ?? 0,
       format: file.type,
       size: bytes.byteLength
     }
@@ -100,8 +121,8 @@ export class CloudflareImagesProcessor extends ImageProcessor {
 
       variants[variant.name] = {
         url: this.getImageUrl(metadata.id, variant.name),
-        width: 'width' in produced.dims ? produced.dims.width : 0,
-        height: 'height' in produced.dims ? produced.dims.height : 0,
+        width: produced.dims.width ?? 0,
+        height: produced.dims.height ?? 0,
         format,
         size: produced.buffer.length,
         buffer: produced.buffer
