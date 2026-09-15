@@ -39,18 +39,35 @@ const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 10 * 1000)
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-/** Every publishable workspace package, at the version committed on this branch. */
+/**
+ * Every publishable workspace package, at the version committed at HEAD.
+ *
+ * Committed, not on disk. The changesets action runs `changeset version` in the working tree
+ * on any push that has pending changesets — that is how it builds the release PR — and leaves
+ * the bumped manifests behind. The first version of this script read those and spent its whole
+ * timeout waiting for a version that had not been released yet. What is committed on main is
+ * the release; what is on disk after the action ran is the *next* one.
+ */
 function workspacePackages() {
   return readdirSync('packages', { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => {
       const manifestPath = join('packages', entry.name, 'package.json')
       if (!existsSync(manifestPath)) return null
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+      const manifest = JSON.parse(committedFile(manifestPath) ?? readFileSync(manifestPath, 'utf8'))
       if (manifest.private) return null
       return { name: manifest.name, version: manifest.version, dir: entry.name }
     })
     .filter(Boolean)
+}
+
+/** The file as committed at HEAD, or null outside a git checkout. */
+function committedFile(path) {
+  try {
+    return execFileSync('git', ['show', `HEAD:${path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
 }
 
 /**
