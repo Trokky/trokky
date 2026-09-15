@@ -203,12 +203,28 @@ function promote(name, version) {
 const all = workspacePackages()
 console.log(`Release versions read from ${process.env.GITHUB_SHA ? `commit ${process.env.GITHUB_SHA.slice(0, 7)}` : 'HEAD'}: ${all.map(pkg => `${pkg.name}@${pkg.version}`).join(', ')}`)
 
+/** Numeric semver compare on the release part; prerelease tags are not used here. */
+function newerThan(a, b) {
+  const pa = String(a).split('-')[0].split('.').map(Number)
+  const pb = String(b).split('-')[0].split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0)
+  }
+  return false
+}
+
 // Anything already served at its manifest version needs nothing; that is every ordinary push.
+// And `latest` only ever moves forward: if the registry is already ahead of the commit being
+// processed — a revert, a rollback, a workflow re-run on an old commit — this must not demote
+// users onto an older release. A dry run from a stale checkout showed it would have.
 const pending = []
 for (const pkg of all) {
   const document = await packumentWithRetry(pkg.name)
-  if (document?.['dist-tags']?.latest === pkg.version) {
+  const latest = document?.['dist-tags']?.latest
+  if (latest === pkg.version) {
     console.log(`${pkg.name}@${pkg.version} is already latest.`)
+  } else if (latest && newerThan(latest, pkg.version)) {
+    console.log(`${pkg.name}: latest is ${latest}, ahead of ${pkg.version}; leaving it alone.`)
   } else {
     pending.push(pkg)
   }
