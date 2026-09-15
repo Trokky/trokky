@@ -8,7 +8,7 @@
     "dev:server": "tsc src/index.ts src/server/assets.ts src/server/express.ts src/utils/logger.ts --outDir dist --module esnext --target es2020 --skipLibCheck --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop --declaration --watch",
     "build": "vite build && npm run build:server",
     "build:single": "vite build --config vite.single.config.ts",
-    "build:server": "tsc src/index.ts src/server/assets.ts src/server/express.ts src/utils/logger.ts --outDir dist --module esnext --target es2020 --skipLibCheck --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop --declaration",
+    "build:server": "tsc src/index.ts src/server/assets.ts src/server/express.ts src/server/document.ts src/server/workers.ts src/utils/logger.ts --outDir dist --module esnext --target es2020 --skipLibCheck --moduleResolution node --allowSyntheticDefaultImports --esModuleInterop --declaration",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext ts,tsx",
@@ -80,6 +80,10 @@
     "./standalone": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./workers": {
+      "import": "./dist/server/workers.js",
+      "types": "./dist/server/workers.d.ts"
     }
   },
   "files": [
