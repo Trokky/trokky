@@ -70,14 +70,16 @@ describe('createStudioFetchHandler', () => {
     expect(bootstrap(await res.text()).basePath).toBe('/studio')
   })
 
-  it('rewrites asset URLs to the mount and drops the root favicon', async () => {
+  it('rewrites asset URLs to the mount and inlines the favicon', async () => {
     const handler = createStudioFetchHandler({ basePath: '/studio', assets: fakeAssets(files), branding: { title: 'My CMS' } })
 
     const html = await (await handler(new Request('https://cms.example.org/studio/'))).text()
 
     expect(html).toContain('src="/studio/assets/index-abc123.js"')
     expect(html).toContain('href="/studio/assets/index-def456.css"')
-    expect(html).not.toContain('rel="icon"')
+    // The built document points the icon at the origin root, where nothing is mounted.
+    expect(html).not.toContain('href="/trokky-icon.svg"')
+    expect(html).toContain('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,')
     expect(html).toContain('<title>My CMS</title>')
   })
 
