@@ -84,7 +84,12 @@ jobs:
             fi
 
             echo "Publishing ${name}@${version}..."
-            npm publish --workspace "packages/${dir}" --access restricted "${extra_args[@]+"${extra_args[@]}"}"
+            # --access public, because that is what every package declares in publishConfig and
+            # what all three actually are on npm. This said `restricted` — a leftover from the
+            # GitHub Packages era — which contradicts the manifests and would change visibility
+            # or fail outright. This is the recovery path when the automated release breaks, so
+            # it has to work the one time it is needed.
+            npm publish --workspace "packages/${dir}" --access public "${extra_args[@]+"${extra_args[@]}"}"
           }
 
           case "$INPUT_PACKAGE" in
