@@ -9,6 +9,8 @@ import { readFileSync, existsSync } from 'fs'
 import { join, dirname, extname } from 'path'
 import { fileURLToPath } from 'url'
 
+import { STUDIO_FAVICON } from './document.js'
+
 /**
  * Escape a string for safe embedding in HTML content.
  */
@@ -127,8 +129,8 @@ export function getStudioHTML(
     html = html.replace(/src="\/assets\//g, `src="${studioPath}/assets/`)
     html = html.replace(/href="\/assets\//g, `href="${studioPath}/assets/`)
 
-    // Remove favicon reference since we don't have the icon
-    html = html.replace(/<link rel="icon"[^>]*>/g, '')
+    // The built icon path assumes the origin root; the inline mark needs no route.
+    html = html.replace(/<link rel="icon"[^>]*>/g, `<link rel="icon" type="image/svg+xml" href="${STUDIO_FAVICON}">`)
 
     // Update title if provided
     if (config.branding?.title) {
