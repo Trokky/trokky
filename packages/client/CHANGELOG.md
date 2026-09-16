@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.5.0
+
+### Patch Changes
+
+- Updated dependencies [7a03e92]
+  - @trokky/trokky@3.5.0
+
 ## 3.4.1
 
 ### Patch Changes
