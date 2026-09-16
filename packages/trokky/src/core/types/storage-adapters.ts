@@ -587,6 +587,13 @@ export interface MediaStorageAdapter {
   
   /**
    * Get a streaming URL for the file (if supported)
+   *
+   * **The URL may itself be the authorisation.** `filesystem-media` and `cloudflare-r2` return
+   * either a public URL or null, but `s3-media` returns a presigned URL when no public base is
+   * configured — a time-limited read grant for a private object, with nothing in the return
+   * type to tell the two apart. Do not log it, embed it in a cached page, or put it in a
+   * webhook payload without deciding that is acceptable for the adapter in use.
+   *
    * @param id - The file ID
    * @param options - Optional URL generation options (expiration time, etc.)
    * @returns Public URL for the file or null if not available

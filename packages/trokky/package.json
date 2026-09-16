@@ -93,6 +93,10 @@
       "types": "./dist/adapters/postgres-data/index.d.ts",
       "import": "./dist/adapters/postgres-data/index.js"
     },
+    "./adapters/s3-media": {
+      "import": "./dist/adapters/s3-media/index.js",
+      "types": "./dist/adapters/s3-media/index.d.ts"
+    },
     "./express": {
       "types": "./dist/integrations/express/index.d.ts",
       "import": "./dist/integrations/express/index.js"
@@ -157,6 +161,7 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.2.2",
+    "aws4fetch": "^1.0.20",
     "bcrypt": "^6.0.0",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
