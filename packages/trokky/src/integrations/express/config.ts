@@ -55,7 +55,7 @@ export interface StorageConfig {
   }
   /** Media storage adapter configuration */
   media: {
-    adapter: 'filesystem-media' | 'cloudflare-r2' | 's3'
+    adapter: 'filesystem-media' | 'cloudflare-r2' | 's3-media'
     options?: {
       // Filesystem media options
       mediaDir?: string
@@ -87,8 +87,13 @@ export interface StorageConfig {
         additionalDirectives?: string[]
         reportUri?: string
       }
-      // S3 options
+      // S3-compatible options (adapter: 's3-media')
+      endpoint?: string
       region?: string
+      forcePathStyle?: boolean
+      prefix?: string
+      publicBaseUrl?: string
+      defaultUrlExpirySeconds?: number
     }
   }
 }

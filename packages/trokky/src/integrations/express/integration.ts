@@ -647,9 +647,9 @@ export class TrokkyExpress {
       throw new Error(
         `Failed to create media adapter "${config.adapter}": ${error instanceof Error ? error.message : String(error)}\n\n` +
           `Available media adapters depend on imported packages:\n` +
-          `- 'filesystem-media': Requires @trokky/adapter-filesystem-media (Node.js only)\n` +
-          `- 'cloudflare-r2': Requires @trokky/adapter-cloudflare-r2 (Edge runtime)\n` +
-          `- 's3': Requires @trokky/adapter-s3\n\n` +
+          `- 'filesystem-media': Requires @trokky/trokky/adapters/filesystem-media (Node.js only)\n` +
+          `- 'cloudflare-r2': Requires @trokky/trokky/adapters/cloudflare-r2 (a Worker binding)\n` +
+          `- 's3-media': Requires @trokky/trokky/adapters/s3-media (any runtime)\n\n` +
           `Make sure the required adapter package is installed and imported.`
       )
     }

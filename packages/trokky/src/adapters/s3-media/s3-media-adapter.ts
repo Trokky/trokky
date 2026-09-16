@@ -88,6 +88,19 @@ export class S3MediaAdapter implements MediaStorageAdapter {
       forcePathStyle: config.forcePathStyle ?? true
     })
 
+    // A prefix becomes URL path segments, where `..` is an operator rather than a name: writes
+    // would climb out of the bucket while `list()` (which goes through URLSearchParams) would
+    // not, leaving a store whose reads and writes disagree.
+    if (config.prefix && !/^[A-Za-z0-9._~\-]+(?:\/[A-Za-z0-9._~\-]+)*\/?$/.test(config.prefix)) {
+      throw new InvalidInputError(
+        'prefix may contain only letters, digits, dot, dash, underscore, tilde and slash',
+        'prefix'
+      )
+    }
+    if (config.prefix?.split('/').includes('..')) {
+      throw new InvalidInputError('prefix may not contain a ".." segment', 'prefix')
+    }
+
     this.prefix = config.prefix ? config.prefix.replace(/\/*$/, '/') : ''
     this.publicBaseUrl = config.publicBaseUrl?.replace(/\/+$/, '')
     this.urlExpiry = config.defaultUrlExpirySeconds ?? DEFAULT_URL_EXPIRY_SECONDS
@@ -199,7 +212,12 @@ export class S3MediaAdapter implements MediaStorageAdapter {
       // The id identifies the object; letting it be rewritten would orphan the bytes.
       if (key === 'id') continue
       if (RECORD_FIELDS.has(key)) {
-        ;(updated as unknown as Record<string, unknown>)[key] = value
+        // Coerced, because these are encoded into the index key and `decodeIndexKey` rejects an
+        // entry whose `size` is not a number. An uncoerced `size: '4242'` un-indexed the file
+        // permanently and made cleanup() non-convergent: it rebuilt an equally undecodable
+        // entry every run and deleted it again the next.
+        ;(updated as unknown as Record<string, unknown>)[key] =
+          key === 'size' ? toSize(value, record.size) : String(value)
       } else {
         updated.custom[key] = value
       }
@@ -426,9 +444,10 @@ export class S3MediaAdapter implements MediaStorageAdapter {
 
   public async healthCheck(): Promise<boolean> {
     try {
-      // A HEAD on a key that need not exist proves the endpoint answers and the credentials
-      // sign, without writing anything.
-      await this.s3.head(`${this.prefix}.trokky-health`)
+      // A one-key listing, not a HEAD on a missing key: a HEAD 404s identically whether the key
+      // is absent or the whole bucket is, so a mistyped bucket reported healthy and then
+      // reported an empty media library.
+      await this.s3.list(this.prefix, { maxKeys: 1 })
       return true
     } catch (error) {
       this.logger.error('Health check failed', error)
@@ -474,22 +493,28 @@ export class S3MediaAdapter implements MediaStorageAdapter {
     const live = new Set(records)
     let touched = 0
 
-    // 1. Rebuild.
-    const indexed = new Map<string, IndexEntry[]>()
-    for (const object of await this.s3.listAll(indexPrefix(this.prefix))) {
-      const entry = decodeIndexKey(this.prefix, object.key)
-      if (!entry) continue
-      indexed.set(entry.id, [...(indexed.get(entry.id) ?? []), entry])
-    }
+    // 1. Derive the ONE key each record should have, and write it if it is not already there.
+    //
+    //    Every record is read, not just the unindexed ones: an entry that disagrees with its
+    //    record is invisible without the record to compare against, and testing only for
+    //    absence left such an entry permanent — `listMedia` considers that id covered and never
+    //    re-reads, so every filter, sort and total is served from the stale copy forever. That
+    //    is what an `updateFile` interrupted between its two writes leaves behind.
+    const keep = new Map<string, string>()
+    const present = new Set(
+      (await this.s3.listAll(indexPrefix(this.prefix))).map(object => object.key)
+    )
 
-    const missing = records.filter(id => !indexed.has(id))
-    for (const record of await this.mapWithConcurrency(missing, id => this.readRecord(id))) {
+    for (const record of await this.mapWithConcurrency(records, id => this.readRecord(id))) {
       if (!record) continue
+      const canonical = encodeIndexKey(this.prefix, entryOf(record))
+      keep.set(record.id, canonical)
+      if (present.has(canonical)) continue
       await this.writeIndexEntry(record)
       touched++
     }
 
-    // 2. Orphaned bytes.
+    // 2. Orphaned bytes: anything under files/ or variants/ whose id has no record.
     const orphans: string[] = []
 
     const filePrefix = `${this.prefix}files/`
@@ -503,20 +528,13 @@ export class S3MediaAdapter implements MediaStorageAdapter {
       if (!live.has(parentId)) orphans.push(object.key)
     }
 
-    // 3. Stale or duplicated index entries: anything with no record, and every entry for an id
-    //    except the newest.
+    // 3. Every index object that is not the canonical key for a live record: unparseable,
+    //    recordless, superseded, or a duplicate. The record decides, so this converges in one
+    //    pass and does not depend on which of two tied entries a listing happens to return
+    //    first.
     for (const object of await this.s3.listAll(indexPrefix(this.prefix))) {
       const entry = decodeIndexKey(this.prefix, object.key)
-      if (!entry) {
-        orphans.push(object.key)
-        continue
-      }
-      if (!live.has(entry.id)) {
-        orphans.push(object.key)
-        continue
-      }
-      const newest = Math.max(...(indexed.get(entry.id) ?? []).map(e => e.createdAt.getTime()))
-      if (entry.createdAt.getTime() < newest) orphans.push(object.key)
+      if (!entry || keep.get(entry.id) !== object.key) orphans.push(object.key)
     }
 
     if (orphans.length > 0) {
@@ -526,7 +544,7 @@ export class S3MediaAdapter implements MediaStorageAdapter {
 
     if (touched > 0 && !this.silent) {
       this.logger.info('Cleanup reconciled the bucket', {
-        rebuilt: missing.length,
+        rebuilt: touched - orphans.length,
         deleted: orphans.length
       })
     }
@@ -559,16 +577,7 @@ export class S3MediaAdapter implements MediaStorageAdapter {
   }
 
   private async writeIndexEntry(record: S3MediaRecord): Promise<void> {
-    await this.s3.put(
-      encodeIndexKey(this.prefix, {
-        id: record.id,
-        filename: record.filename,
-        contentType: record.contentType,
-        size: record.size,
-        createdAt: new Date(record.createdAt)
-      }),
-      new Uint8Array(0)
-    )
+    await this.s3.put(encodeIndexKey(this.prefix, entryOf(record)), new Uint8Array(0))
   }
 
   /**
@@ -604,15 +613,7 @@ export class S3MediaAdapter implements MediaStorageAdapter {
       this.s3.listAll(indexPrefix(this.prefix))
     ])
 
-    const byId = new Map<string, IndexEntry>()
-    for (const object of indexObjects) {
-      const entry = decodeIndexKey(this.prefix, object.key)
-      if (!entry) continue
-      // A re-upload whose old entry outlived its delete leaves two; the newest describes the
-      // bytes that are actually there.
-      const existing = byId.get(entry.id)
-      if (!existing || existing.createdAt < entry.createdAt) byId.set(entry.id, entry)
-    }
+    const byId = winningEntries(this.prefix, indexObjects)
 
     const entries: IndexEntry[] = []
     const needsRead: string[] = []
@@ -723,4 +724,50 @@ export class S3MediaAdapter implements MediaStorageAdapter {
       throw new InvalidInputError('Media metadata must have a valid size', 'size')
     }
   }
+}
+
+/** `updateFile` may be handed anything; the index cannot encode a non-number size. */
+function toSize(value: unknown, fallback: number): number {
+  const size = Number(value)
+  return Number.isFinite(size) && size >= 0 ? size : fallback
+}
+
+/** The index entry a record should have. One record, one canonical key. */
+function entryOf(record: S3MediaRecord): IndexEntry {
+  return {
+    id: record.id,
+    filename: record.filename,
+    contentType: record.contentType,
+    size: record.size,
+    createdAt: new Date(record.createdAt)
+  }
+}
+
+/**
+ * One entry per id, chosen the same way by every reader.
+ *
+ * Newest wins; equal epochs break on the key. Ties are ordinary rather than exotic —
+ * `updateFile` re-encodes with the record's original `createdAt` — and a strict `<` on its own
+ * left the winner up to listing order and made `cleanup()` delete none of the duplicates.
+ */
+function winningEntries(
+  prefix: string,
+  objects: { key: string }[]
+): Map<string, IndexEntry> {
+  const byId = new Map<string, { entry: IndexEntry; key: string }>()
+
+  for (const object of objects) {
+    const entry = decodeIndexKey(prefix, object.key)
+    if (!entry) continue
+
+    const existing = byId.get(entry.id)
+    const better =
+      !existing ||
+      existing.entry.createdAt < entry.createdAt ||
+      (existing.entry.createdAt.getTime() === entry.createdAt.getTime() &&
+        existing.key < object.key)
+    if (better) byId.set(entry.id, { entry, key: object.key })
+  }
+
+  return new Map([...byId].map(([id, winner]) => [id, winner.entry]))
 }

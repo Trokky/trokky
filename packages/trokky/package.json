@@ -161,6 +161,7 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.2.2",
+    "aws4fetch": "^1.0.20",
     "bcrypt": "^6.0.0",
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
@@ -174,7 +175,6 @@
     "zod": "^3.22.4"
   },
   "optionalDependencies": {
-    "aws4fetch": "^1.0.20",
     "nodemailer": "^10.0.1",
     "pg": "^8.11.3",
     "resend": "^3.5.0",

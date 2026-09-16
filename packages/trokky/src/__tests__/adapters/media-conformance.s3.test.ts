@@ -25,7 +25,7 @@ import {
   entryPrefix,
   MAX_INDEX_KEY_BYTES
 } from '../../adapters/s3-media/index-key.js'
-import { parseListResponse } from '../../adapters/s3-media/s3-client.js'
+import { parseListResponse, S3Client } from '../../adapters/s3-media/s3-client.js'
 import type { MediaStorageAdapter } from '../../core/types/storage-adapters.js'
 import { describeMediaAdapterConformance } from './media-conformance.js'
 
@@ -273,7 +273,15 @@ describe('S3MediaAdapter listing index', () => {
       expect(listed.items[0].filename).toBe('photo.png')
 
       expect(await adapter.cleanup()).toBe(1)
-      expect((await bucket.list({ prefix: 'index/' })).objects).toHaveLength(1)
+      const rebuilt = (await bucket.list({ prefix: 'index/' })).objects
+      expect(rebuilt).toHaveLength(1)
+      // A rebuild that stamped `new Date()` instead of the record's createdAt would pass a
+      // count assertion and be unrecoverable once written.
+      const record = JSON.parse(await (await bucket.get('meta/media_ghost.json'))!.text())
+      expect(decodeIndexKey('', rebuilt[0].key)).toMatchObject({
+        filename: 'photo.png',
+        createdAt: new Date(record.createdAt)
+      })
     } finally {
       await target.mf.dispose()
     }
@@ -320,9 +328,128 @@ describe('S3MediaAdapter listing index', () => {
       expect(listed.total).toBe(1)
       expect(listed.items[0].filename).toBe('current.png')
 
-      // Cleanup removes the loser rather than leaving it to be re-decided every listing.
+      // Cleanup removes the loser rather than leaving it to be re-decided every listing —
+      // and the SURVIVOR has to be the current one. Counting alone passed with the comparison
+      // inverted, i.e. with cleanup keeping the stale entry forever.
       expect(await adapter.cleanup()).toBe(1)
-      expect((await bucket.list({ prefix: 'index/' })).objects).toHaveLength(1)
+      const remaining = (await bucket.list({ prefix: 'index/' })).objects
+      expect(remaining).toHaveLength(1)
+      expect(decodeIndexKey('', remaining[0].key)?.filename).toBe('current.png')
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('breaks a tie when two entries share an epoch, which is the ordinary case', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await upload(adapter, 'media_tie', 'real.png')
+
+      const bucket = await target.mf.getR2Bucket('MEDIA')
+      const record = JSON.parse(await (await bucket.get('meta/media_tie.json'))!.text())
+      // `updateFile` re-encodes with the record's ORIGINAL createdAt, so duplicate entries
+      // normally share an epoch exactly. A strict "newest wins" cannot separate these: it left
+      // the winner to listing order and made cleanup delete neither.
+      await bucket.put(
+        encodeIndexKey('', {
+          id: 'media_tie',
+          filename: 'imposter.png',
+          contentType: 'image/png',
+          size: 5,
+          createdAt: new Date(record.createdAt)
+        }),
+        new Uint8Array(0)
+      )
+      expect((await bucket.list({ prefix: 'index/' })).objects).toHaveLength(2)
+
+      const before = (await adapter.listMedia()).items[0].filename
+      expect(await adapter.cleanup()).toBe(1)
+      const remaining = (await bucket.list({ prefix: 'index/' })).objects
+      expect(remaining).toHaveLength(1)
+      // Whichever the rule picks, every reader must pick the same one, before and after.
+      expect(decodeIndexKey('', remaining[0].key)?.filename).toBe(before)
+      expect((await adapter.listMedia()).items[0].filename).toBe(before)
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('repairs an entry that disagrees with its record, not just a missing one', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await upload(adapter, 'media_diverged', 'before.png')
+
+      const bucket = await target.mf.getR2Bucket('MEDIA')
+      // Exactly what updateFile interrupted between its record write and its index rewrite
+      // leaves: a live entry, same epoch, describing the file as it used to be.
+      const record = JSON.parse(await (await bucket.get('meta/media_diverged.json'))!.text())
+      for (const object of (await bucket.list({ prefix: 'index/' })).objects) {
+        await bucket.delete(object.key)
+      }
+      await bucket.put(
+        encodeIndexKey('', {
+          id: 'media_diverged',
+          filename: 'stale.png',
+          contentType: 'image/png',
+          size: 99999,
+          createdAt: new Date(record.createdAt)
+        }),
+        new Uint8Array(0)
+      )
+
+      // The stale entry serves every filter, sort and total until something repairs it.
+      expect((await adapter.listMedia({ sizeRange: { min: 50000 } })).total).toBe(1)
+
+      expect(await adapter.cleanup()).toBeGreaterThan(0)
+      expect((await adapter.listMedia({ sizeRange: { min: 50000 } })).total).toBe(0)
+      const remaining = (await bucket.list({ prefix: 'index/' })).objects
+      expect(remaining).toHaveLength(1)
+      expect(decodeIndexKey('', remaining[0].key)).toMatchObject({ filename: 'before.png', size: 5 })
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('survives updateFile being handed a size that is not a number', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await upload(adapter, 'media_coerce', 'a.png')
+
+      // An uncoerced string here produced an entry decodeIndexKey rejects, which un-indexed the
+      // file permanently AND made cleanup non-convergent: 2 every run, forever.
+      await adapter.updateFile('media_coerce', { size: '4242' })
+
+      const bucket = await target.mf.getR2Bucket('MEDIA')
+      const [entry] = (await bucket.list({ prefix: 'index/' })).objects
+      expect(decodeIndexKey('', entry.key)).toMatchObject({ size: 4242 })
+      expect((await adapter.listMedia({ sizeRange: { min: 4000 } })).total).toBe(1)
+
+      expect(await adapter.cleanup()).toBe(0)
+      expect(await adapter.cleanup()).toBe(0)
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('leaves a healthy bucket completely alone', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await upload(adapter, 'media_intact_a', 'a.png')
+      await upload(adapter, 'media_intact_b', 'b.png')
+      await adapter.saveVariantFile('media_intact_a', 'thumbnail', Buffer.from('t'), 'webp')
+
+      const bucket = await target.mf.getR2Bucket('MEDIA')
+      const before = (await bucket.list({ limit: 1000 })).objects.map(o => o.key).sort()
+
+      // Every other cleanup test seeds damage first, so nothing stood in the way of a cleanup
+      // that had become destructive.
+      expect(await adapter.cleanup()).toBe(0)
+      expect((await bucket.list({ limit: 1000 })).objects.map(o => o.key).sort()).toEqual(before)
+      expect((await adapter.listMedia()).total).toBe(2)
     } finally {
       await target.mf.dispose()
     }
@@ -395,6 +522,123 @@ describe('S3MediaAdapter listing index', () => {
   })
 })
 
+describe('S3MediaAdapter client behaviour', () => {
+  const clientFor = (target: Bucket): S3Client =>
+    new S3Client({
+      endpoint: target.endpoint,
+      bucket: target.bucket,
+      ...CREDENTIALS,
+      region: 'auto',
+      forcePathStyle: true
+    })
+
+  it('walks every page of a listing, not just the first', async () => {
+    const target = await createBucket()
+    try {
+      const client = clientFor(target)
+      for (let index = 0; index < 5; index++) {
+        await client.put(`page/${String(index).padStart(2, '0')}`, 'x')
+      }
+
+      // maxKeys forces the continuation-token loop without uploading a thousand objects. The
+      // token was only ever parsed in a unit test; nothing drove listAll past one page.
+      const first = await client.list('page/', { maxKeys: 2 })
+      expect(first.objects).toHaveLength(2)
+      expect(first.nextToken).toBeTruthy()
+
+      const all = await client.listAll('page/')
+      expect(all.map(object => object.key)).toEqual([
+        'page/00', 'page/01', 'page/02', 'page/03', 'page/04'
+      ])
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('fails a PUT or a LIST against a bucket that is not there', async () => {
+    const target = await createBucket()
+    try {
+      const client = new S3Client({
+        endpoint: target.endpoint,
+        bucket: 'no-such-bucket-at-all',
+        ...CREDENTIALS,
+        region: 'auto',
+        forcePathStyle: true
+      })
+
+      // A 404 means "no such key" on a read and NoSuchBucket on a write. Treating both as
+      // success made a misconfigured bucket look like an empty one: uploads returned a
+      // MediaFile having stored nothing.
+      await expect(client.put('files/x', 'bytes')).rejects.toThrow()
+
+      // The LIST half cannot be shown here: workerd's S3 front end answers 200 with an empty
+      // result for a bucket that does not exist, where S3, R2 and MinIO all answer 404
+      // NoSuchBucket. `list()` now propagates that 404 (and `healthCheck` is a one-key list
+      // for the same reason), but only the MinIO runner can prove it.
+      expect((await client.list('files/')).objects).toEqual([])
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('keeps the S3 error body out of the thrown message', async () => {
+    const target = await createBucket()
+    try {
+      const client = new S3Client({
+        endpoint: target.endpoint,
+        bucket: 'no-such-bucket-at-all',
+        ...CREDENTIALS,
+        region: 'auto',
+        forcePathStyle: true
+      })
+
+      // The message reaches an HTTP 500 body through the Express error handler, and AWS puts
+      // AWSAccessKeyId, StringToSign and CanonicalRequest in a SignatureDoesNotMatch document.
+      const error = await client.put('files/x', 'bytes').catch((e: Error) => e)
+      expect(error.message).not.toMatch(/<\/?[A-Za-z]/)
+      expect(error.message).not.toContain(CREDENTIALS.accessKeyId)
+      expect(error.message).toContain('404')
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('refuses an expiry that SigV4 cannot sign', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await adapter.uploadFile(new File(['b'], 'a.png', { type: 'image/png' }), {
+        id: 'media_expiry', filename: 'a.png', contentType: 'image/png', size: 1, extension: 'png'
+      })
+
+      for (const expiresIn of [0, -1, 604_801, Number.NaN]) {
+        await expect(adapter.getFileUrl('media_expiry', { expiresIn })).rejects.toThrow(/expiresIn/)
+      }
+      // The default still signs.
+      expect(await adapter.getFileUrl('media_expiry')).toContain('X-Amz-Expires=900')
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+
+  it('cannot have extra query parameters smuggled through expiresIn', async () => {
+    const target = await createBucket()
+    try {
+      const adapter = adapterFor(target)
+      await adapter.uploadFile(new File(['b'], 'a.png', { type: 'image/png' }), {
+        id: 'media_inject', filename: 'a.png', contentType: 'image/png', size: 1, extension: 'png'
+      })
+
+      // Concatenated before signing, this turned an uploaded image into stored XSS on the
+      // bucket origin, because S3 honours response-content-type and the signature covers it.
+      const injection = '60&response-content-type=text%2Fhtml' as unknown as number
+      await expect(adapter.getFileUrl('media_inject', { expiresIn: injection })).rejects.toThrow()
+    } finally {
+      await target.mf.dispose()
+    }
+  })
+})
+
 describe('index key encoding', () => {
   const entry = {
     id: 'media_abc',
@@ -420,7 +664,9 @@ describe('index key encoding', () => {
 
     expect(older.startsWith(prefix)).toBe(true)
     expect(newer.startsWith(prefix)).toBe(true)
-    // Another file's entries are not under it, so a delete by prefix cannot overreach.
+    // The dangerous case is an id that is a string prefix of another. Without the trailing
+    // slash, uploading media_abc would delete every entry belonging to media_abc2.
+    expect(encodeIndexKey('', { ...entry, id: 'media_abc2' }).startsWith(prefix)).toBe(false)
     expect(encodeIndexKey('', { ...entry, id: 'media_other' }).startsWith(prefix)).toBe(false)
   })
 
@@ -428,6 +674,11 @@ describe('index key encoding', () => {
     expect(decodeIndexKey('', 'meta/media_abc.json')).toBeNull()
     expect(decodeIndexKey('', 'index/')).toBeNull()
     expect(decodeIndexKey('', 'index/id/nonsense/!!!')).toBeNull()
+    // Past the epoch check, so these actually reach atob and the type guard. A throw escaping
+    // decodeIndexKey would break listMedia and cleanup for the whole install.
+    expect(decodeIndexKey('', 'index/id/1700000000000/!!!')).toBeNull()
+    expect(decodeIndexKey('', `index/id/1700000000000/${btoa('{"f":1}')}`)).toBeNull()
+    expect(decodeIndexKey('', `index/id/1700000000000/${btoa('not json')}`)).toBeNull()
     expect(decodeIndexKey('site-a/', encodeIndexKey('site-b/', entry))).toBeNull()
   })
 })
@@ -468,9 +719,13 @@ describe('R2 and S3 adapters over one bucket', () => {
       const r2 = new CloudflareR2Adapter({ bucket, silent: true })
       const s3 = adapterFor(target)
 
-      await r2.uploadFile(new File(['from-r2'], 'written-by-r2.png', { type: 'image/png' }), {
+      // A `%` in the filename is the whole point: the R2 adapter mirrors it into customMetadata
+      // RAW, this adapter percent-encodes what it writes, and an unconditional decode on read
+      // threw URIError — taking fileExists, listVariants and healthCheck down with it. The
+      // original fixture was named written-by-r2.png, so it proved nothing about this.
+      await r2.uploadFile(new File(['from-r2'], '100% off.png', { type: 'image/png' }), {
         id: 'media_interop',
-        filename: 'written-by-r2.png',
+        filename: '100% off.png',
         contentType: 'image/png',
         size: 7,
         extension: 'png'
@@ -479,8 +734,11 @@ describe('R2 and S3 adapters over one bucket', () => {
 
       expect((await bucket.list({ prefix: 'index/' })).objects).toHaveLength(0)
 
+      expect(await s3.fileExists('media_interop')).toBe(true)
+      expect(await s3.getFileUrl('media_interop')).toContain('X-Amz-Signature=')
+
       const file = await s3.getFile('media_interop')
-      expect(file?.filename).toBe('written-by-r2.png')
+      expect(file?.filename).toBe('100% off.png')
       expect(new TextDecoder().decode((await s3.getFileContent('media_interop'))!)).toBe('from-r2')
 
       const listed = await s3.listMedia()
