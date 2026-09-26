@@ -4,26 +4,25 @@ How the Trokky packages are versioned and published to GitHub Packages.
 
 ## Packages
 
-The monorepo publishes exactly three packages.
+The monorepo publishes four packages.
 
 | Directory | Published name | What it is |
 |---|---|---|
 | `packages/trokky` | `@trokky/trokky` | CMS server: engine, routes, adapters, mail, i18n, Express integration |
 | `packages/studio` | `@trokky/studio` | React admin UI and field system |
 | `packages/client` | `@trokky/client` | Frontend SDK: HTTP client, query builder, type generation |
+| `packages/mcp` | `@trokky/mcp` | MCP server for AI agents (stdio, `npx @trokky/mcp`) |
 
-All three are currently at `2.0.0`.
+## One version for all of them
 
-## One version for all three
-
-`.changeset/config.json` declares the three packages as a `fixed` group:
+`.changeset/config.json` declares the packages as a `fixed` group:
 
 ```json
-"fixed": [["@trokky/trokky", "@trokky/studio", "@trokky/client"]]
+"fixed": [["@trokky/trokky", "@trokky/studio", "@trokky/client", "@trokky/mcp"]]
 ```
 
-A changeset that touches a single package therefore bumps all three to the same
-new version, and all three are published together. Never edit `version` fields in
+A changeset that touches a single package therefore bumps all of them to the same
+new version, and all are published together. Never edit `version` fields in
 `package.json` by hand; let `changeset version` do it.
 
 Internal dependency ranges are kept at `^2.0.0`:
@@ -75,7 +74,7 @@ failed release, a hotfix on already-versioned packages).
 
 GitHub repo > Actions > "Manual Publish" > Run workflow, with inputs:
 
-- `package`: `all` (default), `trokky`, `studio` or `client`
+- `package`: `all` (default), `trokky`, `studio`, `client` or `mcp`
 - `dry_run`: boolean, default `false`; when `true`, `--dry-run` is appended to
   every `npm publish` so nothing is actually uploaded
 

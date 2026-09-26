@@ -200,6 +200,43 @@ function promote(name, version) {
   })
 }
 
+/**
+ * Changeset files committed in the push being processed. While any remain, the changesets
+ * action versions (opens the release PR) instead of publishing, so the push released nothing.
+ * Without this check, a package that has never been published — a new workspace — reads as
+ * pending at its unreleased manifest version, and the wait below times out on every push
+ * until the release PR is merged.
+ */
+function pendingChangesets() {
+  const ref = process.env.GITHUB_SHA || 'HEAD'
+  // In pre mode `changeset version` keeps the changeset files it consumed and lists them in
+  // pre.json; those are released, not pending.
+  let consumed = new Set()
+  const pre = committedFile('.changeset/pre.json')
+  if (pre) {
+    try {
+      consumed = new Set(JSON.parse(pre).changesets ?? [])
+    } catch {
+      // An unreadable pre.json leaves every file counted as pending
+    }
+  }
+  try {
+    return execFileSync('git', ['ls-tree', '--name-only', ref, '.changeset/'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n')
+      .map(line => line.trim())
+      .filter(file => file.endsWith('.md') && !file.endsWith('/README.md'))
+      .filter(file => !consumed.has(file.slice('.changeset/'.length, -'.md'.length)))
+  } catch {
+    return []
+  }
+}
+
+const unreleased = pendingChangesets()
+if (unreleased.length > 0) {
+  console.log(`Unreleased changesets at this commit (${unreleased.join(', ')}): this push opened or updated the release PR and published nothing. Nothing to promote.`)
+  process.exit(0)
+}
+
 const all = workspacePackages()
 console.log(`Release versions read from ${process.env.GITHUB_SHA ? `commit ${process.env.GITHUB_SHA.slice(0, 7)}` : 'HEAD'}: ${all.map(pkg => `${pkg.name}@${pkg.version}`).join(', ')}`)
 

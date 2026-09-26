@@ -8,6 +8,7 @@
     "packages/trokky",
     "packages/studio",
     "packages/client",
+    "packages/mcp",
     "examples/*"
   ],
   "scripts": {
