@@ -25,6 +25,11 @@ export interface StorageConfig {
       webhooksDir?: string
       settingsDir?: string
       auditLogsDir?: string
+      /**
+       * Sign-in state that spans two requests (Google sign-in, passkey challenges, OAuth2 device
+       * and authorization codes). Default './auth-flow-state', relative to the working directory.
+       */
+      authFlowStateDir?: string
       createDirs?: boolean
       prettyJson?: boolean
       jsonSpaces?: number

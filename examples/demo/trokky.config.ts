@@ -11,6 +11,12 @@ import { validateStructure } from './structure.js'
 
 export const port = Number(process.env.PORT) || 3253
 
+// Where content, users and media live. Defaults to the committed seed in ./data; point a second
+// instance elsewhere (a copy of ./data) to run two sites side by side, e.g. to try the MCP
+// server's multi-site sign-in.
+const dataDir = process.env.TROKKY_DEMO_DATA || './data'
+const mediaDir = process.env.TROKKY_DEMO_MEDIA || './media'
+
 export default defineConfig({
   env: 'development',
   schemas,
@@ -21,12 +27,13 @@ export default defineConfig({
       options: {
         // Seeded content lives in ./data and is committed. Everything the server
         // generates for itself goes under ./data/system, which is gitignored.
-        contentDir: './data',
-        usersDir: './data/system/users',
-        tokensDir: './data/system/tokens',
-        webhooksDir: './data/system/webhooks',
-        settingsDir: './data/system/settings',
-        auditLogsDir: './data/system/audit-logs',
+        contentDir: dataDir,
+        usersDir: `${dataDir}/system/users`,
+        tokensDir: `${dataDir}/system/tokens`,
+        webhooksDir: `${dataDir}/system/webhooks`,
+        settingsDir: `${dataDir}/system/settings`,
+        auditLogsDir: `${dataDir}/system/audit-logs`,
+        authFlowStateDir: `${dataDir}/system/auth-flow-state`,
         createDirs: true,
         prettyJson: true,
       },
@@ -34,7 +41,7 @@ export default defineConfig({
     media: {
       adapter: 'filesystem-media',
       options: {
-        mediaDir: './media',
+        mediaDir,
         createDirs: true,
       },
     },
@@ -62,6 +69,14 @@ export default defineConfig({
       lastName: 'Editor',
       role: 'admin',
     },
+  },
+
+  // Sign-in for applications: the Trokky CLI (`trokky login`) and the MCP server
+  // (`add_site`) use the device flow, approved on Studio's /auth/device page.
+  oauth2: {
+    enabled: true,
+    issuer: `http://localhost:${port}/api`,
+    verificationUri: `http://localhost:${port}/studio/auth/device`,
   },
 
   server: {
