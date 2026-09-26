@@ -82,7 +82,9 @@ function TokenModal({ isOpen, onClose, onSave }: TokenModalProps) {
       if (expiryType === 'never') {
         expiresAt = undefined;
       } else if (expiryType === 'custom') {
-        expiresAt = new Date(customExpiryDate);
+        // End of the chosen day, local time: a bare date parses as UTC midnight,
+        // which for "today" is already past and the server refuses it
+        expiresAt = new Date(`${customExpiryDate}T23:59:59`);
       } else {
         const days = {
           '30days': 30,

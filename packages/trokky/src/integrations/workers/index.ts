@@ -21,6 +21,11 @@ export { toHttpRequest, toResponse } from './adapter.js'
 export interface FetchHandlerOptions extends RoutesConfig {
   /** Path the API is mounted under, stripped before route matching. Default '/api'. */
   basePath?: string
+  /**
+   * Authentication for protected routes. Default: enabled, as on Express.
+   * Pass `{ enabled: false }` only for an API that must be open to anyone.
+   */
+  authentication?: RoutesConfig['authentication']
 }
 
 export type FetchHandler = (request: Request) => Promise<Response>
@@ -28,7 +33,16 @@ export type FetchHandler = (request: Request) => Promise<Response>
 /** Build a `fetch` handler serving the Trokky API. */
 export function createFetchHandler(options: FetchHandlerOptions): FetchHandler {
   const basePath = options.basePath ?? '/api'
-  const routes = new TrokkyRoutes({ ...options, basePath: '' } as RoutesConfig)
+  const routes = new TrokkyRoutes({
+    ...options,
+    // On unless explicitly switched off: a partial object such as `{ publicPaths }` must not disable it
+    authentication: {
+      publicPaths: [],
+      ...options.authentication,
+      enabled: options.authentication?.enabled !== false,
+    },
+    basePath: '',
+  } as RoutesConfig)
 
   return async function handle(request: Request): Promise<Response> {
     let httpRequest: HttpRequest

@@ -25,7 +25,7 @@ export class MediaRoutes extends BaseRoutes {
   private async listMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:read')
 
       // Get query parameters
       const url = new URL(request.url || '', 'http://localhost')
@@ -89,7 +89,7 @@ export class MediaRoutes extends BaseRoutes {
   private async uploadMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:upload')
       const files = request.files || []
       if (files.length === 0) {
         throw new InvalidInputError('No files provided', 'files')
@@ -119,7 +119,7 @@ export class MediaRoutes extends BaseRoutes {
   private async getMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:read')
       const { id } = request.params
 
       SecurityValidator.validateDocumentId(id)
@@ -141,7 +141,7 @@ export class MediaRoutes extends BaseRoutes {
   // Additional Media Routes
   private async updateMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:edit')
       
       const { id } = request.params
       if (!id) {
@@ -180,7 +180,7 @@ export class MediaRoutes extends BaseRoutes {
   private async deleteMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:delete')
       const { id } = request.params
 
       SecurityValidator.validateDocumentId(id)
@@ -195,7 +195,7 @@ export class MediaRoutes extends BaseRoutes {
   private async bulkDeleteMedia(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:delete')
 
       const body = request.body as { ids?: string[] }
 
@@ -248,7 +248,7 @@ export class MediaRoutes extends BaseRoutes {
 
   private async regenerateVariants(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.validateAuthentication(request)
+      await this.requirePermission(request, 'media:edit')
 
       const { id } = request.params
       SecurityValidator.validateDocumentId(id)

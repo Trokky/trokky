@@ -180,8 +180,11 @@ export class AuthService {
       const result = await this.deps.validateAppToken(token)
       if (result.valid && result.appToken) {
         // Create a session-like object for API tokens
+        // The session is the token, never its creator: a token id that resolved to a
+        // real user would let every route that acts on "the signed-in user" (/auth/me,
+        // passkey and MFA enrolment, device-flow approval) act on that user's account.
         return {
-          userId: result.appToken.createdBy,
+          userId: `api-token:${result.appToken.id}`,
           username: `api-token-${result.appToken.name}`,
           role: 'api', // Special role for API tokens
           permissions: result.appToken.permissions,
