@@ -3,7 +3,7 @@
  * fetch handler's authentication default.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { TrokkyCore } from '../../core/core/engine.js'
 import { TrokkyRoutes } from '../../routes/index.js'
 import type { HttpResponse } from '../../types/http.js'
@@ -28,11 +28,13 @@ function body<T>(response: HttpResponse): T {
 describe('route authorization', () => {
   let routes: TrokkyRoutes
   let core: TrokkyCore
+  let dataAdapter: Awaited<ReturnType<typeof createTestRoutes>>['dataAdapter']
 
   beforeEach(async () => {
     const setup = await createTestRoutes()
     routes = setup.routes
     core = setup.core
+    dataAdapter = setup.dataAdapter
   })
 
   async function apiToken(permissions: string[], expiresAt?: string): Promise<string> {
@@ -222,6 +224,105 @@ describe('route authorization', () => {
     })
   })
 
+  describe('publishing on create', () => {
+    it('should refuse to create a published document without publish permission', async () => {
+      const writer = await apiToken(['content:read', 'content:write'])
+      const published = await call('POST', '/api/collections/posts', writer, { data: { title: 'Live', _status: 'published' } })
+      expect(published.status).toBe(403)
+      const draft = await call('POST', '/api/collections/posts', writer, { data: { title: 'Draft', _status: 'draft' } })
+      expect(draft.status).toBe(201)
+    })
+
+    it('should not let a create with an existing id unpublish without publish permission', async () => {
+      const publisher = await apiToken(['content:*'])
+      const live = body<{ data: { document: { id: string } } }>(await call('POST', '/api/collections/posts', publisher, { data: { title: 'Live', _status: 'published' } }))
+      const id = live.data.document.id
+      const writer = await apiToken(['content:read', 'content:write'])
+      const overwrite = await call('POST', '/api/collections/posts', writer, { id, data: { title: 'Defaced', _status: 'draft' } })
+      expect(overwrite.status).toBe(403)
+      const omitted = await call('POST', '/api/collections/posts', writer, { id, data: { title: 'Defaced' } })
+      expect(omitted.status).toBe(403)
+      expect(((await core.getDocument('posts', id)) as { _status?: string })._status).toBe('published')
+    })
+
+    it('should reject a status other than draft or published', async () => {
+      const token = await apiToken(['content:*'])
+      for (const status of ['Published', ' published', 'live', ['published']]) {
+        expect((await call('POST', '/api/collections/posts', token, { data: { title: 'x', _status: status } })).status).toBe(400)
+      }
+      const created = body<{ data: { document: { id: string } } }>(await call('POST', '/api/collections/posts', token, { data: { title: 'x' } }))
+      expect((await call('PUT', `/api/collections/posts/${created.data.document.id}`, token, { data: { _status: 'LIVE' } })).status).toBe(400)
+    })
+
+    it('should create a published document with publish permission', async () => {
+      const publisher = await apiToken(['content:read', 'content:write', 'content:publish'])
+      const published = await call('POST', '/api/collections/posts', publisher, { data: { title: 'Live', _status: 'published' } })
+      expect(published.status).toBe(201)
+    })
+  })
+
+  describe('search', () => {
+    async function seed(): Promise<void> {
+      await core.saveDocument('posts', { title: 'Secret budget post' } as never)
+      await core.saveDocument('authors', { name: 'Budget Author' } as never)
+    }
+
+    function search(q: string, token: string): Promise<HttpResponse> {
+      const request = createMockRequest({ method: 'GET', path: '/api/search', headers: { authorization: `Bearer ${token}` } })
+      return executeRoute(routes, { ...request, url: `/api/search?q=${encodeURIComponent(q)}` })
+    }
+
+    function titles(response: HttpResponse): string[] {
+      return (body<{ data: { results: Array<{ title: string }> } }>(response).data.results).map(r => r.title)
+    }
+
+    it('should return only collections the token may read', async () => {
+      await seed()
+      const authorsOnly = await apiToken(['authors:read'])
+      const response = await search('budget', authorsOnly)
+      expect(response.status).toBe(200)
+      expect(titles(response)).toEqual(['Budget Author'])
+    })
+
+    it('should honour content:* and collection wildcards', async () => {
+      await seed()
+      expect(titles(await search('budget', await apiToken(['content:*']))).sort()).toEqual(['Budget Author', 'Secret budget post'])
+      expect(titles(await search('budget', await apiToken(['authors:*'])))).toEqual(['Budget Author'])
+    })
+
+    it('should verify the token once per search', async () => {
+      const token = await apiToken(['content:read'])
+      const verify = vi.spyOn(core, 'verifyAnyToken')
+      try {
+        await search('budget', token)
+        expect(verify).toHaveBeenCalledTimes(1)
+      } finally {
+        verify.mockRestore()
+      }
+    })
+
+    it('should reject an anonymous search', async () => {
+      const request = createMockRequest({ method: 'GET', path: '/api/search' })
+      expect((await executeRoute(routes, { ...request, url: '/api/search?q=budget' })).status).toBe(401)
+    })
+
+    it('should return every readable collection for content:read', async () => {
+      await seed()
+      const reader = await apiToken(['content:read'])
+      expect(titles(await search('budget', reader)).sort()).toEqual(['Budget Author', 'Secret budget post'])
+    })
+
+    it('should leave media out without media:read', async () => {
+      await core.uploadMedia(new File([new Uint8Array([1, 2, 3])], 'budget.png', { type: 'image/png' }))
+      const reader = await apiToken(['content:read'])
+      const withoutMedia = body<{ data: { results: Array<{ type: string }> } }>(await search('budget', reader))
+      expect(withoutMedia.data.results.some(r => r.type === 'media')).toBe(false)
+      const mediaReader = await apiToken(['media:read'])
+      const withMedia = body<{ data: { results: Array<{ type: string }> } }>(await search('budget', mediaReader))
+      expect(withMedia.data.results.some(r => r.type === 'media')).toBe(true)
+    })
+  })
+
   describe('API token expiry', () => {
     it('should reject an expired API token', async () => {
       const token = await apiToken(['media:read'], '2000-01-01T00:00:00Z')
@@ -231,6 +332,16 @@ describe('route authorization', () => {
     it('should reject an API token whose expiry cannot be parsed', async () => {
       const token = await apiToken(['media:read'], 'not-a-date')
       expect((await call('GET', '/api/media', token)).status).toBe(401)
+    })
+
+    it('should accept a valid token even when its usage record cannot be written', async () => {
+      const token = await apiToken(['media:read'])
+      const save = vi.spyOn(dataAdapter, 'saveAppToken').mockRejectedValue(new Error('ENOENT: rename'))
+      try {
+        expect((await call('GET', '/api/media', token)).status).toBe(200)
+      } finally {
+        save.mockRestore()
+      }
     })
 
     it('should accept an API token that has not expired yet', async () => {

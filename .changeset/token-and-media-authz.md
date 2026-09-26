@@ -27,6 +27,22 @@ permissions, and its children cannot outlive it. `createdBy` now records the rea
 instead of `'system'` — for attribution only: an API token's session is its own
 (`api-token:<id>`), never its creator's account.
 
+**Publishing on create needs publish permission.** Creating a document with
+`_status: 'published'` checked only write permission, so a token that could draft could also
+put content live; it now needs `publish`, as changing the status on update always has. The same
+applies to a create that names an existing `id` (which overwrites that document) and would
+unpublish it. `_status` must be `'draft'` or `'published'`; anything else is a 400 instead of
+being stored and read as neither.
+
+**Search only returns what the caller may read.** `GET /search` checked only that the caller
+was signed in, and returned matches from every collection and the media library. Results now
+come only from collections the session can read, and media only with `media:read`.
+
+**Concurrent requests with one API token no longer fail on filesystem storage.** Every request
+made with an API token rewrites its usage record, and the filesystem adapters wrote through a
+temp file with a fixed name, so two concurrent requests could collide and one came back 401.
+Temp files are now unique per write, and failing to record usage no longer fails the request.
+
 **API token expiry is enforced.** `expiresAt` was stored but never checked; an expired token now
 fails authentication, and creating a token with a past or malformed `expiresAt` is a 400.
 

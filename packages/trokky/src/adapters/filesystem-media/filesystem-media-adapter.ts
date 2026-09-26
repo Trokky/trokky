@@ -638,7 +638,9 @@ export class FilesystemMediaAdapter implements MediaStorageAdapter {
   }
 
   private async atomicWriteFile(filePath: string, content: string): Promise<void> {
-    const tempPath = `${filePath}.tmp`
+    // Unique per write: two concurrent writes to one file must not share a temp file,
+    // or one rename finds it gone (as the filesystem adapter already does)
+    const tempPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 11)}`
     
     try {
       await fs.writeFile(tempPath, content, { 

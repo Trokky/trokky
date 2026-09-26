@@ -126,7 +126,12 @@ export class TokenService {
               usageCount: (appToken.usageCount || 0) + 1
             }
 
-            await this.deps.dataStorage.saveAppToken(appToken.id, updatedToken)
+            // Usage stats are bookkeeping: failing to record them must not fail the request
+            try {
+              await this.deps.dataStorage.saveAppToken(appToken.id, updatedToken)
+            } catch {
+              // Nothing to do: the token itself is valid
+            }
 
             return { valid: true, appToken: updatedToken }
           }

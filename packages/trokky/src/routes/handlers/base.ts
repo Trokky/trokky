@@ -233,6 +233,19 @@ export abstract class BaseRoutes {
    * every action on the resource.
    */
   protected async requirePermission(request: HttpRequest, permission: Permission): Promise<UserSession | null> {
+    const session = await this.resolveSession(request)
+    if (session && !this.sessionHasPermission(session, permission)) {
+      throw new InvalidInputError(`Insufficient permissions: ${permission} required`, 'permissions')
+    }
+    return session
+  }
+
+  /**
+   * Authenticate the request and return its session, or null when authentication is
+   * disabled. Verify once and check in memory: every API token verification writes
+   * the token's usage record.
+   */
+  protected async resolveSession(request: HttpRequest): Promise<UserSession | null> {
     if (!this.config.authentication?.enabled) {
       return null
     }
@@ -253,11 +266,16 @@ export abstract class BaseRoutes {
     }
 
     request.user = { id: session.userId, username: session.username, role: session.role } as any
-
-    if (!this.sessionHasPermission(session, permission)) {
-      throw new InvalidInputError(`Insufficient permissions: ${permission} required`, 'permissions')
-    }
     return session
+  }
+
+  /** The content permission rule validateSchemaAccess applies, for an already-resolved session */
+  protected sessionCanAccessSchema(session: UserSession, schemaName: string, action: 'read' | 'write' | 'delete' | 'publish'): boolean {
+    return session.role === 'admin' ||
+      session.permissions.includes(`${schemaName}:${action}`) ||
+      session.permissions.includes(`${schemaName}:*`) ||
+      session.permissions.includes('content:*') ||
+      session.permissions.includes(`content:${action}`)
   }
 
   protected sessionHasPermission(session: UserSession, permission: Permission): boolean {
@@ -325,19 +343,7 @@ export abstract class BaseRoutes {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
 
-    // Check if user has admin role or schema-specific permission
-    const permission = `${schemaName}:${action}`
-    const schemaWildcard = `${schemaName}:*`
-    const contentWildcard = 'content:*'
-    const globalPermission = `content:${action}` // Global content permissions
-
-    const hasAccess = session.role === 'admin' ||
-                     session.permissions.includes(permission) ||
-                     session.permissions.includes(schemaWildcard) ||
-                     session.permissions.includes(contentWildcard) ||
-                     session.permissions.includes(globalPermission) // Add global content permission check
-
-    if (!hasAccess) {
+    if (!this.sessionCanAccessSchema(session, schemaName, action)) {
       throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
     }
   }
