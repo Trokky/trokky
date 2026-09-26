@@ -5,7 +5,8 @@
  * used by the domain specific route handlers.
  */
 
-import { TrokkyCore, InvalidInputError, createLogger } from '../../core/index.js'
+import { TrokkyCore, InvalidInputError, createLogger, ROLE_PERMISSIONS } from '../../core/index.js'
+import type { Permission, UserSession } from '../../types/auth.js'
 import type { HttpRequest, HttpResponse, HttpMethod, ApiResponse, RouteDefinition, RouteHandler } from '../types.js'
 import type { RouteHandlerConfig } from './types.js'
 
@@ -221,6 +222,73 @@ export abstract class BaseRoutes {
     } as any
   }
 
+  /**
+   * Authenticate the request and require one permission, returning the session.
+   * Returns null when authentication is disabled.
+   *
+   * Admins always pass. API tokens are judged on the token's own permissions.
+   * Users are judged on their stored permissions plus their role's defaults:
+   * stored permissions are a snapshot taken at creation, so a permission a role
+   * gained later would otherwise lock existing users out. `resource:*` grants
+   * every action on the resource.
+   */
+  protected async requirePermission(request: HttpRequest, permission: Permission): Promise<UserSession | null> {
+    const session = await this.resolveSession(request)
+    if (session && !this.sessionHasPermission(session, permission)) {
+      throw new InvalidInputError(`Insufficient permissions: ${permission} required`, 'permissions')
+    }
+    return session
+  }
+
+  /**
+   * Authenticate the request and return its session, or null when authentication is
+   * disabled. Verify once and check in memory: every API token verification writes
+   * the token's usage record.
+   */
+  protected async resolveSession(request: HttpRequest): Promise<UserSession | null> {
+    if (!this.config.authentication?.enabled) {
+      return null
+    }
+
+    const headerName = this.config.authentication.headerName || 'Authorization'
+    const authHeader = request.headers[headerName] ||
+                      request.headers[headerName.toLowerCase()] ||
+                      request.headers['authorization']
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader
+    if (!authHeaderStr) {
+      throw new InvalidInputError('Missing authentication token', 'authorization')
+    }
+
+    const token = authHeaderStr.startsWith('Bearer ') ? authHeaderStr.slice(7) : authHeaderStr
+    const session = await this.core.verifyAnyToken(token)
+    if (!session) {
+      throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
+    }
+
+    request.user = { id: session.userId, username: session.username, role: session.role } as any
+    return session
+  }
+
+  /** The content permission rule validateSchemaAccess applies, for an already-resolved session */
+  protected sessionCanAccessSchema(session: UserSession, schemaName: string, action: 'read' | 'write' | 'delete' | 'publish'): boolean {
+    return session.role === 'admin' ||
+      session.permissions.includes(`${schemaName}:${action}`) ||
+      session.permissions.includes(`${schemaName}:*`) ||
+      session.permissions.includes('content:*') ||
+      session.permissions.includes(`content:${action}`)
+  }
+
+  protected sessionHasPermission(session: UserSession, permission: Permission): boolean {
+    if (session.role === 'admin') {
+      return true
+    }
+    const granted = session.role === 'api'
+      ? session.permissions
+      : [...(session.permissions || []), ...(ROLE_PERMISSIONS[session.role] || [])]
+    const wildcard = `${permission.split(':')[0]}:*`
+    return granted.includes(permission) || granted.includes(wildcard)
+  }
+
   protected async validateAdminAccess(request: HttpRequest): Promise<void> {
     const auth = this.config.authentication
     if (!auth?.enabled) {
@@ -275,19 +343,7 @@ export abstract class BaseRoutes {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
 
-    // Check if user has admin role or schema-specific permission
-    const permission = `${schemaName}:${action}`
-    const schemaWildcard = `${schemaName}:*`
-    const contentWildcard = 'content:*'
-    const globalPermission = `content:${action}` // Global content permissions
-
-    const hasAccess = session.role === 'admin' ||
-                     session.permissions.includes(permission) ||
-                     session.permissions.includes(schemaWildcard) ||
-                     session.permissions.includes(contentWildcard) ||
-                     session.permissions.includes(globalPermission) // Add global content permission check
-
-    if (!hasAccess) {
+    if (!this.sessionCanAccessSchema(session, schemaName, action)) {
       throw new InvalidInputError(`Insufficient permissions for ${schemaName} ${action} operations`, 'permissions')
     }
   }

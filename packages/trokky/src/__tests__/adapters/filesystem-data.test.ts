@@ -365,6 +365,15 @@ describe('FilesystemDataAdapter', () => {
   })
 
   describe('app tokens', () => {
+    it('should survive concurrent writes to the same token', async () => {
+      const token = { name: 'Busy', tokenHash: 'h', permissions: ['content:read'], createdBy: 'user-001' } as any
+      await adapter.saveAppToken('token-busy', token)
+      // What every request made with one API token does: rewrite its usage record
+      const writes = Array.from({ length: 20 }, (_, i) => adapter.saveAppToken('token-busy', { ...token, usageCount: i }))
+      await expect(Promise.all(writes)).resolves.toHaveLength(20)
+      expect((await fs.readdir(path.join(tempDir, 'tokens'))).filter(f => f.includes('.tmp'))).toEqual([])
+    })
+
     it('should save and retrieve an app token', async () => {
       const saved = await adapter.saveAppToken('token-001', {
         name: 'CI Token',

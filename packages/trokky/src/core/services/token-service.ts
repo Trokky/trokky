@@ -114,6 +114,11 @@ export class TokenService {
           const storedBuffer = Buffer.from(appToken.tokenHash, 'hex')
           const providedBuffer = Buffer.from(providedHash, 'hex')
           if (timingSafeEqual(storedBuffer, providedBuffer)) {
+            // An unparseable expiry counts as expired: fail closed
+            if (appToken.expiresAt && !(Date.parse(appToken.expiresAt) > Date.now())) {
+              return { valid: false, error: 'App token has expired' }
+            }
+
             // Update last used timestamp and usage count
             const updatedToken: AppToken = {
               ...appToken,
@@ -121,7 +126,12 @@ export class TokenService {
               usageCount: (appToken.usageCount || 0) + 1
             }
 
-            await this.deps.dataStorage.saveAppToken(appToken.id, updatedToken)
+            // Usage stats are bookkeeping: failing to record them must not fail the request
+            try {
+              await this.deps.dataStorage.saveAppToken(appToken.id, updatedToken)
+            } catch {
+              // Nothing to do: the token itself is valid
+            }
 
             return { valid: true, appToken: updatedToken }
           }

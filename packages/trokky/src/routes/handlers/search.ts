@@ -17,7 +17,9 @@ export class SearchRoutes extends BaseRoutes {
   private async searchContent(request: HttpRequest): Promise<HttpResponse> {
     try {
       // SECURITY: Validate authentication before processing
-      await this.validateAuthentication(request)
+      // Results only from what the caller may read: search must not be a way around
+      // per-collection and media permissions. resolveSession also authenticates.
+      const session = await this.resolveSession(request)
 
       // Parse query parameters from URL without relying on hardcoded base URL
       const urlParts = request.url.split('?')
@@ -43,6 +45,9 @@ export class SearchRoutes extends BaseRoutes {
 
       // Search documents in each schema
       for (const schema of schemas) {
+        if (session && !this.sessionCanAccessSchema(session, schema.name, 'read')) {
+          continue
+        }
         try {
           this.logger.debug('Searching schema', { schemaName: schema.name })
 
@@ -101,9 +106,10 @@ export class SearchRoutes extends BaseRoutes {
       }
 
       // Search media files
+      const canReadMedia = !session || this.sessionHasPermission(session, 'media:read')
       try {
         this.logger.debug('Starting media search')
-        const { items: mediaFiles } = await this.core.listMedia({ limit: limit * 2 })
+        const { items: mediaFiles } = canReadMedia ? await this.core.listMedia({ limit: limit * 2 }) : { items: [] }
         this.logger.debug('Found media files', { count: mediaFiles.length })
 
         for (const file of mediaFiles) {

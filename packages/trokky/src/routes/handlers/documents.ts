@@ -296,6 +296,17 @@ export class DocumentRoutes extends BaseRoutes {
       // Strip client-sent system fields so they cannot shadow storage-managed values
       const cleanData = stripSystemFields(data as Record<string, any>, this.core.getSchema(collection))
 
+      assertValidStatus(cleanData._status)
+
+      // SECURITY: A create that changes what is live is publishing, as it is on update:
+      // creating a document already published, or, since a create with an existing id
+      // overwrites that document, changing its status either way.
+      const existingStatus = id ? (await this.core.getDocument(collection, id))?._status : undefined
+      const newStatus = cleanData._status ?? 'draft'
+      if ((newStatus === 'published') !== (existingStatus === 'published')) {
+        await this.validateSchemaAccess(request, collection, 'publish')
+      }
+
       // Process slug fields - auto-generate slugs from source fields if not provided
       const processedData = await processSlugFields(this.core, collection, cleanData)
 
@@ -411,6 +422,7 @@ export class DocumentRoutes extends BaseRoutes {
 
       // SECURITY: Check publish permission if status is being changed to/from 'published'
       // This enforces the content:publish permission for publishing/unpublishing actions
+      assertValidStatus(cleanData._status)
       const newStatus = cleanData._status as string | undefined
       const currentStatus = existingDoc?._status as string | undefined
 
@@ -835,5 +847,12 @@ export class DocumentRoutes extends BaseRoutes {
       default:
         return null;
     }
+  }
+}
+
+/** `_status` is 'draft' or 'published'. Anything else would be stored as sent and read as neither. */
+function assertValidStatus(status: unknown): void {
+  if (status !== undefined && status !== 'draft' && status !== 'published') {
+    throw new InvalidInputError(`_status must be 'draft' or 'published', got ${JSON.stringify(status)}`, '_status')
   }
 }
