@@ -1,24 +1,36 @@
 name: Changesets Release
 
+# The only workflow that publishes to npm. npm trusts exactly one workflow file per package for
+# trusted publishing, so recovery is a re-run or a manual dispatch of this one, not a second
+# publishing workflow. Each package's trusted publisher on npmjs.com must name
+# Trokky/trokky and `release-changesets.yml`.
 on:
   push:
     branches:
       - main
+  # Recovery: re-publishes whatever is versioned but not yet on the registry. Safe to run any
+  # time; versions already published are skipped.
+  workflow_dispatch:
 
 concurrency:
-  # Shared with manual-publish.yml so two publishes never race the registry.
-  group: publish-${{ github.ref }}
+  # One registry, so one publish at a time from anywhere, whatever ref triggered it.
+  group: publish
   cancel-in-progress: false
 
 permissions:
   contents: write
-  packages: write
   pull-requests: write
-  issues: write
+  # Trusted publishing: npm exchanges this short-lived OIDC token for publish rights, so no
+  # long-lived NPM_TOKEN exists to leak, expire or rotate. The 3.5.1 release first failed on
+  # exactly that: an expired token, rejected with E404 on every package.
+  id-token: write
 
 jobs:
   release:
     name: Release
+    # The trusted publisher does not restrict branches, so this does: a dispatch from another
+    # branch must not publish unreviewed versions.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -26,23 +38,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js 20.x
+      - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: 'https://registry.npmjs.org'
-          scope: '@trokky'
           cache: npm
+
+      # Node 22 ships npm 10. Trusted publishing needs 11.5.1 or later, and an older npm
+      # silently falls back to looking for a token.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@^11.5.1
 
       - name: Install Dependencies
         run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build Packages
         run: npm run build
 
-      # Publishes to the `staged` dist-tag, never straight to `latest` — see the promote step.
+      # With pending changesets this opens or updates the release PR. Without them it runs
+      # `npm run release`, which publishes one package at a time, dependencies first, each
+      # confirmed readable on the registry before its dependents go out (see
+      # scripts/publish-release.mjs for why).
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
@@ -54,23 +71,3 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # The half of the release that makes it visible to users.
-      #
-      # v3.2.0 is why this exists. `changeset publish` publishes concurrently with no dependency
-      # ordering and reported success for all three packages when only one had landed, so
-      # @trokky/studio went live depending on a @trokky/trokky that did not exist and could not
-      # be installed at all. Publishing behind `staged` keeps `latest` on the last complete
-      # release until every package is confirmed on the registry; this step then moves `latest`,
-      # dependencies first. A failure here leaves users on the previous release rather than on a
-      # broken one, and is fixed by re-running.
-      #
-      # It runs on every push rather than only when the action reports a publish. The action
-      # derives that from the publish command's output, which is exactly what npm garbles when it
-      # answers E409 for a staged version — a success that prints an error. The script reads the
-      # workspace manifests and the registry instead, and no-ops when there is nothing to move.
-      - name: Verify on npm, then promote to latest
-        run: npm run promote-release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

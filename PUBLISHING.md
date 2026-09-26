@@ -1,10 +1,8 @@
 # Publishing Guide
 
-How the Trokky packages are versioned and published to GitHub Packages.
+How the Trokky packages are versioned and published to npm.
 
 ## Packages
-
-The monorepo publishes four packages.
 
 | Directory | Published name | What it is |
 |---|---|---|
@@ -13,117 +11,77 @@ The monorepo publishes four packages.
 | `packages/client` | `@trokky/client` | Frontend SDK: HTTP client, query builder, type generation |
 | `packages/mcp` | `@trokky/mcp` | MCP server for AI agents (stdio, `npx @trokky/mcp`) |
 
+All four are public on npm under the `@trokky` scope.
+
 ## One version for all of them
 
-`.changeset/config.json` declares the packages as a `fixed` group:
+`.changeset/config.json` declares the packages as a `fixed` group, so any changeset bumps all of
+them to the same version and they are released together. Use `patch` bumps only until told
+otherwise. Never edit `version` by hand: `changeset version` does it.
 
-```json
-"fixed": [["@trokky/trokky", "@trokky/studio", "@trokky/client", "@trokky/mcp"]]
-```
+## Releasing
 
-A changeset that touches a single package therefore bumps all of them to the same
-new version, and all are published together. Never edit `version` fields in
-`package.json` by hand; let `changeset version` do it.
+1. Every change that should ship carries a changeset (`npx changeset`), merged with its PR.
+2. On each push to `main` with pending changesets, the **Changesets Release** workflow opens or
+   updates the **Release: Version Packages** PR.
+3. Merging that PR is the release. The same workflow runs `npm run release`
+   (`scripts/publish-release.mjs`).
 
-Internal dependency ranges are kept at `^2.0.0`:
+The publish script sends one package at a time, dependencies first, and waits until each is
+readable on the registry before publishing anything that depends on it. So a dependent is never
+live before its dependency: that is how v3.2.0 broke, when every package went out at once. It
+skips versions already on the registry and refuses to publish a version older than `latest`.
 
-- `@trokky/trokky` is a dependency of `@trokky/studio` and `@trokky/client`
-- `@trokky/studio` is a peer dependency of `@trokky/trokky`
+## Authentication: trusted publishing, no token
 
-## Registry decision: why `@trokky/trokky`
+The workflow authenticates with npm **trusted publishing** (OIDC). GitHub issues a short-lived
+token for the run, npm exchanges it for publish rights, and every release carries a provenance
+attestation. There is no `NPM_TOKEN` secret. The 3.5.1 release first failed because the old
+long-lived token had silently expired.
 
-The packages are hosted on GitHub Packages, where
-[the npm registry docs](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)
-state:
+Each package's trusted publisher is configured on npmjs.com (package > Settings > Trusted
+Publisher > GitHub Actions):
 
-> GitHub Packages only supports scoped npm packages.
+| Field | Value |
+|---|---|
+| Organization or user | `Trokky` |
+| Repository | `trokky` |
+| Workflow filename | `release-changesets.yml` |
+| Environment | (empty) |
 
-The server package therefore cannot be published as a bare `trokky`; it is
-published as `@trokky/trokky`. The repository itself stays private, and packages
-are published with `access: restricted`
-(`publishConfig` in each `package.json` and `access` in the changesets config).
+Two constraints follow from how npm implements this:
 
-### Consumer setup
+- **One workflow per package.** npm trusts a single workflow file, so there is no separate manual
+  publish workflow. To recover, re-run the failed run or dispatch **Changesets Release** by hand.
+  Both are safe, because published versions are skipped.
+- **A new package cannot be configured until it exists.** The first version of a new package is
+  published by a maintainer from their machine, then its trusted publisher is added:
 
-None. The packages are published to the public npm registry under the `@trokky`
-organization, so they install with no registry configuration and no token:
+  ```bash
+  npm run build
+  npm login
+  npm publish --workspace packages/<dir> --access public
+  ```
 
-```bash
-npm install @trokky/trokky @trokky/studio @trokky/client
-```
+  The workflow skips that version afterwards, because it is already on the registry.
 
-The repository root has the same `.npmrc`, so local development resolves the
-scope correctly too.
+Trusted publishing needs npm 11.5.1 or later; the workflow installs it, since Node 22 ships npm 10.
+It covers `npm publish` only, not `npm dist-tag`, which is why releases go straight to `latest`.
 
-## Publishing methods
+## When a release fails
 
-### 1. Automated release PR (recommended)
-
-1. Make your code changes.
-2. Create a changeset: `npx changeset` (or write `.changeset/<name>.md` by hand).
-3. Commit code and changeset together, push to `main`.
-4. `.github/workflows/release-changesets.yml` opens a "Release: Version Packages"
-   PR containing the version bumps and CHANGELOG entries.
-5. Merging that PR runs `npm run release` (`turbo build && changeset publish`),
-   which publishes all three packages and creates GitHub Releases.
-
-### 2. Manual Publish workflow
-
-Use when a release needs to go out without the release PR flow (re-publishing a
-failed release, a hotfix on already-versioned packages).
-
-GitHub repo > Actions > "Manual Publish" > Run workflow, with inputs:
-
-- `package`: `all` (default), `trokky`, `studio`, `client` or `mcp`
-- `dry_run`: boolean, default `false`; when `true`, `--dry-run` is appended to
-  every `npm publish` so nothing is actually uploaded
-
-The workflow builds, then for each selected package checks
-`npm view <name>@<version>` and skips it if that exact version already exists on
-the registry. With `all` it publishes in dependency order: `trokky`, then
-`client`, then `studio`.
-
-### 3. Local CLI
-
-Last resort, for debugging or when Actions is unavailable.
-
-```bash
-npm run build
-npm run version-packages        # consumes changesets, bumps all three
-git commit -m "chore(release): version packages"
-export NODE_AUTH_TOKEN=<github token with write:packages>
-npm publish --workspace packages/trokky --access restricted
-npm publish --workspace packages/client --access restricted
-npm publish --workspace packages/studio --access restricted
-```
-
-Publish order is always `trokky` -> `client` -> `studio`, so dependents never
-resolve against a version that is not on the registry yet.
+Re-run the failed run, or dispatch **Changesets Release** from `main`. The script skips versions
+already on npm, publishes the rest in order, and creates any git tag and GitHub release that a
+failed run left out. One case a re-run cannot fix: npm answering that a version is "previously
+staged" or "previously published" while it never becomes readable (npm/cli#9889). If a re-run
+reports that again, release a new patch version.
 
 ## Verification
 
 ```bash
-npm view @trokky/trokky version
-npm view @trokky/studio versions
-npm publish --dry-run --workspaces   # inspect the tarballs without publishing
+npm view @trokky/trokky dist-tags
+npm view @trokky/mcp@<version> dist.attestations   # provenance, on OIDC-published versions
 ```
 
-## Common issues
-
-**401 Unauthorized** - the token is missing or lacks `write:packages`. Set
-`NODE_AUTH_TOKEN` before publishing.
-
-**"version already exists"** - that version is on the registry. Create a
-changeset and run `npm run version-packages` to bump; the Manual Publish
-workflow skips such packages instead of failing.
-
-**Changeset file disappeared after `version-packages`** - expected. It was
-converted into version bumps and CHANGELOG entries.
-
-**Stale Turbo build output** - `npx turbo clean && npm run build`.
-
-## References
-
-- [Changesets](https://github.com/changesets/changesets)
-- [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)
-- [Semantic Versioning](https://semver.org/)
+A green workflow is not proof that a site runs the new version. After deploying a site, check
+that it serves the new bundle.
