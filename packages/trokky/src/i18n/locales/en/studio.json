@@ -1203,6 +1203,7 @@
     "unpublished": "Unpublished",
     "restored": "Restored",
     "by": "by",
+    "via": "via {{name}}",
     "latest": "Latest",
     "changedField": "Changed {{field}}",
     "changedFieldsJoin": "Changed {{fields}}",

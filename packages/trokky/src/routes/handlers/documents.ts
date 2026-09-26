@@ -267,6 +267,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -384,6 +385,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -509,6 +511,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string

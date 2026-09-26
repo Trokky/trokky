@@ -300,6 +300,15 @@ export abstract class BaseRoutes {
     return granted.includes(permission) || granted.includes(wildcard)
   }
 
+  /** The application behind a session, for the audit trail: its client id and display name */
+  protected viaApplication(user: { clientId?: string } | null | undefined): { clientId?: string; clientName?: string } {
+    if (!user?.clientId) return {}
+    return {
+      clientId: user.clientId,
+      clientName: this.core.getOAuth2Server()?.getClient(user.clientId)?.name ?? user.clientId
+    }
+  }
+
   /**
    * Users, API tokens, webhooks and site settings are administration, never delegated to an
    * application. A trusted client's token carries its user's admin role, and without this it

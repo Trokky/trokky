@@ -94,6 +94,10 @@ export function DocumentSidebar() {
     setDocumentUrl(url);
   };
 
+  // A stored actor id shown as the name the history already resolved for it
+  const displayName = (actorId: string): string =>
+    contributors.find(contributor => contributor.id === actorId)?.username || actorId;
+
   // Load contributors from audit logs
   const loadContributors = async () => {
     const docId = document?._id || document?.id;
@@ -426,7 +430,7 @@ export function DocumentSidebar() {
               {document?._createdBy && (
                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mt-1">
                   <UserIcon className="h-4 w-4 mr-2" />
-                  {document._createdBy}
+                  {displayName(document._createdBy)}
                 </div>
               )}
             </div>
@@ -445,7 +449,7 @@ export function DocumentSidebar() {
               {document?._updatedBy && (
                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mt-1">
                   <UserIcon className="h-4 w-4 mr-2" />
-                  {document._updatedBy}
+                  {displayName(document._updatedBy)}
                 </div>
               )}
             </div>

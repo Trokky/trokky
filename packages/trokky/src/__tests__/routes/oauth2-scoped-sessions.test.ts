@@ -581,6 +581,28 @@ describe('trusted clients', () => {
   })
 })
 
+describe('audit trail', () => {
+  it('records the application that made a change for the user', async () => {
+    const s = await site()
+    const { token: studio } = await user(s, 'admin33', 'admin')
+    const { device_code, user_code } = await call(s, 'POST', '/api/auth/device', undefined, { client_id: 'trokky-mcp', scope: 'content:read content:write' })
+      .then(r => body<{ device_code: string; user_code: string }>(r))
+    await approve(s, studio, user_code)
+    const agent = body<{ access_token: string }>(await call(s, 'POST', '/api/auth/token', undefined, { grant_type: DEVICE_GRANT, device_code, client_id: 'trokky-mcp' })).access_token
+
+    const byAgent = body<{ data: { document: { id: string } } }>(await call(s, 'POST', '/api/collections/posts', agent, { data: { title: 'Agent draft' } }))
+    const byPerson = body<{ data: { document: { id: string } } }>(await call(s, 'POST', '/api/collections/posts', studio, { data: { title: 'My draft' } }))
+
+    const history = async (id: string) =>
+      body<{ data: { auditLogs: Array<{ actorUsername?: string; metadata?: { via?: { clientId: string; clientName: string } } }> } }>(
+        await call(s, 'GET', `/api/audit-logs/documents/${id}`, studio)).data.auditLogs
+    const agentEntry = (await history(byAgent.data.document.id))[0]
+    expect(agentEntry.actorUsername).toBe('admin33')
+    expect(agentEntry.metadata?.via).toEqual({ clientId: 'trokky-mcp', clientName: 'Trokky MCP (AI agent)' })
+    expect((await history(byPerson.data.document.id))[0].metadata?.via).toBeUndefined()
+  })
+})
+
 describe('built-in client', () => {
   it('cannot be made trusted through config', async () => {
     const s = await site(dir, { clients: [{ id: 'trokky-cli', name: 'CLI', redirectUris: [], trusted: true, grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'] }] })

@@ -48,6 +48,10 @@ export interface AuditContext {
   username?: string
   ipAddress?: string
   userAgent?: string
+  /** The OAuth2 application acting for the user (e.g. the Trokky MCP server), if any */
+  clientId?: string
+  /** Its display name, recorded as it was at the time of the change */
+  clientName?: string
 }
 
 // Audit log operations

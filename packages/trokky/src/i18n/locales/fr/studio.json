@@ -807,6 +807,7 @@
     "unpublished": "Dépublié",
     "restored": "Restauré",
     "by": "par",
+    "via": "via {{name}}",
     "latest": "Dernier",
     "changedField": "Modifié {{field}}",
     "changedFieldsJoin": "Modifié {{fields}}",
