@@ -114,6 +114,11 @@ export class TokenService {
           const storedBuffer = Buffer.from(appToken.tokenHash, 'hex')
           const providedBuffer = Buffer.from(providedHash, 'hex')
           if (timingSafeEqual(storedBuffer, providedBuffer)) {
+            // An unparseable expiry counts as expired: fail closed
+            if (appToken.expiresAt && !(Date.parse(appToken.expiresAt) > Date.now())) {
+              return { valid: false, error: 'App token has expired' }
+            }
+
             // Update last used timestamp and usage count
             const updatedToken: AppToken = {
               ...appToken,
