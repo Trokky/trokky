@@ -19,7 +19,8 @@
       "@trokky/trokky/express": ["./packages/trokky/src/integrations/express"],
       "@trokky/trokky/*": ["./packages/trokky/src/*"],
       "@trokky/studio": ["./packages/studio/src"],
-      "@trokky/client": ["./packages/client/src"]
+      "@trokky/client": ["./packages/client/src"],
+      "@trokky/mcp": ["./packages/mcp/src"]
     }
   },
   "include": [

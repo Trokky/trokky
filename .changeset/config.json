@@ -6,7 +6,8 @@
     [
       "@trokky/trokky",
       "@trokky/studio",
-      "@trokky/client"
+      "@trokky/client",
+      "@trokky/mcp"
     ]
   ],
   "linked": [],

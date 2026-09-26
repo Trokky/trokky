@@ -13,6 +13,7 @@ Trokky is a monorepo with 3 packages:
 | `packages/trokky/` | `@trokky/trokky` | CMS server: engine, routes, adapters, mail, i18n, Express integration |
 | `packages/studio/` | `@trokky/studio` | React admin UI and field system (25+ field types) |
 | `packages/client/` | `@trokky/client` | Frontend SDK: HTTP client, query builder, type generation |
+| `packages/mcp/` | `@trokky/mcp` | MCP server: lets AI agents work on a site's content through an API token |
 
 The CLI is a separate Go project at [github.com/Trokky/cli](https://github.com/Trokky/cli).
 
@@ -190,6 +191,7 @@ Trokky uses Vitest for all packages, React Testing Library for Studio components
 cd packages/trokky && npm test       # Server tests
 cd packages/studio && npm test       # Studio tests
 cd packages/client && npm test       # Client tests
+cd packages/mcp && npm test          # MCP server tests
 ```
 
 ## REST API
