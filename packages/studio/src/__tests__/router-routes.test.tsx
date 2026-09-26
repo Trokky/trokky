@@ -133,16 +133,21 @@ describe('studio route tree', () => {
     const { router } = renderAt('/content')
     expect(await screen.findByTestId('page-content')).toBeTruthy()
 
+    // Wait on the rendered params, not on router.state: the router applies navigations in a
+    // transition, so its state changes before React commits the new render. Both routes
+    // render the same page, so reading the DOM as soon as router.state moved could still
+    // see the previous route's `{}`, which is how this failed under CI load.
     await router.navigate('/content/article/abc123')
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/content/article/abc123')
+      expect(JSON.parse(screen.getByTestId('params-content').textContent!))
+        .toMatchObject({ schemaName: 'article', documentId: 'abc123' })
     })
-    const params = JSON.parse(screen.getByTestId('params-content').textContent!)
-    expect(params).toMatchObject({ schemaName: 'article', documentId: 'abc123' })
+    expect(router.state.location.pathname).toBe('/content/article/abc123')
 
     await router.navigate(-1)
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe('/content')
+      expect(JSON.parse(screen.getByTestId('params-content').textContent!)).toEqual({})
     })
+    expect(router.state.location.pathname).toBe('/content')
   })
 })
