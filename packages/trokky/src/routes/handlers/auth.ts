@@ -7,6 +7,29 @@ import type { HttpRequest, HttpResponse, RouteDefinition, LoginRequest, LoginRes
 import { BaseRoutes } from './base.js'
 
 export class AuthRoutes extends BaseRoutes {
+  /**
+   * Every route here manages a person's own account or security: passkeys, MFA, linked
+   * logins, approving other devices and applications. An OAuth2 access token acts for that
+   * person on content, and never here — so a token handed to an agent cannot enrol its own
+   * passkey on its user or approve itself more access. The one exception is reading the
+   * profile with the `profile` scope. Enforced for the whole group rather than per route, so
+   * a route added later is covered too.
+   */
+  protected async validateAuthentication(request: HttpRequest): Promise<void> {
+    await super.validateAuthentication(request)
+    const scopes = (request.user as { scopes?: string[] } | undefined)?.scopes
+    if (!scopes) {
+      return
+    }
+    if (request.method === 'GET' && request.path.endsWith('/auth/me') && scopes.includes('profile')) {
+      return
+    }
+    // Forget who this is before refusing: a handler that swallows authentication errors (the
+    // Google callback, the authorize page) would otherwise carry on as this user
+    request.user = undefined
+    throw new InvalidInputError('A token granted to an application cannot manage the account', 'permissions')
+  }
+
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
     return this.defineRoutes([
@@ -50,6 +73,7 @@ export class AuthRoutes extends BaseRoutes {
       ['DELETE', `${basePath}/auth/mfa/trusted-devices`, this.revokeAllTrustedDevices.bind(this)],
       ['POST', `${basePath}/admin/users/:userId/mfa/reset`, this.adminResetUserMFA.bind(this)],
       ['POST', `${basePath}/auth/device`, this.startDeviceAuthorization.bind(this)],
+      ['GET', `${basePath}/.well-known/oauth-authorization-server`, this.getOAuth2Metadata.bind(this)],
       ['GET', `${basePath}/auth/device/verify`, this.getDeviceCodeInfo.bind(this)],
       ['POST', `${basePath}/auth/device/verify`, this.verifyDeviceCode.bind(this)],
       ['POST', `${basePath}/auth/token`, this.handleOAuth2TokenRequest.bind(this)],
@@ -225,10 +249,25 @@ export class AuthRoutes extends BaseRoutes {
         throw new Error('User not found in database')
       }
       
-      // Remove password hash from response for security
+      // An application acting for the user gets who they are, nothing about how they sign in
+      if (sessionUser.scopes) {
+        const { id, username, email, firstName, lastName, role } = fullUser
+        return this.successResponse({ id, username, email, firstName, lastName, role })
+      }
+
+      // Never the credentials themselves, even to the user: a stolen session must not become
+      // a second factor. The TOTP secret and backup-code hashes are for the server alone.
       const { passwordHash, ...safeUser } = fullUser
-      
-      return this.successResponse(safeUser)
+      const mfa = safeUser.mfa
+        ? {
+            ...safeUser.mfa,
+            methods: (safeUser.mfa.methods ?? []).map(({ secret: _secret, ...method }) => method),
+            backupCodes: undefined,
+            backupCodesRemaining: safeUser.mfa.backupCodes?.length ?? 0
+          }
+        : undefined
+
+      return this.successResponse({ ...safeUser, mfa })
     } catch (error) {
       return this.errorResponse(error)
     }
@@ -577,6 +616,12 @@ export class AuthRoutes extends BaseRoutes {
    * POST /auth/device
    * No authentication required - called by CLI
    */
+  /** RFC 8414 metadata: the endpoints and scopes a client can discover instead of hardcoding */
+  private async getOAuth2Metadata(request: HttpRequest): Promise<HttpResponse> {
+    const { getServerMetadata: handler } = await import('../auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
   private async startDeviceAuthorization(request: HttpRequest): Promise<HttpResponse> {
     const { startDeviceAuthorization: handler } = await import('../auth/oauth2-server.js')
     return handler(this.core, request)

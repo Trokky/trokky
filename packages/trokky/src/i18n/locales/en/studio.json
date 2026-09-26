@@ -1103,10 +1103,13 @@
         "contentRead": "Read content",
         "contentWrite": "Create and update content",
         "contentDelete": "Delete content",
+        "contentPublish": "Publish and unpublish content",
         "mediaRead": "Read media files",
         "mediaWrite": "Upload media files",
+        "mediaDelete": "Delete media files",
         "offlineAccess": "Stay logged in"
-      }
+      },
+      "untickToLimit": "Untick anything you do not want to grant."
     },
     "authorize": {
       "pageTitle": "Trokky",

@@ -28,7 +28,7 @@ export type {
   UpdateOAuth2ClientData
 } from '../../types/index.js'
 
-export { SCOPE_TO_PERMISSIONS, BUILTIN_CLI_CLIENT } from '../../types/index.js'
+export { SCOPE_TO_PERMISSIONS, ALL_OAUTH2_SCOPES, BUILTIN_CLI_CLIENT } from '../../types/index.js'
 
 // Re-export RefreshTokenRequest as it was named differently in the original
 export type { OAuth2RefreshTokenRequest as RefreshTokenRequest } from '../../types/index.js'

@@ -707,10 +707,13 @@
         "contentRead": "Lire le contenu",
         "contentWrite": "Créer et modifier le contenu",
         "contentDelete": "Supprimer le contenu",
+        "contentPublish": "Publier et dépublier du contenu",
         "mediaRead": "Lire les fichiers médias",
         "mediaWrite": "Importer des fichiers médias",
+        "mediaDelete": "Supprimer des fichiers médias",
         "offlineAccess": "Rester connecté"
-      }
+      },
+      "untickToLimit": "Décochez ce que vous ne souhaitez pas accorder."
     },
     "authorize": {
       "pageTitle": "Trokky",

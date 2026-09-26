@@ -31,7 +31,16 @@ export abstract class BaseRoutes {
     return entries.map(([method, path, handler]) => ({
       method,
       path,
-      handler,
+      // Every handler answers with a proper status, even one that authenticates outside its
+      // own try block: an auth failure thrown there used to reach the client as a 500 (or,
+      // on Express, whatever the host's error handler made of it) instead of a 401 or 403.
+      handler: async (request: HttpRequest) => {
+        try {
+          return await handler(request)
+        } catch (error) {
+          return this.errorResponse(error)
+        }
+      },
       description: `${method} ${path}`
     }))
   }
@@ -218,7 +227,8 @@ export abstract class BaseRoutes {
     request.user = {
       id: session.userId,
       username: session.username,
-      role: session.role
+      role: session.role,
+      scopes: session.scopes
     } as any
   }
 
@@ -265,7 +275,7 @@ export abstract class BaseRoutes {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
 
-    request.user = { id: session.userId, username: session.username, role: session.role } as any
+    request.user = { id: session.userId, username: session.username, role: session.role, scopes: session.scopes } as any
     return session
   }
 
@@ -447,7 +457,8 @@ export abstract class BaseRoutes {
           id: session.userId,
           username: session.username,
           role: session.role,
-          permissions: session.permissions
+          permissions: session.permissions,
+          scopes: session.scopes
         }
       }
       

@@ -102,7 +102,7 @@ export interface AuthFlowState {
   /** The state token or session id the second request presents */
   id: string
   /** Which flow this belongs to, so one store can serve both */
-  kind: 'oauth' | 'passkey'
+  kind: 'oauth' | 'passkey' | 'oauth2_device' | 'oauth2_code'
   /** Flow-specific payload: the PKCE verifier, or the WebAuthn challenge */
   data: Record<string, unknown>
   /** ISO 8601 timestamp after which the state must not be accepted */
@@ -420,6 +420,17 @@ export interface DataStorageAdapter {
    *         continuing without having consumed the state
    */
   consumeAuthFlowState?(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
+
+  /**
+   * Read a pending auth flow state without consuming it.
+   *
+   * For a flow that is looked at more than once before it is used: an OAuth2 device code is
+   * shown on the approval page and polled by the device until it is approved.
+   *
+   * @returns The stored state, or null if unknown, expired or of another kind
+   * @throws Error if storage fails
+   */
+  getAuthFlowState?(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
 
   /**
    * Store a pending auth flow state.

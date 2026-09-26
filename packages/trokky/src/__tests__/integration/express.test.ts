@@ -40,6 +40,7 @@ describe('Express Integration', () => {
           adapter: 'filesystem-data',
           options: {
             contentDir: path.join(tempDir, 'content'),
+            authFlowStateDir: path.join(tempDir, 'auth-flow-state'),
             usersDir: path.join(tempDir, 'users'),
             tokensDir: path.join(tempDir, 'tokens'),
             webhooksDir: path.join(tempDir, 'webhooks'),
@@ -280,6 +281,7 @@ describe('Express Integration with a custom apiPath', () => {
           adapter: 'filesystem-data',
           options: {
             contentDir: path.join(customTempDir, 'content'),
+            authFlowStateDir: path.join(customTempDir, 'auth-flow-state'),
             usersDir: path.join(customTempDir, 'users'),
             tokensDir: path.join(customTempDir, 'tokens'),
             webhooksDir: path.join(customTempDir, 'webhooks'),
@@ -336,6 +338,7 @@ describe('Studio mounting moved out of the server (3.0)', () => {
           adapter: 'filesystem-data',
           options: {
             contentDir: path.join(tempDir, 'content'),
+            authFlowStateDir: path.join(tempDir, 'auth-flow-state'),
             usersDir: path.join(tempDir, 'users'),
             tokensDir: path.join(tempDir, 'tokens'),
             webhooksDir: path.join(tempDir, 'webhooks'),
@@ -481,6 +484,7 @@ describe('singleton consistency at boot', () => {
           adapter: 'filesystem-data',
           options: {
             contentDir: path.join(bootTempDir, 'content'),
+            authFlowStateDir: path.join(bootTempDir, 'auth-flow-state'),
             usersDir: path.join(bootTempDir, 'users'),
             tokensDir: path.join(bootTempDir, 'tokens'),
             webhooksDir: path.join(bootTempDir, 'webhooks'),

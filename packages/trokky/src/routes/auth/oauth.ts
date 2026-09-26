@@ -257,8 +257,10 @@ export async function handleGoogleOAuthCallback(
     googleService.validateUserInfo(googleUser)
 
     if (mode === 'link') {
-      // Link mode: Add Google to existing user
-      const userId = storedState.userId || request.user?.id
+      // Link mode: add Google to the user who started linking. Only that stored identity
+      // counts: the mode in the body is the caller's word, and the caller's own credential
+      // must not be enough to attach a Google account to somebody.
+      const userId = storedState.mode === 'link' ? storedState.userId : undefined
       if (!userId) {
         return {
           status: 401,

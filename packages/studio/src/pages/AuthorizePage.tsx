@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { apiClient } from '@/services/api-client';
-import { CheckCircleIcon, XCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { useT } from '@trokky/trokky/i18n';
 
 interface AuthorizationInfo {
@@ -40,6 +40,14 @@ export function AuthorizePage() {
   const [authInfo, setAuthInfo] = useState<AuthorizationInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // What the person leaves ticked is what the application gets: the request is a ceiling
+  const [approvedScopes, setApprovedScopes] = useState<string[]>([]);
+
+  const toggleScope = (scope: string) => {
+    setApprovedScopes(current =>
+      current.includes(scope) ? current.filter(s => s !== scope) : [...current, scope]
+    );
+  };
 
   // Extract query parameters
   const clientId = searchParams.get('client_id');
@@ -78,6 +86,7 @@ export function AuthorizePage() {
 
       if (response.success && response.data) {
         setAuthInfo(response.data);
+        setApprovedScopes(response.data.scopes ?? []);
 
         // Auto-approve if user has existing consent for all requested scopes
         // Stay in 'loading' state during auto-approve to avoid UI flicker
@@ -135,7 +144,7 @@ export function AuthorizePage() {
         action: 'approve',
         client_id: authInfo.client.id,
         redirect_uri: authInfo.redirectUri,
-        scopes: authInfo.scopes,
+        scopes: approvedScopes,
         state: authInfo.state,
         code_challenge: authInfo.codeChallenge
       });
@@ -200,8 +209,10 @@ export function AuthorizePage() {
       case 'content:read': return t('auth.device.scopes.contentRead');
       case 'content:write': return t('auth.device.scopes.contentWrite');
       case 'content:delete': return t('auth.device.scopes.contentDelete');
+      case 'content:publish': return t('auth.device.scopes.contentPublish');
       case 'media:read': return t('auth.device.scopes.mediaRead');
       case 'media:write': return t('auth.device.scopes.mediaWrite');
+      case 'media:delete': return t('auth.device.scopes.mediaDelete');
       case 'offline_access': return t('auth.device.scopes.offlineAccess');
       default: return scope;
     }
@@ -247,14 +258,25 @@ export function AuthorizePage() {
 
             {authInfo?.scopes && authInfo.scopes.length > 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('auth.authorize.allowApplication')}
                 </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  {t('auth.device.untickToLimit')}
+                </p>
                 <ul className="space-y-2">
-                  {authInfo.scopes.map((scope, i) => (
-                    <li key={i} className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <CheckCircleIcon className="w-4 h-4 mr-2 text-green-500 flex-shrink-0" />
-                      {formatScope(scope)}
+                  {authInfo.scopes.map(scope => (
+                    <li key={scope}>
+                      <label className="flex items-center text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mr-2 h-4 w-4 flex-shrink-0 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                          checked={approvedScopes.includes(scope)}
+                          onChange={() => toggleScope(scope)}
+                          data-testid={`scope-${scope}`}
+                        />
+                        {formatScope(scope)}
+                      </label>
                     </li>
                   ))}
                 </ul>
@@ -287,7 +309,7 @@ export function AuthorizePage() {
                 variant="primary"
                 className="flex-1"
                 onClick={handleAuthorize}
-                disabled={isSubmitting}
+                disabled={isSubmitting || approvedScopes.length === 0}
               >
                 {isSubmitting ? <LoadingSpinner size="sm" /> : t('auth.authorize.authorize')}
               </Button>

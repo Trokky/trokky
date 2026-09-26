@@ -87,6 +87,7 @@ import { DocumentService } from '../services/document-service.js'
 import { MediaService } from '../services/media-service.js'
 import { CaptchaService } from '../services/captcha-service.js'
 import { OAuth2ServerService } from '../services/oauth2-server-service.js'
+import { saveAuthFlowState, getAuthFlowState, consumeAuthFlowState, sweepExpiredAuthFlowStates } from '../security/auth-flow-store.js'
 
 export interface TrokkyCoreOptions {
   schemaRegistry?: SchemaRegistry
@@ -619,7 +620,17 @@ export class TrokkyCore {
         verificationUri: oauth2Config.verificationUri,
         authCodeTtl: oauth2Config.authCodeTtl,
         pollingInterval: oauth2Config.pollingInterval,
-        clients: oauth2Config.clients
+        clients: oauth2Config.clients,
+        // Device and authorization codes outlive the request that creates them, so they go
+        // where Google sign-in state and passkey challenges go: the data adapter's store
+        flowStore: {
+          save: state => saveAuthFlowState(this.dataStorage, state),
+          get: (id, kind) => getAuthFlowState(this.dataStorage, id, kind),
+          consume: (id, kind) => {
+            sweepExpiredAuthFlowStates(this.dataStorage)
+            return consumeAuthFlowState(this.dataStorage, id, kind)
+          }
+        }
       })
 
       this.logger.info('OAuth2 Authorization Server initialized', {

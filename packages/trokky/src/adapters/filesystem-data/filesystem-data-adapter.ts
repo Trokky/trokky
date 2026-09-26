@@ -1050,11 +1050,34 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     // permissions rather than the adapter's defaults, which leave files
     // readable by every local user.
     await fsExtra.ensureDir(this.config.authFlowStateDir, { mode: 0o700 })
+    // Written aside and renamed into place: a state can be overwritten while another request
+    // reads it (an OAuth2 device approval lands while the device polls), and an in-place
+    // write would let the reader see a half-written file.
+    const statePath = this.getAuthFlowStatePath(state.id)
+    const tempPath = `${statePath}.${randomUUID()}.tmp`
     await fs.writeFile(
-      this.getAuthFlowStatePath(state.id),
+      tempPath,
       JSON.stringify(state, null, this.config.prettyJson ? this.config.jsonSpaces : 0),
       { mode: 0o600 }
     )
+    await fs.rename(tempPath, statePath)
+  }
+
+  public async getAuthFlowState(
+    id: string,
+    kind: AuthFlowState['kind']
+  ): Promise<AuthFlowState | null> {
+    SecurityValidator.validateDocumentId(id)
+    try {
+      const state = JSON.parse(await fs.readFile(this.getAuthFlowStatePath(id), 'utf-8')) as AuthFlowState
+      if (state.kind !== kind) return null
+      const expiresAt = new Date(state.expiresAt).getTime()
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null
+      return state
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
   }
 
   public async consumeAuthFlowState(

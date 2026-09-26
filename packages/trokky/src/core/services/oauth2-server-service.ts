@@ -263,11 +263,10 @@ export class OAuth2ServerService {
         existingConsents
       })
 
-      // Merge scopes if consent already exists
-      const existingConsent = existingConsents[clientId]
-      const mergedScopes = existingConsent
-        ? [...new Set([...existingConsent.scopes, ...scopes])] as OAuth2Scope[]
-        : scopes
+      // The latest approval replaces the last one. Merging would undo a narrowing: approve
+      // read+delete, later approve read only, and the next request for read+delete would
+      // still match the stored consent and be approved without asking.
+      const mergedScopes = [...new Set(scopes)] as OAuth2Scope[]
 
       // Calculate expiry (default: 365 days, or never if not specified)
       const expiresAt = expiresInDays
