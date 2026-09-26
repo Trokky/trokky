@@ -471,8 +471,11 @@ export async function handleTokenRequest(
         throw new Error('User not found')
       }
 
-      // Generate tokens using core's auth service
-      const tokens = await core.generateOAuth2Tokens(user, scopes, clientId)
+      // The first tokens of an approval create its grant: the handle the person can later
+      // see and revoke in Studio. Refreshes reuse it.
+      const userAgent = request.headers['user-agent']
+      const grant = await core.createOAuth2Grant(user, clientId, scopes, typeof userAgent === 'string' ? userAgent : undefined)
+      const tokens = await core.generateOAuth2Tokens(user, scopes, clientId, grant.id)
 
       return {
         access_token: tokens.accessToken,

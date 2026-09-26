@@ -24,6 +24,8 @@ export interface AuthServiceDependencies {
   getUser: (id: string) => Promise<User | null>
   getUserByUsername: (username: string) => Promise<User | null>
   updateUser: (id: string, userData: UpdateUserData) => Promise<User>
+  /** Whether the grant an OAuth2 token was issued under still stands (not revoked, not lapsed) */
+  isOAuth2GrantLive?: (user: User, grantId: string) => Promise<boolean>
   /** Conditional update, present only when the data adapter supports saveUserIf */
   updateUserIf?: (
     id: string,
@@ -162,6 +164,12 @@ export class AuthService {
       }
 
       if (scopes) {
+        // Valid only while the approval behind it stands: revoking it in Studio ends every
+        // token issued under it, this one included
+        const grantId = typeof decoded.grantId === 'string' ? decoded.grantId : undefined
+        if (!grantId || !this.deps.isOAuth2GrantLive || !(await this.deps.isOAuth2GrantLive(currentUser, grantId))) {
+          return null
+        }
         const clientId = typeof decoded.clientId === 'string' ? decoded.clientId : undefined
         // A trusted (first-party) client acts as the user outright. Its session carries the
         // client id and no scopes: routes treat it as the user, the account routes still

@@ -102,7 +102,7 @@ export interface AuthFlowState {
   /** The state token or session id the second request presents */
   id: string
   /** Which flow this belongs to, so one store can serve both */
-  kind: 'oauth' | 'passkey' | 'oauth2_device' | 'oauth2_code'
+  kind: 'oauth' | 'passkey' | 'oauth2_device' | 'oauth2_code' | 'oauth2_grant_revoked'
   /** Flow-specific payload: the PKCE verifier, or the WebAuthn challenge */
   data: Record<string, unknown>
   /** ISO 8601 timestamp after which the state must not be accepted */

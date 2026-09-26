@@ -6,6 +6,24 @@ import { SecurityValidator, InvalidInputError } from '../../core/index.js'
 import type { HttpRequest, HttpResponse, RouteDefinition } from '../types.js'
 import { BaseRoutes } from './base.js'
 
+/** Preferences keys starting with "_oauth2" are the server's own records (applications' grants and consents) */
+const isServerPreference = (key: string): boolean => key.startsWith('_oauth2')
+
+/**
+ * A user as these routes return it: no password hash, and none of the server's own
+ * preference records, which name every application a person has signed in with (reading
+ * users does not entitle anyone to that; the person sees their own under /auth/grants).
+ */
+function publicUser<T extends { passwordHash?: unknown; preferences?: unknown }>(user: T): Omit<T, 'passwordHash'> {
+  const { passwordHash: _passwordHash, ...safeUser } = user
+  if (safeUser.preferences && typeof safeUser.preferences === 'object') {
+    safeUser.preferences = Object.fromEntries(
+      Object.entries(safeUser.preferences as Record<string, unknown>).filter(([key]) => !isServerPreference(key))
+    )
+  }
+  return safeUser
+}
+
 export class UserRoutes extends BaseRoutes {
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
@@ -40,7 +58,7 @@ export class UserRoutes extends BaseRoutes {
 
       // Remove password hashes from response
       const safeUsers = users.map(user => {
-        const { passwordHash, ...safeUser } = user
+        const safeUser = publicUser(user)
         return safeUser
       })
 
@@ -88,13 +106,18 @@ export class UserRoutes extends BaseRoutes {
         delete userData.active
       }
 
+      if (userData.preferences && typeof userData.preferences === 'object') {
+        userData.preferences = Object.fromEntries(Object.entries(userData.preferences as Record<string, unknown>)
+          .filter(([key]) => !isServerPreference(key)))
+      }
+
       // Debug: Log what data we're receiving
       this.logger.debug('Creating user with transformed data:', { userData })
 
       const user = await this.core.createUser(userData as any)
 
       // Remove password hash from response
-      const { passwordHash, ...safeUser } = user
+      const safeUser = publicUser(user)
 
       return this.successResponse({ user: safeUser }, 201)
     } catch (error) {
@@ -117,7 +140,7 @@ export class UserRoutes extends BaseRoutes {
       }
 
       // Remove password hash from response
-      const { passwordHash, ...safeUser } = user
+      const safeUser = publicUser(user)
 
       return this.successResponse({ user: safeUser })
     } catch (error) {
@@ -153,13 +176,25 @@ export class UserRoutes extends BaseRoutes {
         delete userData.fullName
       }
 
+      // Preferences keys starting with "_oauth2" are the server's own records (applications'
+      // grants and consents). An update carrying preferences keeps them as stored: a client
+      // holding an older copy must not resurrect a revoked grant or drop a new one.
+      if (userData.preferences && typeof userData.preferences === 'object') {
+        const existing = await this.core.getUser(id)
+        const serverKeys = Object.entries((existing?.preferences ?? {}) as Record<string, unknown>)
+          .filter(([key]) => isServerPreference(key))
+        const incoming = Object.fromEntries(Object.entries(userData.preferences as Record<string, unknown>)
+          .filter(([key]) => !isServerPreference(key)))
+        userData = { ...userData, preferences: { ...incoming, ...Object.fromEntries(serverKeys) } }
+      }
+
       // Debug: Log what data we're receiving
       this.logger.debug('Updating user with transformed data:', { id, userData })
 
       const user = await this.core.updateUser(id, userData)
 
       // Remove password hash from response
-      const { passwordHash, ...safeUser } = user
+      const safeUser = publicUser(user)
 
       return this.successResponse({ user: safeUser })
     } catch (error) {
@@ -198,7 +233,7 @@ export class UserRoutes extends BaseRoutes {
       }
 
       // Remove password hash from response
-      const { passwordHash, ...safeUser } = user
+      const safeUser = publicUser(user)
 
       return this.successResponse({ user: safeUser })
     } catch (error) {
@@ -221,7 +256,7 @@ export class UserRoutes extends BaseRoutes {
       }
 
       // Remove password hash from response
-      const { passwordHash, ...safeUser } = user
+      const safeUser = publicUser(user)
 
       return this.successResponse({ user: safeUser })
     } catch (error) {

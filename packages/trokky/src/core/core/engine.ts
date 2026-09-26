@@ -86,7 +86,7 @@ import { TokenService } from '../services/token-service.js'
 import { DocumentService } from '../services/document-service.js'
 import { MediaService } from '../services/media-service.js'
 import { CaptchaService } from '../services/captcha-service.js'
-import { OAuth2ServerService } from '../services/oauth2-server-service.js'
+import { OAuth2ServerService, type OAuth2Grant } from '../services/oauth2-server-service.js'
 import { saveAuthFlowState, getAuthFlowState, consumeAuthFlowState, sweepExpiredAuthFlowStates } from '../security/auth-flow-store.js'
 
 export interface TrokkyCoreOptions {
@@ -317,6 +317,7 @@ export class TrokkyCore {
       getUser: (id) => this.getUser(id),
       getUserByUsername: (username) => this.getUserByUsername(username),
       updateUser: (id, userData) => this.updateUser(id, userData),
+      isOAuth2GrantLive: (user, grantId) => this.oauth2ServerService.isGrantLive(user, grantId),
       // Adapters that support a conditional write set updatedAt themselves
       updateUserIf: this.dataStorage.saveUserIf
         ? async (id, userData, condition) => {
@@ -452,7 +453,8 @@ export class TrokkyCore {
       getOAuth2Server: () => this.oauth2Server,
       getOAuth2Options: () => this.options.oauth2,
       getUser: (id) => this.getUser(id),
-      updateUser: (id, userData) => this.updateUser(id, userData)
+      updateUser: (id, userData) => this.updateUser(id, userData),
+      getDataStorage: () => this.dataStorage
     })
 
     // Emit system startup event
@@ -1416,13 +1418,34 @@ export class TrokkyCore {
   public async generateOAuth2Tokens(
     user: User,
     scopes: OAuth2Scope[],
-    clientId: string
+    clientId: string,
+    grantId: string
   ): Promise<{
     accessToken: string
     refreshToken?: string
     expiresIn: number
   }> {
-    return this.oauth2ServerService.generateOAuth2Tokens(user, scopes, clientId)
+    return this.oauth2ServerService.generateOAuth2Tokens(user, scopes, clientId, grantId)
+  }
+
+  /** Record an application's approval; its tokens carry the grant's id */
+  public async createOAuth2Grant(user: User, clientId: string, scopes: OAuth2Scope[], userAgent?: string): Promise<OAuth2Grant> {
+    return this.oauth2ServerService.createGrant(user, clientId, scopes, userAgent)
+  }
+
+  /** The applications a user has approved */
+  public async listOAuth2Grants(userId: string): Promise<OAuth2Grant[]> {
+    return this.oauth2ServerService.listGrants(userId)
+  }
+
+  /** Take an approval back: every token issued under it stops working */
+  public async revokeOAuth2Grant(userId: string, grantId: string): Promise<boolean> {
+    return this.oauth2ServerService.revokeGrant(userId, grantId)
+  }
+
+  /** RFC 7009 revocation by a token the caller holds */
+  public async revokeOAuth2Token(token: string, clientId?: string): Promise<void> {
+    return this.oauth2ServerService.revokeByToken(token, clientId)
   }
 
   /**

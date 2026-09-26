@@ -767,6 +767,7 @@ export class OAuth2AuthorizationServer {
       authorization_endpoint: `${this.config.issuer}/auth/authorize`,
       token_endpoint: `${this.config.issuer}/auth/token`,
       device_authorization_endpoint: `${this.config.issuer}/auth/device`,
+      revocation_endpoint: `${this.config.issuer}/auth/revoke`,
       scopes_supported: [...ALL_OAUTH2_SCOPES],
       response_types_supported: ['code'],
       grant_types_supported: [

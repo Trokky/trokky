@@ -68,6 +68,11 @@ async function site(storageDir = dir, extra: { clients?: unknown[] } = {}): Prom
   return { core, routes, data }
 }
 
+/** The grant a token was issued under, read from its payload */
+function grantIdOf(token: string): string {
+  return (JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()) as { grantId: string }).grantId
+}
+
 function body<T = Record<string, unknown>>(response: HttpResponse): T {
   return (typeof response.body === 'string' ? JSON.parse(response.body) : response.body) as T
 }
@@ -343,7 +348,7 @@ describe('metadata', () => {
     const metadata = body<{ scopes_supported: string[]; device_authorization_endpoint: string; revocation_endpoint?: string }>(response)
     expect(metadata.scopes_supported).toEqual(expect.arrayContaining(['content:publish', 'media:delete']))
     expect(metadata.device_authorization_endpoint).toBe('http://cms.test/api/auth/device')
-    expect(metadata.revocation_endpoint).toBeUndefined()
+    expect(metadata.revocation_endpoint).toBe('http://cms.test/api/auth/revoke')
   })
 })
 
@@ -578,6 +583,13 @@ describe('trusted clients', () => {
     expect((await s.core.getUser(admin.id))?.email).toBe(`${admin.username}@example.com`)
     expect((await call(s, 'POST', '/api/auth/passkey/register/options', trusted, {})).status).toBe(403)
     expect((await call(s, 'POST', '/api/auth/refresh', undefined, { refreshToken: trusted })).status).not.toBe(200)
+    // Nor list or take back anyone's applications
+    const grantId = grantIdOf(trusted)
+    expect((await call(s, 'GET', '/api/auth/grants', trusted)).status).toBe(403)
+    expect((await call(s, 'DELETE', `/api/auth/grants/${grantId}`, trusted)).status).toBe(403)
+    expect((await call(s, 'GET', '/api/admin/oauth-grants', trusted)).status).toBe(403)
+    expect((await call(s, 'DELETE', `/api/admin/users/${admin.id}/oauth-grants/${grantId}`, trusted)).status).toBe(403)
+    expect((await call(s, 'GET', '/api/collections/posts', trusted)).status).toBe(200)
   })
 })
 
@@ -600,6 +612,227 @@ describe('audit trail', () => {
     expect(agentEntry.actorUsername).toBe('admin33')
     expect(agentEntry.metadata?.via).toEqual({ clientId: 'trokky-mcp', clientName: 'Trokky MCP (AI agent)' })
     expect((await history(byPerson.data.document.id))[0].metadata?.via).toBeUndefined()
+  })
+})
+
+describe('connected applications', () => {
+  async function signIn(s: Site, studio: string, scope = 'content:read offline_access') {
+    const { device_code, user_code } = await startDevice(s, scope)
+    await approve(s, studio, user_code)
+    const response = await call(s, 'POST', '/api/auth/token', undefined, { grant_type: DEVICE_GRANT, device_code, client_id: 'trokky-cli' })
+    expect(response.status).toBe(200)
+    return body<{ access_token: string; refresh_token: string }>(response)
+  }
+  const grants = async (s: Site, studio: string) =>
+    body<{ data: { grants: Array<{ id: string; clientId: string; clientName: string; scopes: string[]; lastUsedAt?: string }> } }>(await call(s, 'GET', '/api/auth/grants', studio)).data.grants
+  const refresh = (s: Site, refreshToken: string) =>
+    call(s, 'POST', '/api/auth/token', undefined, { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: 'trokky-cli' })
+  const reads = async (s: Site, token: string) => (await call(s, 'GET', '/api/collections/posts', token)).status
+  /** Rewrite a stored grant directly, as time passing would */
+  async function setGrant(s: Site, userId: string, grantId: string, fields: Record<string, unknown>) {
+    const stored = await s.core.getUser(userId)
+    const preferences = { ...(stored?.preferences ?? {}) } as Record<string, Record<string, Record<string, unknown>>>
+    preferences._oauth2Grants = { ...preferences._oauth2Grants, [grantId]: { ...preferences._oauth2Grants[grantId], ...fields } }
+    await s.core.updateUser(userId, { preferences } as never)
+  }
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString()
+
+  it('lists each approval, and revoking one ends its tokens at once', async () => {
+    const s = await site()
+    const { token: studio } = await user(s, 'admin40', 'admin')
+    const first = await signIn(s, studio)
+    const second = await signIn(s, studio)
+
+    const listed = await grants(s, studio)
+    expect(listed.map(g => g.id).sort()).toEqual([grantIdOf(first.access_token), grantIdOf(second.access_token)].sort())
+    expect(listed[0]).toMatchObject({ clientId: 'trokky-cli', clientName: 'Trokky CLI', scopes: ['content:read', 'offline_access'] })
+
+    expect((await call(s, 'DELETE', `/api/auth/grants/${grantIdOf(first.access_token)}`, studio)).status).toBe(200)
+
+    // The revoked approval's access token stops now, not in an hour, and cannot be renewed
+    expect(await reads(s, first.access_token)).toBe(401)
+    expect((await refresh(s, first.refresh_token)).status).toBe(400)
+    // The other approval is untouched
+    expect(await reads(s, second.access_token)).toBe(200)
+    expect((await grants(s, studio)).map(g => g.id)).toEqual([grantIdOf(second.access_token)])
+    expect((await call(s, 'DELETE', `/api/auth/grants/${grantIdOf(first.access_token)}`, studio)).status).toBe(404)
+  })
+
+  it('lets an application revoke its own access (RFC 7009), and only its own', async () => {
+    const s = await site()
+    const { token: studio } = await user(s, 'admin41', 'admin')
+    const tokens = await signIn(s, studio)
+    // Another client's name on the request revokes nothing
+    expect((await call(s, 'POST', '/api/auth/revoke', undefined, { token: tokens.refresh_token, client_id: 'trokky-mcp' })).status).toBe(200)
+    expect(await reads(s, tokens.access_token)).toBe(200)
+
+    expect((await call(s, 'POST', '/api/auth/revoke', undefined, { token: tokens.refresh_token, client_id: 'trokky-cli' })).status).toBe(200)
+    expect(await grants(s, studio)).toHaveLength(0)
+    expect(await reads(s, tokens.access_token)).toBe(401)
+    // Unknown and repeated revocations are not errors
+    expect((await call(s, 'POST', '/api/auth/revoke', undefined, { token: 'not-a-token' })).status).toBe(200)
+    expect((await call(s, 'POST', '/api/auth/revoke', undefined, { token: tokens.refresh_token })).status).toBe(200)
+  })
+
+  it('revokes with the access token too, and never through a Studio session', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin46', 'admin')
+    const tokens = await signIn(s, studio)
+    // A token of another type naming the grant (only the server could mint one) revokes nothing
+    const crypto = new WebCryptoAdapter({ pbkdf2Iterations: TEST_PBKDF2_ITERATIONS })
+    const otherType = await crypto.generateJWT({ sub: admin.id, type: 'access', grantId: grantIdOf(tokens.access_token) }, TEST_JWT_SECRET, { expiresIn: '5m' })
+    await call(s, 'POST', '/api/auth/revoke', undefined, { token: otherType })
+    expect(await reads(s, tokens.access_token)).toBe(200)
+
+    await call(s, 'POST', '/api/auth/revoke', undefined, { token: tokens.access_token })
+    expect(await reads(s, tokens.access_token)).toBe(401)
+    expect((await refresh(s, tokens.refresh_token)).status).toBe(400)
+  })
+
+  it('keeps applications away from the list, and a token must name a live grant of its own user', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin42', 'admin')
+    const tokens = await signIn(s, studio, 'profile content:read offline_access')
+    const grantId = grantIdOf(tokens.access_token)
+    expect((await call(s, 'GET', '/api/auth/grants', tokens.access_token)).status).toBe(403)
+    expect((await call(s, 'DELETE', `/api/auth/grants/${grantId}`, tokens.access_token)).status).toBe(403)
+    expect((await call(s, 'GET', '/api/admin/oauth-grants', tokens.access_token)).status).toBe(403)
+    expect((await call(s, 'DELETE', `/api/admin/users/${admin.id}/oauth-grants/${grantId}`, tokens.access_token)).status).toBe(403)
+    expect(await reads(s, tokens.access_token)).toBe(200)
+
+    const crypto = new WebCryptoAdapter({ pbkdf2Iterations: TEST_PBKDF2_ITERATIONS })
+    const forge = (claims: Record<string, unknown>) => crypto.generateJWT({ sub: admin.id, username: admin.username, type: 'oauth2_access', clientId: 'trokky-cli', scopes: ['content:read'], ...claims }, TEST_JWT_SECRET, { expiresIn: '5m' })
+    expect(await s.core.verifyAnyToken(await forge({}))).toBeNull()
+    // A name every object answers to is not a grant
+    expect(await s.core.verifyAnyToken(await forge({ grantId: 'constructor' }))).toBeNull()
+    expect((await call(s, 'DELETE', '/api/auth/grants/constructor', studio)).status).toBe(404)
+  })
+
+  it('lets nobody but the person and an admin take an application back', async () => {
+    const s = await site()
+    const { token: adminStudio } = await user(s, 'admin43', 'admin')
+    const { user: editor, token: editorStudio } = await user(s, 'editor43', 'editor')
+    const { token: otherStudio } = await user(s, 'editor47', 'editor')
+    const editorTokens = await signIn(s, editorStudio)
+    const grantId = grantIdOf(editorTokens.access_token)
+
+    // Another user: not found under their own account, refused on the admin routes
+    expect((await call(s, 'DELETE', `/api/auth/grants/${grantId}`, otherStudio)).status).toBe(404)
+    expect((await call(s, 'GET', '/api/admin/oauth-grants', otherStudio)).status).toBe(403)
+    expect((await call(s, 'DELETE', `/api/admin/users/${editor.id}/oauth-grants/${grantId}`, otherStudio)).status).toBe(403)
+    expect(await reads(s, editorTokens.access_token)).toBe(200)
+
+    const all = body<{ data: { grants: Array<{ id: string; userId: string; username: string }> } }>(await call(s, 'GET', '/api/admin/oauth-grants', adminStudio)).data.grants
+    expect(all.find(g => g.id === grantId)).toMatchObject({ userId: editor.id, username: 'editor43' })
+    expect((await call(s, 'DELETE', `/api/admin/users/${editor.id}/oauth-grants/${grantId}`, adminStudio)).status).toBe(200)
+    expect(await reads(s, editorTokens.access_token)).toBe(401)
+  })
+
+  it('keeps grants out of user records others read, and out of what clients write', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin48', 'admin')
+    const { token: reader } = await user(s, 'reader48', 'editor', ['content:read', 'users:read'])
+    const tokens = await signIn(s, studio)
+
+    const listedUsers = body<{ data: { users: Array<{ id: string; preferences?: Record<string, unknown> }> } }>(await call(s, 'GET', '/api/users', reader)).data.users
+    expect(listedUsers.length).toBeGreaterThan(0)
+    expect(JSON.stringify(listedUsers)).not.toContain('_oauth2')
+    expect(JSON.stringify(body(await call(s, 'GET', `/api/users/${admin.id}`, studio)))).not.toContain('_oauth2')
+
+    // An edit carrying preferences leaves the live grant alone, and cannot plant consents
+    const edited = await call(s, 'PUT', `/api/users/${admin.id}`, studio, { preferences: { theme: 'dark', _oauth2Consents: { evil: { scopes: ['content:write'] } } } })
+    expect(edited.status).toBe(200)
+    expect((await grants(s, studio)).map(g => g.id)).toEqual([grantIdOf(tokens.access_token)])
+    expect(await reads(s, tokens.access_token)).toBe(200)
+    const stored = (await s.core.getUser(admin.id))?.preferences as Record<string, Record<string, unknown>>
+    expect(stored.theme).toBe('dark')
+    expect(stored._oauth2Consents?.evil).toBeUndefined()
+
+    const created = await call(s, 'POST', '/api/users', studio, { username: 'planted', email: 'planted@example.com', password: 'TestPassword123!', role: 'editor', preferences: { _oauth2Grants: { 'grant-x': { id: 'grant-x' } } } })
+    expect(created.status).toBe(201)
+    const plantedId = body<{ data: { user: { id: string } } }>(created).data.user.id
+    expect(((await s.core.getUser(plantedId))?.preferences as Record<string, unknown> | undefined)?._oauth2Grants).toBeUndefined()
+  })
+
+  it('keeps a revocation when a stale copy of the user is written back', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin44', 'admin')
+    const tokens = await signIn(s, studio)
+    const stale = await s.core.getUser(admin.id)
+    await call(s, 'POST', '/api/auth/revoke', undefined, { token: tokens.refresh_token })
+
+    // Any writer that read the preferences before the revocation (a consent, MFA, a renewal)
+    await s.core.updateUser(admin.id, { preferences: { ...(stale?.preferences ?? {}), theme: 'dark' } } as never)
+    expect(Object.keys(((await s.core.getUser(admin.id))?.preferences as Record<string, object>)._oauth2Grants)).toHaveLength(1)
+    expect(await grants(s, studio)).toHaveLength(0)
+    expect(await reads(s, tokens.access_token)).toBe(401)
+    expect((await refresh(s, tokens.refresh_token)).status).toBe(400)
+  })
+
+  it('keeps every grant when several sign-ins finish at once', async () => {
+    const s = await site()
+    const { token: studio } = await user(s, 'admin49', 'admin')
+    const started = await Promise.all(Array.from({ length: 5 }, () => startDevice(s, 'content:read offline_access')))
+    for (const { user_code } of started) await approve(s, studio, user_code)
+    const issued = await Promise.all(started.map(({ device_code }) => poll(s, device_code)))
+    const tokens = issued.map(response => body<{ access_token: string }>(response).access_token)
+
+    expect(await grants(s, studio)).toHaveLength(5)
+    for (const token of tokens) expect(await reads(s, token)).toBe(200)
+  })
+
+  it('asks again after a revocation instead of approving silently', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin50', 'admin')
+    await s.core.saveUserConsent(admin.id, 'trokky-cli', ['content:read'])
+    const tokens = await signIn(s, studio)
+    expect((await s.core.getUserConsent(admin.id, 'trokky-cli', ['content:read'])).hasConsent).toBe(true)
+
+    await call(s, 'DELETE', `/api/auth/grants/${grantIdOf(tokens.access_token)}`, studio)
+    expect((await s.core.getUserConsent(admin.id, 'trokky-cli', ['content:read'])).hasConsent).toBe(false)
+  })
+
+  it('lets a grant lapse once no token of it can still be valid, and forgets it', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin51', 'admin')
+    const tokens = await signIn(s, studio)
+    const grantId = grantIdOf(tokens.access_token)
+    // Refresh tokens last 30 days; a grant unused for longer has none left
+    await setGrant(s, admin.id, grantId, { lastUsedAt: hoursAgo(32 * 24) })
+    expect(await grants(s, studio)).toHaveLength(0)
+    expect(await reads(s, tokens.access_token)).toBe(401)
+
+    // The next grant write drops it for good
+    await signIn(s, studio)
+    expect(Object.keys(((await s.core.getUser(admin.id))?.preferences as Record<string, object>)._oauth2Grants)).not.toContain(grantId)
+  })
+
+  it('records use at most twice a day, and a failure to record it does not end the session', async () => {
+    const s = await site()
+    const { user: admin, token: studio } = await user(s, 'admin45', 'admin')
+    const tokens = await signIn(s, studio)
+    const grantId = grantIdOf(tokens.access_token)
+    const recorded = async () => (await grants(s, studio))[0].lastUsedAt
+
+    // Just used: a renewal writes nothing
+    const first = await recorded()
+    const again = await refresh(s, tokens.refresh_token)
+    expect(again.status).toBe(200)
+    expect(await recorded()).toBe(first)
+
+    // Last recorded 13 hours ago: the renewal records it
+    await setGrant(s, admin.id, grantId, { lastUsedAt: hoursAgo(13) })
+    const renewed = await refresh(s, tokens.refresh_token)
+    expect(renewed.status).toBe(200)
+    expect(Date.now() - Date.parse((await recorded()) ?? '')).toBeLessThan(60_000)
+    expect(await reads(s, body<{ access_token: string }>(renewed).access_token)).toBe(200)
+
+    // The storage refusing the write does not sign the application out
+    await setGrant(s, admin.id, grantId, { lastUsedAt: hoursAgo(13) })
+    const saveUser = vi.spyOn(s.data, 'saveUser').mockRejectedValueOnce(new Error('disk full'))
+    const despite = await refresh(s, tokens.refresh_token)
+    saveUser.mockRestore()
+    expect(despite.status).toBe(200)
   })
 })
 

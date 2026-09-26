@@ -77,6 +77,11 @@ export class AuthRoutes extends BaseRoutes {
       ['POST', `${basePath}/admin/users/:userId/mfa/reset`, this.adminResetUserMFA.bind(this)],
       ['POST', `${basePath}/auth/device`, this.startDeviceAuthorization.bind(this)],
       ['GET', `${basePath}/.well-known/oauth-authorization-server`, this.getOAuth2Metadata.bind(this)],
+      ['POST', `${basePath}/auth/revoke`, this.revokeOAuth2Token.bind(this)],
+      ['GET', `${basePath}/auth/grants`, this.listOwnGrants.bind(this)],
+      ['DELETE', `${basePath}/auth/grants/:grantId`, this.revokeOwnGrant.bind(this)],
+      ['GET', `${basePath}/admin/oauth-grants`, this.listAllGrants.bind(this)],
+      ['DELETE', `${basePath}/admin/users/:userId/oauth-grants/:grantId`, this.revokeUserGrant.bind(this)],
       ['GET', `${basePath}/auth/device/verify`, this.getDeviceCodeInfo.bind(this)],
       ['POST', `${basePath}/auth/device/verify`, this.verifyDeviceCode.bind(this)],
       ['POST', `${basePath}/auth/token`, this.handleOAuth2TokenRequest.bind(this)],
@@ -620,6 +625,59 @@ export class AuthRoutes extends BaseRoutes {
    * POST /auth/device
    * No authentication required - called by CLI
    */
+  /**
+   * RFC 7009: an application ends its own access (the MCP server's remove_site, the CLI's
+   * logout). Holding the token is the authorisation; the answer is 200 whatever the token was.
+   */
+  private async revokeOAuth2Token(request: HttpRequest): Promise<HttpResponse> {
+    const body = (request.body ?? {}) as { token?: unknown; client_id?: unknown }
+    if (typeof body.token === 'string' && body.token) {
+      await this.core.revokeOAuth2Token(body.token, typeof body.client_id === 'string' ? body.client_id : undefined)
+        .catch(error => this.logger.warn('Token revocation failed', { error }))
+    }
+    return { status: 200, headers: this.buildCorsHeaders(), body: {} }
+  }
+
+  /** The applications the signed-in person has approved (Studio: Connected applications) */
+  private async listOwnGrants(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const userId = (request.user as { id: string }).id
+    return this.successResponse({ grants: await this.core.listOAuth2Grants(userId) })
+  }
+
+  private async revokeOwnGrant(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const userId = (request.user as { id: string }).id
+    if (!(await this.core.revokeOAuth2Grant(userId, request.params.grantId))) {
+      throw new Error('Grant not found')
+    }
+    return this.successResponse({ revoked: request.params.grantId })
+  }
+
+  /** Every user's approved applications, for an admin */
+  private async listAllGrants(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    await this.validateAdminAccess(request)
+    const users = await this.core.listUsers({ limit: 1000 })
+    const grants = []
+    for (const user of users) {
+      for (const grant of await this.core.listOAuth2Grants(user.id)) {
+        grants.push({ ...grant, userId: user.id, username: user.username })
+      }
+    }
+    grants.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return this.successResponse({ grants })
+  }
+
+  private async revokeUserGrant(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    await this.validateAdminAccess(request)
+    if (!(await this.core.revokeOAuth2Grant(request.params.userId, request.params.grantId))) {
+      throw new Error('Grant not found')
+    }
+    return this.successResponse({ revoked: request.params.grantId })
+  }
+
   /** RFC 8414 metadata: the endpoints and scopes a client can discover instead of hardcoding */
   private async getOAuth2Metadata(request: HttpRequest): Promise<HttpResponse> {
     const { getServerMetadata: handler } = await import('../auth/oauth2-server.js')

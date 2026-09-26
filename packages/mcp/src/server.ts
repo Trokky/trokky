@@ -213,12 +213,42 @@ function siteTools(server: McpServer, store: SiteStore, options: TrokkyMcpOption
 
   server.registerTool('remove_site', {
     title: 'Remove a site',
-    description: 'Forget a site and its sign-in on this machine: the Trokky CLI loses it too. Confirm with the user first.',
+    description: 'Forget a site and its sign-in: the sign-in is revoked on the site, and the site is removed from this machine (the Trokky CLI loses it too). Confirm with the user first.',
     inputSchema: { name: siteName },
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true }
   }, ({ name }) => answer(async () => {
-    if (!(await store.remove(name))) throw new Error(`No site named "${name}".`)
-    return { removed: name }
+    const site = await store.get(name)
+    if (!site) throw new Error(`No site named "${name}".`)
+    // Revoke on the site first (RFC 7009), so the approval disappears from its Studio too.
+    // The refresh token names the grant as well as the access token does, and outlives it; a
+    // site approved without offline_access has only the access token. Best effort: the site
+    // is removed here whatever the answer, since an unreachable site must not keep a site the
+    // person wants gone.
+    let revokedOnSite = false
+    let note: string | undefined
+    const token = site.refreshToken || site.token
+    if (site.authType === 'oauth2' && token) {
+      try {
+        const response = await fetchImpl(`${apiBaseOf(site.url)}/auth/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, client_id: site.clientId ?? 'trokky-cli' }),
+          signal: AbortSignal.timeout(10_000)
+        })
+        revokedOnSite = response.status === 200
+        if (!revokedOnSite) {
+          note = `The site did not accept the revocation (HTTP ${response.status}); revoke the access in its Studio under Account > Connected applications.`
+        }
+      } catch {
+        note = 'The site could not be reached to revoke the sign-in; revoke it in its Studio under Account > Connected applications.'
+      }
+    }
+    await store.remove(name)
+    return {
+      removed: name,
+      ...(site.authType === 'oauth2' ? { revokedOnSite } : {}),
+      ...(note ? { note } : {})
+    }
   }))
 }
 

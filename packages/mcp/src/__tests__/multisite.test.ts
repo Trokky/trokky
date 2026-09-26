@@ -217,8 +217,48 @@ describe('several sites through the device flow', () => {
   it('forgets a site', async () => {
     const client = await connect()
     await addSite(client, 'news.test:8080', 'read')
-    expect(await callJson(client, 'remove_site', { name: 'news-8080' })).toEqual({ removed: 'news-8080' })
+    const saved = (await store.get('news-8080'))!
+    const sent: Array<Record<string, unknown>> = []
+    const site = sites['news.test:8080']
+    const handler = site.handler
+    site.handler = async (request: Request): Promise<Response> => {
+      if (request.url.endsWith('/auth/revoke')) sent.push(await request.clone().json() as Record<string, unknown>)
+      return handler(request)
+    }
+    expect(await callJson(client, 'remove_site', { name: 'news-8080' })).toEqual({ removed: 'news-8080', revokedOnSite: true })
     expect(await callJson(client, 'list_sites')).toEqual([])
+    // The refresh token is what is revoked (it outlives the access token), under the MCP's own client
+    expect(sent).toEqual([{ token: saved.refreshToken, client_id: 'trokky-mcp' }])
+    // Revoked on the site as well: the approval is gone from its Studio, and the token is dead
+    const probe = await handler(new Request('http://news.test:8080/api/collections/posts', { headers: { Authorization: `Bearer ${saved.token}` } }))
+    expect(probe.status).toBe(401)
+  })
+
+  it('revokes the access token of a site signed in without a refresh token', async () => {
+    const client = await connect()
+    await addSite(client, 'news.test:8080', 'read')
+    const saved = (await store.get('news-8080'))!
+    await store.add('news-8080', { ...saved, refreshToken: undefined }, true, true)
+    expect(await callJson(client, 'remove_site', { name: 'news-8080' })).toEqual({ removed: 'news-8080', revokedOnSite: true })
+    const probe = await sites['news.test:8080'].handler(new Request('http://news.test:8080/api/collections/posts', { headers: { Authorization: `Bearer ${saved.token}` } }))
+    expect(probe.status).toBe(401)
+  })
+
+  it('still forgets a site that cannot be reached or refuses the revocation', async () => {
+    const client = await connect()
+    const oauth = { token: 'access', refreshToken: 'refresh', authType: 'oauth2' as const, clientId: 'trokky-mcp' }
+    await store.add('gone', { url: 'http://gone.test/api', ...oauth }, true)
+    const gone = await callJson<{ revokedOnSite: boolean; note?: string }>(client, 'remove_site', { name: 'gone' })
+    expect(gone.revokedOnSite).toBe(false)
+    expect(gone.note).toContain('could not be reached')
+
+    // A site from before revocation existed answers 404
+    sites['old.test'] = { ...sites['news.test:8080'], handler: async (): Promise<Response> => new Response('Not found', { status: 404 }) }
+    await store.add('old', { url: 'http://old.test/api', ...oauth }, true)
+    const old = await callJson<{ revokedOnSite: boolean; note?: string }>(client, 'remove_site', { name: 'old' })
+    expect(old.revokedOnSite).toBe(false)
+    expect(old.note).toContain('HTTP 404')
+    expect(Object.keys((await store.list()).sites)).toEqual([])
   })
 
   it('refuses an API path the shared config could not address', async () => {

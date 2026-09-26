@@ -1,4 +1,17 @@
 {
+  "connectedApps": {
+    "title": "Connected applications",
+    "description": "Applications you have authorized to use your account, such as the Trokky CLI or an AI agent. Revoking one signs it out at once.",
+    "none": "You have not connected any application.",
+    "noneAll": "No application holds access to this site.",
+    "connected": "Connected {{date}}",
+    "lastUsed": "last used {{date}}",
+    "revoke": "Revoke",
+    "revokeFor": "Revoke {{name}}",
+    "revokeConfirm": "Revoke access for {{name}}? It stops working at once.",
+    "loadFailed": "Could not load connected applications",
+    "revokeFailed": "Could not revoke access"
+  },
   "contentView": {
     "filters": "Filters",
     "sort": "Sort",

@@ -62,7 +62,24 @@ security routes and on administration (users, API tokens, webhooks, settings cha
 client trusted upgrades its outstanding tokens too. The built-in `trokky-cli` client cannot
 be made trusted. Default false.
 
+**Connected applications.** Each OAuth2 approval is now a grant the person can see and take
+back. Account settings lists the applications signed in as you (the CLI, an AI agent through
+the Trokky MCP server, a site's own tools) with their access and when they were last used,
+and **Revoke** ends every token the application holds at once. Admins see every user's under
+Users > Applications. `POST /auth/revoke` (RFC 7009, advertised in the server metadata) lets
+an application give its access back: `trokky logout` and the MCP server's `remove_site` do.
+New routes: `GET /auth/grants`, `DELETE /auth/grants/:id`, `GET /admin/oauth-grants`,
+`DELETE /admin/users/:userId/oauth-grants/:id`.
+
+**Changes made through an application say so.** A document's history reads "Updated by amen
+via Trokky MCP (AI agent)" instead of passing the agent's edits off as the person's own
+(`metadata.via` on the audit entry). Document Info shows contributors' names, not user ids.
+
 **Upgrading:**
+- OAuth2 tokens issued before this release belong to no grant and are refused. Everyone
+  signed in through an application signs in again once: `trokky login`, the agent's
+  `add_site`, and a site's own OAuth2 clients such as FUCEC's `jobs-admin`. API tokens and
+  Studio sessions are unaffected.
 - A site whose own application relies on OAuth2 tokens acting as the full user (for example
   calling `auth: 'admin'` custom routes) must mark that client `trusted: true`, or its calls
   will be refused. FUCEC's `jobs-admin` is one.
