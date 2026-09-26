@@ -1,5 +1,12 @@
 # @trokky/studio
 
+## 3.5.1
+
+### Patch Changes
+
+- Updated dependencies [e943953]
+  - @trokky/trokky@3.5.1
+
 ## 3.5.0
 
 ### Patch Changes
