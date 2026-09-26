@@ -67,11 +67,11 @@ const network = (input: string, init?: RequestInit): Promise<Response> => {
   return site.handler(new Request(input, init))
 }
 
-async function connect(readOnly = false): Promise<Client> {
+async function connect(readOnly = false, clientName = 'test'): Promise<Client> {
   const server = createTrokkyMcpServer({ store, fetch: network, loginWaitMs: 3000, readOnly })
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
-  const client = new Client({ name: 'test', version: '1.0.0' })
+  const client = new Client({ name: clientName, version: '1.0.0' })
   await client.connect(clientTransport)
   return client
 }
@@ -126,6 +126,11 @@ describe('several sites through the device flow', () => {
     // On the docs site the person unticks everything but reading
     const docs = await addSite(client, 'docs.test:9090', 'full', ['content:read', 'offline_access'])
     expect(docs.granted.sort()).toEqual(['content:read', 'offline_access'])
+
+    // The site's Studio names the agent and the machine, not "node"
+    const grants = await sites['news.test:8080'].handler(new Request('http://news.test:8080/api/auth/grants', { headers: { Authorization: `Bearer ${sites['news.test:8080'].studioToken}` } }))
+    const [grant] = ((await grants.json()) as { data: { grants: Array<{ userAgent?: string }> } }).data.grants
+    expect(grant.userAgent).toMatch(/^trokky-mcp\/\d+\.\d+\.\d+ \(test; [^;]+; [^)]+\)$/)
 
     const listed = await callJson<Array<{ name: string; default: boolean; signIn: string }>>(client, 'list_sites')
     expect(listed.map(s => [s.name, s.default])).toEqual([['news-8080', true], ['docs-9090', false]])
@@ -259,6 +264,28 @@ describe('several sites through the device flow', () => {
     expect(old.revokedOnSite).toBe(false)
     expect(old.note).toContain('HTTP 404')
     expect(Object.keys((await store.list()).sites)).toEqual([])
+  })
+
+  it('signs in whatever the agent calls itself, and names the machine only when signing in', async () => {
+    const seen: string[] = []
+    const recording = network
+    const client = await (async () => {
+      const server = createTrokkyMcpServer({ store, fetch: (input, init) => { seen.push(new Headers(init?.headers).get('user-agent') ?? ''); return recording(input, init) }, loginWaitMs: 3000 })
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      await server.connect(serverTransport)
+      const c = new Client({ name: 'Zed’s agent 🤖\r\nX-Evil: 1', version: '1.0.0' })
+      await c.connect(clientTransport)
+      return c
+    })()
+    await addSite(client, 'news.test:8080', 'read')
+    const signIn = seen[0]
+    expect(signIn).toMatch(/^trokky-mcp\/\S+ \(Zed\?s agent \?\?\?\?X-Evil: 1; /)
+    expect(signIn).toMatch(/^[\x20-\x7e]+$/)
+
+    seen.length = 0
+    await callJson(client, 'list_documents', { collection: 'posts' })
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatch(/^trokky-mcp\/[^ ]+$/)
   })
 
   it('refuses an API path the shared config could not address', async () => {

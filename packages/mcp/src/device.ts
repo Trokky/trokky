@@ -4,6 +4,7 @@
  * grant. No token is copied by hand.
  */
 
+import { userAgent as defaultUserAgent } from './api.js'
 import type { FetchLike } from './sites.js'
 
 export const MCP_CLIENT_ID = 'trokky-mcp'
@@ -29,6 +30,8 @@ export interface PendingLogin {
   verificationUrl: string
   intervalMs: number
   expiresAt: number
+  /** Sent with every request of the sign-in; the site records it with the grant */
+  userAgent: string
 }
 
 export type PollResult =
@@ -36,12 +39,12 @@ export type PollResult =
   | { status: 'approved'; token: string; refreshToken?: string; expiresIn?: number; scope?: string; clientId: string }
   | { status: 'failed'; reason: string }
 
-async function post(fetchImpl: FetchLike, url: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+async function post(fetchImpl: FetchLike, url: string, body: unknown, userAgent: string): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   let response: Response
   try {
     response = await fetchImpl(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
       body: JSON.stringify(body)
     })
   } catch (error) {
@@ -51,15 +54,15 @@ async function post(fetchImpl: FetchLike, url: string, body: unknown): Promise<{
   return { ok: response.ok, status: response.status, data }
 }
 
-export async function startLogin(apiUrl: string, access: AccessLevel, fetchImpl: FetchLike): Promise<PendingLogin> {
+export async function startLogin(apiUrl: string, access: AccessLevel, fetchImpl: FetchLike, userAgent = defaultUserAgent({})): Promise<PendingLogin> {
   const scope = ACCESS_LEVELS[access].join(' ')
   let clientId = MCP_CLIENT_ID
-  let result = await post(fetchImpl, `${apiUrl}/auth/device`, { client_id: clientId, scope })
+  let result = await post(fetchImpl, `${apiUrl}/auth/device`, { client_id: clientId, scope }, userAgent)
   // Only a server that has never heard of this client (before 3.5.2): one that knows it and
   // refuses it must not be worked around
   if (!result.ok && result.data.error === 'invalid_client' && result.data.error_description === 'Unknown client_id') {
     clientId = FALLBACK_CLIENT_ID
-    result = await post(fetchImpl, `${apiUrl}/auth/device`, { client_id: clientId, scope })
+    result = await post(fetchImpl, `${apiUrl}/auth/device`, { client_id: clientId, scope }, userAgent)
   }
   if (result.status === 501) {
     throw new Error('This site does not have sign-in for applications enabled (oauth2.enabled in its configuration). Use an API token with TROKKY_URL and TROKKY_TOKEN instead.')
@@ -75,7 +78,8 @@ export async function startLogin(apiUrl: string, access: AccessLevel, fetchImpl:
     userCode: data.user_code,
     verificationUrl: String(data.verification_uri_complete ?? data.verification_uri),
     intervalMs: Math.max(1, Number(data.interval) || 5) * 1000,
-    expiresAt: Date.now() + (Number(data.expires_in) || 600) * 1000
+    expiresAt: Date.now() + (Number(data.expires_in) || 600) * 1000,
+    userAgent
   }
 }
 
@@ -87,7 +91,7 @@ export async function pollLogin(login: PendingLogin, fetchImpl: FetchLike): Prom
     grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     device_code: login.deviceCode,
     client_id: login.clientId
-  })
+  }, login.userAgent)
   if (ok && typeof data.access_token === 'string') {
     return {
       status: 'approved',

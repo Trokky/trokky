@@ -30,7 +30,7 @@ describe('startLogin', () => {
 })
 
 describe('pollLogin', () => {
-  const login = (): PendingLogin => ({ apiUrl: 'https://x/api', clientId: 'trokky-mcp', deviceCode: 'd', userCode: 'c', verificationUrl: 'u', intervalMs: 1000, expiresAt: Date.now() + 60_000 })
+  const login = (): PendingLogin => ({ apiUrl: 'https://x/api', clientId: 'trokky-mcp', deviceCode: 'd', userCode: 'c', verificationUrl: 'u', intervalMs: 1000, expiresAt: Date.now() + 60_000, userAgent: 'trokky-mcp/test' })
 
   it('tells pending, slow down, denied and expired apart', async () => {
     expect(await pollLogin(login(), async () => reply({ error: 'authorization_pending' }, 400))).toEqual({ status: 'pending', slowDown: false })

@@ -13,6 +13,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { parse, stringify } from 'yaml'
+import { userAgent } from './api.js'
 
 /** One site, in the CLI's schema. Unknown fields would be dropped by the CLI on its next save. */
 export interface SiteRecord {
@@ -196,7 +197,7 @@ export class SiteStore {
       method: 'POST',
       // Held under the lock: bounded, so it cannot outlive the stale threshold
       signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent() },
       body: JSON.stringify({
         grant_type: 'refresh_token',
         refresh_token: site.refreshToken,

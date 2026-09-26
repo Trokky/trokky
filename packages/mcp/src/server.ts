@@ -1,8 +1,7 @@
-import { createRequire } from 'node:module'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { TrokkyApi, TrokkyApiError, resolveApiUrl, type FetchLike } from './api.js'
+import { SERVER_VERSION, TrokkyApi, TrokkyApiError, resolveApiUrl, userAgent, type FetchLike } from './api.js'
 import { ACCESS_LEVELS, pollLogin, siteNameFromUrl, startLogin, type AccessLevel, type PendingLogin } from './device.js'
 import { SiteStore, apiBaseOf, storableApiUrl } from './sites.js'
 import { FIELD_FORMATS, failure, json, registerTools, type SiteAccess } from './tools.js'
@@ -30,8 +29,7 @@ export interface TrokkyMcpOptions {
 }
 
 export const SERVER_NAME = 'trokky'
-// Read at runtime so a changeset version bump cannot leave a stale copy behind
-export const SERVER_VERSION: string = (createRequire(import.meta.url)('../package.json') as { version: string }).version
+export { SERVER_VERSION }
 
 const COMMON = `Start with list_collections to learn the content model, and read get_schema before writing to a collection.
 ${FIELD_FORMATS}
@@ -142,7 +140,8 @@ function siteTools(server: McpServer, store: SiteStore, options: TrokkyMcpOption
       throw new Error(`"${newName}" is ${existing.url}, not ${apiUrl}. replace only signs in again to the same site.`)
     }
     const level: AccessLevel = options.readOnly ? 'read' : (access ?? 'edit')
-    const login = await startLogin(apiUrl, level, fetchImpl)
+    // The sign-in is recorded with the agent's name: Studio lists it under Connected applications
+    const login = await startLogin(apiUrl, level, fetchImpl, userAgent({ agent: server.server.getClientVersion()?.name }))
     pending.set(newName, { ...login, replace: Boolean(replace) })
     const { protocol, hostname } = new URL(apiUrl)
     const plainHttp = protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(hostname)
@@ -231,7 +230,7 @@ function siteTools(server: McpServer, store: SiteStore, options: TrokkyMcpOption
       try {
         const response = await fetchImpl(`${apiBaseOf(site.url)}/auth/revoke`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'User-Agent': userAgent() },
           body: JSON.stringify({ token, client_id: site.clientId ?? 'trokky-cli' }),
           signal: AbortSignal.timeout(10_000)
         })
