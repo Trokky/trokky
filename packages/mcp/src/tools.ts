@@ -81,12 +81,12 @@ export function failure(error: unknown): CallToolResult {
   return { content: [{ type: 'text', text }], isError: true }
 }
 
-async function run(action: () => Promise<unknown>): Promise<CallToolResult> {
-  try {
-    return json(await action())
-  } catch (error) {
-    return failure(error)
-  }
+/**
+ * How a tool reaches a site: `use` runs the action against the named site's API (or the
+ * default site) with a live token, renewing it once if the site rejects it.
+ */
+export interface SiteAccess {
+  use<T>(site: string | undefined, action: (api: TrokkyApi) => Promise<T>): Promise<T>
 }
 
 /**
@@ -150,9 +150,19 @@ async function singletonIds(api: TrokkyApi): Promise<Map<string, string>> {
   return ids
 }
 
-export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOptions): void {
+const site = z.string().min(1).optional().describe('Which site, by the name list_sites shows. Default: the default site')
+
+export function registerTools(server: McpServer, sites: SiteAccess, options: ToolOptions): void {
+  const run = async (siteName: string | undefined, action: (api: TrokkyApi) => Promise<unknown>): Promise<CallToolResult> => {
+    try {
+      return json(await sites.use(siteName, action))
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
   // Best effort: an item whose id cannot form a URL is returned without one, not as an error
-  const withUrl = (item: unknown): unknown => {
+  const withUrl = (api: TrokkyApi, item: unknown): unknown => {
     const media = item as { id?: unknown } | null
     if (!media || typeof media !== 'object' || typeof media.id !== 'string') return item
     try {
@@ -165,9 +175,9 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
   server.registerTool('list_collections', {
     title: 'List collections',
     description: 'List the content collections on this Trokky site with their fields. Call this first: every other tool takes a collection name, and the fields tell you what a document holds. A singleton collection holds exactly one document, under `documentId`.',
-    inputSchema: {},
+    inputSchema: { site },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, () => run(async () => {
+  }, ({ site }) => run(site, async api => {
     // One request at a time: before 3.5.1, the filesystem adapter could fail concurrent
     // requests made with the same API token (both rewrite its usage record)
     const { data } = await api.get<{ collections: Schema[] }>('/collections')
@@ -191,15 +201,16 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
   server.registerTool('get_schema', {
     title: 'Get a collection schema',
     description: 'Full schema of one collection: every field with its type, validation, options, nested fields and reference targets. Read it before creating or updating documents in that collection.',
-    inputSchema: { collection },
+    inputSchema: { collection, site },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ collection }) => run(async () =>
+  }, ({ collection, site }) => run(site, async api =>
     (await api.get<{ schema: unknown }>(routePath('schemas', collection))).data?.schema))
 
   server.registerTool('list_documents', {
     title: 'List documents',
     description: 'List documents in a collection, one page at a time. `filter` matches top-level fields exactly (e.g. {"_status": "published", "category": "news"}); it does not do ranges or partial text. Use `search` for text.',
     inputSchema: {
+      site,
       collection,
       filter: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional()
         .describe('Exact-match conditions on top-level fields'),
@@ -209,7 +220,7 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
       expand
     },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ collection, filter, sort, limit, offset, expand }) => run(async () => {
+  }, ({ collection, filter, sort, limit, offset, expand, site }) => run(site, async api => {
     const pageSize = limit ?? DEFAULT_LIMIT
     const skip = offset ?? 0
     const { data } = await api.get<{ documents: unknown[]; pagination?: { total?: number } }>(routePath('collections', collection), {
@@ -234,26 +245,27 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
   server.registerTool('get_document', {
     title: 'Get a document',
     description: 'Get one document by collection and id. For a singleton, use its `documentId` from list_collections; reading it creates the document empty if it does not exist yet.',
-    inputSchema: { collection, id: documentId, expand },
+    inputSchema: { collection, id: documentId, expand, site },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ collection, id, expand }) => run(async () =>
+  }, ({ collection, id, expand, site }) => run(site, async api =>
     slim((await api.get<{ document: unknown }>(routePath('collections', collection, id), { expand })).data?.document)))
 
   server.registerTool('search', {
     title: 'Search content',
     description: 'Case-insensitive text search across the collections this token can read (titles, names, slugs and similar) and media file names. It only scans the first documents of each collection (about twice `limit`), so it can miss older content, and `total` counts only what it scanned: when you know the collection, page through list_documents instead.',
     inputSchema: {
+      site,
       query: z.string().min(2).describe('Text to look for, at least 2 characters'),
       limit
     },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ query, limit }) => run(async () => {
+  }, ({ query, limit, site }) => run(site, async api => {
     const { data } = await api.get<{ results?: Array<Record<string, unknown>>; total?: number }>('/search', { q: query, limit: limit ?? DEFAULT_LIMIT })
     return {
       // The server's `url` is a Studio route, useless to an agent; point media at its file
       results: (Array.isArray(data?.results) ? data.results : [])
         .filter(result => result && typeof result === 'object')
-        .map(({ url: _studioRoute, metadata: _metadata, ...result }) => result.type === 'media' ? withUrl(result) : result),
+        .map(({ url: _studioRoute, metadata: _metadata, ...result }) => result.type === 'media' ? withUrl(api, result) : result),
       total: data?.total
     }
   }))
@@ -261,19 +273,19 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
   server.registerTool('list_media', {
     title: 'List media',
     description: `List uploaded media (images, documents) with ids, file names, sizes and a public \`url\`. ${MEDIA_FORMAT}.`,
-    inputSchema: { limit, offset },
+    inputSchema: { limit, offset, site },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ limit, offset }) => run(async () => {
+  }, ({ limit, offset, site }) => run(site, async api => {
     const response = await api.get<unknown[]>('/media', { limit: limit ?? DEFAULT_LIMIT, offset: offset ?? 0 })
-    return { ...response.meta, media: (Array.isArray(response.data) ? response.data : []).map(withUrl) }
+    return { ...response.meta, media: (Array.isArray(response.data) ? response.data : []).map(item => withUrl(api, item)) }
   }))
 
   server.registerTool('get_media', {
     title: 'Get a media item',
     description: 'Get one media item\'s metadata by id: file name, type, size, dimensions, alt text and public `url`.',
-    inputSchema: { id: z.string().min(1).describe('Media id') },
+    inputSchema: { id: z.string().min(1).describe('Media id'), site },
     annotations: { readOnlyHint: true, openWorldHint: false }
-  }, ({ id }) => run(async () => withUrl((await api.get<{ file: unknown }>(routePath('media', id))).data?.file)))
+  }, ({ id, site }) => run(site, async api => withUrl(api, (await api.get<{ file: unknown }>(routePath('media', id))).data?.file)))
 
   if (options.readOnly) {
     return
@@ -287,12 +299,13 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
     title: 'Create a document',
     description: 'Create a document in a collection. It is saved as a draft unless `status` is "published", which needs publish permission. Read get_schema first. The server checks types and required fields but keeps unknown fields silently, so a misspelled field name is stored, not reported. A slug field left empty is generated from its source field (usually the title), and a duplicate gets a numeric suffix: check the returned slug. A singleton already has its one document: use update_document on it.',
     inputSchema: {
+      site,
       collection,
       data,
       status: z.enum(['draft', 'published']).optional().describe('Default "draft"')
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-  }, ({ collection, data, status }) => run(async () => {
+  }, ({ collection, data, status, site }) => run(site, async api => {
     const payload = status ? { ...data, _status: status } : data
     return slim((await api.post<{ document: unknown }>(routePath('collections', collection), { data: payload })).data?.document)
   }))
@@ -300,9 +313,9 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
   server.registerTool('update_document', {
     title: 'Update a document',
     description: 'Change fields of an existing document; fields you leave out are kept. The merge is top-level only: an array or object field you send replaces the whole stored value, so send it complete. The slug is not regenerated when the title changes; send `slug` to change it, knowing that changes the page\'s public URL. On a singleton this creates the document if needed. To publish or unpublish, use set_status.',
-    inputSchema: { collection, id: documentId, data },
+    inputSchema: { collection, id: documentId, data, site },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
-  }, ({ collection, id, data }) => run(async () => {
+  }, ({ collection, id, data, site }) => run(site, async api => {
     // Status changes go through set_status so that intent is explicit
     const fields = { ...data }
     delete fields._status
@@ -313,20 +326,21 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
     title: 'Publish or unpublish',
     description: 'Publish a document (it goes live on the site and webhooks fire) or return it to draft (it disappears from the site). Needs publish permission. Confirm with the user first.',
     inputSchema: {
+      site,
       collection,
       id: documentId,
       status: z.enum(['draft', 'published'])
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
-  }, ({ collection, id, status }) => run(async () =>
+  }, ({ collection, id, status, site }) => run(site, async api =>
     slim((await api.put<{ document: unknown }>(routePath('collections', collection, id), { data: { _status: status } })).data?.document)))
 
   server.registerTool('delete_document', {
     title: 'Delete a document',
     description: 'Permanently delete a document. There is no trash: confirm with the user first.',
-    inputSchema: { collection, id: documentId },
+    inputSchema: { collection, id: documentId, site },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
-  }, ({ collection, id }) => run(async () => {
+  }, ({ collection, id, site }) => run(site, async api => {
     await api.delete(routePath('collections', collection, id))
     return { deleted: true, collection, id }
   }))
@@ -339,11 +353,12 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
     title: 'Upload a media file',
     description: `Upload a local file to the media library and get back its id and public \`url\`. Uploaded files are publicly reachable by anyone with the URL. Only files under these directories can be uploaded: ${options.uploadRoots.join(', ')}. Supported extensions: ${Object.keys(MIME_TYPES).join(' ')}. ${MEDIA_FORMAT}.`,
     inputSchema: {
+      site,
       path: z.string().min(1).describe('Path to the file, absolute or relative to the first upload directory'),
       filename: z.string().optional().describe('Name to store it under, with the same extension as the file; defaults to the file\'s own name')
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-  }, ({ path: filePath, filename }) => run(async () => {
+  }, ({ path: filePath, filename, site }) => run(site, async api => {
     const resolved = await resolveUploadPath(filePath, options.uploadRoots)
     // The type comes from the file on disk. A rename may not change it, or `.env` could
     // be published as `notes.txt`.
@@ -365,7 +380,7 @@ export function registerTools(server: McpServer, api: TrokkyApi, options: ToolOp
     const form = new FormData()
     form.append('file', new Blob([await readFile(resolved)], { type }), filename ?? path.basename(resolved))
     const response = await api.upload<{ files: unknown[] }>('/media/upload', form)
-    return withUrl(response.data?.files?.[0])
+    return withUrl(api, response.data?.files?.[0])
   }))
 }
 

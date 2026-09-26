@@ -21,7 +21,7 @@ import type {
   BUILTIN_CLI_CLIENT
 } from '../../types/oauth2.js'
 import type { User, Permission } from '../../types/user.js'
-import { SCOPE_TO_PERMISSIONS, ALL_OAUTH2_SCOPES, BUILTIN_CLI_CLIENT as CLI_CLIENT } from '../../types/oauth2.js'
+import { SCOPE_TO_PERMISSIONS, ALL_OAUTH2_SCOPES, BUILTIN_CLIENTS } from '../../types/oauth2.js'
 import type { AuthFlowState } from '../../types/storage-adapters.js'
 import {
   saveAuthFlowState,
@@ -153,11 +153,9 @@ export class OAuth2AuthorizationServer {
    */
   private registerBuiltInClient(): void {
     const now = new Date().toISOString()
-    this.clients.set(CLI_CLIENT.id, {
-      ...CLI_CLIENT,
-      createdAt: now,
-      updatedAt: now
-    })
+    for (const client of BUILTIN_CLIENTS) {
+      this.clients.set(client.id, { ...client, createdAt: now, updatedAt: now })
+    }
   }
 
   /**
@@ -177,7 +175,7 @@ export class OAuth2AuthorizationServer {
         grantTypes: (clientConfig.grantTypes || ['authorization_code', 'refresh_token']) as OAuth2GrantType[],
         // Never the CLI: a config entry may override the built-in client (a site narrowing its
         // scopes does), but making every CLI login act as the full user must not be one line away
-        trusted: clientConfig.trusted === true && clientConfig.id !== CLI_CLIENT.id,
+        trusted: clientConfig.trusted === true && !BUILTIN_CLIENTS.some(builtIn => builtIn.id === clientConfig.id),
         isActive: true,
         createdAt: now,
         updatedAt: now

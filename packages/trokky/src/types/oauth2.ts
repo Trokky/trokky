@@ -389,3 +389,23 @@ export const BUILTIN_CLI_CLIENT: Omit<OAuth2Client, 'createdAt' | 'updatedAt'> =
   isActive: true,
   isBuiltIn: true
 }
+
+/**
+ * Built-in client for the Trokky MCP server (@trokky/mcp). Separate from the CLI so the
+ * consent screen tells the person it is an AI agent asking, and so its tokens can be told
+ * apart. Never trusted: an agent holds exactly the scopes the person approved.
+ */
+export const BUILTIN_MCP_CLIENT: Omit<OAuth2Client, 'createdAt' | 'updatedAt'> = {
+  id: 'trokky-mcp',
+  name: 'Trokky MCP (AI agent)',
+  description: 'An AI agent working on this site through the Trokky MCP server',
+  type: 'public',
+  redirectUris: [],
+  allowedScopes: [...ALL_OAUTH2_SCOPES],
+  grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+  isActive: true,
+  isBuiltIn: true
+}
+
+/** Clients every server knows without configuration; config cannot make them trusted */
+export const BUILTIN_CLIENTS = [BUILTIN_CLI_CLIENT, BUILTIN_MCP_CLIENT]
