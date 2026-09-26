@@ -151,6 +151,21 @@ async function packumentWithRetry(name, attempts = 6) {
   throw new Error(`Registry unreadable for ${name} after ${attempts} attempts (last: ${last}).`)
 }
 
+/**
+ * Whether npm serves the version's tarball. After a first publish the tarball can be served for
+ * a long time while the package document still answers 404 — seen with @trokky/mcp@3.5.1 — so
+ * the document alone would call a published version unpublished and try to publish it again.
+ */
+async function tarballExists(pkg) {
+  const file = `${pkg.name.split('/').pop()}-${pkg.version}.tgz`
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${pkg.name}/-/${file}`, { method: 'HEAD' })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
 async function waitUntilReadable(pkg, outcome) {
   const deadline = Date.now() + POLL_TIMEOUT_MS
   for (;;) {
@@ -183,7 +198,7 @@ function publish(pkg) {
   }
   if (result.status === 0) return 'published'
   if (ALREADY_THERE.test(output)) return 'already-there'
-  throw new Error(`npm publish failed for ${pkg.name}@${pkg.version} (exit ${result.status}). Stopping: the packages after it in the order above were not published.`)
+  throw new Error(`npm publish failed for ${pkg.name}@${pkg.version} (exit ${result.status}).`)
 }
 
 async function main() {
@@ -199,6 +214,11 @@ async function main() {
       plan.push({ pkg, action: 'skip' })
       continue
     }
+    if (await tarballExists(pkg)) {
+      // Published, but its document lags: dependents must wait until it can be installed
+      plan.push({ pkg, action: 'skip', lagging: true })
+      continue
+    }
     // npm points `latest` at whatever was just published. Publishing a version older than the
     // current latest — a revert, a re-run on an old commit — would demote every user.
     const latest = document?.['dist-tags']?.latest
@@ -208,23 +228,72 @@ async function main() {
     plan.push({ pkg, action: 'publish' })
   }
 
+  // A failure stops only what depends on the failed package; the rest still go out, and the
+  // run still ends red. One independent package failing must not hold back the others.
   let published = 0
-  for (const { pkg, action } of plan) {
+  const failed = new Map()
+  // Not installable from the registry: failed, or depending on something that is not
+  const unavailable = new Set()
+
+  // A version whose document lags cannot be installed yet. Wait for all of them once, up
+  // front, so nothing that depends on one — directly or through another package — goes out
+  // before it can be installed.
+  if (!DRY_RUN) {
+    for (const { pkg } of plan.filter(step => step.lagging)) {
+      try {
+        await waitUntilReadable(pkg, 'published')
+      } catch (error) {
+        failed.set(pkg.name, error instanceof Error ? error.message : String(error))
+        unavailable.add(pkg.name)
+      }
+    }
+  }
+
+  for (const { pkg, action, lagging } of plan) {
+    const blockedBy = pkg.internal.filter(name => unavailable.has(name))
     if (action === 'skip') {
-      console.log(`${pkg.name}@${pkg.version} is already on the registry; skipping.`)
-      // A run that failed after publishing left no tag or release; this one supplies them
-      if (!tagExists(`${pkg.name}@${pkg.version}`)) announce(pkg)
+      if (!failed.has(pkg.name)) {
+        console.log(`${pkg.name}@${pkg.version} is already on the registry${lagging ? ' (tarball served before its package document)' : ''}; skipping.`)
+        // A run that failed after publishing left no tag or release; this one supplies them
+        if (!tagExists(`${pkg.name}@${pkg.version}`)) announce(pkg)
+      }
+      // Live, but only as installable as its dependencies
+      if (blockedBy.length > 0) unavailable.add(pkg.name)
       continue
     }
-    console.log(`Publishing ${pkg.name}@${pkg.version}...`)
-    const outcome = publish(pkg)
-    if (!DRY_RUN) await waitUntilReadable(pkg, outcome)
-    announce(pkg)
-    published++
+    if (blockedBy.length > 0) {
+      failed.set(pkg.name, `not attempted: depends on ${blockedBy.join(', ')}, which cannot be installed from the registry`)
+      unavailable.add(pkg.name)
+      continue
+    }
+    try {
+      console.log(`Publishing ${pkg.name}@${pkg.version}...`)
+      const outcome = publish(pkg)
+      published++
+      if (!DRY_RUN) {
+        try {
+          await waitUntilReadable(pkg, outcome)
+        } catch (error) {
+          throw new Error(`published, but not confirmed readable, so its dependents were held back. ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+      announce(pkg)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`${pkg.name}: ${message}`)
+      failed.set(pkg.name, message)
+      unavailable.add(pkg.name)
+    }
   }
 
   const verb = DRY_RUN ? 'Would publish' : 'Published'
   console.log(published === 0 ? 'Nothing to publish.' : `${verb} ${published} package(s).`)
+  if (failed.size > 0) {
+    throw new Error(
+      `Not released:\n${[...failed].map(([name, reason]) => `  ${name}: ${reason}`).join('\n')}\n` +
+      'Re-run the workflow once the cause is fixed: versions already on the registry are skipped.'
+    )
+  }
 }
 
 main().catch(error => {
