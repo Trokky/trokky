@@ -82,6 +82,12 @@ export interface OAuth2ClientConfig {
   allowedScopes?: string[]
   /** Allowed grant types (default: authorization_code, refresh_token) */
   grantTypes?: string[]
+  /**
+   * First-party application: its tokens act as the signed-in user with the user's own role
+   * and permissions, whatever scopes they carry. Still barred from account and security
+   * routes. Default false.
+   */
+  trusted?: boolean
 }
 
 /**
@@ -169,6 +175,9 @@ export class OAuth2AuthorizationServer {
         redirectUris: clientConfig.redirectUris,
         allowedScopes: (clientConfig.allowedScopes || [...ALL_OAUTH2_SCOPES]) as OAuth2Scope[],
         grantTypes: (clientConfig.grantTypes || ['authorization_code', 'refresh_token']) as OAuth2GrantType[],
+        // Never the CLI: a config entry may override the built-in client (a site narrowing its
+        // scopes does), but making every CLI login act as the full user must not be one line away
+        trusted: clientConfig.trusted === true && clientConfig.id !== CLI_CLIENT.id,
         isActive: true,
         createdAt: now,
         updatedAt: now

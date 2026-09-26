@@ -17,11 +17,14 @@ export class AuthRoutes extends BaseRoutes {
    */
   protected async validateAuthentication(request: HttpRequest): Promise<void> {
     await super.validateAuthentication(request)
-    const scopes = (request.user as { scopes?: string[] } | undefined)?.scopes
-    if (!scopes) {
+    const caller = request.user as { scopes?: string[]; clientId?: string } | undefined
+    // Any OAuth2 token, scoped or from a trusted client, is an application's credential
+    if (!caller?.clientId) {
       return
     }
-    if (request.method === 'GET' && request.path.endsWith('/auth/me') && scopes.includes('profile')) {
+    // Reading the profile: with the profile scope, or always for a trusted client
+    const mayReadProfile = !caller.scopes || caller.scopes.includes('profile')
+    if (request.method === 'GET' && request.path.endsWith('/auth/me') && mayReadProfile) {
       return
     }
     // Forget who this is before refusing: a handler that swallows authentication errors (the
@@ -249,8 +252,9 @@ export class AuthRoutes extends BaseRoutes {
         throw new Error('User not found in database')
       }
       
-      // An application acting for the user gets who they are, nothing about how they sign in
-      if (sessionUser.scopes) {
+      // An application acting for the user, trusted or not, gets who they are and nothing
+      // about how they sign in
+      if (sessionUser.clientId) {
         const { id, username, email, firstName, lastName, role } = fullUser
         return this.successResponse({ id, username, email, firstName, lastName, role })
       }

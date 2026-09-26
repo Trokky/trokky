@@ -4,6 +4,7 @@
  * authorization codes live in the data adapter's store, so a flow survives changing process.
  */
 
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -513,6 +514,79 @@ describe('linking a Google account', () => {
     } finally {
       restore()
     }
+  })
+})
+
+describe('trusted clients', () => {
+  const verifier = 'v'.repeat(64)
+  const challenge = createHash('sha256').update(verifier).digest('base64url')
+  const redirect = 'https://hr.example.com/callback'
+
+  /** The jobs-admin flow: authorization code with PKCE, `openid profile offline_access` */
+  async function signIn(s: Site, studioToken: string, clientId: string): Promise<string> {
+    const approved = await call(s, 'POST', '/api/auth/authorize', studioToken, {
+      action: 'approve', client_id: clientId, redirect_uri: redirect,
+      scopes: ['openid', 'profile', 'offline_access'], state: 'state-123', code_challenge: challenge
+    })
+    expect(approved.status).toBe(200)
+    const code = new URL(body<{ data: { redirectUrl: string } }>(approved).data.redirectUrl).searchParams.get('code')
+    const tokens = await call(s, 'POST', '/api/auth/token', undefined, {
+      grant_type: 'authorization_code', client_id: clientId, code, redirect_uri: redirect, code_verifier: verifier
+    })
+    expect(tokens.status).toBe(200)
+    return body<{ access_token: string }>(tokens).access_token
+  }
+
+  it('acts as the user for a trusted client, and holds only its scopes otherwise', async () => {
+    const s = await site(dir, { clients: [
+      { id: 'jobs-admin', name: 'Jobs admin', redirectUris: [redirect], trusted: true },
+      { id: 'other-app', name: 'Other app', redirectUris: [redirect] }
+    ] })
+    const { token: studio } = await user(s, 'admin30', 'admin')
+
+    const trusted = await signIn(s, studio, 'jobs-admin')
+    const session = await s.core.verifyAnyToken(trusted)
+    // What a site's `auth: 'admin'` custom route checks
+    expect(session?.role).toBe('admin')
+    expect((await call(s, 'POST', '/api/collections/posts', trusted, { data: { title: 'hr' } })).status).toBe(201)
+
+    const other = await signIn(s, studio, 'other-app')
+    expect((await s.core.verifyAnyToken(other))?.role).toBe('api')
+    expect((await call(s, 'GET', '/api/users', other)).status).not.toBe(200)
+  })
+
+  it('keeps a trusted client out of account security and administration, and lets it read the profile', async () => {
+    const s = await site(dir, { clients: [{ id: 'jobs-admin', name: 'Jobs admin', redirectUris: [redirect], trusted: true }] })
+    const { user: admin, token: studio } = await user(s, 'admin31', 'admin')
+    const trusted = await signIn(s, studio, 'jobs-admin')
+
+    const me = await call(s, 'GET', '/api/auth/me', trusted)
+    expect(me.status).toBe(200)
+    const profile = body<{ data: Record<string, unknown> }>(me).data
+    expect(profile).toMatchObject({ id: admin.id, role: 'admin' })
+    expect(profile.mfa).toBeUndefined()
+    expect(profile.permissions).toBeUndefined()
+
+    // A stolen application token must not be able to take the account or outlive the grant
+    expect((await call(s, 'PUT', `/api/users/${admin.id}`, trusted, { mfa: { enabled: false, methods: [] }, email: 'attacker@example.com' })).status).toBe(403)
+    expect((await call(s, 'POST', '/api/users', trusted, { username: 'x', email: 'x@example.com', password: 'TestPassword123!', role: 'admin' })).status).toBe(403)
+    expect((await call(s, 'GET', '/api/users', trusted)).status).toBe(403)
+    expect((await call(s, 'POST', '/api/tokens', trusted, { name: 'forever', permissions: ['content:read'] })).status).toBe(403)
+    expect((await call(s, 'GET', '/api/tokens', trusted)).status).toBe(403)
+    expect((await call(s, 'GET', '/api/webhooks', trusted)).status).toBe(403)
+    expect((await call(s, 'PUT', '/api/config/settings', trusted, { settings: { siteName: 'x' } })).status).toBe(403)
+    expect((await s.core.getUser(admin.id))?.email).toBe(`${admin.username}@example.com`)
+    expect((await call(s, 'POST', '/api/auth/passkey/register/options', trusted, {})).status).toBe(403)
+    expect((await call(s, 'POST', '/api/auth/refresh', undefined, { refreshToken: trusted })).status).not.toBe(200)
+  })
+})
+
+describe('built-in client', () => {
+  it('cannot be made trusted through config', async () => {
+    const s = await site(dir, { clients: [{ id: 'trokky-cli', name: 'CLI', redirectUris: [], trusted: true, grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'] }] })
+    const { token: studio } = await user(s, 'admin32', 'admin')
+    const token = await deviceToken(s, studio, ['content:read'])
+    expect((await s.core.verifyAnyToken(token))?.role).toBe('api')
   })
 })
 

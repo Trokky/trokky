@@ -331,6 +331,7 @@ export class TrokkyCore {
           }
         : undefined,
       validateAppToken: (token) => this.validateAppToken(token),
+      isTrustedOAuth2Client: (clientId) => this.oauth2Server?.getClient(clientId)?.trusted === true,
       logAuditEvent: (event) => this.logAuditEvent(event),
       checkMFARequired: (userId) => this.mfaService.checkMFARequired(userId),
       isDeviceTrusted: (userId, deviceId) => this.trustedDeviceService.isDeviceTrusted(userId, deviceId),

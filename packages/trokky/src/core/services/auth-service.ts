@@ -31,6 +31,8 @@ export interface AuthServiceDependencies {
     condition: { passwordHash: string }
   ) => Promise<User | null>
   validateAppToken: (token: string) => Promise<{ valid: boolean; appToken?: AppToken; error?: string }>
+  /** Whether an OAuth2 client is configured as trusted (first-party) */
+  isTrustedOAuth2Client?: (clientId: string) => boolean
   logAuditEvent: (event: AuditEvent) => void
   checkMFARequired: (userId: string) => Promise<MFARequirement>
   isDeviceTrusted: (userId: string, deviceId: string) => Promise<boolean>
@@ -160,6 +162,21 @@ export class AuthService {
       }
 
       if (scopes) {
+        const clientId = typeof decoded.clientId === 'string' ? decoded.clientId : undefined
+        // A trusted (first-party) client acts as the user outright. Its session carries the
+        // client id and no scopes: routes treat it as the user, the account routes still
+        // refuse it because it is an OAuth2 token.
+        if (clientId && this.deps.isTrustedOAuth2Client?.(clientId)) {
+          return {
+            userId,
+            username,
+            role: currentUser.role,
+            permissions: currentUser.permissions,
+            loginAt,
+            expiresAt,
+            clientId
+          }
+        }
         // Acts for the user, holds only what the user granted, and is never an admin: the
         // `api` role routes every check through `permissions` alone.
         return {
@@ -170,7 +187,7 @@ export class AuthService {
           loginAt,
           expiresAt,
           scopes,
-          clientId: typeof decoded.clientId === 'string' ? decoded.clientId : undefined
+          clientId
         }
       }
 
@@ -682,7 +699,7 @@ export class AuthService {
       const session = await this.verifyAuthToken(refreshToken)
       // Only a Studio session renews into a Studio session. An OAuth2 access token must not:
       // that would turn a scoped grant into the user's full rights.
-      if (!session || session.scopes) {
+      if (!session || session.clientId) {
         return null
       }
 

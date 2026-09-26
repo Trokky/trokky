@@ -50,6 +50,8 @@ export interface OAuth2Client {
   isActive: boolean
   /** Whether this is a built-in client (e.g., CLI) */
   isBuiltIn?: boolean
+  /** First-party client whose tokens act as the user rather than holding only their scopes */
+  trusted?: boolean
   /** User ID who registered this client */
   createdBy?: string
   /** Logo URL for consent screen */

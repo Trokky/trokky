@@ -53,5 +53,20 @@ scope listed.
 error handling (23 account routes) threw, which reached clients as a 500 on Workers. Every
 handler's errors are now mapped to 401/403/400.
 
-**Upgrading:** CLI logins made before this release requested neither publish nor media
-delete. Run `trokky login` again for `restore` and `clean`.
+**Trusted clients.** A client in `oauth2.clients` can be marked `trusted: true`: an
+organisation's own application built on Trokky sign-in. Its tokens act as the signed-in user
+with the user's own role and permissions, whatever scopes they carry, so they pass
+`auth: 'admin'` custom routes. Like every OAuth2 token they are refused on account and
+security routes and on administration (users, API tokens, webhooks, settings changes), and
+`/auth/me` gives them a minimal profile. Trust is checked when a token is used: marking a
+client trusted upgrades its outstanding tokens too. The built-in `trokky-cli` client cannot
+be made trusted. Default false.
+
+**Upgrading:**
+- A site whose own application relies on OAuth2 tokens acting as the full user (for example
+  calling `auth: 'admin'` custom routes) must mark that client `trusted: true`, or its calls
+  will be refused. FUCEC's `jobs-admin` is one.
+- A site that restricts the built-in `trokky-cli` client's `allowedScopes` must allow
+  `content:publish` and `media:delete` for the CLI's `restore` and `clean`.
+- CLI logins made before this release requested neither publish nor media delete. Update
+  the CLI, then run `trokky login` again, for `restore` and `clean`.

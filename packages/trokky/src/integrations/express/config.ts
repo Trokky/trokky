@@ -676,6 +676,13 @@ export interface TrokkyConfig {
       allowedScopes?: string[]
       /** Allowed grant types */
       grantTypes?: string[]
+      /**
+       * First-party application: its tokens act as the signed-in user with the user's own
+       * role and permissions, whatever scopes they carry. For an organisation's own admin
+       * tools built on Trokky sign-in. Still barred from account and security routes.
+       * Default false: tokens hold only their scopes.
+       */
+      trusted?: boolean
     }>
   }
   /** Features configuration */

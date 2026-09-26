@@ -24,7 +24,7 @@ export class TokenRoutes extends BaseRoutes {
   // Token Management Routes
   private async listTokens(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.requirePermission(request, 'tokens:read')
+      this.refuseApplicationSession(await this.requirePermission(request, 'tokens:read'))
 
       const { limit, offset, isActive } = request.query
       const options: any = {}
@@ -42,6 +42,7 @@ export class TokenRoutes extends BaseRoutes {
   private async createToken(request: HttpRequest): Promise<HttpResponse> {
     try {
       const session = await this.requirePermission(request, 'tokens:write')
+      this.refuseApplicationSession(session)
 
       if (!request.body || typeof request.body !== 'object') {
         return this.errorResponse(new InvalidInputError('Token data is required'))
@@ -109,7 +110,7 @@ export class TokenRoutes extends BaseRoutes {
 
   private async getToken(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.requirePermission(request, 'tokens:read')
+      this.refuseApplicationSession(await this.requirePermission(request, 'tokens:read'))
 
       const { id } = request.params
       if (!id) {
@@ -125,7 +126,7 @@ export class TokenRoutes extends BaseRoutes {
 
   private async updateToken(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.requirePermission(request, 'tokens:write')
+      this.refuseApplicationSession(await this.requirePermission(request, 'tokens:write'))
 
       const { id } = request.params
       if (!id) {
@@ -147,7 +148,7 @@ export class TokenRoutes extends BaseRoutes {
 
   private async deleteToken(request: HttpRequest): Promise<HttpResponse> {
     try {
-      await this.requirePermission(request, 'tokens:delete')
+      this.refuseApplicationSession(await this.requirePermission(request, 'tokens:delete'))
 
       const { id } = request.params
       if (!id) {
