@@ -5,25 +5,24 @@
 
 import type { HttpClient } from '../http/client.js';
 import type { MediaHelper } from '../media/helper.js';
-import type { MediaUrlResolver } from './types.js';
-import { resolveShortcodes, hasShortcodes, extractImageShortcodes } from './parser.js';
+import type { MediaUrlResolver, RichTextNode, RichTextValue } from './types.js';
+import { resolveShortcodes, hasShortcodes, extractImageShortcodes, resolveProseMirrorShortcodes, rebaseStoredMediaUrls } from './parser.js';
 
 /**
  * Create a media URL resolver from TrokkyClient's MediaHelper
  */
 export function createMediaUrlResolver(
   http: HttpClient,
-  mediaHelper?: MediaHelper
+  mediaHelper?: MediaHelper,
+  mediaBaseUrl?: string
 ): MediaUrlResolver {
   return {
     getMediaUrl: (mediaId: string, variant?: string) => {
-      const baseUrl = http.getBaseUrl();
-      
+      const base = mediaBaseUrl !== undefined ? mediaBaseUrl.replace(/\/+$/, '') : `${http.getBaseUrl()}/media`;
       if (!variant || variant === 'original') {
-        return `${baseUrl}/media/${mediaId}/file`;
+        return `${base}/${mediaId}/file`;
       }
-      
-      return `${baseUrl}/media/${mediaId}/variants/${variant}`;
+      return `${base}/${mediaId}/variants/${variant}`;
     }
   };
 }
@@ -36,9 +35,10 @@ export class ShortcodeResolver {
   
   constructor(
     private http: HttpClient,
-    private mediaHelper?: MediaHelper
+    private mediaHelper?: MediaHelper,
+    private mediaBaseUrl?: string
   ) {
-    this.mediaUrlResolver = createMediaUrlResolver(http, mediaHelper);
+    this.mediaUrlResolver = createMediaUrlResolver(http, mediaHelper, mediaBaseUrl);
   }
 
   /**
@@ -53,12 +53,26 @@ export class ShortcodeResolver {
    * const htmlContent = resolver.resolveContent(rawContent);
    * ```
    */
-  resolveContent(content: string): string {
-    if (!hasShortcodes(content)) {
-      return content; // Fast path if no shortcodes
+  resolveContent(content: string | null | undefined, options?: { mediaBaseUrl?: string }): string;
+  resolveContent(content: RichTextNode, options?: { mediaBaseUrl?: string }): RichTextNode;
+  resolveContent(content: RichTextValue | null | undefined, options?: { mediaBaseUrl?: string }): RichTextValue;
+  resolveContent(content: RichTextValue | null | undefined, options?: { mediaBaseUrl?: string }): RichTextValue {
+    if (content === null || content === undefined) return '';
+    const mediaBaseUrl = options?.mediaBaseUrl ?? this.mediaBaseUrl;
+    const resolver = options?.mediaBaseUrl !== undefined
+      ? createMediaUrlResolver(this.http, this.mediaHelper, options.mediaBaseUrl)
+      : this.mediaUrlResolver;
+    if (typeof content !== 'string') {
+      return resolveProseMirrorShortcodes(content, resolver);
     }
-    
-    return resolveShortcodes(content, this.mediaUrlResolver);
+    // Stored images keep the path they were saved with, which works on the CMS's own origin.
+    // With a media base they are rebuilt from their media id, so where the API was when the
+    // content was saved stops mattering.
+    const rebased = mediaBaseUrl !== undefined
+      ? rebaseStoredMediaUrls(content, resolver, this.http.getBaseUrl())
+      : content;
+    // Placeholders written by earlier Studio versions
+    return hasShortcodes(rebased) ? resolveShortcodes(rebased, resolver) : rebased;
   }
 
   /**

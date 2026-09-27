@@ -16,3 +16,13 @@ export interface TrokkyImageShortcode {
 export interface MediaUrlResolver {
   getMediaUrl: (mediaId: string, variant?: string) => string;
 }
+/** A node of rich text stored as ProseMirror (TipTap) JSON, as far as resolving needs it */
+export interface RichTextNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: RichTextNode[];
+  [key: string]: unknown;
+}
+
+/** Rich text as a field stores it: HTML or Markdown text, or a ProseMirror document */
+export type RichTextValue = string | RichTextNode;

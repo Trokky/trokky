@@ -10,8 +10,13 @@ import type { MediaFieldValue } from '@trokky/trokky/types'
 export interface ImageUrlBuilderOptions {
   /** Base URL for media API */
   baseUrl: string
-  /** Use proxy path instead of direct API URL */
+  /**
+   * Legacy proxy mode: named variants become width parameters on `/file`. Prefer
+   * `mediaBaseUrl`, which keeps real variant URLs.
+   */
   proxyPath?: string
+  /** Where media is loaded from, replacing `${baseUrl}/media` (a proxy path or a public URL) */
+  mediaBaseUrl?: string
 }
 
 export type ImageFormat = 'webp' | 'jpeg' | 'jpg' | 'png' | 'avif' | 'auto'
@@ -198,7 +203,7 @@ export class ImageUrlBuilder {
     // When using baseUrl, we need to add /media prefix
     const basePath = isProxy
       ? this.options.proxyPath
-      : `${this.options.baseUrl}/media`
+      : (this.options.mediaBaseUrl?.replace(/\/+$/, '') ?? `${this.options.baseUrl}/media`)
 
     // Build URL with transformation parameters
     const params = new URLSearchParams()

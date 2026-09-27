@@ -30,6 +30,13 @@ export interface ProxyResponse {
 }
 
 /**
+ * The only paths the proxy forwards: a media file or one of its variants. Anything else would
+ * be a request to another API route carrying the site's token (`../users` reaches `/users`),
+ * answered and cached as if it were an image.
+ */
+const MEDIA_PATH = /^[A-Za-z0-9_-]{1,100}\/(?:file|variants\/[A-Za-z0-9_-]{1,100})$/
+
+/**
  * Core proxy function that handles the actual proxying logic
  */
 export async function proxyMediaRequest(
@@ -38,6 +45,9 @@ export async function proxyMediaRequest(
 ): Promise<ProxyResponse> {
   const { apiUrl, apiToken, cacheControl, responseHeaders } = config
   const path = request.path || ''
+  if (!MEDIA_PATH.test(path)) {
+    return { body: null, status: 404, headers: { 'Content-Type': 'text/plain' } }
+  }
 
   try {
     const response = await fetch(`${apiUrl}/media/${path}`, {
