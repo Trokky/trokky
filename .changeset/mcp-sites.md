@@ -18,3 +18,8 @@ token.
 
 Trokky gains a built-in OAuth2 client, `trokky-mcp`, so the consent screen names the
 requester "Trokky MCP (AI agent)". Like the CLI's, it cannot be made trusted.
+
+A sign-in tells the site who is asking: `trokky-mcp/3.5.2 (claude-code; macOS; laptop-name)`
+(or `trokky-cli/...` from the CLI) appears under Connected applications, so two machines or
+two agents can be told apart before revoking one. The machine name is sent only with the
+sign-in, not with every request.
