@@ -26,6 +26,14 @@ export function DeviceAuthPage() {
   const [deviceInfo, setDeviceInfo] = useState<DeviceCodeInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // What the person leaves ticked is what the application gets: the request is a ceiling
+  const [approvedScopes, setApprovedScopes] = useState<string[]>([]);
+
+  const toggleScope = (scope: string) => {
+    setApprovedScopes(current =>
+      current.includes(scope) ? current.filter(s => s !== scope) : [...current, scope]
+    );
+  };
 
   useEffect(() => {
     if (!code) {
@@ -42,6 +50,7 @@ export function DeviceAuthPage() {
       const response = await apiClient.get<DeviceCodeInfo>(`/auth/device/verify?code=${code}`);
       if (response.success && response.data) {
         setDeviceInfo(response.data);
+        setApprovedScopes(response.data.scopes ?? []);
         setStatus('pending');
       } else {
         setStatus('error');
@@ -64,7 +73,8 @@ export function DeviceAuthPage() {
     try {
       const response = await apiClient.post('/auth/device/verify', {
         user_code: code,
-        action: 'authorize'
+        action: 'authorize',
+        scopes: approvedScopes
       });
 
       if (response.success) {
@@ -113,20 +123,20 @@ export function DeviceAuthPage() {
     }
   };
 
-  const formatScopes = (scope: string): string[] => {
-    return scope.split(' ').filter(Boolean).map(s => {
-      switch (s) {
-        case 'openid': return t('auth.device.scopes.openid');
-        case 'profile': return t('auth.device.scopes.profile');
-        case 'content:read': return t('auth.device.scopes.contentRead');
-        case 'content:write': return t('auth.device.scopes.contentWrite');
-        case 'content:delete': return t('auth.device.scopes.contentDelete');
-        case 'media:read': return t('auth.device.scopes.mediaRead');
-        case 'media:write': return t('auth.device.scopes.mediaWrite');
-        case 'offline_access': return t('auth.device.scopes.offlineAccess');
-        default: return s;
-      }
-    });
+  const scopeLabel = (scope: string): string => {
+    switch (scope) {
+      case 'openid': return t('auth.device.scopes.openid');
+      case 'profile': return t('auth.device.scopes.profile');
+      case 'content:read': return t('auth.device.scopes.contentRead');
+      case 'content:write': return t('auth.device.scopes.contentWrite');
+      case 'content:delete': return t('auth.device.scopes.contentDelete');
+      case 'content:publish': return t('auth.device.scopes.contentPublish');
+      case 'media:read': return t('auth.device.scopes.mediaRead');
+      case 'media:write': return t('auth.device.scopes.mediaWrite');
+      case 'media:delete': return t('auth.device.scopes.mediaDelete');
+      case 'offline_access': return t('auth.device.scopes.offlineAccess');
+      default: return scope;
+    }
   };
 
   const renderContent = () => {
@@ -171,14 +181,25 @@ export function DeviceAuthPage() {
 
             {deviceInfo?.scopes && deviceInfo.scopes.length > 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('auth.device.allowApplication')}
                 </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  {t('auth.device.untickToLimit')}
+                </p>
                 <ul className="space-y-2">
-                  {formatScopes(deviceInfo.scopes.join(' ')).map((scope, i) => (
-                    <li key={i} className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <CheckCircleIcon className="w-4 h-4 mr-2 text-green-500" />
-                      {scope}
+                  {deviceInfo.scopes.map(scope => (
+                    <li key={scope}>
+                      <label className="flex items-center text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mr-2 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                          checked={approvedScopes.includes(scope)}
+                          onChange={() => toggleScope(scope)}
+                          data-testid={`scope-${scope}`}
+                        />
+                        {scopeLabel(scope)}
+                      </label>
                     </li>
                   ))}
                 </ul>
@@ -198,7 +219,7 @@ export function DeviceAuthPage() {
                 variant="primary"
                 className="flex-1"
                 onClick={handleAuthorize}
-                disabled={isSubmitting}
+                disabled={isSubmitting || approvedScopes.length === 0}
               >
                 {isSubmitting ? <LoadingSpinner size="sm" /> : t('auth.device.authorize')}
               </Button>

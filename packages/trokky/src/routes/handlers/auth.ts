@@ -7,6 +7,32 @@ import type { HttpRequest, HttpResponse, RouteDefinition, LoginRequest, LoginRes
 import { BaseRoutes } from './base.js'
 
 export class AuthRoutes extends BaseRoutes {
+  /**
+   * Every route here manages a person's own account or security: passkeys, MFA, linked
+   * logins, approving other devices and applications. An OAuth2 access token acts for that
+   * person on content, and never here — so a token handed to an agent cannot enrol its own
+   * passkey on its user or approve itself more access. The one exception is reading the
+   * profile with the `profile` scope. Enforced for the whole group rather than per route, so
+   * a route added later is covered too.
+   */
+  protected async validateAuthentication(request: HttpRequest): Promise<void> {
+    await super.validateAuthentication(request)
+    const caller = request.user as { scopes?: string[]; clientId?: string } | undefined
+    // Any OAuth2 token, scoped or from a trusted client, is an application's credential
+    if (!caller?.clientId) {
+      return
+    }
+    // Reading the profile: with the profile scope, or always for a trusted client
+    const mayReadProfile = !caller.scopes || caller.scopes.includes('profile')
+    if (request.method === 'GET' && request.path.endsWith('/auth/me') && mayReadProfile) {
+      return
+    }
+    // Forget who this is before refusing: a handler that swallows authentication errors (the
+    // Google callback, the authorize page) would otherwise carry on as this user
+    request.user = undefined
+    throw new InvalidInputError('A token granted to an application cannot manage the account', 'permissions')
+  }
+
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
     return this.defineRoutes([
@@ -50,6 +76,12 @@ export class AuthRoutes extends BaseRoutes {
       ['DELETE', `${basePath}/auth/mfa/trusted-devices`, this.revokeAllTrustedDevices.bind(this)],
       ['POST', `${basePath}/admin/users/:userId/mfa/reset`, this.adminResetUserMFA.bind(this)],
       ['POST', `${basePath}/auth/device`, this.startDeviceAuthorization.bind(this)],
+      ['GET', `${basePath}/.well-known/oauth-authorization-server`, this.getOAuth2Metadata.bind(this)],
+      ['POST', `${basePath}/auth/revoke`, this.revokeOAuth2Token.bind(this)],
+      ['GET', `${basePath}/auth/grants`, this.listOwnGrants.bind(this)],
+      ['DELETE', `${basePath}/auth/grants/:grantId`, this.revokeOwnGrant.bind(this)],
+      ['GET', `${basePath}/admin/oauth-grants`, this.listAllGrants.bind(this)],
+      ['DELETE', `${basePath}/admin/users/:userId/oauth-grants/:grantId`, this.revokeUserGrant.bind(this)],
       ['GET', `${basePath}/auth/device/verify`, this.getDeviceCodeInfo.bind(this)],
       ['POST', `${basePath}/auth/device/verify`, this.verifyDeviceCode.bind(this)],
       ['POST', `${basePath}/auth/token`, this.handleOAuth2TokenRequest.bind(this)],
@@ -225,10 +257,26 @@ export class AuthRoutes extends BaseRoutes {
         throw new Error('User not found in database')
       }
       
-      // Remove password hash from response for security
+      // An application acting for the user, trusted or not, gets who they are and nothing
+      // about how they sign in
+      if (sessionUser.clientId) {
+        const { id, username, email, firstName, lastName, role } = fullUser
+        return this.successResponse({ id, username, email, firstName, lastName, role })
+      }
+
+      // Never the credentials themselves, even to the user: a stolen session must not become
+      // a second factor. The TOTP secret and backup-code hashes are for the server alone.
       const { passwordHash, ...safeUser } = fullUser
-      
-      return this.successResponse(safeUser)
+      const mfa = safeUser.mfa
+        ? {
+            ...safeUser.mfa,
+            methods: (safeUser.mfa.methods ?? []).map(({ secret: _secret, ...method }) => method),
+            backupCodes: undefined,
+            backupCodesRemaining: safeUser.mfa.backupCodes?.length ?? 0
+          }
+        : undefined
+
+      return this.successResponse({ ...safeUser, mfa })
     } catch (error) {
       return this.errorResponse(error)
     }
@@ -577,6 +625,65 @@ export class AuthRoutes extends BaseRoutes {
    * POST /auth/device
    * No authentication required - called by CLI
    */
+  /**
+   * RFC 7009: an application ends its own access (the MCP server's remove_site, the CLI's
+   * logout). Holding the token is the authorisation; the answer is 200 whatever the token was.
+   */
+  private async revokeOAuth2Token(request: HttpRequest): Promise<HttpResponse> {
+    const body = (request.body ?? {}) as { token?: unknown; client_id?: unknown }
+    if (typeof body.token === 'string' && body.token) {
+      await this.core.revokeOAuth2Token(body.token, typeof body.client_id === 'string' ? body.client_id : undefined)
+        .catch(error => this.logger.warn('Token revocation failed', { error }))
+    }
+    return { status: 200, headers: this.buildCorsHeaders(), body: {} }
+  }
+
+  /** The applications the signed-in person has approved (Studio: Connected applications) */
+  private async listOwnGrants(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const userId = (request.user as { id: string }).id
+    return this.successResponse({ grants: await this.core.listOAuth2Grants(userId) })
+  }
+
+  private async revokeOwnGrant(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    const userId = (request.user as { id: string }).id
+    if (!(await this.core.revokeOAuth2Grant(userId, request.params.grantId))) {
+      throw new Error('Grant not found')
+    }
+    return this.successResponse({ revoked: request.params.grantId })
+  }
+
+  /** Every user's approved applications, for an admin */
+  private async listAllGrants(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    await this.validateAdminAccess(request)
+    const users = await this.core.listUsers({ limit: 1000 })
+    const grants = []
+    for (const user of users) {
+      for (const grant of await this.core.listOAuth2Grants(user.id)) {
+        grants.push({ ...grant, userId: user.id, username: user.username })
+      }
+    }
+    grants.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return this.successResponse({ grants })
+  }
+
+  private async revokeUserGrant(request: HttpRequest): Promise<HttpResponse> {
+    await this.validateAuthentication(request)
+    await this.validateAdminAccess(request)
+    if (!(await this.core.revokeOAuth2Grant(request.params.userId, request.params.grantId))) {
+      throw new Error('Grant not found')
+    }
+    return this.successResponse({ revoked: request.params.grantId })
+  }
+
+  /** RFC 8414 metadata: the endpoints and scopes a client can discover instead of hardcoding */
+  private async getOAuth2Metadata(request: HttpRequest): Promise<HttpResponse> {
+    const { getServerMetadata: handler } = await import('../auth/oauth2-server.js')
+    return handler(this.core, request)
+  }
+
   private async startDeviceAuthorization(request: HttpRequest): Promise<HttpResponse> {
     const { startDeviceAuthorization: handler } = await import('../auth/oauth2-server.js')
     return handler(this.core, request)

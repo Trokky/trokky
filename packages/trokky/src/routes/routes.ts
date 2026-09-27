@@ -164,6 +164,12 @@ export class TrokkyRoutes extends BaseRoutes {
     this.addHandlerRoute('GET', `${basePath}/auth/device/verify`)
     this.addHandlerRoute('POST', `${basePath}/auth/device/verify`)
     this.addHandlerRoute('POST', `${basePath}/auth/token`)
+    this.addHandlerRoute('GET', `${basePath}/.well-known/oauth-authorization-server`)
+    this.addHandlerRoute('POST', `${basePath}/auth/revoke`)
+    this.addHandlerRoute('GET', `${basePath}/auth/grants`)
+    this.addHandlerRoute('DELETE', `${basePath}/auth/grants/:grantId`)
+    this.addHandlerRoute('GET', `${basePath}/admin/oauth-grants`)
+    this.addHandlerRoute('DELETE', `${basePath}/admin/users/:userId/oauth-grants/:grantId`)
     this.addHandlerRoute('GET', `${basePath}/auth/authorize`)
     this.addHandlerRoute('POST', `${basePath}/auth/authorize`)
 
@@ -405,7 +411,8 @@ export class TrokkyRoutes extends BaseRoutes {
       // Determine if public
       const publicPaths = ['/health', '/auth/login', '/auth/logout', '/auth/validate', '/auth/refresh',
         '/auth/request-reset', '/auth/reset-password', '/auth/verify-reset-token',
-        '/auth/captcha/status', '/auth/device', '/auth/token', '/openapi.json']
+        '/auth/captcha/status', '/auth/device', '/auth/token', '/openapi.json',
+        '/.well-known/oauth-authorization-server', '/auth/revoke']
       const isPublic = publicPaths.some(p => pathWithoutBase === p || pathWithoutBase.startsWith('/auth/oauth') || pathWithoutBase.startsWith('/auth/passkey/login'))
 
       const operation: Record<string, unknown> = {

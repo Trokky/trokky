@@ -10,6 +10,7 @@ import { createStudioLogger } from '@/utils/logger';
 import { OAuthProvidersList } from '@/components/auth/OAuthProvidersList';
 import { MFASettings } from '@/components/settings/MFASettings';
 import { PasskeyManager } from '@/components/auth/PasskeyManager';
+import { ConnectedApplications } from '@/components/auth/ConnectedApplications';
 
 const logger = createStudioLogger('UserPreferences');
 
@@ -237,6 +238,17 @@ export function UserPreferencesPage() {
               {t('preferences.passkeysDescription', 'Sign in securely without a password using your fingerprint, face, or security key.')}
             </p>
             <PasskeyManager />
+          </div>
+
+          {/* Connected applications: the CLI, AI agents, a site's own tools */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {t('connectedApps.title', 'Connected applications')}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t('connectedApps.description', 'Applications you signed in with. Revoking one ends its access at once.')}
+            </p>
+            <ConnectedApplications scope="mine" />
           </div>
         </div>
 

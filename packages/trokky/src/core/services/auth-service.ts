@@ -1,4 +1,5 @@
 import type { CryptoAdapter } from '../crypto/adapter.js'
+import { scopedPermissions } from '../security/oauth2/scoped-permissions.js'
 import type { TrokkyLogger } from '../utils/logger.js'
 import type { AuditEvent } from '../core/engine.js'
 import type { MFARequirement } from './mfa-service.js'
@@ -23,6 +24,8 @@ export interface AuthServiceDependencies {
   getUser: (id: string) => Promise<User | null>
   getUserByUsername: (username: string) => Promise<User | null>
   updateUser: (id: string, userData: UpdateUserData) => Promise<User>
+  /** Whether the grant an OAuth2 token was issued under still stands (not revoked, not lapsed) */
+  isOAuth2GrantLive?: (user: User, grantId: string) => Promise<boolean>
   /** Conditional update, present only when the data adapter supports saveUserIf */
   updateUserIf?: (
     id: string,
@@ -30,6 +33,8 @@ export interface AuthServiceDependencies {
     condition: { passwordHash: string }
   ) => Promise<User | null>
   validateAppToken: (token: string) => Promise<{ valid: boolean; appToken?: AppToken; error?: string }>
+  /** Whether an OAuth2 client is configured as trusted (first-party) */
+  isTrustedOAuth2Client?: (clientId: string) => boolean
   logAuditEvent: (event: AuditEvent) => void
   checkMFARequired: (userId: string) => Promise<MFARequirement>
   isDeviceTrusted: (userId: string, deviceId: string) => Promise<boolean>
@@ -133,6 +138,24 @@ export class AuthService {
       return null
     }
 
+    // Every JWT this server signs has one job. A Studio session token carries no `type`; an
+    // OAuth2 access token is `oauth2_access`. Anything else — an OAuth2 refresh token, an MFA
+    // pending or setup token — must not work as a bearer credential, or an MFA-pending token
+    // would be a login that skipped the second factor.
+    const tokenType = decoded.type as string | undefined
+    if (tokenType !== undefined && tokenType !== 'oauth2_access') {
+      return null
+    }
+    const scopes = tokenType === 'oauth2_access' && Array.isArray(decoded.scopes)
+      ? (decoded.scopes as string[])
+      : undefined
+    if (tokenType === 'oauth2_access' && !scopes) {
+      return null
+    }
+
+    const loginAt = decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString()
+    const expiresAt = decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+
     // Fetch fresh user data from storage to get current permissions
     try {
       const currentUser = await this.deps.getUser(userId)
@@ -140,15 +163,55 @@ export class AuthService {
         return null // User no longer exists or is inactive
       }
 
+      if (scopes) {
+        // Valid only while the approval behind it stands: revoking it in Studio ends every
+        // token issued under it, this one included
+        const grantId = typeof decoded.grantId === 'string' ? decoded.grantId : undefined
+        if (!grantId || !this.deps.isOAuth2GrantLive || !(await this.deps.isOAuth2GrantLive(currentUser, grantId))) {
+          return null
+        }
+        const clientId = typeof decoded.clientId === 'string' ? decoded.clientId : undefined
+        // A trusted (first-party) client acts as the user outright. Its session carries the
+        // client id and no scopes: routes treat it as the user, the account routes still
+        // refuse it because it is an OAuth2 token.
+        if (clientId && this.deps.isTrustedOAuth2Client?.(clientId)) {
+          return {
+            userId,
+            username,
+            role: currentUser.role,
+            permissions: currentUser.permissions,
+            loginAt,
+            expiresAt,
+            clientId
+          }
+        }
+        // Acts for the user, holds only what the user granted, and is never an admin: the
+        // `api` role routes every check through `permissions` alone.
+        return {
+          userId,
+          username,
+          role: 'api',
+          permissions: scopedPermissions(currentUser, scopes),
+          loginAt,
+          expiresAt,
+          scopes,
+          clientId
+        }
+      }
+
       return {
         userId,
         username,
         role: currentUser.role, // Use fresh role from storage
         permissions: currentUser.permissions, // Use fresh permissions from storage
-        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+        loginAt,
+        expiresAt
       }
     } catch (error) {
+      // A scoped token's rights depend on the user's current ones: without them, refuse
+      if (scopes) {
+        return null
+      }
       // If we can't fetch user data, fall back to JWT payload for backwards compatibility
       if (!decoded.role || !decoded.permissions) {
         return null
@@ -159,8 +222,8 @@ export class AuthService {
         username,
         role: decoded.role,
         permissions: decoded.permissions,
-        loginAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
-        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : undefined
+        loginAt,
+        expiresAt
       }
     }
   }
@@ -642,7 +705,9 @@ export class AuthService {
     try {
       // Verify the refresh token
       const session = await this.verifyAuthToken(refreshToken)
-      if (!session) {
+      // Only a Studio session renews into a Studio session. An OAuth2 access token must not:
+      // that would turn a scoped grant into the user's full rights.
+      if (!session || session.clientId) {
         return null
       }
 

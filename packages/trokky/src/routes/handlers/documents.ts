@@ -267,6 +267,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -384,6 +385,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string
@@ -482,9 +484,11 @@ export class DocumentRoutes extends BaseRoutes {
         hasDeletePermission = false
       }
 
-      // If no delete permission, check if user owns the document
+      // If no delete permission, check if user owns the document. Not for a scoped OAuth2
+      // session: the scopes the user granted decide, so a token without delete cannot remove
+      // the user's own documents either.
       if (!hasDeletePermission) {
-        if (!currentUser) {
+        if (!currentUser || currentUser.scopes) {
           throw new InvalidInputError('Insufficient permissions to delete this document', 'permissions')
         }
 
@@ -507,6 +511,7 @@ export class DocumentRoutes extends BaseRoutes {
       const auditContext: any | undefined = currentUser ? {
         userId: currentUser.id,
         userType: 'USER',
+        ...this.viaApplication(currentUser),
         username: currentUser.username,
         ipAddress: request.headers['x-forwarded-for'] as string || request.headers['x-real-ip'] as string,
         userAgent: request.headers['user-agent'] as string

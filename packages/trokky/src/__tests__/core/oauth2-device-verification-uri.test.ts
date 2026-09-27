@@ -18,8 +18,8 @@ describe('OAuth2 device flow verification URI', () => {
     return server
   }
 
-  it('defaults to the Studio device page under /studio', () => {
-    const result = make().startDeviceAuthorization('trokky-cli', [])
+  it('defaults to the Studio device page under /studio', async () => {
+    const result = await make().startDeviceAuthorization('trokky-cli', [])
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.response.verification_uri).toBe('https://cms.example.com/studio/auth/device')
@@ -28,8 +28,8 @@ describe('OAuth2 device flow verification URI', () => {
     )
   })
 
-  it('uses the configured verificationUri when Studio is mounted elsewhere', () => {
-    const result = make({ verificationUri: 'https://cms.example.com/admin/auth/device' }).startDeviceAuthorization('trokky-cli', [])
+  it('uses the configured verificationUri when Studio is mounted elsewhere', async () => {
+    const result = await make({ verificationUri: 'https://cms.example.com/admin/auth/device' }).startDeviceAuthorization('trokky-cli', [])
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.response.verification_uri).toBe('https://cms.example.com/admin/auth/device')

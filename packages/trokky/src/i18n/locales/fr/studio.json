@@ -1,4 +1,17 @@
 {
+  "connectedApps": {
+    "title": "Applications connectées",
+    "description": "Applications que vous avez autorisées à utiliser votre compte, comme le CLI Trokky ou un agent IA. En révoquer une la déconnecte immédiatement.",
+    "none": "Vous n'avez connecté aucune application.",
+    "noneAll": "Aucune application n'a accès à ce site.",
+    "connected": "Connectée le {{date}}",
+    "lastUsed": "dernière utilisation le {{date}}",
+    "revoke": "Révoquer",
+    "revokeFor": "Révoquer {{name}}",
+    "revokeConfirm": "Révoquer l'accès de {{name}} ? Il cesse de fonctionner immédiatement.",
+    "loadFailed": "Impossible de charger les applications connectées",
+    "revokeFailed": "Impossible de révoquer l'accès"
+  },
   "contentView": {
     "filters": "Filtres",
     "sort": "Trier",
@@ -707,10 +720,13 @@
         "contentRead": "Lire le contenu",
         "contentWrite": "Créer et modifier le contenu",
         "contentDelete": "Supprimer le contenu",
+        "contentPublish": "Publier et dépublier du contenu",
         "mediaRead": "Lire les fichiers médias",
         "mediaWrite": "Importer des fichiers médias",
+        "mediaDelete": "Supprimer des fichiers médias",
         "offlineAccess": "Rester connecté"
-      }
+      },
+      "untickToLimit": "Décochez ce que vous ne souhaitez pas accorder."
     },
     "authorize": {
       "pageTitle": "Trokky",
@@ -804,6 +820,7 @@
     "unpublished": "Dépublié",
     "restored": "Restauré",
     "by": "par",
+    "via": "via {{name}}",
     "latest": "Dernier",
     "changedField": "Modifié {{field}}",
     "changedFieldsJoin": "Modifié {{fields}}",

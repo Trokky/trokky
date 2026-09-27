@@ -51,9 +51,11 @@ describe('resolveApiUrl', () => {
 })
 
 describe('readConfig', () => {
-  it('should name every missing variable', () => {
-    expect(() => readConfig({}, '/work')).toThrow('Missing TROKKY_URL and TROKKY_TOKEN')
-    expect(() => readConfig({ TROKKY_URL: 'https://x.dev' }, '/work')).toThrow('Missing TROKKY_TOKEN')
+  it('should pin one site only with both variables, and use the shared sites with neither', () => {
+    expect(readConfig({}, '/work').apiUrl).toBeUndefined()
+    expect(() => readConfig({ TROKKY_URL: 'https://x.dev' }, '/work')).toThrow('TROKKY_TOKEN is missing')
+    expect(() => readConfig({ TROKKY_TOKEN: TOKEN }, '/work')).toThrow('TROKKY_URL is missing')
+    expect(readConfig({ TROKKY_CONFIG: 'conf/sites.yaml' }, '/work').configPath).toBe(path.resolve('/work', 'conf/sites.yaml'))
   })
 
   it('should default to read-write with uploads disabled', () => {

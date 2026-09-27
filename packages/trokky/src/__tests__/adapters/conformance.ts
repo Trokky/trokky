@@ -1291,6 +1291,54 @@ export function describeDataAdapterConformance(name: string, hooks: DataAdapterC
     })
 
     // =========================================================================
+    // AUTH FLOW STATE
+    // =========================================================================
+
+    describe('auth flow state', () => {
+      const soon = (): string => new Date(Date.now() + 60_000).toISOString()
+      const state = (id: string, data: Record<string, unknown> = { n: 1 }) =>
+        ({ id, kind: 'oauth2_device' as const, data, expiresAt: soon() })
+
+      it('saves, reads without consuming, and consumes once', async () => {
+        if (!adapter.saveAuthFlowState || !adapter.consumeAuthFlowState || !adapter.getAuthFlowState) return
+        await adapter.saveAuthFlowState(state('flow-1', { step: 'pending' }))
+
+        expect((await adapter.getAuthFlowState('flow-1', 'oauth2_device'))?.data).toEqual({ step: 'pending' })
+        expect((await adapter.getAuthFlowState('flow-1', 'oauth2_device'))?.data).toEqual({ step: 'pending' })
+        expect((await adapter.consumeAuthFlowState('flow-1', 'oauth2_device'))?.data).toEqual({ step: 'pending' })
+        expect(await adapter.consumeAuthFlowState('flow-1', 'oauth2_device')).toBeNull()
+        expect(await adapter.getAuthFlowState('flow-1', 'oauth2_device')).toBeNull()
+      })
+
+      it('overwrites a state saved under the same id', async () => {
+        if (!adapter.saveAuthFlowState || !adapter.getAuthFlowState) return
+        await adapter.saveAuthFlowState(state('flow-2', { status: 'pending' }))
+        await adapter.saveAuthFlowState(state('flow-2', { status: 'authorized' }))
+        expect((await adapter.getAuthFlowState('flow-2', 'oauth2_device'))?.data).toEqual({ status: 'authorized' })
+      })
+
+      it('hides a state of another kind and an expired one', async () => {
+        if (!adapter.saveAuthFlowState || !adapter.getAuthFlowState || !adapter.consumeAuthFlowState) return
+        await adapter.saveAuthFlowState(state('flow-3'))
+        expect(await adapter.getAuthFlowState('flow-3', 'oauth')).toBeNull()
+
+        await adapter.saveAuthFlowState({ ...state('flow-4'), expiresAt: new Date(Date.now() - 1000).toISOString() })
+        expect(await adapter.getAuthFlowState('flow-4', 'oauth2_device')).toBeNull()
+        expect(await adapter.consumeAuthFlowState('flow-4', 'oauth2_device')).toBeNull()
+      })
+
+      it('gives a state to exactly one of two concurrent consumers', async () => {
+        if (!adapter.saveAuthFlowState || !adapter.consumeAuthFlowState) return
+        await adapter.saveAuthFlowState(state('flow-5'))
+        const results = await Promise.all([
+          adapter.consumeAuthFlowState('flow-5', 'oauth2_device'),
+          adapter.consumeAuthFlowState('flow-5', 'oauth2_device')
+        ])
+        expect(results.filter(Boolean)).toHaveLength(1)
+      })
+    })
+
+    // =========================================================================
     // HEALTH
     // =========================================================================
 

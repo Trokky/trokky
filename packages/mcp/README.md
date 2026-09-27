@@ -1,29 +1,23 @@
 # @trokky/mcp
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for Trokky. It lets an AI agent
-(Claude Code, Claude Desktop, Cursor, or any MCP client) read and edit a Trokky site's content
-through the site's API, with an API token that decides what the agent may do.
+(Claude Code, Claude Desktop, Cursor, or any MCP client) read and edit the content of one or more
+Trokky sites through their API. What the agent may do on each site is what you approve when you
+sign it in.
 
-It runs on your machine and talks to the site over HTTPS. Nothing is installed on the server. It
-needs Node.js 20 or later, and a site on Trokky 3.5.1 or later for the permission checks described
-below.
+It runs on your machine and talks to the sites over HTTPS. Nothing is installed on the server. It
+needs Node.js 20 or later. Signing in needs sites on Trokky 3.5.2 or later with OAuth2 enabled
+(`oauth2.enabled` in the site's config); an API token works with any 3.5 site.
 
 ## Setup
 
-1. In Studio, open **Users > API tokens** and create a token for the agent. Give it only what the
-   agent needs, and set an expiry. For an agent that drafts articles with images: view, edit
-   content; view, upload media. Leave out publish and delete, and the agent can prepare work but
-   not put it live or remove it.
-2. Add the server to your MCP client. Pin the major version, so an update does not run with your
-   token until you choose it.
+Add the server to your MCP client once. Pin the major version, so an update does not run with
+your sign-ins until you choose it.
 
 **Claude Code**
 
 ```bash
-claude mcp add trokky \
-  --env TROKKY_URL=https://cms.example.com \
-  --env TROKKY_TOKEN=<token> \
-  -- npx -y @trokky/mcp@3
+claude mcp add trokky -- npx -y @trokky/mcp@3
 ```
 
 **Claude Desktop, Cursor and other clients** (`mcpServers` in the client's JSON config)
@@ -31,14 +25,7 @@ claude mcp add trokky \
 ```json
 {
   "mcpServers": {
-    "trokky": {
-      "command": "npx",
-      "args": ["-y", "@trokky/mcp@3"],
-      "env": {
-        "TROKKY_URL": "https://cms.example.com",
-        "TROKKY_TOKEN": "<token>"
-      }
-    }
+    "trokky": { "command": "npx", "args": ["-y", "@trokky/mcp@3"] }
   }
 }
 ```
@@ -46,20 +33,54 @@ claude mcp add trokky \
 On Windows, where `npx` is a batch file, use `"command": "cmd"` and
 `"args": ["/c", "npx", "-y", "@trokky/mcp@3"]`.
 
+## Adding sites
+
+Ask the agent: "add my Trokky site https://cms.example.com". It calls `add_site`, which gives
+you a link and a code. Open the link, sign in to Studio if asked, check the code, untick any
+access you don't want to give, and approve. The agent then calls `finish_add_site`, and the site
+is saved. Add as many sites as you like; one is the default, and every tool takes an optional
+`site`.
+
+Or from a terminal:
+
+```bash
+npx -y @trokky/mcp@3 login https://cms.example.com --access edit   # read | edit | publish | full
+npx -y @trokky/mcp@3 sites
+```
+
+Sites are saved in `~/.trokky/config.yaml`, shared with the [Trokky CLI](https://trokky.dev/operate/cli/):
+a site you signed in to with `trokky login` is available to the agent, and the reverse. Sessions
+renew themselves; a site you have not used for 30 days needs signing in again.
+
+The consent screen names the requester "Trokky MCP (AI agent)", so you always know an agent is
+asking. What you approve is the most it can do, and never more than your own account can.
+
+### One site with an API token
+
+For CI, a headless machine, or a site without OAuth2, pin one site with an API token (Studio >
+**Users > API tokens**) instead:
+
+```bash
+claude mcp add trokky --env TROKKY_URL=https://cms.example.com --env TROKKY_TOKEN=<token> -- npx -y @trokky/mcp@3
+```
+
 ## Configuration
 
-| Variable | Required | |
-|---|---|---|
-| `TROKKY_URL` | yes | The site (`https://cms.example.com`, which means `/api`) or the API itself (`https://example.com/cms-api`). No credentials in the URL. |
-| `TROKKY_TOKEN` | yes | An API token |
-| `TROKKY_READ_ONLY` | no | `1` to offer only the reading tools |
-| `TROKKY_UPLOAD_DIRS` | no | Absolute paths of the directories `upload_media` may read from, separated by `:` (`;` on Windows). Unset: no `upload_media` tool |
-| `TROKKY_MAX_UPLOAD_MB` | no | Largest file `upload_media` sends. Default 25 |
+| Variable | |
+|---|---|
+| `TROKKY_URL`, `TROKKY_TOKEN` | Pin one site with an API token. Both or neither. The URL is the site (`https://cms.example.com`, which means `/api`) or the API itself (`https://example.com/cms-api`). No credentials in the URL. |
+| `TROKKY_CONFIG` | Where the site list lives. Default `~/.trokky/config.yaml` |
+| `TROKKY_READ_ONLY` | `1` to offer only the reading tools, and ask only for read access when adding a site |
+| `TROKKY_UPLOAD_DIRS` | Absolute paths of the directories `upload_media` may read from, separated by `:` (`;` on Windows). Unset: no `upload_media` tool |
+| `TROKKY_MAX_UPLOAD_MB` | Largest file `upload_media` sends. Default 25 |
 
 ## Tools
 
-| Tool | Does | Token needs |
+| Tool | Does | Needs |
 |---|---|---|
+| `list_sites`, `set_default_site` | The sites, and which is the default | |
+| `add_site`, `finish_add_site` | Sign in to a site through the browser | |
+| `remove_site` | Forget a site on this machine (the CLI too) | |
 | `list_collections` | Collections, their fields, and each singleton's document id | any valid token |
 | `get_schema` | One collection's full schema | any valid token |
 | `list_documents` | A page of documents, with exact-match `filter`, `sort`, `expand` | `content:read` |
@@ -72,14 +93,15 @@ On Windows, where `npx` is a batch file, use `"command": "cmd"` and
 | `delete_document` | Permanent delete | `content:delete` |
 | `upload_media` | Upload a local file | `media:upload`, and `TROKKY_UPLOAD_DIRS` |
 
-The content permissions can be narrowed to one collection (`posts:write` in place of
-`content:write`), and `content:*` or `posts:*` grant every action. Studio's token dialog offers the
-site-wide permissions only; create a per-collection token through `POST /api/tokens` (see the
+A signed-in site holds the access you approved, capped by your own account: a user limited to some
+collections keeps the agent to them too. With an API token, content permissions can be narrowed to
+one collection (`posts:write` in place of `content:write`) through `POST /api/tokens` (see the
 [authentication docs](https://trokky.dev/operate/auth/)).
 
 ## Safety
 
-- **The token is the boundary.** The server checks its permissions on every call. Read-only mode
+- **The token is the boundary.** The site checks what each token may do on every call. A signed-in
+  agent can never manage accounts, users, API tokens, webhooks or settings, whatever it was granted. Read-only mode
   goes further and doesn't register the writing tools at all. One read still writes: reading a
   singleton that has never been saved creates it empty, which any reader of the site also does.
 - Publishing, unpublishing, updating and deleting are marked destructive, so clients that honour
@@ -100,6 +122,7 @@ site-wide permissions only; create a per-collection token through `POST /api/tok
 import { createTrokkyMcpServer } from '@trokky/mcp'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
+// One site with an API token, or leave apiUrl out to use the signed-in sites (new SiteStore())
 const server = createTrokkyMcpServer({ apiUrl: 'https://cms.example.com/api', token, readOnly: true })
 await server.connect(new StdioServerTransport())
 ```

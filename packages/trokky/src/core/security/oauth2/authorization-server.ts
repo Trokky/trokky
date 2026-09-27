@@ -21,7 +21,46 @@ import type {
   BUILTIN_CLI_CLIENT
 } from '../../types/oauth2.js'
 import type { User, Permission } from '../../types/user.js'
-import { SCOPE_TO_PERMISSIONS, BUILTIN_CLI_CLIENT as CLI_CLIENT } from '../../types/oauth2.js'
+import { SCOPE_TO_PERMISSIONS, ALL_OAUTH2_SCOPES, BUILTIN_CLIENTS } from '../../types/oauth2.js'
+import type { AuthFlowState } from '../../types/storage-adapters.js'
+import {
+  saveAuthFlowState,
+  getAuthFlowState,
+  consumeAuthFlowState
+} from '../auth-flow-store.js'
+
+/**
+ * Where device and authorization codes live between the requests of a flow.
+ *
+ * Not process memory: on Workers every request may land on another isolate, and behind a
+ * load balancer on another replica, so a device approved on one would poll as unknown on the
+ * next. The engine passes the data adapter's auth-flow store; without one this falls back to
+ * the store's in-process map, which is only correct on a single process.
+ */
+export interface OAuth2FlowStore {
+  save(state: AuthFlowState): Promise<void>
+  get(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
+  consume(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null>
+}
+
+const inProcessFlowStore: OAuth2FlowStore = {
+  save: state => saveAuthFlowState(null, state),
+  get: (id, kind) => getAuthFlowState(null, id, kind),
+  consume: (id, kind) => consumeAuthFlowState(null, id, kind)
+}
+
+type DeviceRecord = Omit<DeviceCodeState, 'expiresAt'>
+
+// Record ids. A device code is found by its hash when the device polls, and by its short
+// user code when a person approves it, so it is stored under the first and indexed by the
+// second.
+const deviceId = (deviceCodeHash: string): string => `dev-${deviceCodeHash}`
+const userCodeId = (userCode: string): string => `usr-${normalizeUserCode(userCode)}`
+const authCodeId = (codeHash: string): string => `code-${codeHash}`
+
+function normalizeUserCode(userCode: string): string {
+  return userCode.replace(/-/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
 
 /**
  * Configuration for registering an OAuth2 client
@@ -43,6 +82,12 @@ export interface OAuth2ClientConfig {
   allowedScopes?: string[]
   /** Allowed grant types (default: authorization_code, refresh_token) */
   grantTypes?: string[]
+  /**
+   * First-party application: its tokens act as the signed-in user with the user's own role
+   * and permissions, whatever scopes they carry. Still barred from account and security
+   * routes. Default false.
+   */
+  trusted?: boolean
 }
 
 /**
@@ -67,6 +112,8 @@ export interface OAuth2ServerConfig {
   pollingInterval?: number
   /** External OAuth2 clients to register */
   clients?: OAuth2ClientConfig[]
+  /** Persistent storage for device and authorization codes. Default: in-process only. */
+  flowStore?: OAuth2FlowStore
 }
 
 /**
@@ -75,16 +122,10 @@ export interface OAuth2ServerConfig {
  * Handles device authorization and authorization code flows.
  */
 export class OAuth2AuthorizationServer {
-  private config: Required<Omit<OAuth2ServerConfig, 'clients'>>
+  private config: Required<Omit<OAuth2ServerConfig, 'clients' | 'flowStore'>>
   private externalClients: OAuth2ClientConfig[]
-
-  // In-memory stores (should be replaced with persistent storage in production)
-  private deviceCodes: Map<string, DeviceCodeState> = new Map()
-  private authorizationCodes: Map<string, AuthorizationCodeState> = new Map()
+  private store: OAuth2FlowStore
   private clients: Map<string, OAuth2Client> = new Map()
-
-  // Cleanup interval
-  private cleanupInterval: NodeJS.Timeout | null = null
 
   constructor(config: OAuth2ServerConfig) {
     this.config = {
@@ -98,15 +139,13 @@ export class OAuth2AuthorizationServer {
       pollingInterval: config.pollingInterval ?? 5
     }
     this.externalClients = config.clients || []
+    this.store = config.flowStore ?? inProcessFlowStore
 
     // Register built-in CLI client
     this.registerBuiltInClient()
 
     // Register external clients from config
     this.registerExternalClients()
-
-    // Start cleanup interval
-    this.startCleanup()
   }
 
   /**
@@ -114,11 +153,9 @@ export class OAuth2AuthorizationServer {
    */
   private registerBuiltInClient(): void {
     const now = new Date().toISOString()
-    this.clients.set(CLI_CLIENT.id, {
-      ...CLI_CLIENT,
-      createdAt: now,
-      updatedAt: now
-    })
+    for (const client of BUILTIN_CLIENTS) {
+      this.clients.set(client.id, { ...client, createdAt: now, updatedAt: now })
+    }
   }
 
   /**
@@ -134,11 +171,11 @@ export class OAuth2AuthorizationServer {
         type: clientConfig.type || 'public',
         secretHash: clientConfig.secret ? this.hashSecret(clientConfig.secret) : undefined,
         redirectUris: clientConfig.redirectUris,
-        allowedScopes: (clientConfig.allowedScopes || [
-          'openid', 'profile', 'content:read', 'content:write',
-          'content:delete', 'media:read', 'media:write', 'offline_access'
-        ]) as OAuth2Scope[],
+        allowedScopes: (clientConfig.allowedScopes || [...ALL_OAUTH2_SCOPES]) as OAuth2Scope[],
         grantTypes: (clientConfig.grantTypes || ['authorization_code', 'refresh_token']) as OAuth2GrantType[],
+        // Never the CLI: a config entry may override the built-in client (a site narrowing its
+        // scopes does), but making every CLI login act as the full user must not be one line away
+        trusted: clientConfig.trusted === true && !BUILTIN_CLIENTS.some(builtIn => builtIn.id === clientConfig.id),
         isActive: true,
         createdAt: now,
         updatedAt: now
@@ -150,35 +187,11 @@ export class OAuth2AuthorizationServer {
   /**
    * Start periodic cleanup of expired codes
    */
-  private startCleanup(): void {
-    this.cleanupInterval = setInterval(() => {
-      const now = Date.now()
-
-      // Clean expired device codes
-      for (const [key, state] of this.deviceCodes) {
-        if (state.expiresAt < now) {
-          this.deviceCodes.delete(key)
-        }
-      }
-
-      // Clean expired authorization codes
-      for (const [key, state] of this.authorizationCodes) {
-        if (state.expiresAt < now) {
-          this.authorizationCodes.delete(key)
-        }
-      }
-    }, 60000) // Run every minute
-  }
-
   /**
-   * Stop cleanup interval (for testing/shutdown)
+   * Kept for callers that stop the server on shutdown. Codes now expire in the flow store,
+   * which sweeps on request, so there is no timer to stop.
    */
-  public stopCleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
-    }
-  }
+  public stopCleanup(): void {}
 
   // ============================================
   // Client Management
@@ -243,17 +256,17 @@ export class OAuth2AuthorizationServer {
    * Start device authorization flow
    * Returns device_code, user_code, and verification URI
    */
-  public startDeviceAuthorization(
+  public async startDeviceAuthorization(
     clientId: string,
     requestedScopes: string[]
-  ): { success: true; response: {
+  ): Promise<{ success: true; response: {
     device_code: string
     user_code: string
     verification_uri: string
     verification_uri_complete: string
     expires_in: number
     interval: number
-  }} | { success: false; error: OAuth2ErrorCode; error_description: string } {
+  }} | { success: false; error: OAuth2ErrorCode; error_description: string }> {
     // Validate client
     const client = this.getClient(clientId)
     if (!client) {
@@ -295,20 +308,18 @@ export class OAuth2AuthorizationServer {
     const deviceCode = this.generateDeviceCode()
     const userCode = this.generateUserCode()
     const deviceCodeHash = this.hashSecret(deviceCode)
+    const expiresAt = new Date(Date.now() + this.config.deviceCodeTtl * 1000).toISOString()
 
-    // Store device code state
-    const state: DeviceCodeState = {
+    const record: DeviceRecord = {
       deviceCodeHash,
       userCode,
       clientId,
       scopes,
-      expiresAt: Date.now() + (this.config.deviceCodeTtl * 1000),
       interval: this.config.pollingInterval,
       status: 'pending'
     }
-
-    // Store by user code for lookup during verification
-    this.deviceCodes.set(userCode, state)
+    await this.store.save({ id: deviceId(deviceCodeHash), kind: 'oauth2_device', data: { ...record }, expiresAt })
+    await this.store.save({ id: userCodeId(userCode), kind: 'oauth2_device', data: { deviceCodeHash }, expiresAt })
 
     // Build verification URIs
     // Studio serves the approval page under its own mount; the default assumes /studio.
@@ -328,65 +339,85 @@ export class OAuth2AuthorizationServer {
     }
   }
 
-  /**
-   * Get device code state by user code (for verification page)
-   */
-  public getDeviceCodeByUserCode(userCode: string): DeviceCodeState | null {
-    // Normalize user code (remove dashes, uppercase)
-    const normalizedCode = userCode.replace(/-/g, '').toUpperCase()
-    const formattedCode = `${normalizedCode.slice(0, 4)}-${normalizedCode.slice(4)}`
-
-    return this.deviceCodes.get(formattedCode) ?? null
+  /** The device record behind a user code, with its expiry, or null. */
+  private async findByUserCode(userCode: string): Promise<{ record: DeviceRecord; expiresAt: string } | null> {
+    if (normalizeUserCode(userCode).length !== 8) return null
+    const index = await this.store.get(userCodeId(userCode), 'oauth2_device')
+    const deviceCodeHash = index?.data.deviceCodeHash
+    if (typeof deviceCodeHash !== 'string') return null
+    const stored = await this.store.get(deviceId(deviceCodeHash), 'oauth2_device')
+    if (!stored) return null
+    return { record: stored.data as unknown as DeviceRecord, expiresAt: stored.expiresAt }
   }
 
   /**
-   * Authorize a device code (called when user approves in Studio)
+   * Get device code state by user code (for verification page)
    */
-  public authorizeDeviceCode(userCode: string, userId: string): boolean {
-    const state = this.getDeviceCodeByUserCode(userCode)
-    if (!state) {
-      return false
-    }
+  public async getDeviceCodeByUserCode(userCode: string): Promise<DeviceCodeState | null> {
+    const found = await this.findByUserCode(userCode)
+    if (!found) return null
+    return { ...found.record, expiresAt: new Date(found.expiresAt).getTime() }
+  }
 
-    if (state.status !== 'pending') {
-      return false
-    }
-
-    if (state.expiresAt < Date.now()) {
-      state.status = 'expired'
-      return false
-    }
-
-    state.status = 'authorized'
-    state.userId = userId
-    state.decidedAt = Date.now()
-
-    return true
+  /**
+   * Authorize a device code (called when user approves in Studio).
+   *
+   * `approvedScopes` is what the person left ticked on the consent screen. It can only
+   * narrow the request: anything not requested is ignored, and approving nothing is refused.
+   */
+  public async authorizeDeviceCode(userCode: string, userId: string, approvedScopes?: string[]): Promise<boolean> {
+    return this.decide(userCode, record => {
+      const scopes = approvedScopes
+        ? record.scopes.filter(scope => approvedScopes.includes(scope))
+        : record.scopes
+      // Approving nothing is not an approval; the code stays pending
+      if (scopes.length === 0) return null
+      return { ...record, scopes, status: 'authorized', userId, decidedAt: Date.now() }
+    })
   }
 
   /**
    * Deny a device code (called when user denies in Studio)
    */
-  public denyDeviceCode(userCode: string): boolean {
-    const state = this.getDeviceCodeByUserCode(userCode)
-    if (!state) {
-      return false
+  public async denyDeviceCode(userCode: string): Promise<boolean> {
+    return this.decide(userCode, record => ({ ...record, status: 'denied', decidedAt: Date.now() }))
+  }
+
+  /**
+   * Record one decision on a pending code.
+   *
+   * Taking the user-code index is the lock: of two decisions racing (two clicks, an approve
+   * and a deny), exactly one gets it, and the other is refused rather than both reporting
+   * success while the last write wins. The index goes back afterwards so the approval page
+   * can still show that this code was already handled.
+   */
+  private async decide(userCode: string, apply: (record: DeviceRecord) => DeviceRecord | null): Promise<boolean> {
+    if (normalizeUserCode(userCode).length !== 8) return false
+    const index = await this.store.consume(userCodeId(userCode), 'oauth2_device')
+    const deviceCodeHash = index?.data.deviceCodeHash
+    if (typeof deviceCodeHash !== 'string') return false
+
+    const stored = await this.store.get(deviceId(deviceCodeHash), 'oauth2_device')
+    if (!stored) return false
+
+    let decided = false
+    const record = stored.data as unknown as DeviceRecord
+    if (record.status === 'pending') {
+      const next = apply(record)
+      if (next) {
+        await this.store.save({ id: deviceId(deviceCodeHash), kind: 'oauth2_device', data: { ...next }, expiresAt: stored.expiresAt })
+        decided = true
+      }
     }
 
-    if (state.status !== 'pending') {
-      return false
-    }
-
-    state.status = 'denied'
-    state.decidedAt = Date.now()
-
-    return true
+    await this.store.save({ id: userCodeId(userCode), kind: 'oauth2_device', data: { deviceCodeHash }, expiresAt: stored.expiresAt })
+    return decided
   }
 
   /**
    * Poll for device token (called by CLI)
    */
-  public pollDeviceToken(
+  public async pollDeviceToken(
     deviceCode: string,
     clientId: string,
     generateToken: (userId: string, scopes: OAuth2Scope[], clientId: string) => Promise<TokenResponse>
@@ -394,51 +425,20 @@ export class OAuth2AuthorizationServer {
     | { success: true; response: TokenResponse }
     | { success: false; error: OAuth2ErrorCode; error_description: string }
   > {
-    return this.checkDeviceCodeAndGenerateToken(deviceCode, clientId, generateToken)
-  }
+    const id = deviceId(this.hashSecret(deviceCode))
+    const stored = await this.store.get(id, 'oauth2_device')
 
-  private async checkDeviceCodeAndGenerateToken(
-    deviceCode: string,
-    clientId: string,
-    generateToken: (userId: string, scopes: OAuth2Scope[], clientId: string) => Promise<TokenResponse>
-  ): Promise<
-    | { success: true; response: TokenResponse }
-    | { success: false; error: OAuth2ErrorCode; error_description: string }
-  > {
-    const deviceCodeHash = this.hashSecret(deviceCode)
-
-    // Find the state by iterating (in production, use proper indexing)
-    let foundState: DeviceCodeState | null = null
-    let foundKey: string | null = null
-
-    for (const [key, state] of this.deviceCodes) {
-      if (state.deviceCodeHash === deviceCodeHash && state.clientId === clientId) {
-        foundState = state
-        foundKey = key
-        break
-      }
+    // The store drops expired codes, so an unknown code and an expired one look alike here.
+    // Report expiry: a client that polls past its code's lifetime is told to start over.
+    if (!stored) {
+      return { success: false, error: 'expired_token', error_description: 'Device code is unknown or has expired' }
+    }
+    const record = stored.data as unknown as DeviceRecord
+    if (record.clientId !== clientId) {
+      return { success: false, error: 'invalid_grant', error_description: 'Invalid device code' }
     }
 
-    if (!foundState || !foundKey) {
-      return {
-        success: false,
-        error: 'invalid_grant',
-        error_description: 'Invalid device code'
-      }
-    }
-
-    // Check expiration
-    if (foundState.expiresAt < Date.now()) {
-      this.deviceCodes.delete(foundKey)
-      return {
-        success: false,
-        error: 'expired_token',
-        error_description: 'Device code has expired'
-      }
-    }
-
-    // Check status
-    switch (foundState.status) {
+    switch (record.status) {
       case 'pending':
         return {
           success: false,
@@ -447,51 +447,30 @@ export class OAuth2AuthorizationServer {
         }
 
       case 'denied':
-        this.deviceCodes.delete(foundKey)
+        await this.store.consume(id, 'oauth2_device')
         return {
           success: false,
           error: 'access_denied',
           error_description: 'The user denied the authorization request'
         }
 
-      case 'expired':
-        this.deviceCodes.delete(foundKey)
-        return {
-          success: false,
-          error: 'expired_token',
-          error_description: 'Device code has expired'
+      case 'authorized': {
+        // Taking the record is what makes the code single use: two concurrent polls cannot
+        // both receive tokens, because only one of them gets it back.
+        const taken = await this.store.consume(id, 'oauth2_device')
+        const approved = taken?.data as unknown as DeviceRecord | undefined
+        if (!approved || approved.status !== 'authorized' || !approved.userId) {
+          return { success: false, error: 'invalid_grant', error_description: 'Device code was already used' }
         }
-
-      case 'authorized':
-        if (!foundState.userId) {
-          return {
-            success: false,
-            error: 'server_error',
-            error_description: 'User ID not found for authorized request'
-          }
-        }
-
-        // Generate tokens
-        const tokenResponse = await generateToken(
-          foundState.userId,
-          foundState.scopes,
-          foundState.clientId
-        )
-
-        // Remove used device code
-        this.deviceCodes.delete(foundKey)
-
         return {
           success: true,
-          response: tokenResponse
+          response: await generateToken(approved.userId, approved.scopes, approved.clientId)
         }
+      }
 
       default:
-        return {
-          success: false,
-          error: 'server_error',
-          error_description: 'Unknown device code status'
-        }
+        await this.store.consume(id, 'oauth2_device')
+        return { success: false, error: 'expired_token', error_description: 'Device code has expired' }
     }
   }
 
@@ -588,13 +567,13 @@ export class OAuth2AuthorizationServer {
   /**
    * Generate authorization code after user approval
    */
-  public generateAuthorizationCode(
+  public async generateAuthorizationCode(
     clientId: string,
     redirectUri: string,
     scopes: OAuth2Scope[],
     codeChallenge: string,
     userId: string
-  ): string {
+  ): Promise<string> {
     const code = randomBytes(32).toString('base64url')
     const codeHash = this.hashSecret(code)
 
@@ -608,9 +587,53 @@ export class OAuth2AuthorizationServer {
       expiresAt: Date.now() + (this.config.authCodeTtl * 1000)
     }
 
-    this.authorizationCodes.set(codeHash, state)
+    await this.store.save({
+      id: authCodeId(codeHash),
+      kind: 'oauth2_code',
+      data: { ...state },
+      expiresAt: new Date(state.expiresAt).toISOString()
+    })
 
     return code
+  }
+
+  /**
+   * Check an approval posted from the consent screen before issuing a code for it.
+   *
+   * The approval arrives as a fresh request, so everything the authorization request was
+   * checked for is checked again: the client, its grant, the redirect URI, the PKCE
+   * challenge, and scopes the client may have. The person may have unticked scopes, but the
+   * result must still be within what the client is allowed.
+   */
+  public validateApproval(params: {
+    client_id: string
+    redirect_uri: string
+    scopes: unknown
+    code_challenge: string
+    /** A denial only redirects back: it needs a real client and redirect, not valid scopes */
+    denial?: boolean
+  }): { valid: true; scopes: OAuth2Scope[] } | { valid: false; error_description: string } {
+    const client = this.getClient(params.client_id)
+    if (!client || !client.isActive || !client.grantTypes.includes('authorization_code')) {
+      return { valid: false, error_description: 'Unknown or inactive client' }
+    }
+    if (!client.redirectUris.includes(params.redirect_uri)) {
+      return { valid: false, error_description: 'Invalid redirect_uri' }
+    }
+    if (params.denial) {
+      return { valid: true, scopes: [] }
+    }
+    if (typeof params.code_challenge !== 'string' || params.code_challenge.length < 43) {
+      return { valid: false, error_description: 'Invalid code_challenge' }
+    }
+    if (!Array.isArray(params.scopes) || !params.scopes.every(scope => typeof scope === 'string')) {
+      return { valid: false, error_description: 'scopes must be a list' }
+    }
+    const scopes = this.validateScopes(params.scopes as string[], client.allowedScopes)
+    if (scopes.length === 0 || scopes.length !== params.scopes.length) {
+      return { valid: false, error_description: 'scopes must be a non-empty subset of what the client may request' }
+    }
+    return { valid: true, scopes }
   }
 
   /**
@@ -626,8 +649,9 @@ export class OAuth2AuthorizationServer {
     | { success: true; response: TokenResponse }
     | { success: false; error: OAuth2ErrorCode; error_description: string }
   > {
-    const codeHash = this.hashSecret(code)
-    const state = this.authorizationCodes.get(codeHash)
+    // Taken, not read: a code is single use even when two exchanges race
+    const taken = await this.store.consume(authCodeId(this.hashSecret(code)), 'oauth2_code')
+    const state = taken?.data as unknown as AuthorizationCodeState | undefined
 
     if (!state) {
       return {
@@ -636,9 +660,6 @@ export class OAuth2AuthorizationServer {
         error_description: 'Invalid authorization code'
       }
     }
-
-    // Remove code immediately (single use)
-    this.authorizationCodes.delete(codeHash)
 
     // Validate expiration
     if (state.expiresAt < Date.now()) {
@@ -747,16 +768,7 @@ export class OAuth2AuthorizationServer {
       token_endpoint: `${this.config.issuer}/auth/token`,
       device_authorization_endpoint: `${this.config.issuer}/auth/device`,
       revocation_endpoint: `${this.config.issuer}/auth/revoke`,
-      scopes_supported: [
-        'openid',
-        'profile',
-        'content:read',
-        'content:write',
-        'content:delete',
-        'media:read',
-        'media:write',
-        'offline_access'
-      ],
+      scopes_supported: [...ALL_OAUTH2_SCOPES],
       response_types_supported: ['code'],
       grant_types_supported: [
         'authorization_code',

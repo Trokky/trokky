@@ -162,6 +162,11 @@ export function AuditLogEntry({
     return auditLog.actorId || 'Unknown';
   };
 
+  // The application that made the change for the person, when there was one (an AI agent
+  // through the Trokky MCP server, say), so its changes can be told from the person's own
+  const via = (auditLog.metadata?.via as { clientName?: string; clientId?: string } | undefined)
+  const viaName = via?.clientName || via?.clientId
+
   return (
     <div className={`rounded-lg ${
       isLatest ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800/50'
@@ -189,6 +194,11 @@ export function AuditLogEntry({
                 <span className="text-gray-400">{t('auditEntry.by')}</span>
                 <span className="text-gray-600 dark:text-gray-300 font-medium truncate">
                   {getActorDisplayName()}
+                  {viaName && (
+                    <span className="font-normal text-gray-500 dark:text-gray-400" data-testid="audit-via">
+                      {' '}{t('auditEntry.via', { name: viaName })}
+                    </span>
+                  )}
                 </span>
                 {isLatest && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200">

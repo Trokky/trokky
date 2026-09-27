@@ -50,6 +50,8 @@ export interface OAuth2Client {
   isActive: boolean
   /** Whether this is a built-in client (e.g., CLI) */
   isBuiltIn?: boolean
+  /** First-party client whose tokens act as the user rather than holding only their scopes */
+  trusted?: boolean
   /** User ID who registered this client */
   createdBy?: string
   /** Logo URL for consent screen */
@@ -73,8 +75,10 @@ export type OAuth2Scope =
   | 'content:read'     // Read content
   | 'content:write'    // Create/update content
   | 'content:delete'   // Delete content
+  | 'content:publish'  // Publish and unpublish content
   | 'media:read'       // Read media
   | 'media:write'      // Upload/edit media
+  | 'media:delete'     // Delete media
   | 'offline_access'   // Request refresh token
 
 /**
@@ -86,10 +90,15 @@ export const SCOPE_TO_PERMISSIONS: Record<OAuth2Scope, Permission[]> = {
   'content:read': ['content:read'],
   'content:write': ['content:read', 'content:write'],
   'content:delete': ['content:read', 'content:delete'],
+  'content:publish': ['content:read', 'content:publish'],
   'media:read': ['media:read'],
   'media:write': ['media:read', 'media:upload', 'media:edit'],
+  'media:delete': ['media:read', 'media:delete'],
   'offline_access': []
 }
+
+/** Every scope, in the order a consent screen lists them */
+export const ALL_OAUTH2_SCOPES = Object.keys(SCOPE_TO_PERMISSIONS) as OAuth2Scope[]
 
 // ============================================================================
 // Device Authorization Flow (RFC 8628)
@@ -373,17 +382,30 @@ export const BUILTIN_CLI_CLIENT: Omit<OAuth2Client, 'createdAt' | 'updatedAt'> =
   description: 'Official Trokky command-line interface',
   type: 'public',
   redirectUris: [], // Device flow doesn't use redirects
-  allowedScopes: [
-    'openid',
-    'profile',
-    'content:read',
-    'content:write',
-    'content:delete',
-    'media:read',
-    'media:write',
-    'offline_access'
-  ],
+  // Every scope: the CLI and the MCP server ask for what they need, and the user can
+  // narrow it on the consent screen.
+  allowedScopes: [...ALL_OAUTH2_SCOPES],
   grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
   isActive: true,
   isBuiltIn: true
 }
+
+/**
+ * Built-in client for the Trokky MCP server (@trokky/mcp). Separate from the CLI so the
+ * consent screen tells the person it is an AI agent asking, and so its tokens can be told
+ * apart. Never trusted: an agent holds exactly the scopes the person approved.
+ */
+export const BUILTIN_MCP_CLIENT: Omit<OAuth2Client, 'createdAt' | 'updatedAt'> = {
+  id: 'trokky-mcp',
+  name: 'Trokky MCP (AI agent)',
+  description: 'An AI agent working on this site through the Trokky MCP server',
+  type: 'public',
+  redirectUris: [],
+  allowedScopes: [...ALL_OAUTH2_SCOPES],
+  grantTypes: ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+  isActive: true,
+  isBuiltIn: true
+}
+
+/** Clients every server knows without configuration; config cannot make them trusted */
+export const BUILTIN_CLIENTS = [BUILTIN_CLI_CLIENT, BUILTIN_MCP_CLIENT]

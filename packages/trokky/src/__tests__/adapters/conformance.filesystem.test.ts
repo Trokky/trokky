@@ -35,6 +35,7 @@ async function createAdapter(): Promise<DataStorageAdapter> {
     webhooksDir: path.join(root, 'webhooks'),
     settingsDir: path.join(root, 'settings'),
     auditLogsDir: path.join(root, 'audit-logs'),
+    authFlowStateDir: path.join(root, 'auth-flow-state'),
     silent: true
   })
 

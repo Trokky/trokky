@@ -932,6 +932,26 @@ export class CloudflareD1Adapter implements DataStorageAdapter {
       .run()
   }
 
+  /** Read without consuming; kind and expiry are checked in the query, as for consume. */
+  public async getAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
+    await this.ready()
+    const row = await this.db
+      .prepare(
+        `SELECT id, kind, data, expires_at FROM ${this.table('auth_flow_state')}
+         WHERE id = ? AND kind = ? AND expires_at > ?`
+      )
+      .bind(id, kind, this.now())
+      .first<D1AuthFlowStateRow>()
+
+    if (!row) return null
+    return {
+      id: row.id,
+      kind: row.kind as AuthFlowState['kind'],
+      data: parseJsonColumn<Record<string, unknown>>(row.data) ?? {},
+      expiresAt: row.expires_at
+    }
+  }
+
   /**
    * One statement, so two concurrent callers cannot both win. Kind and expiry
    * are part of the WHERE clause: presenting another flow's id neither returns

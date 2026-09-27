@@ -107,7 +107,11 @@ export class DocumentService {
         ipAddress: auditContext.ipAddress,
         userAgent: auditContext.userAgent,
         sessionId: undefined, // Could be added later if needed
-        metadata: undefined // Could be added later for additional context
+        // An application acting for the user: the history says "by <user> via <application>",
+        // so a person can tell an agent's change from their own
+        metadata: auditContext.clientId
+          ? { via: { clientId: auditContext.clientId, clientName: auditContext.clientName ?? auditContext.clientId } }
+          : undefined
       })
 
       this.deps.auditLog.info('Audit log created', {

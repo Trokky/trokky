@@ -199,7 +199,7 @@ export type {
   UpdateOAuth2ClientData
 } from './oauth2.js';
 
-export { SCOPE_TO_PERMISSIONS, BUILTIN_CLI_CLIENT } from './oauth2.js';
+export { SCOPE_TO_PERMISSIONS, ALL_OAUTH2_SCOPES, BUILTIN_CLI_CLIENT, BUILTIN_MCP_CLIENT, BUILTIN_CLIENTS } from './oauth2.js';
 
 // Mail types
 export type {

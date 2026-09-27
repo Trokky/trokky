@@ -1779,6 +1779,37 @@ export class PostgresDataAdapter implements DataStorageAdapter {
   // AUTH FLOW STATE OPERATIONS
   // ==========================================================================
 
+  // Without this the store could only consume, so every flow — Google sign-in state,
+  // passkey challenges, OAuth2 device and authorization codes — fell back to process memory
+  // on Postgres, and a second replica or a restart lost it.
+  async saveAuthFlowState(state: AuthFlowState): Promise<void> {
+    SecurityValidator.validateDocumentId(state.id)
+    await this.query(
+      `INSERT INTO ${this.tableName('auth_flow_state')} (id, kind, data, expires_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET
+         kind = EXCLUDED.kind, data = EXCLUDED.data, expires_at = EXCLUDED.expires_at`,
+      [state.id, state.kind, JSON.stringify(state.data ?? {}), state.expiresAt]
+    )
+  }
+
+  async getAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
+    SecurityValidator.validateDocumentId(id)
+    const result = await this.query(
+      `SELECT id, kind, data, expires_at FROM ${this.tableName('auth_flow_state')}
+       WHERE id = $1 AND kind = $2 AND expires_at > NOW()`,
+      [id, kind]
+    )
+    const row = result.rows[0]
+    if (!row) return null
+    return {
+      id: row.id,
+      kind: row.kind,
+      data: row.data || {},
+      expiresAt: new Date(row.expires_at).toISOString(),
+    }
+  }
+
   async consumeAuthFlowState(id: string, kind: AuthFlowState['kind']): Promise<AuthFlowState | null> {
     SecurityValidator.validateDocumentId(id)
 

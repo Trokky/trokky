@@ -268,6 +268,14 @@ export interface UserSession {
   permissions: Permission[]
   loginAt: string
   expiresAt?: string
+  /**
+   * Set only for an OAuth2 access token: the scopes the user granted. Such a session acts
+   * for the user but holds only `permissions` (the scopes intersected with what the user may
+   * do), is never treated as admin, and cannot reach account or security routes.
+   */
+  scopes?: string[]
+  /** The OAuth2 client the scoped session was issued to */
+  clientId?: string
 }
 
 // ============================================================================

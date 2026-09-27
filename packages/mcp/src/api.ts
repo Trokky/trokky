@@ -6,7 +6,43 @@
  * a 403 differently from a 404.
  */
 
+import { createRequire } from 'node:module'
+import { hostname } from 'node:os'
+
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
+
+// Read at runtime so a changeset version bump cannot leave a stale copy behind
+export const SERVER_VERSION: string = (createRequire(import.meta.url)('../package.json') as { version: string }).version
+
+const OS_NAMES: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }
+
+/** Header-safe: printable ASCII only (fetch refuses the rest), without the comment syntax */
+function clean(value: string | undefined): string | undefined {
+  const cleaned = value?.replace(/[^\x20-\x7e]|[();]/g, '?').trim().slice(0, 60)
+  return cleaned || undefined
+}
+
+function machine(): string | undefined {
+  try {
+    return clean(hostname().replace(/\.local$/, ''))
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The User-Agent: "trokky-mcp/3.5.1" on every request, and on a sign-in, which the site
+ * records with the grant so its Studio's connected applications can tell one agent and one
+ * machine from another, "trokky-mcp/3.5.1 (claude-code; macOS; amens-mbp)". The machine name
+ * goes only there, not into every request a proxy logs. `agent` is the MCP client, when it
+ * named itself.
+ */
+export function userAgent(signIn?: { agent?: string }): string {
+  const base = `trokky-mcp/${SERVER_VERSION}`
+  if (!signIn) return base
+  const parts = [clean(signIn.agent), OS_NAMES[process.platform] ?? clean(process.platform), machine()].filter(Boolean)
+  return `${base} (${parts.join('; ')})`
+}
 
 export interface TrokkyApiOptions {
   /** API base URL, e.g. https://cms.example.com/api */
@@ -83,7 +119,8 @@ export class TrokkyApi {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.token}`,
-      Accept: 'application/json'
+      Accept: 'application/json',
+      'User-Agent': userAgent()
     }
     let body: BodyInit | undefined
     if (options.form) {

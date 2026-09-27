@@ -4,6 +4,7 @@
 
 import { SecurityValidator } from '../../core/index.js'
 import type { HttpRequest, HttpResponse, RouteDefinition } from '../types.js'
+import type { UserSession } from '../../types/auth.js'
 import { BaseRoutes } from './base.js'
 
 export class AuditRoutes extends BaseRoutes {
@@ -21,13 +22,8 @@ export class AuditRoutes extends BaseRoutes {
    */
   private async getDocumentAuditLogs(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication and basic read permissions
-      await this.validateAuthentication(request)
-      const currentUser = await this.getCurrentUser(request)
-
-      if (!currentUser) {
-        return this.errorResponse(new Error('Authentication required'), 401)
-      }
+      const session = await this.resolveSession(request)
+      const currentUser = session ? { id: session.userId } : null
 
       const { documentId } = request.params
       const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
@@ -36,11 +32,11 @@ export class AuditRoutes extends BaseRoutes {
       // Validate inputs
       SecurityValidator.validateDocumentId(documentId)
 
-      const auditLogs = await this.core.getDocumentAuditLogs(documentId, { limit, offset })
+      const auditLogs = this.readable(session, await this.core.getDocumentAuditLogs(documentId, { limit, offset }))
 
       this.logger.info('Document audit logs retrieved', {
         documentId,
-        userId: currentUser.id,
+        userId: currentUser?.id,
         count: auditLogs.length
       })
 
@@ -104,28 +100,23 @@ export class AuditRoutes extends BaseRoutes {
    */
   private async getActorAuditLogs(request: HttpRequest): Promise<HttpResponse> {
     try {
-      // SECURITY: Validate authentication
-      await this.validateAuthentication(request)
-      const currentUser = await this.getCurrentUser(request)
-
-      if (!currentUser) {
-        return this.errorResponse(new Error('Authentication required'), 401)
-      }
+      const session = await this.resolveSession(request)
+      const currentUser = session ? { id: session.userId, role: session.role } : null
 
       const { actorId } = request.params
       const limit = request.query.limit ? parseInt(request.query.limit as string) : 50
       const offset = request.query.offset ? parseInt(request.query.offset as string) : 0
 
       // SECURITY: Users can only view their own audit logs unless they're admin
-      if (actorId !== currentUser.id && currentUser.role !== 'admin') {
+      if (currentUser && actorId !== currentUser.id && currentUser.role !== 'admin') {
         return this.errorResponse(new Error('Forbidden: Can only view your own audit logs'), 403)
       }
 
-      const auditLogs = await this.core.getActorAuditLogs(actorId, { limit, offset })
+      const auditLogs = this.readable(session, await this.core.getActorAuditLogs(actorId, { limit, offset }))
 
       this.logger.info('Actor audit logs retrieved', {
         actorId,
-        requestedBy: currentUser.id,
+        requestedBy: currentUser?.id,
         count: auditLogs.length
       })
 
@@ -140,5 +131,15 @@ export class AuditRoutes extends BaseRoutes {
     } catch (error) {
       return this.errorResponse(error)
     }
+  }
+
+  /**
+   * An audit entry records the document's content before and after a change, so it is only
+   * as readable as the collection it belongs to. Without this, any signed-in caller — a token
+   * scoped to media, a user limited to one collection — read every document through its log.
+   */
+  private readable<T extends { collection: string }>(session: UserSession | null, logs: T[]): T[] {
+    if (!session) return logs
+    return logs.filter(log => this.sessionCanAccessSchema(session, log.collection, 'read'))
   }
 }

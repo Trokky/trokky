@@ -40,6 +40,8 @@ interface TokenRequestBody {
 interface DeviceVerifyRequest {
   user_code: string
   action: 'authorize' | 'deny'
+  /** The scopes left ticked on the consent screen; only ever narrows the request */
+  scopes?: unknown[]
 }
 
 // ============================================================================
@@ -86,7 +88,7 @@ export async function startDeviceAuthorization(
     }
 
     const scopes = scope ? scope.split(' ').filter(Boolean) : []
-    const result = oauth2Server.startDeviceAuthorization(clientId, scopes)
+    const result = await oauth2Server.startDeviceAuthorization(clientId, scopes)
 
     if (!result.success) {
       const errorResult = result as { success: false; error: string; error_description: string }
@@ -176,7 +178,7 @@ export async function getDeviceCodeInfo(
       }
     }
 
-    const state = oauth2Server.getDeviceCodeByUserCode(userCode)
+    const state = await oauth2Server.getDeviceCodeByUserCode(userCode)
     if (!state) {
       return {
         status: 404,
@@ -312,7 +314,11 @@ export async function verifyDeviceCode(
 
     let success: boolean
     if (action === 'authorize') {
-      success = oauth2Server.authorizeDeviceCode(user_code, request.user.id)
+      // The scopes the person left ticked; absent means everything the device asked for
+      const approvedScopes = Array.isArray(body.scopes)
+        ? body.scopes.filter((scope): scope is string => typeof scope === 'string')
+        : undefined
+      success = await oauth2Server.authorizeDeviceCode(user_code, request.user.id, approvedScopes)
       if (success) {
         logger.info('Device code authorized', {
           userCode: user_code,
@@ -320,7 +326,7 @@ export async function verifyDeviceCode(
         })
       }
     } else {
-      success = oauth2Server.denyDeviceCode(user_code)
+      success = await oauth2Server.denyDeviceCode(user_code)
       if (success) {
         logger.info('Device code denied', {
           userCode: user_code,
@@ -465,8 +471,11 @@ export async function handleTokenRequest(
         throw new Error('User not found')
       }
 
-      // Generate tokens using core's auth service
-      const tokens = await core.generateOAuth2Tokens(user, scopes, clientId)
+      // The first tokens of an approval create its grant: the handle the person can later
+      // see and revoke in Studio. Refreshes reuse it.
+      const userAgent = request.headers['user-agent']
+      const grant = await core.createOAuth2Grant(user, clientId, scopes, typeof userAgent === 'string' ? userAgent : undefined)
+      const tokens = await core.generateOAuth2Tokens(user, scopes, clientId, grant.id)
 
       return {
         access_token: tokens.accessToken,
@@ -816,6 +825,20 @@ export async function handleAuthorizationDecision(
       }
     }
 
+    // Checked before either answer: even a denial redirects, and an unchecked redirect_uri
+    // would send the person wherever the request said
+    const approval = oauth2Server.validateApproval({ client_id, redirect_uri, scopes, code_challenge, denial: action === 'deny' })
+    if (!approval.valid) {
+      return {
+        status: 400,
+        headers: {},
+        body: {
+          error: 'invalid_request',
+          error_description: approval.error_description
+        }
+      }
+    }
+
     const redirectUrl = new URL(redirect_uri)
 
     if (action === 'deny') {
@@ -841,11 +864,11 @@ export async function handleAuthorizationDecision(
     }
 
     // Save user consent for future auto-approval
-    const scopesToSave = (scopes || []) as OAuth2Scope[]
+    const scopesToSave = approval.scopes
     await core.saveUserConsent(request.user.id, client_id, scopesToSave)
 
     // Generate authorization code
-    const code = oauth2Server.generateAuthorizationCode(
+    const code = await oauth2Server.generateAuthorizationCode(
       client_id,
       redirect_uri,
       scopesToSave,

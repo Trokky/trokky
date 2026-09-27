@@ -31,7 +31,16 @@ export abstract class BaseRoutes {
     return entries.map(([method, path, handler]) => ({
       method,
       path,
-      handler,
+      // Every handler answers with a proper status, even one that authenticates outside its
+      // own try block: an auth failure thrown there used to reach the client as a 500 (or,
+      // on Express, whatever the host's error handler made of it) instead of a 401 or 403.
+      handler: async (request: HttpRequest) => {
+        try {
+          return await handler(request)
+        } catch (error) {
+          return this.errorResponse(error)
+        }
+      },
       description: `${method} ${path}`
     }))
   }
@@ -218,7 +227,9 @@ export abstract class BaseRoutes {
     request.user = {
       id: session.userId,
       username: session.username,
-      role: session.role
+      role: session.role,
+      scopes: session.scopes,
+      clientId: session.clientId
     } as any
   }
 
@@ -265,7 +276,7 @@ export abstract class BaseRoutes {
       throw new InvalidInputError('Invalid or expired authentication token', 'authorization')
     }
 
-    request.user = { id: session.userId, username: session.username, role: session.role } as any
+    request.user = { id: session.userId, username: session.username, role: session.role, scopes: session.scopes, clientId: session.clientId } as any
     return session
   }
 
@@ -287,6 +298,27 @@ export abstract class BaseRoutes {
       : [...(session.permissions || []), ...(ROLE_PERMISSIONS[session.role] || [])]
     const wildcard = `${permission.split(':')[0]}:*`
     return granted.includes(permission) || granted.includes(wildcard)
+  }
+
+  /** The application behind a session, for the audit trail: its client id and display name */
+  protected viaApplication(user: { clientId?: string } | null | undefined): { clientId?: string; clientName?: string } {
+    if (!user?.clientId) return {}
+    return {
+      clientId: user.clientId,
+      clientName: this.core.getOAuth2Server()?.getClient(user.clientId)?.name ?? user.clientId
+    }
+  }
+
+  /**
+   * Users, API tokens, webhooks and site settings are administration, never delegated to an
+   * application. A trusted client's token carries its user's admin role, and without this it
+   * could turn off that user's MFA and change their email through the users API, or mint an
+   * API token that outlives the grant.
+   */
+  protected refuseApplicationSession(session: UserSession | null): void {
+    if (session?.clientId) {
+      throw new InvalidInputError('Not available to a token granted to an application', 'permissions')
+    }
   }
 
   protected async validateAdminAccess(request: HttpRequest): Promise<void> {
@@ -312,6 +344,7 @@ export abstract class BaseRoutes {
     }
 
     // Check if user has admin role or users:write permission
+    this.refuseApplicationSession(session)
     const hasAdminAccess = session.role === 'admin' || session.permissions.includes('users:write')
     if (!hasAdminAccess) {
       throw new InvalidInputError('Insufficient permissions for admin operations', 'permissions')
@@ -372,6 +405,7 @@ export abstract class BaseRoutes {
     }
 
     // Check if user has admin role or users:read permission
+    this.refuseApplicationSession(session)
     const hasReadAccess = session.role === 'admin' || session.permissions.includes('users:read')
     if (!hasReadAccess) {
       throw new InvalidInputError('Insufficient permissions for user management operations', 'permissions')
@@ -401,6 +435,7 @@ export abstract class BaseRoutes {
     }
 
     // Check if user has admin role or webhooks:read permission
+    this.refuseApplicationSession(session)
     const hasReadAccess = session.role === 'admin' || session.permissions.includes('webhooks:read')
     if (!hasReadAccess) {
       throw new InvalidInputError('Insufficient permissions for webhook management operations', 'permissions')
@@ -447,7 +482,9 @@ export abstract class BaseRoutes {
           id: session.userId,
           username: session.username,
           role: session.role,
-          permissions: session.permissions
+          permissions: session.permissions,
+          scopes: session.scopes,
+          clientId: session.clientId
         }
       }
       
