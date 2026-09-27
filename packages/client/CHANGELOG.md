@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.2
+
+### Patch Changes
+
+- Updated dependencies [ae1f176]
+- Updated dependencies [ae1f176]
+  - @trokky/trokky@3.5.2
+
 ## 3.5.1
 
 ### Patch Changes
