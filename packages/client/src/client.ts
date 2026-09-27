@@ -10,6 +10,7 @@ import { MediaHelper } from './media/helper.js'
 import { ShortcodeResolver } from './shortcodes/resolver.js'
 import { QueryBuilder, SingletonBuilder } from './query/builder.js'
 import { ImageUrlBuilder, createImageUrlBuilder } from './media/url-builder.js'
+import type { RichTextNode, RichTextValue } from './shortcodes/types.js'
 
 import type {
   ClientConfig,
@@ -29,6 +30,7 @@ export class TrokkyClient {
   public readonly documents: DocumentClient
   public readonly media: MediaHelper
   public readonly shortcodes: ShortcodeResolver
+  private readonly mediaBaseUrl?: string
 
   constructor(config: ClientConfig) {
     // Initialize core components
@@ -36,7 +38,8 @@ export class TrokkyClient {
     this.cache = new CacheManager(config.cacheMaxAge)
     this.documents = new DocumentClient(this.http, this.cache)
     this.media = new MediaHelper(this.http)
-    this.shortcodes = new ShortcodeResolver(this.http, this.media)
+    this.mediaBaseUrl = config.mediaBaseUrl !== undefined ? config.mediaBaseUrl.replace(/\/+$/, '') : undefined
+    this.shortcodes = new ShortcodeResolver(this.http, this.media, this.mediaBaseUrl)
   }
 
   // Authentication methods (delegate to http client)
@@ -257,11 +260,20 @@ export class TrokkyClient {
   // Content methods with shortcode support
 
   /**
-   * Resolve shortcodes in content to HTML
-   * Converts environment-agnostic shortcodes to actual HTML for display
+   * Prepare a rich-text value for display: its images get URLs a browser can load.
+   *
+   * Placeholders become URLs: `[trokky-image:<id>]` in a ProseMirror document, and the
+   * `[trokky-image …]` placeholders earlier Studio versions wrote. With `mediaBaseUrl` (or
+   * `options.mediaBaseUrl` for this call) every image is also rebuilt from its media id, in
+   * HTML from `data-trokky-id` and in Markdown from its `/media/<id>/…` path, so the path the
+   * content was saved with stops mattering. Without it, stored images are left as saved and
+   * placeholders point at `${baseUrl}/media`. Empty content gives `''`.
    */
-  resolveContent(content: string): string {
-    return this.shortcodes.resolveContent(content)
+  resolveContent(content: string | null | undefined, options?: { mediaBaseUrl?: string }): string
+  resolveContent(content: RichTextNode, options?: { mediaBaseUrl?: string }): RichTextNode
+  resolveContent(content: RichTextValue | null | undefined, options?: { mediaBaseUrl?: string }): RichTextValue
+  resolveContent(content: RichTextValue | null | undefined, options?: { mediaBaseUrl?: string }): RichTextValue {
+    return this.shortcodes.resolveContent(content, options)
   }
 
   /**
@@ -378,7 +390,8 @@ export class TrokkyClient {
    */
   imageUrl(source: MediaFieldValue | string | null | undefined): ImageUrlBuilder {
     return new ImageUrlBuilder({
-      baseUrl: this.http.getBaseUrl()
+      baseUrl: this.http.getBaseUrl(),
+      mediaBaseUrl: this.mediaBaseUrl
     }).image(source)
   }
 
@@ -391,10 +404,11 @@ export class TrokkyClient {
    * const url = urlFor(article.image).width(800).url()
    * ```
    */
-  createImageUrlBuilder(options?: { proxyPath?: string }) {
+  createImageUrlBuilder(options?: { proxyPath?: string; mediaBaseUrl?: string }) {
     return createImageUrlBuilder({
       baseUrl: this.http.getBaseUrl(),
-      proxyPath: options?.proxyPath
+      proxyPath: options?.proxyPath,
+      mediaBaseUrl: options?.mediaBaseUrl ?? this.mediaBaseUrl
     })
   }
 }

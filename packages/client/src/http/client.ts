@@ -25,7 +25,7 @@ const NON_RECOVERABLE_ENDPOINTS = [
 ]
 
 export class HttpClient {
-  private config: Required<Omit<ClientConfig, 'fetch'> & { apiToken: string }>
+  private config: Required<Omit<ClientConfig, 'fetch' | 'mediaBaseUrl'> & { apiToken: string }>
   /** Bound at construction so a caller's handler is called as a plain function. */
   private readonly fetchImpl: typeof globalThis.fetch
   private tokens: AuthTokens | null = null

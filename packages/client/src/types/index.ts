@@ -44,6 +44,17 @@ export interface ClientConfig {
    * serves the CMS.
    */
   fetch?: typeof globalThis.fetch
+
+  /**
+   * Where browsers load media from: a path on the site's own origin, such as a proxy route
+   * (`/media`), or a full URL (`https://cms.example.com/api/media`). `imageUrl()`,
+   * `createImageUrlBuilder()` and `resolveContent()` all build on it, so moving the API or
+   * putting a proxy in front is a change here, not in stored content. Unset, everything is
+   * as before: media fields and placeholders point at `${baseUrl}/media`, and images stored in
+   * rich text keep the path they were saved with. Set it whenever `baseUrl` is an address
+   * browsers cannot reach, such as an internal one.
+   */
+  mediaBaseUrl?: string
   
   // Authentication (choose one method)
   token?: string        // JWT token from login

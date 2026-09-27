@@ -30,7 +30,9 @@ export {
   shortcodeToHtml,
   resolveShortcodes,
   hasShortcodes,
-  extractImageShortcodes
+  extractImageShortcodes,
+  resolveProseMirrorShortcodes,
+  rebaseStoredMediaUrls
 } from './shortcodes/parser.js'
 
 export type {
@@ -66,7 +68,9 @@ export type {
 // Shortcode types
 export type {
   TrokkyImageShortcode,
-  MediaUrlResolver
+  MediaUrlResolver,
+  RichTextNode,
+  RichTextValue
 } from './shortcodes/types.js'
 
 // Type generator exports (for separate import)
