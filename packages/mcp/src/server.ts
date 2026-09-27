@@ -236,10 +236,10 @@ function siteTools(server: McpServer, store: SiteStore, options: TrokkyMcpOption
         })
         revokedOnSite = response.status === 200
         if (!revokedOnSite) {
-          note = `The site did not accept the revocation (HTTP ${response.status}); revoke the access in its Studio under Account > Connected applications.`
+          note = `The site did not accept the revocation (HTTP ${response.status}); revoke the access in its Studio under Preferences > Connected applications (the menu under your name).`
         }
       } catch {
-        note = 'The site could not be reached to revoke the sign-in; revoke it in its Studio under Account > Connected applications.'
+        note = 'The site could not be reached to revoke the sign-in; revoke it in its Studio under Preferences > Connected applications (the menu under your name).'
       }
     }
     await store.remove(name)
