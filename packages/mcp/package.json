@@ -1,6 +1,6 @@
 {
   "name": "@trokky/mcp",
-  "version": "3.5.1",
+  "version": "3.5.2",
   "description": "Model Context Protocol server for Trokky CMS: let AI agents read and edit content with a scoped API token",
   "keywords": [
     "cms",
@@ -43,7 +43,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@trokky/trokky": "^3.5.1",
+    "@trokky/trokky": "^3.5.2",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.0.0",
