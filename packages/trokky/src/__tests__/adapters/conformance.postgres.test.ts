@@ -18,7 +18,7 @@ import { PostgresDataAdapter } from '../../adapters/postgres-data/postgres-data-
 import type { DataStorageAdapter } from '../../core/types/storage-adapters.js'
 import { describeDataAdapterConformance } from './conformance.js'
 
-const ADMIN_URL = process.env.TROKKY_TEST_POSTGRES_URL ?? 'postgres://igf:igf@localhost:5434/postgres'
+const ADMIN_URL = process.env.TROKKY_TEST_POSTGRES_URL ?? 'postgres://trokky:trokky@localhost:5434/postgres'
 const CONFORMANCE_DB = 'trokky_conformance'
 const PROBE_TIMEOUT_MS = 2000
 
