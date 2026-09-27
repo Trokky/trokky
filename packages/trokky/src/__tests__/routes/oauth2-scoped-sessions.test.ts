@@ -525,9 +525,9 @@ describe('linking a Google account', () => {
 describe('trusted clients', () => {
   const verifier = 'v'.repeat(64)
   const challenge = createHash('sha256').update(verifier).digest('base64url')
-  const redirect = 'https://hr.example.com/callback'
+  const redirect = 'https://staff.example.com/callback'
 
-  /** The jobs-admin flow: authorization code with PKCE, `openid profile offline_access` */
+  /** An internal admin app's flow: authorization code with PKCE, `openid profile offline_access` */
   async function signIn(s: Site, studioToken: string, clientId: string): Promise<string> {
     const approved = await call(s, 'POST', '/api/auth/authorize', studioToken, {
       action: 'approve', client_id: clientId, redirect_uri: redirect,
@@ -544,12 +544,12 @@ describe('trusted clients', () => {
 
   it('acts as the user for a trusted client, and holds only its scopes otherwise', async () => {
     const s = await site(dir, { clients: [
-      { id: 'jobs-admin', name: 'Jobs admin', redirectUris: [redirect], trusted: true },
+      { id: 'staff-portal', name: 'Staff portal', redirectUris: [redirect], trusted: true },
       { id: 'other-app', name: 'Other app', redirectUris: [redirect] }
     ] })
     const { token: studio } = await user(s, 'admin30', 'admin')
 
-    const trusted = await signIn(s, studio, 'jobs-admin')
+    const trusted = await signIn(s, studio, 'staff-portal')
     const session = await s.core.verifyAnyToken(trusted)
     // What a site's `auth: 'admin'` custom route checks
     expect(session?.role).toBe('admin')
@@ -561,9 +561,9 @@ describe('trusted clients', () => {
   })
 
   it('keeps a trusted client out of account security and administration, and lets it read the profile', async () => {
-    const s = await site(dir, { clients: [{ id: 'jobs-admin', name: 'Jobs admin', redirectUris: [redirect], trusted: true }] })
+    const s = await site(dir, { clients: [{ id: 'staff-portal', name: 'Staff portal', redirectUris: [redirect], trusted: true }] })
     const { user: admin, token: studio } = await user(s, 'admin31', 'admin')
-    const trusted = await signIn(s, studio, 'jobs-admin')
+    const trusted = await signIn(s, studio, 'staff-portal')
 
     const me = await call(s, 'GET', '/api/auth/me', trusted)
     expect(me.status).toBe(200)

@@ -100,11 +100,11 @@
   **Upgrading:**
   - OAuth2 tokens issued before this release belong to no grant and are refused. Everyone
     signed in through an application signs in again once: `trokky login`, the agent's
-    `add_site`, and a site's own OAuth2 clients such as FUCEC's `jobs-admin`. API tokens and
+    `add_site`, and a site's own OAuth2 clients such as an organisation's own admin tool. API tokens and
     Studio sessions are unaffected.
   - A site whose own application relies on OAuth2 tokens acting as the full user (for example
     calling `auth: 'admin'` custom routes) must mark that client `trusted: true`, or its calls
-    will be refused. FUCEC's `jobs-admin` is one.
+    will be refused.
   - A site that restricts the built-in `trokky-cli` client's `allowedScopes` must allow
     `content:publish` and `media:delete` for the CLI's `restore` and `clean`.
   - CLI logins made before this release requested neither publish nor media delete. Update

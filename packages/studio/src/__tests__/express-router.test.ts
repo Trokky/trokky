@@ -67,16 +67,16 @@ describe('studioRouter', () => {
     app.use(
       '/studio',
       studioRouter({
-        branding: { title: 'Cour des Comptes', theme: 'light' },
+        branding: { title: 'Example CMS', theme: 'light' },
         i18n: { defaultLocale: 'fr', supportedLocales: ['fr', 'en'] },
       })
     )
 
     const res = await request(app).get('/studio')
     const cfg = bootstrap(res.text)
-    expect(cfg.branding).toEqual({ title: 'Cour des Comptes', theme: 'light' })
+    expect(cfg.branding).toEqual({ title: 'Example CMS', theme: 'light' })
     expect(cfg.i18n).toEqual({ defaultLocale: 'fr', supportedLocales: ['fr', 'en'] })
-    expect(res.text).toContain('<title>Cour des Comptes</title>')
+    expect(res.text).toContain('<title>Example CMS</title>')
   })
 
   it('returns 404 for an unknown asset and rejects traversal', async () => {

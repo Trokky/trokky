@@ -323,7 +323,7 @@ export function describeMediaAdapterConformance(
           title: 'Séance plénière',
           alt: 'Les magistrats en séance',
           author: 'Service communication',
-          credit: 'CdC',
+          credit: 'Example Press',
           tags: ['plénière', '2026']
         })
 
@@ -331,7 +331,7 @@ export function describeMediaAdapterConformance(
         expect(meta(stored, 'title')).toBe('Séance plénière')
         expect(meta(stored, 'alt')).toBe('Les magistrats en séance')
         expect(meta(stored, 'author')).toBe('Service communication')
-        expect(meta(stored, 'credit')).toBe('CdC')
+        expect(meta(stored, 'credit')).toBe('Example Press')
         expect(meta(stored, 'tags')).toEqual(['plénière', '2026'])
       }, TEST_TIMEOUT)
 
