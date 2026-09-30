@@ -8,6 +8,8 @@ import { userAgent as defaultUserAgent } from './api.js'
 import type { FetchLike } from './sites.js'
 
 export const MCP_CLIENT_ID = 'trokky-mcp'
+/** Longest a single sign-in request may take */
+const REQUEST_TIMEOUT_MS = 15_000
 /** Servers before 3.5.2 know only the CLI client; their tokens are unscoped anyway */
 const FALLBACK_CLIENT_ID = 'trokky-cli'
 
@@ -37,7 +39,10 @@ export interface PendingLogin {
 export type PollResult =
   | { status: 'pending'; slowDown?: boolean }
   | { status: 'approved'; token: string; refreshToken?: string; expiresIn?: number; scope?: string; clientId: string }
-  | { status: 'failed'; reason: string }
+  | { status: 'failed'; outcome: 'denied' | 'expired' | 'error'; reason: string }
+
+/** How a sign-in ended: approved, or failed with why */
+export type LoginOutcome = Exclude<PollResult, { status: 'pending' }>
 
 async function post(fetchImpl: FetchLike, url: string, body: unknown, userAgent: string): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   let response: Response
@@ -45,7 +50,9 @@ async function post(fetchImpl: FetchLike, url: string, body: unknown, userAgent:
     response = await fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': userAgent },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      // A site that stops answering must not hold a sign-in, or a tool call, open indefinitely
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     })
   } catch (error) {
     throw new Error(`Could not reach ${url}: ${error instanceof Error ? error.message : String(error)}`)
@@ -85,7 +92,7 @@ export async function startLogin(apiUrl: string, access: AccessLevel, fetchImpl:
 
 export async function pollLogin(login: PendingLogin, fetchImpl: FetchLike): Promise<PollResult> {
   if (Date.now() > login.expiresAt) {
-    return { status: 'failed', reason: 'The sign-in code expired. Start again with add_site.' }
+    return { status: 'failed', outcome: 'expired', reason: 'The sign-in code expired.' }
   }
   const { ok, data } = await post(fetchImpl, `${login.apiUrl}/auth/token`, {
     grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
@@ -106,9 +113,63 @@ export async function pollLogin(login: PendingLogin, fetchImpl: FetchLike): Prom
     return { status: 'pending', slowDown: data.error === 'slow_down' }
   }
   if (data.error === 'access_denied') {
-    return { status: 'failed', reason: 'The sign-in was denied.' }
+    return { status: 'failed', outcome: 'denied', reason: 'The sign-in was denied.' }
   }
-  return { status: 'failed', reason: `The sign-in failed: ${String(data.error_description ?? data.error ?? 'unknown error')}` }
+  if (data.error === 'expired_token') {
+    return { status: 'failed', outcome: 'expired', reason: 'The sign-in code expired.' }
+  }
+  return { status: 'failed', outcome: 'error', reason: `The sign-in failed: ${String(data.error_description ?? data.error ?? 'unknown error')}` }
+}
+
+export interface PollOptions {
+  /** Waits between polls; tests pass a faster one */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>
+  /** Stops polling before the next request: the returned promise then resolves to null */
+  signal?: AbortSignal
+  /** Called with the new interval after a slow_down, so it can be remembered */
+  onSlowDown?: (intervalMs: number) => void
+}
+
+/** Ends early when aborted, and never keeps the process alive on its own */
+function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    const timer = setTimeout(done, ms)
+    timer.unref?.()
+    signal?.addEventListener('abort', done, { once: true })
+    function done(): void {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', done)
+      resolve()
+    }
+  })
+}
+
+/**
+ * Poll until the sign-in is approved, denied or expired (RFC 8628): wait the server's interval
+ * before each poll, and five seconds more after every slow_down. A site that cannot be reached
+ * for a moment is tried again at the next interval rather than ending the sign-in; only the
+ * code expiring ends it. Resolves to null when `signal` aborts before a request; once the site
+ * has answered, its answer is returned, since an approval it hands over is consumed on its side.
+ */
+export async function pollUntilDone(login: PendingLogin, fetchImpl: FetchLike, options: PollOptions = {}): Promise<LoginOutcome | null> {
+  const sleep = options.sleep ?? defaultSleep
+  for (;;) {
+    await sleep(login.intervalMs, options.signal)
+    if (options.signal?.aborted) return null
+    let result: PollResult
+    try {
+      result = await pollLogin(login, fetchImpl)
+    } catch {
+      if (Date.now() > login.expiresAt) return { status: 'failed', outcome: 'expired', reason: 'The sign-in code expired.' }
+      continue
+    }
+    if (result.status !== 'pending') return result
+    if (options.signal?.aborted) return null
+    if (result.slowDown) {
+      login.intervalMs += 5000
+      options.onSlowDown?.(login.intervalMs)
+    }
+  }
 }
 
 /**

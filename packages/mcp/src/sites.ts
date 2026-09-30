@@ -284,41 +284,49 @@ export class SiteStore {
     }
   }
 
-  private async lock(): Promise<() => Promise<void>> {
-    const lockPath = `${this.configPath}.lock`
-    await mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 })
-    const owner = randomUUID().replace(/-/g, '')
-    const deadline = Date.now() + LOCK_GIVE_UP_MS
-    for (;;) {
+  private lock(): Promise<() => Promise<void>> {
+    return acquireFileLock(`${this.configPath}.lock`, 'The Trokky config')
+  }
+}
+
+/**
+ * Take a lock file the CLI's way (created exclusively, holding an owner id, taken over when
+ * abandoned for LOCK_STALE_MS), and return what releases it. Shared by every file the MCP
+ * server writes that another process may write too.
+ */
+export async function acquireFileLock(lockPath: string, what: string): Promise<() => Promise<void>> {
+  await mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 })
+  const owner = randomUUID().replace(/-/g, '')
+  const deadline = Date.now() + LOCK_GIVE_UP_MS
+  for (;;) {
+    try {
+      const handle = await open(lockPath, 'wx', 0o600)
       try {
-        const handle = await open(lockPath, 'wx', 0o600)
-        try {
-          await handle.writeFile(owner)
-        } catch (error) {
-          await handle.close()
-          await rm(lockPath, { force: true })
-          throw error
-        } finally {
-          await handle.close().catch(() => {})
-        }
-        // Only while it is still ours: after a stale takeover it belongs to someone else
-        return async () => {
-          const held = await readFile(lockPath, 'utf8').catch(() => undefined)
-          if (held === owner) await rm(lockPath, { force: true })
-        }
+        await handle.writeFile(owner)
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+        await handle.close()
+        await rm(lockPath, { force: true })
+        throw error
+      } finally {
+        await handle.close().catch(() => {})
       }
-      const info = await stat(lockPath).catch(() => undefined)
-      if (info && Date.now() - info.mtimeMs > LOCK_STALE_MS) {
-        await takeOverStaleLock(lockPath)
-        continue
+      // Only while it is still ours: after a stale takeover it belongs to someone else
+      return async () => {
+        const held = await readFile(lockPath, 'utf8').catch(() => undefined)
+        if (held === owner) await rm(lockPath, { force: true })
       }
-      if (Date.now() > deadline) {
-        throw new Error(`The Trokky config is locked by another process (${lockPath}); if nothing else is running, remove that file`)
-      }
-      await sleep(LOCK_RETRY_MS)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
     }
+    const info = await stat(lockPath).catch(() => undefined)
+    if (info && Date.now() - info.mtimeMs > LOCK_STALE_MS) {
+      await takeOverStaleLock(lockPath)
+      continue
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`${what} is locked by another process (${lockPath}); if nothing else is running, remove that file`)
+    }
+    await sleep(LOCK_RETRY_MS)
   }
 }
 

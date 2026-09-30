@@ -37,8 +37,9 @@ On Windows, where `npx` is a batch file, use `"command": "cmd"` and
 
 Ask the agent: "add my Trokky site https://cms.example.com". It calls `add_site`, which gives
 you a link and a code. Open the link, sign in to Studio if asked, check the code, untick any
-access you don't want to give, and approve. The agent then calls `finish_add_site`, and the site
-is saved. Add as many sites as you like; one is the default, and every tool takes an optional
+access you don't want to give, and approve. The site is saved the moment you approve: the
+server watches for it in the background, and the agent's `finish_add_site` call returns as soon
+as it happens, without the agent having to ask whether you're done. Add as many sites as you like; one is the default, and every tool takes an optional
 `site`.
 
 Or from a terminal:
