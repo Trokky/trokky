@@ -35,8 +35,9 @@ describe('pollLogin', () => {
   it('tells pending, slow down, denied and expired apart', async () => {
     expect(await pollLogin(login(), async () => reply({ error: 'authorization_pending' }, 400))).toEqual({ status: 'pending', slowDown: false })
     expect(await pollLogin(login(), async () => reply({ error: 'slow_down' }, 400))).toEqual({ status: 'pending', slowDown: true })
-    expect(await pollLogin(login(), async () => reply({ error: 'access_denied' }, 400))).toEqual({ status: 'failed', reason: 'The sign-in was denied.' })
-    expect((await pollLogin({ ...login(), expiresAt: Date.now() - 1 }, async () => reply({}))).status).toBe('failed')
+    expect(await pollLogin(login(), async () => reply({ error: 'access_denied' }, 400))).toEqual({ status: 'failed', outcome: 'denied', reason: 'The sign-in was denied.' })
+    expect(await pollLogin(login(), async () => reply({ error: 'expired_token' }, 400))).toMatchObject({ status: 'failed', outcome: 'expired' })
+    expect(await pollLogin({ ...login(), expiresAt: Date.now() - 1 }, async () => reply({}))).toMatchObject({ status: 'failed', outcome: 'expired' })
   })
 })
 

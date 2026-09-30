@@ -13,12 +13,11 @@ import { spawn } from 'node:child_process'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { resolveApiUrl } from './api.js'
 import { readConfig } from './config.js'
-import { ACCESS_LEVELS, pollLogin, siteNameFromUrl, startLogin, type AccessLevel } from './device.js'
+import { ACCESS_LEVELS, pollUntilDone, siteNameFromUrl, startLogin, type AccessLevel } from './device.js'
 import { createTrokkyMcpServer } from './server.js'
 import { SiteStore, storableApiUrl } from './sites.js'
 
 const say = (line: string): void => { process.stderr.write(`${line}\n`) }
-const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 function warnIfPlainHttp(apiUrl: string): void {
   const { protocol, hostname } = new URL(apiUrl)
@@ -77,24 +76,21 @@ async function login(args: string[], store: SiteStore, readOnly: boolean): Promi
   say('You can untick any access you do not want to give. Waiting...')
   openInBrowser(pending.verificationUrl)
 
-  for (;;) {
-    await sleep(pending.intervalMs)
-    const result = await pollLogin(pending, (input, init) => fetch(input, init))
-    if (result.status === 'pending') continue
-    if (result.status === 'failed') throw new Error(result.reason)
-
-    await store.add(name, {
-      url: apiUrl,
-      token: result.token,
-      refreshToken: result.refreshToken,
-      authType: 'oauth2',
-      tokenExpiresAt: result.expiresIn ? new Date(Date.now() + result.expiresIn * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z') : undefined,
-      clientId: result.clientId,
-      description: 'Added by the Trokky MCP server'
-    }, false, replace)
-    say(`Added "${name}" with: ${result.scope ?? 'the requested access'}`)
-    return
+  const result = await pollUntilDone(pending, (input, init) => fetch(input, init))
+  if (!result || result.status === 'failed') {
+    throw new Error(result?.status === 'failed' ? `${result.reason} Run login again for a fresh code.` : 'The sign-in was interrupted.')
   }
+
+  await store.add(name, {
+    url: apiUrl,
+    token: result.token,
+    refreshToken: result.refreshToken,
+    authType: 'oauth2',
+    tokenExpiresAt: result.expiresIn ? new Date(Date.now() + result.expiresIn * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z') : undefined,
+    clientId: result.clientId,
+    description: 'Added by the Trokky MCP server'
+  }, false, replace)
+  say(`Added "${name}" with: ${result.scope ?? 'the requested access'}`)
 }
 
 async function listSites(store: SiteStore): Promise<void> {
