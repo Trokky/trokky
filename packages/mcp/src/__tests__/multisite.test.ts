@@ -256,6 +256,7 @@ describe('several sites through the device flow', () => {
     const gone = await callJson<{ revokedOnSite: boolean; note?: string }>(client, 'remove_site', { name: 'gone' })
     expect(gone.revokedOnSite).toBe(false)
     expect(gone.note).toContain('could not be reached')
+    expect(gone.note).toContain('Preferences > Connected applications')
 
     // A site from before revocation existed answers 404
     sites['old.test'] = { ...sites['news.test:8080'], handler: async (): Promise<Response> => new Response('Not found', { status: 404 }) }
@@ -263,6 +264,7 @@ describe('several sites through the device flow', () => {
     const old = await callJson<{ revokedOnSite: boolean; note?: string }>(client, 'remove_site', { name: 'old' })
     expect(old.revokedOnSite).toBe(false)
     expect(old.note).toContain('HTTP 404')
+    expect(old.note).toContain('Preferences > Connected applications')
     expect(Object.keys((await store.list()).sites)).toEqual([])
   })
 
