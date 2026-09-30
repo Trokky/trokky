@@ -141,8 +141,10 @@ export class SignIns {
       if (outcome.outcome === 'denied') return { status: 'denied', name }
       // The code may have been redeemed by another poll of this same sign-in (another MCP
       // process, or this one before a restart): the site then says the code is used or unknown
-      // A code past its own expiry just expired; one rejected earlier was likely used elsewhere
-      const finished = await this.finishedElsewhere(name, login, outcome.outcome === 'error' || Date.now() < login.expiresAt)
+      // Only "already used" can mean another poll is still saving: wait for it then. A code the
+      // site calls expired is expired, whatever this side's clock says (the two differ slightly),
+      // though a site another poll saved earlier is still found
+      const finished = await this.finishedElsewhere(name, login, outcome.outcome === 'error')
       if (finished) return finished
       return outcome.outcome === 'expired' ? { status: 'expired', name } : { status: 'failed', name, reason: outcome.reason }
     }
