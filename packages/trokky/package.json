@@ -175,7 +175,7 @@
     "zod": "^3.22.4"
   },
   "optionalDependencies": {
-    "nodemailer": "^10.0.1",
+    "nodemailer": "^10.0.13",
     "pg": "^8.11.3",
     "resend": "^3.5.0",
     "sharp": "^0.35.4"
