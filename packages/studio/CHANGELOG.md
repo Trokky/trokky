@@ -1,5 +1,11 @@
 # @trokky/studio
 
+## 3.5.4
+
+### Patch Changes
+
+- @trokky/trokky@3.5.4
+
 ## 3.5.3
 
 ### Patch Changes
