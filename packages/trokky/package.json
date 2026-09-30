@@ -1,6 +1,6 @@
 {
   "name": "@trokky/trokky",
-  "version": "3.5.3",
+  "version": "3.5.4",
   "description": "Modern, composable Content Management System - Server package",
   "type": "module",
   "main": "dist/index.js",
