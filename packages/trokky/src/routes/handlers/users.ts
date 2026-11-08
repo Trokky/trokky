@@ -14,8 +14,9 @@ const isServerPreference = (key: string): boolean => key.startsWith('_oauth2')
  * preference records, which name every application a person has signed in with (reading
  * users does not entitle anyone to that; the person sees their own under /auth/grants).
  */
-function publicUser<T extends { passwordHash?: unknown; preferences?: unknown }>(user: T): Omit<T, 'passwordHash'> {
-  const { passwordHash: _passwordHash, ...safeUser } = user
+function publicUser<T extends { passwordHash?: unknown; preferences?: unknown }>(user: T): Omit<T, 'passwordHash' | 'password'> {
+  // `password` too: before updateUser hashed it, an edit stored the clear text in the record
+  const { passwordHash: _passwordHash, password: _password, ...safeUser } = user as T & { password?: unknown }
   if (safeUser.preferences && typeof safeUser.preferences === 'object') {
     safeUser.preferences = Object.fromEntries(
       Object.entries(safeUser.preferences as Record<string, unknown>).filter(([key]) => !isServerPreference(key))
@@ -163,6 +164,12 @@ export class UserRoutes extends BaseRoutes {
       }
 
       let userData = request.body as Record<string, unknown>
+
+      // A password is set by sending `password`, which updateUser hashes. Accepting a hash from
+      // the client would let it write any hash, or one from another algorithm, unverified.
+      if ('passwordHash' in userData) {
+        throw new InvalidInputError('passwordHash cannot be set; send password instead', 'passwordHash')
+      }
 
       // Transform fullName to firstName and lastName if present
       if (userData.fullName && typeof userData.fullName === 'string') {

@@ -512,6 +512,93 @@ describe('TrokkyRoutes integration', () => {
       expect(body.success).toBe(true)
       expect(body.data?.user.id).toBe(adminUser.id)
     })
+
+    describe('PUT /users/:id with a new password', () => {
+      let target: User
+
+      beforeEach(async () => {
+        target = await core.createUser({
+          username: 'pw-target',
+          email: 'pw-target@example.com',
+          password: 'OldPassword123!',
+          role: 'editor'
+        })
+      })
+
+      const putUser = (body: Record<string, unknown>) =>
+        executeRoute(
+          routes,
+          createMockRequest({
+            method: 'PUT',
+            path: `/api/users/${target.id}`,
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body
+          })
+        )
+
+      const accepts = async (password: string): Promise<boolean> => {
+        const stored = await dataAdapter.getUser(target.id)
+        return core.verifyPassword(password, stored?.passwordHash ?? '')
+      }
+
+      it('should accept the new password and refuse the old one', async () => {
+        const response = await putUser({ email: 'pw-target@example.com', password: 'NewPassword456!' })
+        expect(response.status).toBe(200)
+
+        expect(await accepts('NewPassword456!')).toBe(true)
+        expect(await accepts('OldPassword123!')).toBe(false)
+      })
+
+      it('should store only the hash, never the clear text', async () => {
+        await putUser({ password: 'NewPassword456!' })
+
+        const stored = (await dataAdapter.getUser(target.id)) as User & { password?: unknown }
+        expect(stored.password).toBeUndefined()
+        expect(stored.passwordHash).not.toBe(target.passwordHash)
+        expect(stored.passwordHash).not.toContain('NewPassword456!')
+      })
+
+      it('should keep the current password when the form sends an empty one', async () => {
+        const response = await putUser({ firstName: 'Renamed', password: '' })
+        expect(response.status).toBe(200)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored?.passwordHash).toBe(target.passwordHash)
+        expect(await accepts('OldPassword123!')).toBe(true)
+      })
+
+      it('should reject a weak password and leave the old one working', async () => {
+        const response = await putUser({ password: 'short' })
+        expect(response.status).toBe(400)
+
+        expect(await accepts('OldPassword123!')).toBe(true)
+      })
+
+      it('should refuse a passwordHash supplied by the client', async () => {
+        const response = await putUser({ passwordHash: 'pbkdf2$attacker-chosen' })
+        expect(response.status).toBe(400)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored?.passwordHash).toBe(target.passwordHash)
+      })
+
+      it('should not return a clear-text password left in a record by an older version', async () => {
+        await dataAdapter.saveUser(target.id, { password: 'LeakedPassword1!' } as Partial<User>)
+
+        const response = await executeRoute(
+          routes,
+          createMockRequest({
+            method: 'GET',
+            path: `/api/users/${target.id}`,
+            headers: { Authorization: `Bearer ${adminToken}` }
+          })
+        )
+        const body = parseResponseBody<UserData>(response)
+
+        expect(response.status).toBe(200)
+        expect(body.data?.user).not.toHaveProperty('password')
+      })
+    })
   })
 
   describe('schema routes', () => {
