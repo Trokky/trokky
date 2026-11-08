@@ -1,5 +1,7 @@
 # @trokky/mcp
 
+## 3.5.5
+
 ## 3.5.4
 
 ### Patch Changes
