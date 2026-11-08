@@ -15,6 +15,7 @@
 
 import express, { Express, Router } from 'express'
 import { createLogger } from '../../core/index.js'
+import { webhookSafeEvent } from '../../core/events/event-bus.js'
 import { MailService, MailNotificationService, BuiltInTemplateRenderer } from '../../mail/index.js'
 import { TrokkyExpress } from './integration.js'
 import { withDefaults, resolveStudioUrl } from './config.js'
@@ -374,7 +375,7 @@ async function registerHooks(
     for (const webhook of hooks.webhooks) {
       for (const eventName of webhook.events) {
         eventBus.on(eventName, async (data: any) => {
-          await dispatchWebhook(webhook, eventName, data)
+          await dispatchWebhook(webhook, eventName, webhookSafeEvent(data))
         })
         registeredCount++
       }

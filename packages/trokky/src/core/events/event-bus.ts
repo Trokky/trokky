@@ -25,6 +25,33 @@ import type {
 } from './types.js'
 
 /**
+ * User fields that never leave the server in a webhook: credentials, second factors, and
+ * preferences, which hold the pending password reset, the email OTP hash and OAuth grants
+ */
+const WEBHOOK_HIDDEN_USER_FIELDS = ['passwordHash', 'password', 'mfa', 'passkeys', 'oauthProviders', 'preferences']
+
+/** Event data the mail listeners need in process, and that would let a webhook take over an account */
+const WEBHOOK_HIDDEN_DATA_FIELDS = ['resetToken', 'otpCode', 'inviteToken']
+
+/**
+ * The event as a webhook may see it. User events carry the stored user and, for the mail
+ * listeners, the reset token or OTP code in clear; all of it went to every subscribed URL.
+ * In-process listeners still get the full event.
+ */
+export function webhookSafeEvent<T>(event: T): T {
+  const data = (event as { data?: unknown } | null)?.data
+  if (!data || typeof data !== 'object') return event
+  const safeData: Record<string, unknown> = { ...(data as Record<string, unknown>) }
+  for (const key of WEBHOOK_HIDDEN_DATA_FIELDS) delete safeData[key]
+  if (typeof safeData.user === 'object' && safeData.user !== null) {
+    const user = { ...(safeData.user as Record<string, unknown>) }
+    for (const key of WEBHOOK_HIDDEN_USER_FIELDS) delete user[key]
+    safeData.user = user
+  }
+  return { ...event, data: safeData }
+}
+
+/**
  * Configuration options for the EventBus
  */
 export interface EventBusConfig {
@@ -544,7 +571,7 @@ export class TrokkyEventBus extends EventEmitter {
         id: webhook.id,
         name: webhook.name
       },
-      event,
+      event: webhookSafeEvent(event),
       delivery: {
         id: deliveryId,
         timestamp: new Date(),
