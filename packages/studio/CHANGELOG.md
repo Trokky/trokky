@@ -1,5 +1,12 @@
 # @trokky/studio
 
+## 3.5.6
+
+### Patch Changes
+
+- Updated dependencies [f6a08f5]
+  - @trokky/trokky@3.5.6
+
 ## 3.5.5
 
 ### Patch Changes
