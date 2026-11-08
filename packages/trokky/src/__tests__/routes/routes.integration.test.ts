@@ -598,6 +598,223 @@ describe('TrokkyRoutes integration', () => {
         expect(response.status).toBe(200)
         expect(body.data?.user).not.toHaveProperty('password')
       })
+
+      it('should emit user.password_changed when a password is set, and not otherwise', async () => {
+        const emit = vi.spyOn(core.events, 'emitEvent')
+
+        await putUser({ firstName: 'Renamed', password: '' })
+        expect(emit).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user.password_changed' }))
+
+        await putUser({ password: 'NewPassword456!' })
+        expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'user.password_changed',
+          data: expect.objectContaining({ userId: target.id, changedBy: adminUser.id })
+        }))
+        const event = emit.mock.calls.find(([e]) => e.type === 'user.password_changed')?.[0]
+        expect(event?.data.user).not.toHaveProperty('passwordHash')
+      })
+    })
+
+    describe('PUT /users/:id fields', () => {
+      let target: User
+
+      beforeEach(async () => {
+        target = await core.createUser({
+          username: 'fields-target',
+          email: 'fields-target@example.com',
+          password: 'OldPassword123!',
+          role: 'editor'
+        })
+      })
+
+      const putUser = (body: Record<string, unknown>) =>
+        executeRoute(
+          routes,
+          createMockRequest({
+            method: 'PUT',
+            path: `/api/users/${target.id}`,
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body
+          })
+        )
+
+      it('should deactivate a user when Studio sends active: false', async () => {
+        const response = await putUser({ username: 'fields-target', active: false })
+        expect(response.status).toBe(200)
+
+        const stored = (await dataAdapter.getUser(target.id)) as User & { active?: unknown }
+        expect(stored.isActive).toBe(false)
+        expect(stored).not.toHaveProperty('active')
+        expect(await core.authenticateUser('fields-target', 'OldPassword123!')).toBeNull()
+      })
+
+      it.each([
+        ['mfa', { enabled: false, methods: [] }],
+        ['passkeys', []],
+        ['oauthProviders', { google: { id: 'attacker' } }],
+        ['role-typo', 'admin']
+      ])('should refuse %s and change nothing', async (field, value) => {
+        const response = await putUser({ firstName: 'Changed', [field]: value })
+        expect(response.status).toBe(400)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored?.firstName).toBe(target.firstName)
+        expect(stored).not.toHaveProperty(field)
+      })
+
+      it('should ignore timestamps and the id sent back from a fetched user', async () => {
+        const response = await putUser({
+          id: 'user_other',
+          createdAt: '2000-01-01T00:00:00.000Z',
+          lastLoginAt: '2000-01-01T00:00:00.000Z',
+          firstName: 'Changed'
+        })
+        expect(response.status).toBe(200)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored?.firstName).toBe('Changed')
+        expect(stored?.createdAt).toBe(target.createdAt)
+        expect(stored?.lastLoginAt).toBe(target.lastLoginAt)
+      })
+
+      it('should accept the full payload Studio sends', async () => {
+        const response = await putUser({
+          username: 'fields-target',
+          email: 'fields-target@example.com',
+          fullName: 'Ada Lovelace',
+          role: 'author',
+          permissions: [],
+          password: '',
+          active: true
+        })
+        expect(response.status).toBe(200)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored).toMatchObject({ firstName: 'Ada', lastName: 'Lovelace', role: 'author', isActive: true })
+      })
+
+      it('should refuse an active value that is not a boolean', async () => {
+        const response = await putUser({ active: 'false' })
+        expect(response.status).toBe(400)
+
+        const stored = await dataAdapter.getUser(target.id)
+        expect(stored?.isActive).toBe(true)
+      })
+
+      const putSelf = (token: string, id: string, body: Record<string, unknown>) =>
+        executeRoute(
+          routes,
+          createMockRequest({
+            method: 'PUT',
+            path: `/api/users/${id}`,
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body
+          })
+        )
+
+      it.each([
+        ['deactivate', { active: false }],
+        ['demote', { role: 'editor' }],
+        ['change the permissions of', { permissions: ['content:read'] }]
+      ])('should refuse an admin trying to %s themselves', async (_label, change) => {
+        const response = await putSelf(adminToken, adminUser.id, change)
+        expect(response.status).toBe(403)
+
+        const stored = await dataAdapter.getUser(adminUser.id)
+        expect(stored).toMatchObject({ role: 'admin', isActive: true })
+      })
+
+      it('should let an admin edit their own profile when Studio echoes their access unchanged', async () => {
+        const response = await putSelf(adminToken, adminUser.id, {
+          username: adminUser.username,
+          email: adminUser.email,
+          fullName: 'Renamed Admin',
+          role: 'admin',
+          permissions: [...(adminUser.permissions ?? [])].reverse(),
+          password: '',
+          active: true
+        })
+        expect(response.status).toBe(200)
+        expect((await dataAdapter.getUser(adminUser.id))?.firstName).toBe('Renamed')
+      })
+
+      it('should refuse a users:write holder making themselves admin', async () => {
+        const created = await core.createUser({
+          username: 'delegate',
+          email: 'delegate@example.com',
+          password: 'Delegate123!',
+          role: 'editor',
+          permissions: ['content:*', 'users:write']
+        })
+        const token = await core.generateAuthToken(created)
+
+        const response = await putSelf(token, created.id, { role: 'admin' })
+        expect(response.status).toBe(403)
+        expect((await dataAdapter.getUser(created.id))?.role).toBe('editor')
+      })
+
+      it('should keep a users:write holder away from admin accounts, but not from other users', async () => {
+        const delegate = await core.createUser({
+          username: 'delegate2',
+          email: 'delegate2@example.com',
+          password: 'Delegate123!',
+          role: 'editor',
+          permissions: ['content:*', 'users:write']
+        })
+        const token = await core.generateAuthToken(delegate)
+        const call = (method: string, path: string, body?: Record<string, unknown>) =>
+          executeRoute(routes, createMockRequest({
+            method,
+            path,
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body
+          }))
+
+        expect((await call('PUT', `/api/users/${adminUser.id}`, { password: 'Takeover123!' })).status).toBe(403)
+        expect((await call('PUT', `/api/users/${target.id}`, { role: 'admin' })).status).toBe(403)
+        expect((await call('POST', '/api/users', {
+          username: 'new-admin', email: 'new-admin@example.com', password: 'NewAdmin123!', role: 'admin'
+        })).status).toBe(403)
+        expect((await call('DELETE', `/api/users/${adminUser.id}`)).status).toBe(403)
+        expect((await dataAdapter.getUser(adminUser.id))?.passwordHash).toBe(adminUser.passwordHash)
+
+        expect((await call('PUT', `/api/users/${target.id}`, { firstName: 'Managed' })).status).toBe(200)
+      })
+    })
+
+    describe('GET /users MFA details', () => {
+      it('should show whether MFA is on, not its secrets', async () => {
+        const target = await core.createUser({
+          username: 'mfa-user',
+          email: 'mfa-user@example.com',
+          password: 'MfaUser123!',
+          role: 'editor'
+        })
+        await dataAdapter.saveUser(target.id, {
+          mfa: {
+            enabled: true,
+            methods: [{ type: 'totp', enabled: true, verified: true, secret: 'encrypted-totp-secret' }],
+            backupCodes: ['backup-code-hash'],
+            trustedDevices: [{ id: 'device-1' }]
+          }
+        } as Partial<User>)
+
+        const response = await executeRoute(
+          routes,
+          createMockRequest({
+            method: 'GET',
+            path: `/api/users/${target.id}`,
+            headers: { Authorization: `Bearer ${adminToken}` }
+          })
+        )
+        const body = parseResponseBody<UserData>(response)
+        const sent = JSON.stringify(body)
+
+        expect(body.data?.user.mfa).toMatchObject({ enabled: true, methods: [{ type: 'totp', enabled: true, verified: true }] })
+        expect(sent).not.toContain('encrypted-totp-secret')
+        expect(sent).not.toContain('backup-code-hash')
+        expect(sent).not.toContain('device-1')
+      })
     })
   })
 

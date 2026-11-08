@@ -265,6 +265,53 @@ describe('Event System', () => {
       infoSpy.mockRestore()
       logSpy.mockRestore()
     })
+
+    it('should send a user event to a webhook without credentials or second factors', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const seenInProcess: unknown[] = []
+      eventBus.on('user.created', (event: { data: { user: unknown } }) => seenInProcess.push(event.data.user))
+
+      await eventBus.registerWebhook({
+        id: 'wh-users',
+        name: 'Users webhook',
+        url: 'https://example.com/hook',
+        events: ['user.created'],
+        secret: 'placeholder-secret-value',
+        active: true,
+        createdBy: 'user-1',
+      })
+      await eventBus.emitEvent({
+        type: 'user.created',
+        source: 'api',
+        data: {
+          userId: 'user-9',
+          user: {
+            id: 'user-9',
+            email: 'someone@example.com',
+            passwordHash: 'pbkdf2$stored-hash',
+            mfa: { enabled: true, methods: [{ type: 'totp', secret: 'encrypted-totp-secret' }], backupCodes: ['h1'] },
+            passkeys: [{ credentialId: 'cred-1' }],
+            oauthProviders: { google: { id: 'g-1' } },
+            preferences: { passwordReset: { tokenHash: 'pending-reset-hash' } },
+          },
+          resetToken: 'plain-reset-token',
+          otpCode: '123456',
+        },
+      })
+
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+      const sent = String(fetchMock.mock.calls[0][1].body)
+      expect(JSON.parse(sent).event.data.user).toEqual({ id: 'user-9', email: 'someone@example.com' })
+      expect(sent).not.toContain('stored-hash')
+      expect(sent).not.toContain('encrypted-totp-secret')
+      expect(sent).not.toContain('plain-reset-token')
+      expect(sent).not.toContain('123456')
+      expect(sent).not.toContain('pending-reset-hash')
+      expect(seenInProcess[0]).toHaveProperty('passwordHash', 'pbkdf2$stored-hash')
+
+      vi.unstubAllGlobals()
+    })
   })
 
   describe('MemoryEventStorage teardown', () => {
