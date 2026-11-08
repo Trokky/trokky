@@ -238,6 +238,8 @@ export interface UpdateUserData {
   mfa?: MFAConfig
   lastLoginAt?: string
   passwordHash?: string
+  /** A new password in clear text: updateUser hashes it into passwordHash and never stores it */
+  password?: string
 }
 
 /**

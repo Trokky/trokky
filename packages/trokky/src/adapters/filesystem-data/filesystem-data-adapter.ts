@@ -511,6 +511,9 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
           id,
           updatedAt: new Date().toISOString()
         }
+        // Before updateUser hashed a new password, an edit wrote it here in clear text. Any
+        // write (a sign-in records lastLoginAt) now drops it.
+        delete (userFile as UserFile & { password?: unknown }).password
       } catch {
         // User doesn't exist, this is a new user.
         // Persist every supplied field: the create branch used to build the

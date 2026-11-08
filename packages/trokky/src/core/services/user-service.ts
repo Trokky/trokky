@@ -208,9 +208,17 @@ export class UserService {
       throw new DocumentNotFoundError('users', id)
     }
 
+    // A new password is stored only as its hash. Copying it as-is left the old passwordHash in
+    // place (so the new password was refused at login) and the clear text beside it. An empty
+    // string is how Studio's edit form says "unchanged".
+    const { password, ...fields } = userData
     const updatedUserData: Partial<User> = {
-      ...userData,
+      ...fields,
       updatedAt: new Date().toISOString()
+    }
+    if (password !== undefined && password !== null && password !== '') {
+      SecurityValidator.validatePassword(password)
+      updatedUserData.passwordHash = await this.deps.hashPassword(password)
     }
 
     const updatedUser = await this.deps.dataStorage.saveUser(id, updatedUserData)

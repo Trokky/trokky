@@ -225,6 +225,22 @@ describe('FilesystemDataAdapter', () => {
       expect(retrieved!.username).toBe('testuser')
     })
 
+    it('should drop a clear-text password left in a user file on the next write', async () => {
+      await adapter.saveUser('user-001', {
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'unused',
+        role: 'editor',
+      })
+      const filePath = path.join(tempDir, 'users', 'user-001.json')
+      const legacy = { ...(await fs.readJson(filePath)), password: 'LeftInClear1!' }
+      await fs.writeJson(filePath, legacy)
+
+      await adapter.saveUser('user-001', { lastLoginAt: new Date().toISOString() })
+
+      expect(await fs.readJson(filePath)).not.toHaveProperty('password')
+    })
+
     it('should return null for non-existent user', async () => {
       const result = await adapter.getUser('nonexistent')
       expect(result).toBeNull()
