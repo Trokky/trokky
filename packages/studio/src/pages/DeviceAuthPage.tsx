@@ -134,6 +134,7 @@ export function DeviceAuthPage() {
       case 'media:read': return t('auth.device.scopes.mediaRead');
       case 'media:write': return t('auth.device.scopes.mediaWrite');
       case 'media:delete': return t('auth.device.scopes.mediaDelete');
+      case 'system:read': return t('auth.device.scopes.systemRead');
       case 'offline_access': return t('auth.device.scopes.offlineAccess');
       default: return scope;
     }

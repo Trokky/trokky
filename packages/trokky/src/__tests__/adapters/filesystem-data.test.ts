@@ -29,6 +29,22 @@ describe('FilesystemDataAdapter', () => {
     await fs.remove(tempDir)
   })
 
+  // listDocuments skips a file that does not parse; trokky doctor asks for those files by name
+  describe('listUnreadableDocuments', () => {
+    it('should name the document files that do not parse, and only those', async () => {
+      await adapter.saveDocument('posts', 'good', { title: 'Good' })
+      await fs.writeFile(path.join(tempDir, 'content', 'posts', 'corrupt.json'), '{ "title": "half')
+      await fs.writeFile(path.join(tempDir, 'content', 'posts', 'empty.json'), '{}')
+      await fs.writeFile(path.join(tempDir, 'content', 'posts', 'null.json'), 'null')
+      expect((await adapter.listUnreadableDocuments('posts')).sort()).toEqual(['corrupt.json', 'empty.json', 'null.json'])
+      expect((await adapter.listDocuments('posts')).map((d) => d._id)).toEqual(['good'])
+    })
+
+    it('should return nothing for a collection with no directory', async () => {
+      expect(await adapter.listUnreadableDocuments('nothing-here')).toEqual([])
+    })
+  })
+
   // The routes layer normalises every incoming sort into `field.asc` / `field.desc` before it
   // reaches an adapter, which is the grammar the postgres adapter parses. This adapter only
   // understood `-field`, so API sorting silently did nothing on a filesystem-backed site.

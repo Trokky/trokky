@@ -64,23 +64,24 @@ describe('findEphemeralDirectories', () => {
   const read = async () => MOUNTINFO
 
   it('should warn for each directory outside a volume, naming it', async () => {
-    const warnings = await findEphemeralDirectories(
+    const { checked, warnings } = await findEphemeralDirectories(
       [
         { label: 'Media files', dir: '/app/media' },
         { label: 'Documents', dir: '/app/data/content' },
       ],
       read
     )
+    expect(checked).toBe(true)
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toContain('Media files are stored in /app/media')
     expect(warnings[0]).toContain('Mount a persistent volume at /app/media')
   })
 
-  it('should say nothing when the mount table cannot be read', async () => {
-    const warnings = await findEphemeralDirectories([{ label: 'Media files', dir: '/app/media' }], async () => {
+  it('should say it could not check when the mount table cannot be read', async () => {
+    const result = await findEphemeralDirectories([{ label: 'Media files', dir: '/app/media' }], async () => {
       throw new Error('ENOENT')
     })
-    expect(warnings).toEqual([])
+    expect(result).toEqual({ checked: false, warnings: [] })
   })
 })
 
@@ -92,8 +93,8 @@ describe('findEphemeralDirectories with symlinks', () => {
       await fs.promises.symlink(path.join(base, 'volume'), path.join(base, 'link'))
       const mounts = async () => `1 0 0:1 / / rw - overlay overlay rw\n2 1 8:1 / ${base}/volume rw - ext4 /dev/sda1 rw`
       // Through the link the path looks like it is on the overlay root; resolved, it is on the volume
-      expect(await findEphemeralDirectories([{ label: 'Media files', dir: path.join(base, 'link', 'media') }], mounts)).toEqual([])
-      expect(await findEphemeralDirectories([{ label: 'Media files', dir: path.join(base, 'media') }], mounts)).toHaveLength(1)
+      expect((await findEphemeralDirectories([{ label: 'Media files', dir: path.join(base, 'link', 'media') }], mounts)).warnings).toEqual([])
+      expect((await findEphemeralDirectories([{ label: 'Media files', dir: path.join(base, 'media') }], mounts)).warnings).toHaveLength(1)
     } finally {
       await fs.promises.rm(base, { recursive: true, force: true })
     }

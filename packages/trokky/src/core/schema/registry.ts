@@ -25,6 +25,8 @@ export const BUILTIN_FIELD_TYPES = [
 
 export class SchemaRegistry {
   private schemas: Map<string, ContentSchema> = new Map()
+  /** What findSchemaProblems reported for each schema at registration, for trokky doctor */
+  private problems: Map<string, string[]> = new Map()
   private config: TrokkyConfig['features']
 
   constructor(schemas: ContentSchema[] | string, config?: TrokkyConfig['features']) {
@@ -46,6 +48,7 @@ export class SchemaRegistry {
 
   private validateAndRegisterSchema(schema: ContentSchema): void {
     const problems = findSchemaProblems(schema, this.config?.customFieldTypes ?? [])
+    this.problems.set(schema.name, problems)
     if (problems.length > 0) {
       if (this.config?.strictSchemas) {
         throw new Error(`Invalid schema "${schema.name}" (strictSchemas):\n- ${problems.join('\n- ')}`)
@@ -285,7 +288,13 @@ export class SchemaRegistry {
   }
 
   public unregisterSchema(name: string): boolean {
+    this.problems.delete(name)
     return this.schemas.delete(name)
+  }
+
+  /** Schema problems found at registration, by schema name; schemas without any are left out */
+  public getSchemaProblems(): Record<string, string[]> {
+    return Object.fromEntries([...this.problems].filter(([, problems]) => problems.length > 0))
   }
 }
 

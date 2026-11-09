@@ -17,7 +17,8 @@ import {
   WebhookRoutes,
   AuditRoutes,
   SearchRoutes,
-  ConfigRoutes
+  ConfigRoutes,
+  SystemRoutes
 } from './handlers/index.js'
 
 export class TrokkyRoutes extends BaseRoutes {
@@ -40,7 +41,8 @@ export class TrokkyRoutes extends BaseRoutes {
       new WebhookRoutes(this.config),
       new AuditRoutes(this.config),
       new SearchRoutes(this.config),
-      new ConfigRoutes(this.config)
+      new ConfigRoutes(this.config),
+      new SystemRoutes(this.config)
     ])
 
     this.initializeRoutes()
@@ -208,6 +210,9 @@ export class TrokkyRoutes extends BaseRoutes {
 
     // Health check route
     this.addRoute('GET', `${basePath}/health`, this.healthCheck.bind(this))
+
+    // Diagnostics (trokky doctor)
+    this.addHandlerRoute('GET', `${basePath}/system/doctor`)
 
     // OpenAPI spec (public)
     this.addRoute('GET', `${basePath}/openapi.json`, this.getOpenApiSpec.bind(this))
@@ -407,6 +412,7 @@ export class TrokkyRoutes extends BaseRoutes {
       else if (pathWithoutBase.startsWith('/schemas') || pathWithoutBase.startsWith('/config')) tag = 'Configuration'
       else if (pathWithoutBase.startsWith('/slugs')) tag = 'Utility'
       else if (pathWithoutBase.startsWith('/health')) tag = 'Utility'
+      else if (pathWithoutBase.startsWith('/system')) tag = 'Utility'
 
       // Determine if public
       const publicPaths = ['/health', '/auth/login', '/auth/logout', '/auth/validate', '/auth/refresh',
