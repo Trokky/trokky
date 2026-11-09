@@ -82,11 +82,7 @@ class AdapterRegistry {
     const factory = this.factories.data.get(name)
     
     if (!factory) {
-      const available = this.getAvailableAdapters('data')
-      throw new Error(
-        `Data adapter "${name}" not found. Available adapters: ${available.join(', ')}.\n` +
-        `Make sure the adapter package is installed and imported.`
-      )
+      throw new Error(adapterNotFoundMessage('data', name, this.getAvailableAdapters('data')))
     }
 
     try {
@@ -106,11 +102,7 @@ class AdapterRegistry {
     const factory = this.factories.media.get(name)
     
     if (!factory) {
-      const available = this.getAvailableAdapters('media')
-      throw new Error(
-        `Media adapter "${name}" not found. Available adapters: ${available.join(', ')}.\n` +
-        `Make sure the adapter package is installed and imported.`
-      )
+      throw new Error(adapterNotFoundMessage('media', name, this.getAvailableAdapters('media')))
     }
 
     try {
@@ -201,3 +193,49 @@ export async function createAdapter<T extends StorageAdapter | MediaAdapter>(
  * Export the registry instance for direct access
  */
 export { globalRegistry as adapterRegistry }
+
+/** The adapters this package ships, by kind, with the import that registers each one. */
+const BUILT_IN_ADAPTERS: Record<'data' | 'media', Record<string, string>> = {
+  data: {
+    'filesystem-data': '@trokky/trokky/adapters/filesystem-data',
+    'postgres-data': '@trokky/trokky/adapters/postgres-data',
+    'cloudflare-d1': '@trokky/trokky/adapters/cloudflare-d1',
+  },
+  media: {
+    'filesystem-media': '@trokky/trokky/adapters/filesystem-media',
+    's3-media': '@trokky/trokky/adapters/s3-media',
+    'cloudflare-r2': '@trokky/trokky/adapters/cloudflare-r2',
+  },
+}
+
+/**
+ * Why a configured adapter is missing, and the line that fixes it. Adapters register themselves
+ * when their module is imported, so the usual cause is a missing (or bundler-dropped) import,
+ * not a missing package.
+ */
+export function adapterNotFoundMessage(kind: 'data' | 'media', name: string, available: string[]): string {
+  const registered = available.length > 0 ? available.join(', ') : 'none'
+  const head = `${kind === 'data' ? 'Data' : 'Media'} adapter "${name}" is not registered (registered ${kind} adapters: ${registered}).`
+
+  const importPath = Object.hasOwn(BUILT_IN_ADAPTERS[kind], name) ? BUILT_IN_ADAPTERS[kind][name] : undefined
+  if (importPath) {
+    return (
+      `${head} Adapters register themselves when imported: add\n\n  import '${importPath}'\n\n` +
+      'to the file that creates the server, before it runs. If the import is there, check that your ' +
+      'bundler keeps side-effect imports.'
+    )
+  }
+
+  const otherKind = kind === 'data' ? 'media' : 'data'
+  if (Object.hasOwn(BUILT_IN_ADAPTERS[otherKind], name)) {
+    return `${head} "${name}" is a ${otherKind} adapter: it belongs under storage.${otherKind}, not storage.${kind}.`
+  }
+
+  const known = Object.keys(BUILT_IN_ADAPTERS[kind])
+  const typed = name.toLowerCase()
+  const hint = typed && known.find((candidate) => candidate.startsWith(typed) || typed.startsWith(candidate.split('-')[0]))
+  return (
+    `${head} Built-in ${kind} adapters: ${known.join(', ')}` +
+    `${hint ? ` (did you mean "${hint}"?)` : ''}. A third-party adapter must be imported before the server is created.`
+  )
+}
