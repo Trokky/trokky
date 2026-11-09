@@ -762,8 +762,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
           createData.username,
           createData.email,
           passwordHash,
-          createData.firstName,
-          createData.lastName,
+          createData.firstName ?? '', // the columns are NOT NULL; names are optional
+          createData.lastName ?? '',
           createData.role,
           JSON.stringify(createData.permissions ?? []),
           createData.isActive ?? true,
@@ -820,8 +820,8 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         userData.username,
         userData.email,
         passwordHash,
-        userData.firstName,
-        userData.lastName,
+        userData.firstName ?? '', // the columns are NOT NULL; names are optional
+        userData.lastName ?? '',
         userData.role,
         JSON.stringify(userData.permissions ?? []),
         userData.isActive ?? true,
@@ -895,7 +895,9 @@ export class PostgresDataAdapter implements DataStorageAdapter {
         continue
       }
 
-      params.push(json ? jsonColumnValue(value) : value)
+      // first_name and last_name are NOT NULL: clearing a name stores an empty one
+      const stored = value === null && (key === 'firstName' || key === 'lastName') ? '' : value
+      params.push(json ? jsonColumnValue(stored) : stored)
       assignments.push(`${column} = $${params.length}`)
     }
 

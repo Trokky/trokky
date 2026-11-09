@@ -40,6 +40,7 @@ function makeService(options: { claimSecret?: string; users?: User[]; weak?: boo
   } as unknown as UserServiceDependencies['dataStorage']
 
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+  const logAuditEvent = vi.fn()
 
   const service = new UserService({
     logger: logger as never,
@@ -49,12 +50,12 @@ function makeService(options: { claimSecret?: string; users?: User[]; weak?: boo
     eventBus: { emitEvent: vi.fn().mockResolvedValue(undefined) } as never,
     hashPassword: async password => `hashed:${password}`,
     checkWeakPassword: () => (options.weak ? { isWeak: true, reason: 'too short' } : { isWeak: false }),
-    logAuditEvent: vi.fn(),
+    logAuditEvent,
     getUserCreatedWithPasswordCallback: () => undefined,
     claimSecret: () => options.claimSecret
   })
 
-  return { service, users, logger }
+  return { service, users, logger, logAuditEvent }
 }
 
 const validClaim = {
@@ -94,6 +95,14 @@ describe('first-boot claim', () => {
       expect(admin.permissions).toContain('studio:access')
       expect(admin.permissions).toContain('users:write')
       expect(users).toHaveLength(1)
+    })
+
+    it('records a successful claim as a success in the audit log', async () => {
+      const { service, logAuditEvent } = makeService()
+      await service.claimInstance(validClaim)
+      expect(logAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'user_created', success: true, timestamp: expect.any(String) })
+      )
     })
 
     it('closes permanently once claimed', async () => {
