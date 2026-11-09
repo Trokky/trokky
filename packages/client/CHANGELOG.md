@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.6.0
+
+### Patch Changes
+
+- Updated dependencies [36c06b1]
+- Updated dependencies [64db613]
+- Updated dependencies [f03a51f]
+- Updated dependencies [913171c]
+- Updated dependencies [fc86f2b]
+- Updated dependencies [7d89675]
+- Updated dependencies [4180451]
+- Updated dependencies [da2b198]
+  - @trokky/trokky@3.6.0
+
 ## 3.5.6
 
 ### Patch Changes

@@ -1,5 +1,79 @@
 # @trokky/trokky
 
+## 3.6.0
+
+### Minor Changes
+
+- fc86f2b: The JWT signing key can no longer be missing or a placeholder in production without anyone noticing.
+
+  - In production Trokky refuses to start when no secret is set (`security.jwtSecret` or `TROKKY_JWT_SECRET`). It used to generate a random key without a word, so every restart signed everyone out and replicas rejected each other's tokens.
+  - It also refuses a placeholder: values such as `change-me-in-production`, `your-secret-key-here`, `replace-me`, `dev-secret-do-not-use-in-production` or a bare `secret`. Those come from examples, and anyone who has read the example can sign tokens for the site. A secret shorter than 32 characters is accepted with a warning; a blank one counts as missing.
+  - A real `TROKKY_JWT_SECRET` now wins over a placeholder fallback in config (`process.env.JWT_SECRET || 'change-me'`), so setting the variable the error names is enough.
+  - Production means: `env` in the config or `NODE_ENV` says production, or names anything other than development or test (`staging`, `prod`). A config left on `env: 'development'` no longer switches the check off on a server with `NODE_ENV=production`.
+  - Edge runtimes have no `NODE_ENV`: a Worker in production should pass `env: 'production'` to `TrokkyCore` to get the same check.
+  - The Express integration no longer supplies the fixed key `dev-secret-change-in-production` in development. It applied to any deployment without `NODE_ENV=production`, which made it a public signing key on such sites. Development now uses a random key per process and logs one warning: set `TROKKY_JWT_SECRET` in `.env` to keep Studio sessions across restarts.
+  - `defineConfig()` accepts `TROKKY_JWT_SECRET` as the production secret, like the engine does.
+  - The unused `DEFAULT_AUTH_CONFIG` export, which carried a hard-coded key, is removed.
+
+  Before upgrading a production site, make sure it sets a real secret. A config that falls back to a placeholder when its variable is unset will refuse to start until the variable is set.
+
+- da2b198: Schema mistakes that used to pass silently are now reported, and `required` means required for every field type.
+
+  - **Unknown top-level schema keys** are still dropped, but now with a warning at startup naming the key and, when one is close, what was probably meant: `Schema "homepage": unknown key "isSingleton" is ignored (did you mean "singleton"?)`.
+  - **Field types nothing knows** (neither one of the 23 built-in types nor declared) get a warning naming the field path and the closest built-in type: `field "body" has type "richText" ... (did you mean "richtext"?)`. Such a field has no server validation and no Studio editor. A custom Studio field type is declared with `features.customFieldTypes: ['stars']`, which stops the warning.
+  - **`features.strictSchemas: true`** turns both warnings into a startup error listing every problem in the schema.
+  - **`required: true` is enforced for every field type.** The validator used to check presence only for some types: a required `media` or `date` field accepted `null`, and the fourteen types without a server-side case (`richtext`, `text`, `image`, `email`, ...) accepted anything, including nothing. Required fields of any type, including required properties inside `object` fields, now reject a missing or `null` value.
+  - Required items in an array (`of: { type: 'media', required: true }`) reject a `null` item, as required string items already did.
+  - Object fields written in array form inside a schema (`fields: [{ name: 'href', type: 'url', required: true }]`) are validated by field name. They were keyed by array index, so a required property in that form could never be satisfied.
+  - An auto-created singleton is still created when its schema has required fields, nested ones included: it is an empty document for an editor to fill in, and the required fields are checked when it is saved. Before, a singleton with a required `reference` or `media` field silently failed to auto-create.
+  - Unpublishing always works: a request that only sets `_status` to `draft` does not re-check required fields, so a document that predates a field becoming required can still be taken offline.
+
+  Upgrade note: a write that leaves a required field empty is now refused with a validation error for these types too. That covers editing or publishing a document saved before the upgrade with a required field empty (for example after a field was made required), and `trokky restore` of such a document. Fill the field, or make it optional, first.
+
+### Patch Changes
+
+- 36c06b1: When the configured storage adapter is not registered, the startup error now gives the fix. Adapters register themselves when their module is imported, so the usual cause is a missing import, not a missing package:
+
+  ```
+  Data adapter "postgres-data" is not registered (registered data adapters: filesystem-data). Adapters register themselves when imported: add
+
+    import '@trokky/trokky/adapters/postgres-data'
+
+  to the file that creates the server, before it runs. If the import is there, check that your bundler keeps side-effect imports.
+  ```
+
+  A media adapter configured under `storage.data` (or the reverse) is called out as such, and a near miss such as `postgres` suggests `postgres-data`.
+
+  The Express integration no longer appends its own list of adapters to this error. That list named packages that do not exist (`@trokky/adapter-filesystem-data`, `@trokky/adapter-dynamodb`), left out `postgres-data`, and told the reader to install a package.
+
+- 64db613: A create that names an existing document id (`POST /collections/:collection` with `id`) replaces that document, and no longer treats the document's own slug as taken. It used to come back with a suffix (`first` became `first-2`), which broke the document's URL; `trokky restore --preserve-ids` writes this way. Another document asking for the same slug still gets a unique one.
+- f03a51f: `GET /system/doctor` reports the problems that otherwise fail silently, for `trokky doctor` in the CLI:
+
+  - **Signing key:** whether a real JWT secret is set, or the process signs with a random key.
+  - **Schemas:** unknown top-level keys and field types, as found at startup.
+  - **Storage persistence:** filesystem storage directories outside a volume, as found at startup in production, or why it was not checked.
+  - **Stored content:** every stored document is validated under the current schema rules. A document that fails cannot be saved until it is fixed, so it is reported as a failure, with the fields involved and its id. Document files that cannot be read at all (a corrupt JSON file, which listings skip) are failures too. Documents with no draft/published status are a warning. The scan pages by id and stops after 50,000 documents, saying so.
+
+  The report carries names, counts and ids only, never the key or field values. One scan runs at a time and its report is reused for a minute, so the endpoint cannot be used to load the database. It needs `settings:read`, which admins hold by default. CLI and agent sessions reach it through a new OAuth scope, `system:read`, which carries `settings:read` only for a user who holds it; the Studio's consent screens label it.
+
+  Data adapters may implement an optional `listUnreadableDocuments(collection)`; the filesystem adapter does.
+
+- 913171c: A production site on the filesystem adapters now hears at startup when its content will not survive the next deploy. In a container, anything written outside a mounted volume lives in the container's own layer and is discarded when the container is replaced; nothing fails, the site simply starts empty.
+
+  At startup in production, the Express integration looks up every directory the filesystem adapters write to (content, users, API tokens, settings, webhooks, sign-in flow state, audit logs, media) in the Linux mount table (`/proc/self/mountinfo`) and logs a warning for each one that is on the container's own filesystem (overlay) or in memory (tmpfs), naming the directory and where to mount a volume:
+
+  ```
+  Media files are stored in /app/media, which is on the container's own filesystem, not a mounted volume: they will be lost when the container is replaced (the next deploy). Mount a persistent volume at /app/media or a parent directory.
+  ```
+
+  Directories on a volume produce nothing, and neither do systems without a mount table (macOS, Windows). The check only reports what it can see: it recognises a container root on overlay (including rootless Podman's fuse-overlayfs) or aufs, and memory filesystems anywhere. A container root on btrfs or zfs, a VM whose root is ext4, or a Kubernetes `emptyDir` on disk look like persistent storage to it and are not reported.
+
+- 7d89675: Image transform parameters that the server does not apply are no longer silent. `GET /media/:id/file` serves the stored file as it is; the `?w=`, `h`, `fm`, `q`, `fit`, `blur`, `sharp` and `grayscale` parameters that `imageUrl()` emits only take effect where an image pipeline in front of the server (a CDN, a transforming object store) reads them. Without one, a request such as `?w=800&fm=webp` used to return the original file with a plain `200`, which looks like a resized image and is not.
+
+  Now such a response carries `X-Trokky-Origin-Ignored-Transforms: w,fm` naming the parameters the origin did not apply (exposed to cross-origin frontends through `Access-Control-Expose-Headers`), and the server logs one warning per process the first time it happens, pointing at `media.variants` for sizes generated at upload time.
+
+- 4180451: Claiming a new site works on Postgres. The Studio's claim form asks for a username, email and password only, and the Postgres adapter wrote the missing first and last names as NULL into columns that do not allow it, so every claim failed with a 500 and a Postgres site created without `adminUser` had no way to get an administrator. Users without names are now stored with empty names, and clearing a name stores an empty one. A successful claim is also no longer written to the audit log as FAILED.
+
 ## 3.5.6
 
 ### Patch Changes
