@@ -308,8 +308,9 @@ export class DocumentRoutes extends BaseRoutes {
         await this.validateSchemaAccess(request, collection, 'publish')
       }
 
-      // Process slug fields - auto-generate slugs from source fields if not provided
-      const processedData = await processSlugFields(this.core, collection, cleanData)
+      // Process slug fields - auto-generate slugs from source fields if not provided. A create
+      // that names an existing id replaces that document, so its own slug is not a conflict.
+      const processedData = await processSlugFields(this.core, collection, cleanData, id)
 
       const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext)
       return this.successResponse({ document }, 201)
