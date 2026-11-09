@@ -56,6 +56,14 @@ function stripSystemFields(data: Record<string, unknown>, schema?: ContentSchema
   return result
 }
 
+export interface SaveDocumentOptions {
+  /**
+   * Save even though required fields are empty. For a document the system creates for an
+   * editor to fill in (an auto-created singleton), never for what an API client sends.
+   */
+  allowMissingRequired?: boolean
+}
+
 export interface DocumentServiceDependencies {
   logger: TrokkyLogger
   auditLog: TrokkyLogger
@@ -66,7 +74,7 @@ export interface DocumentServiceDependencies {
   securityEnabled: boolean
   eventBus: TrokkyEventBus
   eventsEnabled: boolean
-  validateDocument: (collection: string, data: unknown) => ValidationResult
+  validateDocument: (collection: string, data: unknown, options?: { allowMissingRequired?: boolean }) => ValidationResult
 }
 
 /**
@@ -156,7 +164,8 @@ export class DocumentService {
   public async saveDocument<T extends Record<string, unknown> = Record<string, unknown>>(
     collection: string,
     data: DocumentData & T & { id?: string },
-    auditContext?: AuditContext
+    auditContext?: AuditContext,
+    options: SaveDocumentOptions = {}
   ): Promise<Document & T> {
     if (this.deps.rateLimiter) {
       await this.deps.rateLimiter.checkRateLimit('saveDocument')
@@ -176,7 +185,9 @@ export class DocumentService {
     }
 
     // Validate document against schema
-    const validation = this.deps.validateDocument(collection, data)
+    const validation = this.deps.validateDocument(collection, data, {
+      allowMissingRequired: options.allowMissingRequired,
+    })
     if (!validation.valid) {
       throw new ValidationError('Document validation failed', validation.errors)
     }

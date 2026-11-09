@@ -84,7 +84,7 @@ import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
 import { UserService , type ClaimStatus, type ClaimInput } from '../services/user-service.js'
 import { TokenService } from '../services/token-service.js'
-import { DocumentService } from '../services/document-service.js'
+import { DocumentService, type SaveDocumentOptions } from '../services/document-service.js'
 import { MediaService } from '../services/media-service.js'
 import { CaptchaService } from '../services/captcha-service.js'
 import { OAuth2ServerService, type OAuth2Grant } from '../services/oauth2-server-service.js'
@@ -437,7 +437,7 @@ export class TrokkyCore {
       securityEnabled: this.securityEnabled,
       eventBus: this.eventBus,
       eventsEnabled: this.eventsEnabled,
-      validateDocument: (collection, data) => this.validateDocument(collection, data)
+      validateDocument: (collection, data, options) => this.validator.validateDocument(collection, data, options)
     })
 
     this.mediaService = new MediaService({
@@ -670,9 +670,10 @@ export class TrokkyCore {
   public async saveDocument<T extends Record<string, unknown> = Record<string, unknown>>(
     collection: string,
     data: DocumentData & T & { id?: string },
-    auditContext?: AuditContext
+    auditContext?: AuditContext,
+    options?: SaveDocumentOptions
   ): Promise<Document & T> {
-    return this.documentService.saveDocument<T>(collection, data, auditContext)
+    return this.documentService.saveDocument<T>(collection, data, auditContext, options)
   }
 
   public async listDocuments<T extends Record<string, unknown> = Record<string, unknown>>(

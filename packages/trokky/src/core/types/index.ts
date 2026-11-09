@@ -382,6 +382,17 @@ export interface TrokkyConfig {
       sourceFields?: string[]
       unique?: boolean
     }
+    /**
+     * Field types beyond the built-in ones, such as custom Studio fields. Listing them stops the
+     * startup warning for a type the server does not know.
+     */
+    customFieldTypes?: string[]
+    /**
+     * Refuse to start on schema mistakes the server would otherwise only warn about: an unknown
+     * top-level key (silently dropped) or a field type that is neither built in nor listed in
+     * customFieldTypes.
+     */
+    strictSchemas?: boolean
   }
   security?: {
     validateInput?: boolean

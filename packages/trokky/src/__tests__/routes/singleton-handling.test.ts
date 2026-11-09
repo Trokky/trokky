@@ -144,7 +144,8 @@ describe('singleton auto-creation on read', () => {
     expect(core.saveDocument).toHaveBeenCalledWith(
       'settings',
       expect.objectContaining({ id: 'settings' }),
-      expect.anything()
+      expect.anything(),
+      { allowMissingRequired: true }
     )
   })
 
@@ -158,7 +159,8 @@ describe('singleton auto-creation on read', () => {
     expect(core.saveDocument).toHaveBeenCalledWith(
       'homepage',
       expect.objectContaining({ id: 'home' }),
-      expect.anything()
+      expect.anything(),
+      { allowMissingRequired: true }
     )
   })
 
@@ -230,7 +232,8 @@ describe('singleton auto-creation on read', () => {
     expect(core.saveDocument).toHaveBeenCalledWith(
       'page',
       expect.objectContaining({ id: 'second' }),
-      expect.anything()
+      expect.anything(),
+      { allowMissingRequired: true }
     )
   })
 
@@ -256,7 +259,8 @@ describe('singleton auto-creation on read', () => {
     expect(core.saveDocument).toHaveBeenCalledWith(
       'homepage',
       expect.objectContaining({ id: 'home' }),
-      expect.anything()
+      expect.anything(),
+      { allowMissingRequired: true }
     )
   })
 

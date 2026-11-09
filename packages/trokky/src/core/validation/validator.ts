@@ -5,7 +5,16 @@ import { FieldDefinition, ValidationResult, ValidationErrorDetail } from '../typ
 export class DocumentValidator {
   constructor(private schemaRegistry: SchemaRegistry) {}
 
-  public validateDocument(collection: string, data: unknown): ValidationResult {
+  /**
+   * @param options.allowMissingRequired Accept a document that leaves required fields empty.
+   *   Only for documents the system creates for an editor to fill in, such as an auto-created
+   *   singleton; everything an API client sends is checked in full.
+   */
+  public validateDocument(
+    collection: string,
+    data: unknown,
+    options: { allowMissingRequired?: boolean } = {}
+  ): ValidationResult {
     const schema = this.schemaRegistry.getSchema(collection)
     if (!schema) {
       return {
@@ -19,7 +28,7 @@ export class DocumentValidator {
     }
 
     try {
-      const zodSchema = this.buildZodSchema(schema.fields)
+      const zodSchema = this.buildZodSchema(schema.fields, options.allowMissingRequired === true)
       zodSchema.parse(data)
       
       return {
@@ -45,24 +54,17 @@ export class DocumentValidator {
     }
   }
 
-  private buildZodSchema(fields: Record<string, FieldDefinition>): z.ZodSchema {
+  private buildZodSchema(fields: Record<string, FieldDefinition>, allowMissingRequired = false): z.ZodSchema {
     const schemaShape: Record<string, z.ZodSchema> = {}
 
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
-      let fieldSchema = this.buildFieldSchema(fieldDef)
-      
-      if (!fieldDef.required) {
-        // The Studio sends null for every field it has no value for
-        fieldSchema = fieldSchema.nullish()
-      }
-
-      schemaShape[fieldName] = fieldSchema
+      schemaShape[fieldName] = withRequired(this.buildFieldSchema(fieldDef, allowMissingRequired), fieldDef, allowMissingRequired)
     }
 
     return z.object(schemaShape).passthrough()
   }
 
-  private buildFieldSchema(fieldDef: FieldDefinition): z.ZodSchema {
+  private buildFieldSchema(fieldDef: FieldDefinition, allowMissingRequired = false): z.ZodSchema {
     const isOptional = !fieldDef.required
 
     switch (fieldDef.type) {
@@ -100,8 +102,10 @@ export class DocumentValidator {
         if (!fieldDef.of) {
           return z.array(z.unknown())
         }
-        const itemSchema = this.buildFieldSchema(fieldDef.of)
-        return z.array(itemSchema)
+        const itemDef = fieldDef.of as FieldDefinition
+        const itemSchema = this.buildFieldSchema(itemDef, allowMissingRequired)
+        // An optional item keeps its own null handling; a required one must hold a value
+        return z.array(itemDef.required && !allowMissingRequired ? requirePresence(itemSchema) : itemSchema)
       
       case 'object':
         if (!fieldDef.fields) {
@@ -110,15 +114,13 @@ export class DocumentValidator {
 
         const objectShape: Record<string, z.ZodSchema> = {}
         
-        // Handle modern format: fields is a Record<string, FieldDefinition>
-        for (const [propName, propDef] of Object.entries(fieldDef.fields)) {
-          const typedPropDef = propDef as FieldDefinition
-          let propSchema = this.buildFieldSchema(typedPropDef)
-          if (!typedPropDef.required) {
-            // The Studio sends null for every field it has no value for
-            propSchema = propSchema.nullish()
-          }
-          objectShape[propName] = propSchema
+        // Nested fields may be in array form ([{ name, type }]); only a schema's top level is
+        // normalised on load, so key them by name here rather than by array index
+        const props: Array<[string, FieldDefinition]> = Array.isArray(fieldDef.fields)
+          ? (fieldDef.fields as Array<FieldDefinition & { name: string }>).map(({ name, ...def }) => [name, def as FieldDefinition])
+          : (Object.entries(fieldDef.fields) as Array<[string, FieldDefinition]>)
+        for (const [propName, propDef] of props) {
+          objectShape[propName] = withRequired(this.buildFieldSchema(propDef, allowMissingRequired), propDef, allowMissingRequired)
         }
         
         return isOptional ? z.object(objectShape).nullable() : z.object(objectShape)
@@ -183,4 +185,18 @@ export class DocumentValidator {
       code: error.code
     }))
   }
+}
+
+/** Required fields must hold a value; the Studio sends null for every other field it has no value for. */
+function withRequired(schema: z.ZodSchema, fieldDef: FieldDefinition, allowMissingRequired: boolean): z.ZodSchema {
+  return fieldDef.required && !allowMissingRequired ? requirePresence(schema) : schema.nullish()
+}
+
+/**
+ * A required field must hold a value, whatever its type. The per-type schemas above check the
+ * shape of a value; several of them (media, date, and every type without a case, which accepts
+ * anything) also accept null or a missing key, which made `required: true` a no-op for them.
+ */
+function requirePresence(schema: z.ZodSchema): z.ZodSchema {
+  return schema.refine((value) => value !== undefined && value !== null, { message: 'Required' })
 }
