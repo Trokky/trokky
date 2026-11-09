@@ -724,7 +724,7 @@
         "mediaRead": "Lire les fichiers médias",
         "mediaWrite": "Importer des fichiers médias",
         "mediaDelete": "Supprimer des fichiers médias",
-        "systemRead": "Lire le diagnostic du site (nécessite la permission settings:read, détenue par les administrateurs)",
+        "systemRead": "Lire le diagnostic du site (nécessite le droit de voir les paramètres)",
         "offlineAccess": "Rester connecté"
       },
       "untickToLimit": "Décochez ce que vous ne souhaitez pas accorder."

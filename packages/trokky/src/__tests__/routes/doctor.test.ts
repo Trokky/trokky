@@ -68,9 +68,10 @@ describe('GET /system/doctor', () => {
 })
 
 describe('the system:read scope', () => {
-  it('should carry settings:read for an admin only', () => {
+  it('should carry settings:read for an admin, and for anyone else only if granted it', () => {
     expect(scopedPermissions({ role: 'admin' }, ['system:read'])).toContain('settings:read')
     expect(scopedPermissions({ role: 'editor' }, ['system:read'])).not.toContain('settings:read')
+    expect(scopedPermissions({ role: 'editor', permissions: ['settings:read'] }, ['system:read'])).toContain('settings:read')
   })
 })
 

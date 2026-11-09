@@ -268,10 +268,10 @@ export function AuthorizePage() {
                 <ul className="space-y-2">
                   {authInfo.scopes.map(scope => (
                     <li key={scope}>
-                      <label className="flex items-center text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <label className="flex items-start text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                         <input
                           type="checkbox"
-                          className="mr-2 h-4 w-4 flex-shrink-0 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                          className="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
                           checked={approvedScopes.includes(scope)}
                           onChange={() => toggleScope(scope)}
                           data-testid={`scope-${scope}`}
