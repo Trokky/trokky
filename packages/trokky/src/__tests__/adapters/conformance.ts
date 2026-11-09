@@ -1056,6 +1056,17 @@ export function describeDataAdapterConformance(name: string, hooks: DataAdapterC
         expect((await adapter.getUser('user-1'))!.isActive).toBe(true)
       })
 
+      it('creates a user without first or last name, and lets a name be cleared', async () => {
+        const { firstName: _f, lastName: _l, ...nameless } = baseUser()
+        const created = await adapter.saveUser('user-1', asUserData(nameless))
+        expect(created.firstName || undefined).toBeUndefined()
+
+        await adapter.saveUser('user-2', asUserData(baseUser({ username: 'named', email: 'named@example.com' })))
+        const cleared = await adapter.saveUser('user-2', { firstName: null } as never)
+        expect(cleared.firstName || undefined).toBeUndefined()
+        expect((await adapter.getUser('user-2'))!.lastName).toBe('Formance')
+      })
+
       it('keeps an explicit isActive false', async () => {
         const created = await adapter.saveUser('user-1', asUserData(baseUser({ isActive: false })))
         expect(created.isActive).toBe(false)
@@ -1201,6 +1212,13 @@ export function describeDataAdapterConformance(name: string, hooks: DataAdapterC
         expect(created!.username).toBe('conformance')
         expect(created!.passwordHash).toBe('hash-v1')
         expect(await adapter.getUser('user-first')).not.toBeNull()
+      })
+
+      it('creates a user without first or last name (the Studio claim form asks for neither)', async () => {
+        const { firstName: _f, lastName: _l, ...nameless } = baseUser()
+        const created = await adapter.createFirstUser!('user-first', asUserData(nameless))
+        expect(created).not.toBeNull()
+        expect(created!.username).toBe('conformance')
       })
 
       it('returns null and writes nothing when any user already exists', async () => {

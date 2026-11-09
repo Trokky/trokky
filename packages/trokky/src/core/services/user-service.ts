@@ -410,7 +410,10 @@ export class UserService {
       type: 'user_created',
       targetUserId: created.id,
       username: created.username,
-      action: 'Instance claimed: first administrator created'
+      action: 'Instance claimed: first administrator created',
+      timestamp: new Date().toISOString(),
+      // Without it the audit log reports a successful claim as FAILED
+      success: true
     } as AuditEvent)
 
     this.deps.logger.info('Instance claimed', { userId: created.id, username: created.username })
