@@ -1,5 +1,5 @@
 ---
-'@trokky/trokky': patch
+'@trokky/trokky': minor
 ---
 
 The JWT signing key can no longer be missing or a placeholder in production without anyone noticing.
