@@ -1,5 +1,5 @@
 ---
-'@trokky/trokky': patch
+'@trokky/trokky': minor
 ---
 
 Schema mistakes that used to pass silently are now reported, and `required` means required for every field type.
