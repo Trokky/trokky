@@ -79,6 +79,10 @@ import type { OAuth2Scope, TokenResponse } from '../types/oauth2.js'
 import { AuthService } from '../services/auth-service.js'
 import { MFAService, generateSecureSecret, resolveMfaIssuer } from '../services/mfa-service.js'
 import { resolveJwtSecret, resolveJwtSecretEnvironment, type JwtSecretEnvironment } from '../security/jwt-secret.js'
+import { runDoctor, type DoctorReport, type StorageCheck } from '../diagnostics/doctor.js'
+
+/** How long a doctor report is reused: a full scan per request would let any caller load the database */
+const DOCTOR_REPORT_TTL_MS = 60_000
 import { TrustedDeviceService } from '../services/trusted-device-service.js'
 import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
@@ -177,6 +181,13 @@ export class TrokkyCore {
   private securityEnabled: boolean
   private options: TrokkyCoreOptions
   private jwtSecret: string
+  /** Where the signing key came from, for trokky doctor; never the key itself */
+  private jwtSecretSource: 'configured' | 'generated' = 'configured'
+  private jwtSecretEnvironment: JwtSecretEnvironment
+  /** The startup persistence check, for trokky doctor */
+  private storageCheck: StorageCheck = { checked: false, reason: 'the check did not run', warnings: [] }
+  /** The latest doctor report, shared by concurrent callers and reused for a minute */
+  private doctorRun?: { report: Promise<DoctorReport>; finishedAt?: number }
   private config: TrokkyConfig
   private auditLogger?: (event: AuditEvent) => void
   private cryptoAdapter: CryptoAdapter
@@ -256,11 +267,15 @@ export class TrokkyCore {
     
     // JWT secret: the option, then TROKKY_JWT_SECRET. Production refuses to start without a real one.
     const processEnv = typeof process !== 'undefined' ? process.env : undefined
+    this.jwtSecretEnvironment = resolveJwtSecretEnvironment(options.env, processEnv?.NODE_ENV)
     this.jwtSecret = resolveJwtSecret({
       configured: options.jwtSecret,
       fromEnv: processEnv?.TROKKY_JWT_SECRET,
-      environment: resolveJwtSecretEnvironment(options.env, processEnv?.NODE_ENV),
-      generate: () => this.generateSecureSecret(),
+      environment: this.jwtSecretEnvironment,
+      generate: () => {
+        this.jwtSecretSource = 'generated'
+        return this.generateSecureSecret()
+      },
       warn: (message) => this.logger.warn(message),
     })
     
@@ -800,6 +815,52 @@ export class TrokkyCore {
   }
 
   // Health check
+  /** Keep the startup persistence check's result for trokky doctor */
+  public recordStorageCheck(check: StorageCheck): void {
+    this.storageCheck = check
+  }
+
+  /**
+   * The checks behind trokky doctor: no secrets, only names, counts and ids. One scan runs at a
+   * time, and its report is reused for a minute.
+   */
+  public diagnose(): Promise<DoctorReport> {
+    const run = this.doctorRun
+    // A scan still running is shared however long it takes; a finished one is reused for a minute
+    if (run && (run.finishedAt === undefined || Date.now() - run.finishedAt < DOCTOR_REPORT_TTL_MS)) {
+      return run.report
+    }
+    const report = runDoctor({
+      environment: this.jwtSecretEnvironment,
+      signingKey: { source: this.jwtSecretSource, length: this.jwtSecret.length },
+      schemaProblems: this.schemas.getSchemaProblems(),
+      storage: this.storageCheck,
+      collections: this.schemas.getSchemaNames(),
+      // Straight from storage, so a full scan does not count against the API rate limit, and
+      // ordered by id: paging over a non-unique order can skip or repeat documents
+      listDocuments: async (collection, limit, offset) =>
+        (await this.dataStorage.listDocuments(collection, { limit, offset, sort: ['_id.asc'] })) as unknown as Array<
+          Record<string, unknown>
+        >,
+      listUnreadable: this.dataStorage.listUnreadableDocuments
+        ? (collection) => this.dataStorage.listUnreadableDocuments!(collection)
+        : undefined,
+      validate: (collection, document) => this.validator.validateDocument(collection, document),
+    })
+    const current: { report: Promise<DoctorReport>; finishedAt?: number } = { report }
+    this.doctorRun = current
+    report.then(
+      () => {
+        current.finishedAt = Date.now()
+      },
+      // A failed run is not reused
+      () => {
+        if (this.doctorRun === current) this.doctorRun = undefined
+      }
+    )
+    return report
+  }
+
   public async healthCheck(): Promise<boolean> {
     try {
       // Check health of both storage adapters

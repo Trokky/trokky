@@ -123,6 +123,13 @@ export interface DataStorageAdapter {
    * @throws Error if collection/id are invalid or storage fails
    */
   getDocument(collection: string, id: string): Promise<Document | null>
+
+  /**
+   * Optional: stored documents of a collection that cannot be read at all (for example a corrupt
+   * file), which listDocuments skips. Used by trokky doctor; adapters that cannot hold an
+   * unreadable document leave it out.
+   */
+  listUnreadableDocuments?(collection: string): Promise<string[]>
   
   /**
    * Save (create or update) a document

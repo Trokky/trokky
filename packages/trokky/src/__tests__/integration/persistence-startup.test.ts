@@ -7,7 +7,9 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-const check = vi.hoisted(() => vi.fn(async (dirs: Array<{ label: string; dir: string }>) => dirs.map((d) => `EPHEMERAL ${d.label} ${d.dir}`)))
+const check = vi.hoisted(() =>
+  vi.fn(async (dirs: Array<{ label: string; dir: string }>) => ({ checked: true, warnings: dirs.map((d) => `EPHEMERAL ${d.label} ${d.dir}`) }))
+)
 vi.mock('../../integrations/express/persistence.js', () => ({ findEphemeralDirectories: check }))
 
 import '../../adapters/filesystem-data/index.js'
@@ -55,6 +57,10 @@ describe('persistence check at startup', () => {
       { label: 'Media files', dir: `${dir}/media` },
     ])
     expect(warned()).toHaveLength(8)
+    // And trokky doctor reports them
+    const storage = (await trokky.core.diagnose()).checks.find((c) => c.id === 'storage')
+    expect(storage?.status).toBe('warn')
+    expect(storage?.details).toHaveLength(8)
     await trokky.shutdown?.()
   })
 
@@ -80,9 +86,11 @@ describe('persistence check at startup', () => {
     }
   })
 
-  it('should not run in development', async () => {
+  it('should not run in development, and doctor should say it was not checked', async () => {
     const trokky = await TrokkyExpress.create(config('development'))
     expect(check).not.toHaveBeenCalled()
+    const storage = (await trokky.core.diagnose()).checks.find((c) => c.id === 'storage')
+    expect(storage?.details).toEqual(['Not checked: only checked in production.'])
     await trokky.shutdown?.()
   })
 })

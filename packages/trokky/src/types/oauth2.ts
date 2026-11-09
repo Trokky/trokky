@@ -79,6 +79,7 @@ export type OAuth2Scope =
   | 'media:read'       // Read media
   | 'media:write'      // Upload/edit media
   | 'media:delete'     // Delete media
+  | 'system:read'      // Read the site's diagnostics (trokky doctor); needs settings:read
   | 'offline_access'   // Request refresh token
 
 /**
@@ -94,6 +95,8 @@ export const SCOPE_TO_PERMISSIONS: Record<OAuth2Scope, Permission[]> = {
   'media:read': ['media:read'],
   'media:write': ['media:read', 'media:upload', 'media:edit'],
   'media:delete': ['media:read', 'media:delete'],
+  // Grants settings:read only to a user who holds it (by default, admins): others get nothing
+  'system:read': ['settings:read'],
   'offline_access': []
 }
 

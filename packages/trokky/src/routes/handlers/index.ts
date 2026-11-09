@@ -8,5 +8,6 @@ export { WebhookRoutes } from './webhooks.js'
 export { AuditRoutes } from './audit.js'
 export { SearchRoutes } from './search.js'
 export { ConfigRoutes } from './config.js'
+export { SystemRoutes } from './system.js'
 
 export type { RouteHandlerConfig } from './types.js'

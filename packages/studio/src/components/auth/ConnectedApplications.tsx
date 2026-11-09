@@ -38,6 +38,7 @@ const SCOPE_LABEL_KEYS: Record<string, string> = {
   'media:read': 'mediaRead',
   'media:write': 'mediaWrite',
   'media:delete': 'mediaDelete',
+  'system:read': 'systemRead',
   offline_access: 'offlineAccess',
 };
 

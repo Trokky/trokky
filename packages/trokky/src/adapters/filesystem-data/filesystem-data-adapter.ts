@@ -218,6 +218,28 @@ export class FilesystemDataAdapter implements DataStorageAdapter {
     }
   }
 
+  /** Document files in a collection that listDocuments skips with a log line: unparseable or not a document */
+  public async listUnreadableDocuments(collection: string): Promise<string[]> {
+    SecurityValidator.validateCollectionName(collection)
+    const collectionDir = path.join(this.config.contentDir, collection)
+    let files: string[]
+    try {
+      files = await fs.readdir(collectionDir)
+    } catch {
+      return []
+    }
+    const unreadable: string[] = []
+    for (const file of files.filter((name) => name.endsWith('.json'))) {
+      // The same reading listDocuments does: a file that parses but is not a document is skipped too
+      try {
+        this.documentFileToDocument(JSON.parse(await fs.readFile(path.join(collectionDir, file), 'utf8')), collection)
+      } catch {
+        unreadable.push(file)
+      }
+    }
+    return unreadable
+  }
+
   public async listDocuments(collection: string, options: ListOptions = {}): Promise<Document[]> {
     try {
       SecurityValidator.validateCollectionName(collection)

@@ -4,6 +4,7 @@ import { TrokkyRoutes, type RoutesConfig } from '../../routes/index.js'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
 import { findEphemeralDirectories } from './persistence.js'
+import type { StorageCheck } from '../../core/diagnostics/doctor.js'
 import { resolveJwtSecretEnvironment } from '../../core/security/jwt-secret.js'
 import {
   createLogger,
@@ -280,10 +281,20 @@ export class TrokkyExpress {
 
       // A deployed site on the filesystem adapters loses everything on redeploy unless their
       // directories are on a volume; say so at startup rather than after the first deploy
-      if (resolveJwtSecretEnvironment(fullConfig.env, process.env.NODE_ENV) === 'production') {
-        for (const warning of await findEphemeralDirectories(filesystemStorageDirs(fullConfig.storage))) {
-          logger.warn(warning)
-        }
+      const storageDirs = filesystemStorageDirs(fullConfig.storage)
+      let storageCheck: StorageCheck
+      if (storageDirs.length === 0) {
+        storageCheck = { checked: false, reason: 'no filesystem storage adapter is in use', warnings: [] }
+      } else if (resolveJwtSecretEnvironment(fullConfig.env, process.env.NODE_ENV) !== 'production') {
+        storageCheck = { checked: false, reason: 'only checked in production', warnings: [] }
+      } else {
+        const found = await findEphemeralDirectories(storageDirs)
+        storageCheck = found.checked
+          ? { checked: true, warnings: found.warnings }
+          : { checked: false, reason: 'no mount table to read on this system (Linux only)', warnings: [] }
+      }
+      for (const warning of storageCheck.warnings) {
+        logger.warn(warning)
       }
 
       // 2. Create TrokkyCore config (legacy format) - simplified since adapters are handled separately
@@ -338,6 +349,7 @@ export class TrokkyExpress {
       }
 
       const core = new TrokkyCore(coreConfig, storageAdapters, coreOptions)
+      core.recordStorageCheck(storageCheck)
       await core.init()
       logger.info('TrokkyCore initialized with professional config')
 

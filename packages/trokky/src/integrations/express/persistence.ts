@@ -75,23 +75,30 @@ async function realDirectory(dir: string): Promise<string> {
   }
 }
 
+/** What the persistence check found, and whether it could look at all */
+export interface PersistenceCheck {
+  /** False where there is no mount table to read (macOS, Windows) */
+  checked: boolean
+  warnings: string[]
+}
+
 /**
- * One warning per directory that will not survive a redeploy, naming it. Directories on a volume,
- * and systems without /proc (macOS, Windows), produce nothing: the check reports what it can see.
+ * One warning per directory that will not survive a redeploy, naming it. Directories on a volume
+ * produce nothing; without /proc (macOS, Windows) nothing can be checked, and the result says so.
  * It cannot see every kind of throwaway disk: a container root on btrfs or zfs, a VM root on ext4,
  * or a Kubernetes emptyDir on disk look like any other persistent filesystem.
  */
 export async function findEphemeralDirectories(
   dirs: Array<{ label: string; dir: string }>,
   readMountInfo: () => Promise<string> = () => fs.readFile('/proc/self/mountinfo', 'utf8')
-): Promise<string[]> {
+): Promise<PersistenceCheck> {
   let mounts: MountEntry[]
   try {
     mounts = parseMountInfo(await readMountInfo())
   } catch {
-    return []
+    return { checked: false, warnings: [] }
   }
-  if (mounts.length === 0) return []
+  if (mounts.length === 0) return { checked: false, warnings: [] }
 
   const warnings: string[] = []
   for (const { label, dir } of dirs) {
@@ -104,5 +111,5 @@ export async function findEphemeralDirectories(
       )
     }
   }
-  return warnings
+  return { checked: true, warnings }
 }
