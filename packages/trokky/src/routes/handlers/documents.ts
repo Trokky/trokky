@@ -454,7 +454,14 @@ export class DocumentRoutes extends BaseRoutes {
       // Pass the document ID to exclude it from uniqueness checks during updates
       const processedData = await processSlugFields(this.core, collection, mergedData as Record<string, any>, id)
 
-      const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext)
+      // Taking a document offline must always work, even when it predates a field becoming
+      // required: a request that only sets _status to draft does not re-check required fields
+      const isStatusOnlyUnpublish =
+        existingDoc !== null && newStatus === 'draft' && Object.keys(cleanData).every((key) => key === '_status')
+
+      const document = await this.core.saveDocument(collection, { ...processedData, id }, auditContext, {
+        allowMissingRequired: isStatusOnlyUnpublish,
+      })
       return this.successResponse({ document })
     } catch (error) {
       return this.errorResponse(error)
@@ -671,7 +678,10 @@ export class DocumentRoutes extends BaseRoutes {
         userType: 'SYSTEM',
         username: 'system'
       }
-      const document = await this.core.saveDocument(collection, singletonData, systemContext)
+      // An empty shell for an editor to fill in: required fields are checked when they save it
+      const document = await this.core.saveDocument(collection, singletonData, systemContext, {
+        allowMissingRequired: true,
+      })
       this.logger.info('Singleton document auto-created', { collection, documentId })
 
       return document
