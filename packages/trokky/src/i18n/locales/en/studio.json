@@ -1120,7 +1120,7 @@
         "mediaRead": "Read media files",
         "mediaWrite": "Upload media files",
         "mediaDelete": "Delete media files",
-        "systemRead": "Read site diagnostics (needs the settings:read permission, held by admins)",
+        "systemRead": "Read site diagnostics (needs permission to view settings)",
         "offlineAccess": "Stay logged in"
       },
       "untickToLimit": "Untick anything you do not want to grant."
