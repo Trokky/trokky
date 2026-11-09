@@ -54,10 +54,9 @@ export default defineConfig({
 
   security: {
     enabled: true,
-    // Development secret so `npm run dev` works with no setup. MUST be
-    // overridden with a real, high-entropy TROKKY_JWT_SECRET in production —
-    // anyone who knows this string can mint tokens for this instance.
-    jwtSecret: process.env.TROKKY_JWT_SECRET || 'meridian-almanac-dev-secret-do-not-use-in-production',
+    // Unset in development, Trokky uses a random key per process (sign-ins end at
+    // each restart); production refuses to start without a real one.
+    jwtSecret: process.env.TROKKY_JWT_SECRET,
     // Created on first boot if it does not already exist, so the Studio is
     // reachable immediately. The generated user file lands in
     // ./data/system/users, which is gitignored.

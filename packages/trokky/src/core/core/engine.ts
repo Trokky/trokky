@@ -78,6 +78,7 @@ import {
 import type { OAuth2Scope, TokenResponse } from '../types/oauth2.js'
 import { AuthService } from '../services/auth-service.js'
 import { MFAService, generateSecureSecret, resolveMfaIssuer } from '../services/mfa-service.js'
+import { resolveJwtSecret, resolveJwtSecretEnvironment, type JwtSecretEnvironment } from '../security/jwt-secret.js'
 import { TrustedDeviceService } from '../services/trusted-device-service.js'
 import { OAuthService } from '../services/oauth-service.js'
 import { PasskeyService } from '../services/passkey-service.js'
@@ -97,6 +98,12 @@ export interface TrokkyCoreOptions {
   enableSecurity?: boolean
   setupAdminFromEnv?: boolean // Automatically create admin user from env vars on startup
   jwtSecret?: string // JWT signing secret for token authentication
+  /**
+   * Runtime environment. With NODE_ENV, decides the JWT secret rules: if either says production
+   * (or names anything but development/test), a missing or placeholder jwtSecret is fatal.
+   * Edge runtimes have no NODE_ENV, so a Worker in production should pass 'production' here.
+   */
+  env?: JwtSecretEnvironment
   /**
    * Secret a first-boot claim must present. Falls back to TROKKY_CLAIM_SECRET.
    * Without one the claim is open to whoever reaches the instance first.
@@ -247,11 +254,15 @@ export class TrokkyCore {
     this.idGenerator = options.idGenerator || new IdGenerator()
     this.securityEnabled = options.enableSecurity ?? config.security?.validateInput ?? true
     
-    // Initialize JWT secret (use provided secret, environment variable if available, or generate one)
-    const envJwt = (typeof process !== 'undefined' && process.env?.TROKKY_JWT_SECRET)
-      ? process.env.TROKKY_JWT_SECRET
-      : undefined
-    this.jwtSecret = options.jwtSecret || envJwt || this.generateSecureSecret()
+    // JWT secret: the option, then TROKKY_JWT_SECRET. Production refuses to start without a real one.
+    const processEnv = typeof process !== 'undefined' ? process.env : undefined
+    this.jwtSecret = resolveJwtSecret({
+      configured: options.jwtSecret,
+      fromEnv: processEnv?.TROKKY_JWT_SECRET,
+      environment: resolveJwtSecretEnvironment(options.env, processEnv?.NODE_ENV),
+      generate: () => this.generateSecureSecret(),
+      warn: (message) => this.logger.warn(message),
+    })
     
     // Initialize audit logger
     this.auditLogger = options.auditLogger

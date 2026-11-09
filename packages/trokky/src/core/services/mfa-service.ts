@@ -40,15 +40,8 @@ export function generateSecureSecret(): string {
   // Generate a cryptographically secure random secret using crypto adapter
   // This will be called during initialization, but we need to create a temporary adapter
   const tempAdapter = detectCryptoAdapter()
-  const secret = tempAdapter.generateSecureRandom(64)
-
-  // Warn if using generated secret (should use environment variable in production)
-  const isTestEnv = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
-  if (!isTestEnv) {
-    console.warn('⚠️  Using auto-generated JWT secret. Set TROKKY_JWT_SECRET environment variable for production.')
-  }
-
-  return secret
+  // Whether a generated key is acceptable, and the warning, belong to resolveJwtSecret
+  return tempAdapter.generateSecureRandom(64)
 }
 
 /**

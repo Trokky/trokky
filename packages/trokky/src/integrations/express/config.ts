@@ -771,7 +771,9 @@ export function withDefaults(config: TrokkyConfig): TrokkyConfigWithDefaults {
     
     security: {
       enabled: config.security?.enabled ?? true, // Secure by default - explicit opt-out required
-      jwtSecret: config.security?.jwtSecret || (isDev ? 'dev-secret-change-in-production' : undefined),
+      // No fixed development key: a known key lets anyone sign tokens on a site that forgot
+      // NODE_ENV. Without one the engine uses a random key and says so.
+      jwtSecret: config.security?.jwtSecret,
       tokens: {
         accessTokenTtl: '2h',
         refreshTokenTtl: '7d',
@@ -878,7 +880,7 @@ export function defineConfig(config: TrokkyConfig): TrokkyConfig {
   }
   
   const env = config.env || process.env.NODE_ENV || 'development'
-  if (env === 'production' && !config.security?.jwtSecret) {
+  if (env === 'production' && !config.security?.jwtSecret && !process.env.TROKKY_JWT_SECRET) {
     throw new Error('JWT secret is required in production')
   }
 

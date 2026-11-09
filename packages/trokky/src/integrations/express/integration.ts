@@ -308,6 +308,7 @@ export class TrokkyExpress {
       const coreOptions = {
         enableSecurity: fullConfig.security.enabled,
         jwtSecret: fullConfig.security.jwtSecret,
+        env: fullConfig.env,
         cryptoOptions: fullConfig.security.cryptoOptions,
         // The device-flow approval page lives under the Studio; derive it from
         // studio.url unless the site set oauth2.verificationUri explicitly.
