@@ -3,6 +3,8 @@ import cors from 'cors'
 import { TrokkyRoutes, type RoutesConfig } from '../../routes/index.js'
 import { ExpressAdapter } from './adapter.js'
 import { TrokkyExpressMiddleware } from './middleware.js'
+import { findEphemeralDirectories } from './persistence.js'
+import { resolveJwtSecretEnvironment } from '../../core/security/jwt-secret.js'
 import {
   createLogger,
   TrokkyCore,
@@ -275,6 +277,14 @@ export class TrokkyExpress {
       const storageAdapters = await this.createStorageAdaptersFromConfig(
         fullConfig.storage
       )
+
+      // A deployed site on the filesystem adapters loses everything on redeploy unless their
+      // directories are on a volume; say so at startup rather than after the first deploy
+      if (resolveJwtSecretEnvironment(fullConfig.env, process.env.NODE_ENV) === 'production') {
+        for (const warning of await findEphemeralDirectories(filesystemStorageDirs(fullConfig.storage))) {
+          logger.warn(warning)
+        }
+      }
 
       // 2. Create TrokkyCore config (legacy format) - simplified since adapters are handled separately
       const coreConfig: TrokkyConfig = {
@@ -709,4 +719,25 @@ async function assertResolvedStructureConsistency(
       error: error instanceof Error ? error.message : String(error),
     })
   }
+}
+
+/** The directories the filesystem adapters write to, with the defaults createDataAdapter applies. */
+function filesystemStorageDirs(storage: StorageConfig): Array<{ label: string; dir: string }> {
+  const dirs: Array<{ label: string; dir: string }> = []
+  if (storage.data.adapter === 'filesystem-data') {
+    const options = storage.data.options ?? {}
+    dirs.push(
+      { label: 'Documents', dir: options.contentDir || './content' },
+      { label: 'Users', dir: options.usersDir || './users' },
+      { label: 'API tokens', dir: options.tokensDir || './tokens' },
+      { label: 'Settings', dir: options.settingsDir || './settings' },
+      { label: 'Webhooks', dir: options.webhooksDir || './webhooks' },
+      { label: 'Sign-in flow state', dir: options.authFlowStateDir || './auth-flow-state' },
+      { label: 'Audit logs', dir: options.auditLogsDir || './audit-logs' }
+    )
+  }
+  if (storage.media.adapter === 'filesystem-media') {
+    dirs.push({ label: 'Media files', dir: storage.media.options?.mediaDir || './media' })
+  }
+  return dirs
 }
