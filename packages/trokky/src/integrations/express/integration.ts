@@ -563,44 +563,34 @@ export class TrokkyExpress {
   ): Promise<DataStorageAdapter> {
     const { createAdapter } = await import('../../core/index.js')
 
-    try {
-      return await createAdapter<DataStorageAdapter>(config.adapter, 'data', {
-        // Filesystem data adapter options
-        ...(config.adapter === 'filesystem-data' && {
-          contentDir: config.options?.contentDir || './content',
-          usersDir: config.options?.usersDir || './users',
-          tokensDir: config.options?.tokensDir || './tokens',
-          webhooksDir: config.options?.webhooksDir || './webhooks',
-          settingsDir: config.options?.settingsDir || './settings',
-          auditLogsDir: config.options?.auditLogsDir || './audit-logs',
-          createDirs: config.options?.createDirs ?? true,
-          prettyJson: config.options?.prettyJson ?? true,
-          jsonSpaces: config.options?.jsonSpaces ?? 2,
-          silent: config.options?.silent ?? false,
-        }),
-        // Cloudflare D1 adapter options
-        ...(config.adapter === 'cloudflare-d1' && {
-          database: config.options?.database,
-          databaseName: config.options?.databaseName,
-          tablePrefix: config.options?.tablePrefix,
-          debug: config.options?.debug ?? false,
-          enableFTS: config.options?.enableFTS ?? false,
-          enableAuditLog: config.options?.enableAuditLog ?? false,
-          migrations: config.options?.migrations,
-        }),
-        // Pass through any other options
-        ...config.options,
-      })
-    } catch (error) {
-      throw new Error(
-        `Failed to create data adapter "${config.adapter}": ${error instanceof Error ? error.message : String(error)}\n\n` +
-          `Available data adapters depend on imported packages:\n` +
-          `- 'filesystem-data': Requires @trokky/adapter-filesystem-data (Node.js only)\n` +
-          `- 'cloudflare-d1': Requires @trokky/adapter-cloudflare-d1 (Edge runtime)\n` +
-          `- 'dynamodb': Requires @trokky/adapter-dynamodb\n\n` +
-          `Make sure the required adapter package is installed and imported.`
-      )
-    }
+    // The registry's errors already name the adapter and the import that registers it
+    return await createAdapter<DataStorageAdapter>(config.adapter, 'data', {
+      // Filesystem data adapter options
+      ...(config.adapter === 'filesystem-data' && {
+        contentDir: config.options?.contentDir || './content',
+        usersDir: config.options?.usersDir || './users',
+        tokensDir: config.options?.tokensDir || './tokens',
+        webhooksDir: config.options?.webhooksDir || './webhooks',
+        settingsDir: config.options?.settingsDir || './settings',
+        auditLogsDir: config.options?.auditLogsDir || './audit-logs',
+        createDirs: config.options?.createDirs ?? true,
+        prettyJson: config.options?.prettyJson ?? true,
+        jsonSpaces: config.options?.jsonSpaces ?? 2,
+        silent: config.options?.silent ?? false,
+      }),
+      // Cloudflare D1 adapter options
+      ...(config.adapter === 'cloudflare-d1' && {
+        database: config.options?.database,
+        databaseName: config.options?.databaseName,
+        tablePrefix: config.options?.tablePrefix,
+        debug: config.options?.debug ?? false,
+        enableFTS: config.options?.enableFTS ?? false,
+        enableAuditLog: config.options?.enableAuditLog ?? false,
+        migrations: config.options?.migrations,
+      }),
+      // Pass through any other options
+      ...config.options,
+    })
   }
 
   /**
@@ -611,49 +601,39 @@ export class TrokkyExpress {
   ): Promise<MediaStorageAdapter> {
     const { createAdapter } = await import('../../core/index.js')
 
-    try {
-      return await createAdapter<MediaStorageAdapter>(config.adapter, 'media', {
-        // Filesystem media adapter options
-        ...(config.adapter === 'filesystem-media' && {
-          mediaDir: config.options?.mediaDir || './media',
-          createDirs: config.options?.createDirs ?? true,
-          prettyJson: config.options?.prettyJson ?? true,
-          jsonSpaces: config.options?.jsonSpaces ?? 2,
-          mediaBaseUrl: config.options?.mediaBaseUrl || '/media',
-          silent: config.options?.silent ?? false,
-        }),
-        // Cloudflare R2 adapter options
-        ...(config.adapter === 'cloudflare-r2' && {
-          bucket: config.options?.bucket,
-          bucketName: config.options?.bucketName,
-          keyPrefix: config.options?.keyPrefix,
-          debug: config.options?.debug ?? false,
-          cacheControl: config.options?.cacheControl,
-          defaultMetadata: config.options?.defaultMetadata,
-          autoContentType: config.options?.autoContentType ?? true,
-          maxFileSize: config.options?.maxFileSize,
-          allowPublicUrls: config.options?.allowPublicUrls ?? false,
-          customDomain: config.options?.customDomain,
-          defaultUrlExpiry: config.options?.defaultUrlExpiry ?? 3600,
-          maxUrlExpiry: config.options?.maxUrlExpiry ?? 86400,
-          accountId: config.options?.accountId,
-          accessKeyId: config.options?.accessKeyId,
-          secretAccessKey: config.options?.secretAccessKey,
-          cspConfig: config.options?.cspConfig,
-        }),
-        // Pass through any other options
-        ...config.options,
-      })
-    } catch (error) {
-      throw new Error(
-        `Failed to create media adapter "${config.adapter}": ${error instanceof Error ? error.message : String(error)}\n\n` +
-          `Available media adapters depend on imported packages:\n` +
-          `- 'filesystem-media': Requires @trokky/trokky/adapters/filesystem-media (Node.js only)\n` +
-          `- 'cloudflare-r2': Requires @trokky/trokky/adapters/cloudflare-r2 (a Worker binding)\n` +
-          `- 's3-media': Requires @trokky/trokky/adapters/s3-media (any runtime)\n\n` +
-          `Make sure the required adapter package is installed and imported.`
-      )
-    }
+    // The registry's errors already name the adapter and the import that registers it
+    return await createAdapter<MediaStorageAdapter>(config.adapter, 'media', {
+      // Filesystem media adapter options
+      ...(config.adapter === 'filesystem-media' && {
+        mediaDir: config.options?.mediaDir || './media',
+        createDirs: config.options?.createDirs ?? true,
+        prettyJson: config.options?.prettyJson ?? true,
+        jsonSpaces: config.options?.jsonSpaces ?? 2,
+        mediaBaseUrl: config.options?.mediaBaseUrl || '/media',
+        silent: config.options?.silent ?? false,
+      }),
+      // Cloudflare R2 adapter options
+      ...(config.adapter === 'cloudflare-r2' && {
+        bucket: config.options?.bucket,
+        bucketName: config.options?.bucketName,
+        keyPrefix: config.options?.keyPrefix,
+        debug: config.options?.debug ?? false,
+        cacheControl: config.options?.cacheControl,
+        defaultMetadata: config.options?.defaultMetadata,
+        autoContentType: config.options?.autoContentType ?? true,
+        maxFileSize: config.options?.maxFileSize,
+        allowPublicUrls: config.options?.allowPublicUrls ?? false,
+        customDomain: config.options?.customDomain,
+        defaultUrlExpiry: config.options?.defaultUrlExpiry ?? 3600,
+        maxUrlExpiry: config.options?.maxUrlExpiry ?? 86400,
+        accountId: config.options?.accountId,
+        accessKeyId: config.options?.accessKeyId,
+        secretAccessKey: config.options?.secretAccessKey,
+        cspConfig: config.options?.cspConfig,
+      }),
+      // Pass through any other options
+      ...config.options,
+    })
   }
 
   /**
