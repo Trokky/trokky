@@ -6,6 +6,27 @@ import { SecurityValidator, InvalidInputError, MediaFile } from '../../core/inde
 import type { HttpRequest, HttpResponse, RouteDefinition } from '../types.js'
 import { BaseRoutes } from './base.js'
 
+/**
+ * The query parameters @trokky/client's imageUrl() emits. This server serves the stored file as
+ * it is: the parameters only take effect where an image pipeline in front (a CDN, a transforming
+ * object store) reads them. Saying so beats a 200 that looks like a resized image and is not.
+ */
+const IMAGE_TRANSFORM_PARAMS = ['w', 'h', 'fm', 'q', 'fit', 'blur', 'sharp', 'grayscale']
+
+/**
+ * Response header naming the transform parameters the origin (this server) did not apply. Named
+ * for the origin because a pipeline in front may still apply them and pass the header through.
+ */
+export const TRANSFORM_IGNORED_HEADER = 'X-Trokky-Origin-Ignored-Transforms'
+
+/** One log line per process, not one per image request. */
+let transformWarningLogged = false
+
+/** For tests: allow the one-time warning to fire again. */
+export function resetTransformWarning(): void {
+  transformWarningLogged = false
+}
+
 export class MediaRoutes extends BaseRoutes {
   public getRoutes(): RouteDefinition[] {
     const basePath = this.config.basePath || ''
@@ -302,6 +323,16 @@ export class MediaRoutes extends BaseRoutes {
       // Use Uint8Array for edge compatibility (Workers, etc.)
       const buffer = content instanceof Uint8Array ? content : new Uint8Array(content)
 
+      const ignoredTransforms = IMAGE_TRANSFORM_PARAMS.filter((param) => request.query?.[param] !== undefined)
+      if (ignoredTransforms.length > 0 && !transformWarningLogged) {
+        transformWarningLogged = true
+        this.logger.warn(
+          `Image transform parameters (${ignoredTransforms.join(', ')}) were requested on ${request.path}, and this ` +
+            'server does not apply them: it serves the stored file. Generate sizes as variants (media.variants), or ' +
+            'put an image pipeline that reads these parameters in front of /media. Logged once per process.'
+        )
+      }
+
       return {
         status: 200,
         headers: {
@@ -310,7 +341,12 @@ export class MediaRoutes extends BaseRoutes {
           'Content-Disposition': `inline; filename="${mediaFile.filename}"`,
           'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
           'ETag': `"${id}"`,
-          ...this.buildCorsHeaders()
+          ...this.buildCorsHeaders(),
+          ...(ignoredTransforms.length > 0 && {
+            [TRANSFORM_IGNORED_HEADER]: ignoredTransforms.join(','),
+            // So a frontend on another origin can read it, not only DevTools
+            'Access-Control-Expose-Headers': TRANSFORM_IGNORED_HEADER,
+          })
         },
         body: buffer
       }
