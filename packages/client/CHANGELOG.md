@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.6.1
+
+### Patch Changes
+
+- Updated dependencies [8cfb010]
+  - @trokky/trokky@3.6.1
+
 ## 3.6.0
 
 ### Patch Changes

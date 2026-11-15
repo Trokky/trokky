@@ -1,5 +1,13 @@
 # @trokky/studio
 
+## 3.6.1
+
+### Patch Changes
+
+- 8cfb010: The consent screens label the diagnostics scope "Read site diagnostics (needs permission to view settings)" instead of naming the internal permission, and a checkbox whose label wraps now lines up with the label's first line.
+- Updated dependencies [8cfb010]
+  - @trokky/trokky@3.6.1
+
 ## 3.6.0
 
 ### Patch Changes
