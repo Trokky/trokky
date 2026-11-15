@@ -69,9 +69,13 @@ export function resolveJwtSecretEnvironment(...sources: Array<string | undefined
   return named[0] ?? 'development'
 }
 
-const SET_IT =
-  'Set TROKKY_JWT_SECRET (or whichever variable your trokky.config.ts passes to security.jwtSecret) ' +
-  'to a random value, for example the output of `openssl rand -base64 48`.'
+// Runtime-neutral: a Worker has no trokky.config.ts, and sets its secret with wrangler.
+export const SET_JWT_SECRET =
+  'Set TROKKY_JWT_SECRET to a random value, for example the output of `openssl rand -base64 48`: ' +
+  'in the environment on a server; on Cloudflare Workers, with `npx wrangler secret put ' +
+  'TROKKY_JWT_SECRET` for the deployed Worker and in `.dev.vars` for `wrangler dev`. If your ' +
+  'config passes another variable as the JWT secret, set that one.'
+const SET_IT = SET_JWT_SECRET
 
 export function resolveJwtSecret(options: ResolveJwtSecretOptions): string {
   // Blank counts as unset, but a non-blank key is used byte for byte: trimming it would change

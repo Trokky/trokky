@@ -31,6 +31,18 @@ describe('resolveJwtSecret', () => {
       expect(() => resolve({})).toThrow(/No JWT secret/)
     })
 
+    it('should say how to set the secret on a server and on Workers, naming no config file', () => {
+      for (const configured of [undefined, 'change-me-in-production']) {
+        const error = (() => {
+          try { resolveJwtSecret({ environment: 'production', configured, generate: vi.fn(), warn: vi.fn() }) } catch (e) { return e as Error }
+        })()
+        expect(error?.message).toContain('TROKKY_JWT_SECRET')
+        expect(error?.message).toContain('wrangler secret put')
+        expect(error?.message).toContain('.dev.vars')
+        expect(error?.message).not.toContain('trokky.config.ts')
+      }
+    })
+
     it('should never fall back to a generated key', () => {
       const generate = vi.fn(() => 'generated-random-key')
       expect(() => resolveJwtSecret({ environment: 'production', generate, warn: vi.fn() })).toThrow()
@@ -252,6 +264,6 @@ describe('Express configuration', () => {
 
   it('should still make defineConfig refuse production with no secret at all', () => {
     vi.stubEnv('TROKKY_JWT_SECRET', '')
-    expect(() => defineConfig({ ...base, env: 'production' } as never)).toThrow(/JWT secret/)
+    expect(() => defineConfig({ ...base, env: 'production' } as never)).toThrow(/Set TROKKY_JWT_SECRET to a random value/)
   })
 })
