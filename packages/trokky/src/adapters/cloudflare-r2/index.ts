@@ -1,5 +1,5 @@
 export { CloudflareR2Adapter } from './cloudflare-r2-adapter.js'
-export type { CloudflareR2AdapterConfig, R2MediaRecord } from './types.js'
+export type { CloudflareR2AdapterConfig, R2MediaRecord, R2BucketLike, R2ObjectLike, R2ObjectBodyLike } from './types.js'
 
 // Auto-register in the adapter registry when imported, like the other adapters.
 import { registerAdapter } from '../../core/index.js'
