@@ -7,6 +7,7 @@
 
 import type { ContentSchema, UserRole, TrokkyStorageAdapters, DataStorageAdapter, MediaStorageAdapter, PasskeyConfig } from '../../core/index.js'
 import type { MailAdapter, TemplateRenderer } from '../../mail/index.js'
+import { SET_JWT_SECRET } from '../../core/security/jwt-secret.js'
 import type { Request, Response, NextFunction, Express } from 'express'
 
 // Environment-aware configuration
@@ -892,7 +893,7 @@ export function defineConfig(config: TrokkyConfig): TrokkyConfig {
   
   const env = config.env || process.env.NODE_ENV || 'development'
   if (env === 'production' && !config.security?.jwtSecret && !process.env.TROKKY_JWT_SECRET) {
-    throw new Error('JWT secret is required in production')
+    throw new Error(`No JWT secret, and this is production. ${SET_JWT_SECRET}`)
   }
 
   assertStudioConfigShape(config.studio)
