@@ -22,7 +22,6 @@
  *    `updateFile` must not be able to shadow the real size in the listing index.
  */
 
-import type { R2Bucket, R2Object, R2ObjectBody } from '@cloudflare/workers-types'
 import { InvalidInputError, SecurityValidator, createLogger } from '../../core/index.js'
 import type { MediaFile, MediaMetadata } from '../../core/types/index.js'
 import type {
@@ -31,7 +30,7 @@ import type {
   MediaStorageAdapter,
   MediaVariant
 } from '../../core/types/storage-adapters.js'
-import type { CloudflareR2AdapterConfig, R2MediaRecord } from './types.js'
+import type { CloudflareR2AdapterConfig, R2BucketLike, R2MediaRecord, R2ObjectLike } from './types.js'
 
 /** Matches the filesystem adapter's ceiling, so a file that uploads on one uploads on both. */
 const DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024
@@ -55,7 +54,7 @@ interface IndexEntry {
 }
 
 export class CloudflareR2Adapter implements MediaStorageAdapter {
-  private readonly bucket: R2Bucket
+  private readonly bucket: R2BucketLike
   private readonly prefix: string
   private readonly publicBaseUrl?: string
   private readonly maxFileSize: number
@@ -188,7 +187,7 @@ export class CloudflareR2Adapter implements MediaStorageAdapter {
   public async getFileContent(id: string): Promise<ArrayBuffer | null> {
     SecurityValidator.validateDocumentId(id)
 
-    const object = (await this.bucket.get(this.fileKey(id))) as R2ObjectBody | null
+    const object = (await this.bucket.get(this.fileKey(id)))
     if (!object) return null
     return object.arrayBuffer()
   }
@@ -320,7 +319,7 @@ export class CloudflareR2Adapter implements MediaStorageAdapter {
     SecurityValidator.validateDocumentId(parentId)
     SecurityValidator.validateDocumentId(variantName)
 
-    const object = (await this.bucket.get(this.variantKey(parentId, variantName))) as R2ObjectBody | null
+    const object = (await this.bucket.get(this.variantKey(parentId, variantName)))
     if (!object) return null
     return object.arrayBuffer()
   }
@@ -454,7 +453,7 @@ export class CloudflareR2Adapter implements MediaStorageAdapter {
   }
 
   private async readRecord(id: string): Promise<R2MediaRecord | null> {
-    const object = (await this.bucket.get(this.recordKey(id))) as R2ObjectBody | null
+    const object = (await this.bucket.get(this.recordKey(id)))
     if (!object) return null
 
     const text = await object.text()
@@ -510,8 +509,8 @@ export class CloudflareR2Adapter implements MediaStorageAdapter {
   }
 
   /** Walk every page of a prefix; R2 truncates, and a partial listing would mis-count totals. */
-  private async listAll(prefix: string, includeCustomMetadata = false): Promise<R2Object[]> {
-    const objects: R2Object[] = []
+  private async listAll(prefix: string, includeCustomMetadata = false): Promise<R2ObjectLike[]> {
+    const objects: R2ObjectLike[] = []
     let cursor: string | undefined
 
     do {
