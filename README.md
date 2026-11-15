@@ -2,6 +2,8 @@
 
 > Modern, composable CMS for developers
 
+[![Trokky on StartupScores](https://startupscores.com/badge/trokky.svg?style=shield&v=combo&theme=dark)](https://startupscores.com/open-source/trokky)
+
 Trokky is a TypeScript-native content management system designed as a developer-friendly alternative to Sanity. It provides full type safety from schemas to frontend and a composable architecture with a React-based admin UI. Storage is a choice, not a premise: your content lives in JSON files, in Postgres, or in Cloudflare D1 — on infrastructure you own either way.
 
 ## Packages
