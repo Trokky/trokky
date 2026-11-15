@@ -172,7 +172,7 @@
     "jsonwebtoken": "^9.0.2",
     "qrcode": "^1.5.4",
     "react-i18next": "^15.4.1",
-    "zod": "^3.22.4"
+    "zod": "^4.6.7"
   },
   "optionalDependencies": {
     "nodemailer": "^10.0.1",
