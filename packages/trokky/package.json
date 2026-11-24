@@ -167,7 +167,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "fs-extra": "^11.3.2",
-    "i18next": "^24.2.2",
+    "i18next": "^27.2.7",
     "i18next-browser-languagedetector": "^8.0.4",
     "jsonwebtoken": "^9.0.2",
     "qrcode": "^1.5.4",
